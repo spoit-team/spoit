@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/admin :: head('시설 관리자 · SPO:IT', 'SPO:IT 담당 시설 정보, 예약 운영 일정, 현황과 통계를 관리하는 시설 관리자 화면입니다.', ${ {'admin-schedule.css'} })}"></head>
+<body class="admin-body" data-admin-role="facility" th:attr="data-view=${view}">
+<div class="admin-layout">
+  <aside th:replace="~{fragments/admin :: facilitySidebar('facility-dashboard')}"></aside>
+
+  <main class="admin-main">
+    <header th:replace="~{fragments/admin :: topbar('대시보드', '운영 중')}"></header>
+
+    <div class="admin-content">
+      <p th:if="${message != null}" class="admin-flash" role="status" th:text="${message}">처리 결과</p>
+      <p th:if="${error != null}" class="admin-flash is-error" role="alert" th:text="${error}">요청을 처리하지 못했습니다.</p>
+
+      <!-- 대시보드 -->
+      <section class="admin-view" id="facility-dashboard" data-view-title="대시보드">
+        <div class="page-heading">
+          <div class="page-heading-copy">
+            <div class="page-eyebrow"><span th:text="${scopeName != null ? scopeName : '담당 시설'}">담당 시설</span> · 시설 운영</div>
+            <h1>시설 대시보드</h1>
+            <p>오늘의 매칭방과 현장 요청을 한눈에 확인하세요.</p>
+          </div>
+          <div class="heading-actions">
+            <span class="heading-date" th:text="${todayLabel != null ? todayLabel : ''}">오늘</span>
+            <button class="admin-button primary" type="button" data-open-room-editor>＋ 매칭방 개설</button>
+          </div>
+        </div>
+
+        <div class="metric-grid">
+          <article class="card metric-card"><div class="metric-top"><span>등록된 매칭방</span><span class="metric-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/></svg></span></div><div class="metric-value"><span th:text="${dashboard?.roomCount ?: 0}">0</span><small>개</small></div><div class="metric-foot">담당 시설의 매칭방 수</div></article>
+          <article class="card metric-card"><div class="metric-top"><span>모집 중인 방</span><span class="metric-icon amber"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M3.5 20v-1.5A5.5 5.5 0 0 1 9 13h1a5.5 5.5 0 0 1 5.5 5.5V20M15 14a4.5 4.5 0 0 1 5.5 4.5V20"/></svg></span></div><div class="metric-value"><span th:text="${dashboard?.recruitingCount ?: 0}">0</span><small>개</small></div><div class="metric-foot">정원 도달 시 A/B팀 배정</div></article>
+          <article class="card metric-card"><div class="metric-top"><span>미처리 요청</span><span class="metric-icon red"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H7l-4 2v-6.5A7.5 7.5 0 1 1 20 11.5Z"/><path d="M12 8v4M12 15.5h.01"/></svg></span></div><div class="metric-value"><span th:text="${dashboard?.openRequestCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">담당자 확인이 필요합니다.</div></article>
+          <article class="card metric-card"><div class="metric-top"><span>점검 예정</span><span class="metric-icon green"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 12 4 4L19 6"/><circle cx="12" cy="12" r="9"/></svg></span></div><div class="metric-value"><span th:text="${dashboard?.maintenanceCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">이번 주 정기 점검</div></article>
+        </div>
+
+        <div class="dashboard-grid">
+          <article class="card chart-card">
+            <div class="card-heading"><div><h2>매칭방 시간대별 현황</h2><p>담당 시설 매칭방의 시작 시간대 · 08:00–22:00</p></div><div class="chart-legend"><span class="legend-mark"><i></i>매칭방</span><span class="legend-mark green"><i></i>이용 완료</span></div></div>
+            <div class="bar-chart" id="facility-chart-bars" aria-label="매칭방 시간대별 현황 그래프">
+              <div class="bar-group" th:each="bar : ${dashboard?.hourlyBars}">
+                <div class="bar-pair"><i class="bar" th:style="'height:' + ${bar.roomHeight ?: 0} + '%'"></i><i class="bar secondary" th:style="'height:' + ${bar.completedHeight ?: 0} + '%'"></i></div>
+                <span class="bar-label" th:text="${bar.label}">08시</span>
+              </div>
+            </div>
+            <div class="chart-foot"><span>매칭방 · 이용 완료 방 수</span><span th:text="${chartCollectedAt != null ? '마지막 집계 ' + chartCollectedAt : '서버 집계 기준'}">서버 집계 기준</span></div>
+          </article>
+
+          <article class="card">
+            <div class="card-heading"><div><h2>최근 요청</h2><p>확인이 필요한 시설 이용 요청</p></div><a class="card-heading-link" th:href="@{/admin/facility(view='requests')} + '#facility-requests'">전체 보기 →</a></div>
+            <div class="activity-list">
+              <div th:each="item : ${dashboard?.recentRequests}" class="activity-item"><i class="activity-marker" th:classappend="${item.tone}"></i><div class="activity-copy"><b th:text="${item.title}">요청 제목</b><small th:text="${item.meta}">요청 정보</small></div><time class="activity-time" th:text="${item.time}">시간</time></div>
+              <p th:if="${#lists.isEmpty(dashboard?.recentRequests)}" class="table-empty">최근 접수된 요청이 없습니다.</p>
+            </div>
+          </article>
+        </div>
+
+        <div class="section-heading"><div class="section-title-wrap"><h2>최근 매칭방</h2><p>시설 관리자가 개설한 매칭방의 참가 현황을 한 행에서 확인합니다.</p></div><a class="admin-button small" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">매칭방 전체 보기 →</a></div>
+        <div class="card"><div class="table-scroll"><table class="admin-table"><thead><tr><th>방 번호·이름</th><th>시설·종목</th><th>참여 현황</th><th>이용 일시</th><th>방 상태</th><th>관리</th></tr></thead><tbody>
+          <tr th:each="room : ${dashboard?.recentRooms}">
+            <td><span class="cell-primary" th:text="${room.id}">방 번호</span><span class="cell-secondary" th:text="${room.title}">방 이름</span></td>
+            <td><span th:text="${room.facilityName}">시설</span><small class="cell-secondary" th:text="${room.sportName}">종목</small></td>
+            <td th:text="${room.participation}">0 / 0명</td>
+            <td th:text="${room.dateLabel}">일시</td>
+            <td><span class="status-badge" th:classappend="${room.statusTone}" th:text="${room.statusLabel}">상태</span></td>
+            <td><a class="table-link" th:href="@{/admin/operations(room=${room.id})}">운영</a></td>
+          </tr>
+          <tr th:if="${#lists.isEmpty(dashboard?.recentRooms)}"><td class="table-empty" colspan="6">등록된 매칭방이 없습니다.</td></tr>
+        </tbody></table></div></div>
+      </section>
+
+      <!-- 시설·공간 관리 -->
+      <section class="admin-view" id="facility-assets" data-view-title="시설·공간 관리" hidden>
+        <div class="page-heading">
+          <div class="page-heading-copy"><div class="page-eyebrow">시설 운영 · 소속 시설 한정</div><h1>시설·공간 관리</h1><p>담당 시설의 위치, 이용 종목, 수용 인원, 대관 가능 구역과 운영 상태를 관리합니다.</p></div>
+          <div class="heading-actions"><button class="admin-button primary" type="button" data-open-facility>＋ 시설 등록</button></div>
+        </div>
+        <div class="notice-strip"><strong>관리 권한 범위</strong><p>로그인한 시설 관리자에게 권한이 부여된 시설·공간만 표시됩니다. 다른 기관의 시설은 조회하거나 수정할 수 없으며, 서버가 권한을 확인합니다.</p></div>
+        <div class="section-heading"><div class="section-title-wrap"><h2>담당 시설 목록</h2><p><b th:text="${#lists.size(facilities)}">0</b>개 시설</p></div></div>
+        <div class="card"><div class="table-scroll"><table class="admin-table"><thead><tr><th>시설명</th><th>위치</th><th>이용 종목</th><th>수용 인원</th><th>대관 가능 구역</th><th>운영 상태</th><th>관리</th></tr></thead><tbody>
+          <tr th:each="facility : ${facilities}">
+            <td><span class="cell-primary" th:text="${facility.name}">시설명</span></td>
+            <td th:text="${facility.address}">주소</td>
+            <td th:text="${facility.sportsLabel}">종목</td>
+            <td th:text="${facility.capacity + '명'}">0명</td>
+            <td th:text="${facility.zoneCount + '구역'}">0구역</td>
+            <td><span class="status-badge" th:classappend="${facility.statusTone}" th:text="${facility.statusLabel}">상태</span></td>
+            <td><button class="table-link" type="button" data-edit-facility th:attr="data-facility-id=${facility.id},data-facility-name=${facility.name},data-facility-address=${facility.address},data-facility-sports=${facility.sportsLabel},data-facility-capacity=${facility.capacity},data-facility-zones=${facility.zoneCount},data-facility-status=${facility.statusLabel}">수정</button></td>
+          </tr>
+          <tr th:if="${#lists.isEmpty(facilities)}"><td class="table-empty" colspan="7">등록된 시설이 없습니다.</td></tr>
+        </tbody></table></div></div>
+      </section>
+
+      <!-- 예약 운영 일정 -->
+      <section class="admin-view" id="facility-schedule" data-view-title="예약 운영 일정" hidden>
+        <div class="page-heading">
+          <div class="page-heading-copy"><div class="page-eyebrow">시설 운영 · 예약 조건</div><h1>예약 운영 일정</h1><p>예약 가능 시간, 최대 참가 인원과 휴관·점검에 따른 변경 일정을 설정합니다.</p></div>
+          <div class="heading-actions">
+            <form method="get" th:action="@{/admin/facility}" class="schedule-facility-form">
+              <input type="hidden" name="view" value="schedule" />
+              <label class="sr-only" for="schedule-facility-select">운영 시설 선택</label>
+              <select class="field-control" id="schedule-facility-select" name="facility" onchange="this.form.submit()">
+                <option th:each="facility : ${facilities}" th:value="${facility.id}" th:text="${facility.name}" th:selected="${selectedFacility?.id == facility.id}">시설</option>
+              </select>
+              <noscript><button class="admin-button small" type="submit">적용</button></noscript>
+            </form>
+          </div>
+        </div>
+
+        <div class="schedule-card">
+          <div class="toolbar"><div class="tabs" role="tablist" aria-label="예약 운영 설정"><button type="button" role="tab" data-schedule-tab="schedule-hours" aria-selected="true">예약 시간</button><button type="button" role="tab" data-schedule-tab="schedule-conditions" aria-selected="false">모집 조건</button><button type="button" role="tab" data-schedule-tab="schedule-changes" aria-selected="false">운영 변경 일정</button></div></div>
+
+          <section class="admin-panel schedule-panel" id="schedule-hours" data-schedule-panel>
+            <div class="schedule-panel-heading"><div><h2>요일별 예약 가능 시간</h2><p>운영하지 않는 요일은 체크를 해제하세요.</p></div><span class="schedule-duration">예약 단위 <strong>1시간</strong></span></div>
+            <form id="weekly-hours-form" method="post" th:action="@{/admin/facility/schedule/weekly}">
+              <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+              <input type="hidden" name="facilityId" th:value="${selectedFacility?.id}" />
+              <div class="table-scroll"><table class="admin-table schedule-table"><thead><tr><th>운영 요일</th><th>시작 시간</th><th>종료 시간</th><th>상태</th></tr></thead><tbody>
+                <tr th:each="row : ${weeklyHours}">
+                  <td><label class="day-checkbox"><input type="checkbox" name="openDays" th:value="${row.day}" th:checked="${row.open}" /><span th:text="${row.dayLabel}">월요일</span></label></td>
+                  <td><select class="schedule-hour-select" th:name="${'start-' + row.day}" th:attr="aria-label=${row.dayLabel + ' 시작 시간'}" th:disabled="${!row.open}"><option th:each="hour : ${hourOptions}" th:value="${hour}" th:text="${hour}" th:selected="${row.start == hour}">06:00</option></select></td>
+                  <td><select class="schedule-hour-select" th:name="${'end-' + row.day}" th:attr="aria-label=${row.dayLabel + ' 종료 시간'}" th:disabled="${!row.open}"><option th:each="hour : ${hourOptions}" th:value="${hour}" th:text="${hour}" th:selected="${row.end == hour}">22:00</option></select></td>
+                  <td><span class="status-badge" data-weekly-hours-status th:classappend="${row.open} ? 'good' : 'neutral'" th:text="${row.open ? '예약 가능' : '휴무'}">상태</span></td>
+                </tr>
+              </tbody></table></div>
+              <div class="schedule-actions"><span class="inline-state">저장 시 예약 가능 시간에 반영됩니다.</span><button class="admin-button primary" type="submit">운영 시간 저장</button></div>
+            </form>
+
+            <div class="date-schedule-section">
+              <div class="schedule-panel-heading date-schedule-heading"><div><h2>날짜별 예약 시간</h2><p>예약 가능 시간을 1시간 단위로 선택하세요. 각 칸을 여러 개 선택하거나 해제할 수 있습니다.</p></div><div class="calendar-month-nav"><a class="admin-button small" th:href="@{${calendar?.prevUrl}}" aria-label="이전 달">‹</a><strong id="date-calendar-month" th:text="${calendar?.monthLabel}">월</strong><a class="admin-button small" th:href="@{${calendar?.nextUrl}}" aria-label="다음 달">›</a></div></div>
+              <div class="date-schedule-layout">
+                <div class="date-calendar-panel">
+                  <div class="date-calendar-weekdays" aria-hidden="true"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+                  <div class="date-calendar" id="date-schedule-calendar" role="group" aria-label="날짜 선택">
+                    <a th:each="day : ${calendar?.days}" class="date-calendar-day" th:classappend="${(day.outsideMonth ? 'outside-month ' : '') + (day.selected ? 'is-current ' : '') + (day.blocked ? 'has-closure' : '')}" th:href="@{${day.url}}" th:aria-label="${day.ariaLabel}" th:aria-current="${day.selected ? 'date' : null}">
+                      <span th:text="${day.day}">1</span>
+                      <span th:if="${day.customLabel != null}" class="calendar-day-badge" th:text="${day.customLabel}">시간 지정</span>
+                      <span th:if="${day.closedLabel != null}" class="calendar-day-badge" th:text="${day.closedLabel}">휴관</span>
+                    </a>
+                  </div>
+                  <div class="date-calendar-legend"><span><i class="calendar-legend-dot selected"></i>날짜별 시간 지정</span><span><i class="calendar-legend-dot blocked"></i>운영 변경 차단</span></div>
+                </div>
+
+                <form class="date-schedule-editor" method="post" th:action="@{/admin/facility/schedule/date}">
+                  <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                  <input type="hidden" name="facilityId" th:value="${selectedFacility?.id}" />
+                  <input type="hidden" name="date" th:value="${calendar?.date}" />
+                  <div class="date-editor-heading"><div><h3 id="date-schedule-selected-label" th:text="${calendar?.dateLabel != null ? calendar.dateLabel : '날짜를 선택해 주세요'}">날짜 선택</h3><p id="date-schedule-source" th:text="${calendar?.sourceLabel != null ? calendar.sourceLabel : '주간 운영 시간을 기준으로 표시합니다.'}">주간 운영 시간 기준</p></div><span class="status-badge neutral" id="date-schedule-count" th:text="${(calendar?.selectedCount ?: 0) + '시간 선택'}">0시간 선택</span></div>
+                  <div class="date-hour-grid" id="date-schedule-hour-grid" role="group" aria-label="1시간 단위 예약 가능 시간">
+                    <label th:each="slot : ${calendar?.hourSlots}" class="hour-slot" th:classappend="${(slot.selected ? 'is-selected ' : '') + (slot.blocked ? 'is-blocked' : '')}" th:attr="title=${slot.title}">
+                      <input type="checkbox" name="hours" th:value="${slot.time}" th:checked="${slot.selected}" th:disabled="${slot.disabled}" />
+                      <span th:text="${slot.time}">06:00</span>
+                      <small th:if="${slot.blockedLabel != null}" th:text="${slot.blockedLabel}">차단</small>
+                    </label>
+                  </div>
+                  <div class="date-schedule-ranges"><b>선택 시간대</b><span id="date-schedule-ranges" th:text="${calendar?.rangesText != null ? calendar.rangesText : '선택된 시간이 없습니다.'}">선택된 시간이 없습니다.</span></div>
+                  <div class="form-field date-schedule-note"><label for="date-schedule-note">날짜별 안내</label><input id="date-schedule-note" name="note" type="text" placeholder="특정 날짜에만 표시할 안내 (선택)" th:value="${calendar?.note}" /></div>
+                  <div class="date-schedule-actions"><span class="inline-state">변경은 서버에 저장됩니다.</span><button class="admin-button primary small" type="submit">선택 시간 저장</button></div>
+                  <div class="date-availability-preview" id="date-schedule-availability" aria-live="polite" th:text="${calendar?.availabilityText}"></div>
+                </form>
+              </div>
+            </div>
+          </section>
+
+          <section class="admin-panel schedule-panel" id="schedule-conditions" data-schedule-panel hidden>
+            <div class="schedule-panel-heading"><div><h2>모집·예약 조건</h2><p>종목별 최대 참가 인원과 신청 마감 조건을 설정합니다.</p></div></div>
+            <form id="conditions-form" class="condition-form" method="post" th:action="@{/admin/facility/schedule/conditions}">
+              <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+              <input type="hidden" name="facilityId" th:value="${selectedFacility?.id}" />
+              <div class="form-grid">
+                <div class="form-field"><label for="condition-sport">이용 종목</label><select id="condition-sport" name="sport"><option th:each="sport : ${sports}" th:value="${sport.id}" th:text="${sport.name}" th:selected="${conditions?.sport == sport.id}">종목</option></select></div>
+                <div class="form-field"><label for="condition-capacity">최대 참가 인원</label><input id="condition-capacity" name="capacity" type="number" min="2" max="200" required th:value="${conditions?.capacity}" /></div>
+                <div class="form-field"><label for="condition-deadline">모집 마감</label><select id="condition-deadline" name="deadline"><option value="1" th:selected="${conditions?.deadline == 1}">이용 1시간 전</option><option value="3" th:selected="${conditions?.deadline == 3}">이용 3시간 전</option><option value="6" th:selected="${conditions?.deadline == 6}">이용 6시간 전</option><option value="24" th:selected="${conditions?.deadline == 24}">이용 하루 전</option></select></div>
+                <div class="form-field full"><label for="condition-note">참가 안내</label><textarea id="condition-note" name="note" placeholder="참가자에게 표시할 준비물이나 이용 안내를 입력하세요." th:text="${conditions?.note}">참가 안내</textarea></div>
+              </div>
+              <div class="schedule-actions"><span class="inline-state">조건은 선택한 시설의 신규 예약에 적용됩니다.</span><button class="admin-button primary" type="submit">모집 조건 저장</button></div>
+            </form>
+          </section>
+
+          <section class="admin-panel schedule-panel" id="schedule-changes" data-schedule-panel hidden>
+            <div class="schedule-panel-heading"><div><h2>휴관·운영 변경 일정</h2><p>점검 또는 행사로 예약이 불가능한 날짜와 시간대를 등록합니다.</p></div></div>
+            <form id="closure-form" class="closure-form" method="post" th:action="@{/admin/facility/schedule/closures}">
+              <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+              <input type="hidden" name="facilityId" th:value="${selectedFacility?.id}" />
+              <div class="form-field"><label for="closure-date">날짜</label><input id="closure-date" name="date" type="date" required /></div>
+                <div class="form-field"><label for="closure-start">시작 시간</label><select id="closure-start" class="field-control schedule-hour-select" name="start" required><option value="" selected disabled>시작 시간 선택</option><option th:each="hour : ${hourOptions}" th:value="${hour}" th:text="${hour}">시간</option></select></div>
+                <div class="form-field"><label for="closure-end">종료 시간</label><select id="closure-end" class="field-control schedule-hour-select" name="end" required><option value="" selected disabled>종료 시간 선택</option><option th:each="hour : ${hourOptions}" th:value="${hour}" th:text="${hour}">시간</option></select></div>
+              <div class="form-field"><label for="closure-reason">변경 사유</label><input id="closure-reason" name="reason" placeholder="변경 사유를 입력하세요." required /></div>
+              <button class="admin-button primary" type="submit">일정 등록</button>
+            </form>
+            <div class="notice-strip"><strong>예약 반영</strong><p>점검·휴관 일정은 날짜와 시작·종료 시각으로 등록합니다. 해당 구간과 겹치는 예약 가능 블록만 차단하고, 겹치는 예약에는 운영 변경 안내를 표시합니다.</p></div>
+            <div class="table-scroll"><table class="admin-table"><thead><tr><th>일자</th><th>시설</th><th>변경 시간</th><th>사유</th><th>상태</th><th>관리</th></tr></thead><tbody>
+              <tr th:each="closure : ${closures}">
+                <td th:text="${closure.dateLabel}">일자</td>
+                <td th:text="${closure.facilityName}">시설</td>
+                <td th:text="${closure.timeRange}">시간</td>
+                <td th:text="${closure.reason}">사유</td>
+                <td><span class="status-badge" th:classappend="${closure.statusTone}" th:text="${closure.statusLabel}">상태</span></td>
+                <td><form method="post" th:action="@{/admin/facility/schedule/closures/{id}/cancel(id=${closure.id})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button class="table-link" type="submit">취소</button></form></td>
+              </tr>
+              <tr th:if="${#lists.isEmpty(closures)}"><td class="table-empty" colspan="6">등록된 운영 변경 일정이 없습니다.</td></tr>
+            </tbody></table></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- 매칭방 관리 -->
+      <section class="admin-view" id="facility-bookings" data-view-title="매칭방 관리" hidden>
+        <div class="page-heading">
+          <div class="page-heading-copy"><div class="page-eyebrow">매칭방 관리</div><h1>매칭방 관리</h1><p>참가 인원과 확정 대기 신청을 확인하고, 정원이 차면 서버가 자동 배정한 A·B팀을 확인합니다. 정원 초과 신청은 접수하지 않습니다.</p></div>
+          <div class="heading-actions"><button class="admin-button primary" type="button" data-open-room-editor>＋ 매칭방 생성</button></div>
+        </div>
+        <div class="card">
+          <form class="toolbar" method="get" th:action="@{/admin/facility}">
+            <input type="hidden" name="view" value="bookings" />
+            <label class="search-control"><span aria-hidden="true">⌕</span><input id="booking-search" name="q" type="search" placeholder="방 번호, 방 이름, 시설, 주최자 검색" th:value="${bookingFilters?.q}" /></label>
+            <select class="field-control" id="booking-status-filter" name="status" aria-label="방 상태 필터"><option value="all">전체 방 상태</option><option value="recruiting" th:selected="${bookingFilters?.status == 'recruiting'}">모집 중</option><option value="matched" th:selected="${bookingFilters?.status == 'matched'}">팀 배정 완료</option><option value="completed" th:selected="${bookingFilters?.status == 'completed'}">이용 완료</option><option value="cancelled" th:selected="${bookingFilters?.status == 'cancelled'}">취소</option></select>
+            <select class="field-control" id="booking-sport-filter" name="sport" aria-label="종목 필터"><option value="all">전체 종목</option><option th:each="sport : ${sports}" th:value="${sport.id}" th:text="${sport.name}" th:selected="${bookingFilters?.sport == sport.id}">종목</option></select>
+            <span class="toolbar-spacer"></span>
+            <button class="admin-button small" type="submit">검색</button>
+            <a class="admin-button small" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">초기화</a>
+          </form>
+          <div class="result-meta"><b th:text="${#lists.size(rooms)}">0</b>개의 매칭방</div>
+          <div class="table-scroll"><table class="admin-table"><thead><tr><th>방 번호·이름</th><th>시설·종목</th><th>참여 현황</th><th>이용 일시</th><th>방 상태</th><th>관리</th></tr></thead><tbody>
+            <tr th:each="room : ${rooms}">
+              <td><span class="cell-primary" th:text="${room.id}">방 번호</span><span class="cell-secondary" th:text="${room.title}">방 이름</span></td>
+              <td><span th:text="${room.facilityName}">시설</span><small class="cell-secondary" th:text="${room.sportName}">종목</small></td>
+              <td th:text="${room.participation}">0 / 0명</td>
+              <td th:text="${room.dateLabel}">일시</td>
+              <td><span class="status-badge" th:classappend="${room.statusTone}" th:text="${room.statusLabel}">상태</span></td>
+              <td><a class="table-link" th:href="@{/admin/operations(room=${room.id})}">운영</a></td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(rooms)}"><td class="table-empty" colspan="6">조건에 맞는 매칭방이 없습니다.</td></tr>
+          </tbody></table></div>
+          <div class="table-footer"><span>매칭방별 시설 예약</span><span>참가자 내역은 매치 운영 화면에서 확인합니다.</span></div>
+        </div>
+      </section>
+
+      <!-- 예약 통계 -->
+      <section class="admin-view" id="facility-stats" data-view-title="예약 통계" hidden>
+        <div class="page-heading">
+          <div class="page-heading-copy"><div class="page-eyebrow">시설 운영 · 성과 분석</div><h1>예약 통계</h1><p>담당 시설의 예약량과 인기 요일·시간대를 확인합니다.</p></div>
+          <form class="heading-actions" method="get" th:action="@{/admin/facility}">
+            <input type="hidden" name="view" value="stats" />
+            <label class="sr-only" for="facility-stats-facility">통계 시설</label>
+            <select class="field-control" id="facility-stats-facility" name="facility"><option th:each="facility : ${facilities}" th:value="${facility.id}" th:text="${facility.name}" th:selected="${selectedFacility?.id == facility.id}">시설</option></select>
+            <label class="sr-only" for="facility-stats-period">통계 기간</label>
+            <select class="field-control" id="facility-stats-period" name="period"><option value="7" th:selected="${stats?.period == 7}">최근 7일</option><option value="30" th:selected="${stats?.period == 30}">최근 30일</option><option value="90" th:selected="${stats?.period == 90}">최근 90일</option></select>
+            <button class="admin-button small" type="submit">조회</button>
+          </form>
+        </div>
+        <div class="metric-grid stats-metrics">
+          <article class="card metric-card"><div class="metric-top">매칭방 수</div><div class="metric-value"><span th:text="${stats?.bookingCount ?: 0}">0</span><small>개</small></div><div class="metric-foot">선택한 기간 · 취소 제외</div></article>
+          <article class="card metric-card"><div class="metric-top">현재 참가 인원</div><div class="metric-value"><span th:text="${stats?.participantCount ?: 0}">0</span><small>명</small></div><div class="metric-foot">시설 관리자 제외 · 매칭방 참가자 합계</div></article>
+          <article class="card metric-card"><div class="metric-top">가장 인기 있는 요일</div><div class="metric-value" th:text="${stats?.popularDay ?: '—'}">—</div><div class="metric-foot">예약 집중 시간 <span th:text="${stats?.peakTime ?: '—'}">—</span></div></article>
+        </div>
+        <div class="dashboard-grid equal stats-detail-grid">
+          <article class="card"><div class="card-heading"><div><h2>요일별 매칭방 비중</h2><p>최근 <span th:text="${stats?.periodLabel ?: '30일'}">30일</span> 생성된 매칭방의 이용 요일 분포</p></div></div><div class="weekday-chart" aria-label="요일별 매칭방 비중"><div class="weekday-row" th:each="weekday : ${stats?.weekdays}"><span th:text="${weekday.label}">월</span><div class="progress-track"><i class="progress-fill" th:classappend="${weekday.tone}" th:style="'width:' + ${weekday.percent ?: 0} + '%'"></i></div><b class="weekday-value" th:text="${(weekday.percent ?: 0) + '%'}">0%</b></div></div></article>
+          <article class="card"><div class="card-heading"><div><h2>인기 예약 시간대</h2><p>선택 기간에 생성된 방 수 기준</p></div></div><div class="popular-hours-chart" id="facility-stat-hours-chart" aria-label="인기 시간대별 매칭방 그래프"><div class="popular-hour-row" th:each="hour : ${stats?.popularHours}"><div class="popular-hour-header"><span><b th:text="${hour.label}">시간</b></span><strong th:text="${hour.count + '개 방'}">0개 방</strong></div><div class="popular-hour-track" role="img" th:attr="aria-label=${hour.label + ' 매칭방 ' + hour.count + '개'}"><i th:style="'width:' + ${hour.height ?: 0} + '%'"></i></div></div><p th:if="${#lists.isEmpty(stats?.popularHours)}" class="table-empty">집계된 예약 시간대가 없습니다.</p></div></article>
+        </div>
+        <div class="notice-strip"><strong>통계 기준</strong><p>선택 기간에 생성된 매칭방 중 취소된 방을 제외해 집계합니다. 서버 집계 결과가 없으면 빈 상태로 표시합니다.</p></div>
+      </section>
+
+      <!-- 민원·요청 -->
+      <section class="admin-view" id="facility-requests" data-view-title="민원·요청" hidden>
+        <div class="page-heading">
+          <div class="page-heading-copy"><div class="page-eyebrow">현장 운영</div><h1>민원·요청</h1><p>이용 문의와 시설 요청을 확인하고 담당자 및 처리 상태를 관리합니다.</p></div>
+          <div class="heading-actions"><a class="admin-button" th:href="@{/admin/facility/requests/export}">↓ 내보내기</a></div>
+        </div>
+        <div class="metric-grid">
+          <article class="card metric-card"><div class="metric-top">미처리</div><div class="metric-value"><span th:text="${requestMetrics?.openCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">담당자 확인이 필요합니다.</div></article>
+          <article class="card metric-card"><div class="metric-top">처리 중</div><div class="metric-value"><span th:text="${requestMetrics?.inProgressCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">진행 중인 요청</div></article>
+          <article class="card metric-card"><div class="metric-top">이번 달 완료</div><div class="metric-value"><span th:text="${requestMetrics?.completedCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">처리 완료 기준</div></article>
+          <article class="card metric-card"><div class="metric-top">평균 응답</div><div class="metric-value"><span th:text="${requestMetrics?.averageResponse ?: '—'}">—</span><small>시간</small></div><div class="metric-foot">목표 응답 4시간 이내</div></article>
+        </div>
+        <div class="section-heading"><div class="section-title-wrap"><h2>요청 목록</h2><p>접수된 시간순으로 표시합니다.</p></div></div>
+        <div class="card">
+          <form class="toolbar" method="get" th:action="@{/admin/facility}">
+            <input type="hidden" name="view" value="requests" />
+            <label class="search-control"><span aria-hidden="true">⌕</span><input name="q" type="search" placeholder="요청 내용, 접수자 검색" th:value="${requestFilters?.q}" /></label>
+            <select class="field-control" name="status" aria-label="요청 상태"><option value="all">전체 상태</option><option value="open" th:selected="${requestFilters?.status == 'open'}">접수</option><option value="in-progress" th:selected="${requestFilters?.status == 'in-progress'}">확인 중</option><option value="done" th:selected="${requestFilters?.status == 'done'}">처리 완료</option></select>
+            <button class="admin-button small" type="submit">검색</button>
+          </form>
+          <div class="table-scroll"><table class="admin-table"><thead><tr><th>요청 내용</th><th>접수자</th><th>접수 시각</th><th>담당자</th><th>상태</th><th>관리</th></tr></thead><tbody>
+            <tr th:each="request : ${requests}">
+              <td><span class="cell-primary" th:text="${request.summary}">요청 내용</span></td>
+              <td th:text="${request.requester}">접수자</td>
+              <td th:text="${request.receivedAt}">접수 시각</td>
+              <td th:text="${request.owner != null ? request.owner : '미지정'}">담당자</td>
+              <td><span class="status-badge" th:classappend="${request.statusTone}" th:text="${request.statusLabel}">상태</span></td>
+              <td><form method="post" class="inline-action-form" th:action="@{/admin/facility/requests/{id}/status(id=${request.id})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><select class="field-control" name="status" th:attr="aria-label=${request.summary + ' 처리 상태'}"><option value="open" th:selected="${request.status == 'open'}">접수</option><option value="in-progress" th:selected="${request.status == 'in-progress'}">확인 중</option><option value="done" th:selected="${request.status == 'done'}">처리 완료</option></select><button class="admin-button small" type="submit">저장</button></form></td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(requests)}"><td class="table-empty" colspan="6">접수된 요청이 없습니다.</td></tr>
+          </tbody></table></div>
+        </div>
+      </section>
+
+      <!-- 점검·유지보수 -->
+      <section class="admin-view" id="facility-maintenance" data-view-title="점검·유지보수" hidden>
+        <div class="page-heading">
+          <div class="page-heading-copy"><div class="page-eyebrow">시설 운영</div><h1>점검·유지보수</h1><p>정기 점검 일정과 시설 보수 이력을 기록합니다.</p></div>
+          <div class="heading-actions"><button class="admin-button primary" type="button" data-open-maintenance>＋ 점검 일지 등록</button></div>
+        </div>
+        <div class="metric-grid">
+          <article class="card metric-card"><div class="metric-top">이번 주 점검 예정</div><div class="metric-value"><span th:text="${maintenanceMetrics?.scheduledCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">예정된 점검</div></article>
+          <article class="card metric-card"><div class="metric-top">진행 중</div><div class="metric-value"><span th:text="${maintenanceMetrics?.inProgressCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">담당자 확인</div></article>
+          <article class="card metric-card"><div class="metric-top">완료 · 이번 달</div><div class="metric-value"><span th:text="${maintenanceMetrics?.completedCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">완료 처리 기준</div></article>
+          <article class="card metric-card"><div class="metric-top">조치 필요</div><div class="metric-value"><span th:text="${maintenanceMetrics?.actionNeededCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">보수 또는 재점검 필요</div></article>
+        </div>
+        <div class="section-heading"><div class="section-title-wrap"><h2>점검 일지</h2><p>기록을 선택하면 상세 내용과 처리 이력을 확인할 수 있습니다.</p></div>
+          <form method="get" th:action="@{/admin/facility}"><input type="hidden" name="view" value="maintenance" /><select class="field-control" name="status" aria-label="점검 상태" onchange="this.form.submit()"><option value="all">전체 상태</option><option value="scheduled" th:selected="${maintenanceFilters?.status == 'scheduled'}">예정</option><option value="in-progress" th:selected="${maintenanceFilters?.status == 'in-progress'}">진행 중</option><option value="completed" th:selected="${maintenanceFilters?.status == 'completed'}">완료</option><option value="action-needed" th:selected="${maintenanceFilters?.status == 'action-needed'}">조치 필요</option></select><noscript><button class="admin-button small" type="submit">적용</button></noscript></form>
+        </div>
+        <div class="card"><div class="table-scroll"><table class="admin-table"><thead><tr><th>점검 일시</th><th>시설·공간</th><th>점검 항목</th><th>담당자</th><th>상태</th><th>상세</th></tr></thead><tbody>
+          <tr th:each="entry : ${maintenance}">
+            <td th:text="${entry.dateLabel}">일시</td>
+            <td th:text="${entry.area}">시설</td>
+            <td th:text="${entry.category}">항목</td>
+            <td th:text="${entry.owner}">담당자</td>
+            <td><span class="status-badge" th:classappend="${entry.statusTone}" th:text="${entry.statusLabel}">상태</span></td>
+            <td><details class="table-detail"><summary>보기</summary><p th:text="${entry.result}">점검 결과</p></details></td>
+          </tr>
+          <tr th:if="${#lists.isEmpty(maintenance)}"><td class="table-empty" colspan="6">등록된 점검 일지가 없습니다.</td></tr>
+        </tbody></table></div></div>
+      </section>
+
+      <!-- 공지·이용 수칙 -->
+      <section class="admin-view" id="facility-content" data-view-title="공지·이용 수칙" hidden>
+        <div class="page-heading">
+          <div class="page-heading-copy"><div class="page-eyebrow">시설 정보</div><h1>공지·이용 수칙</h1><p>시설 이용자에게 표시되는 공지와 운영 수칙을 관리합니다.</p></div>
+          <div class="heading-actions"><button class="admin-button primary" type="button" disabled title="콘텐츠 편집 API 연동 후 사용할 수 있습니다.">＋ 콘텐츠 작성</button></div>
+        </div>
+        <div class="card">
+          <div class="toolbar"><div class="tabs" role="tablist" aria-label="콘텐츠 유형"><button type="button" role="tab" data-content-tab="facility-notices" aria-selected="true">공지사항</button><button type="button" role="tab" data-content-tab="facility-rules" aria-selected="false">시설 이용 수칙</button></div><span class="toolbar-spacer"></span><select class="field-control" aria-label="게시 상태"><option>전체 게시 상태</option><option>게시 중</option><option>임시 저장</option></select></div>
+          <div class="admin-panel" id="facility-notices"><div class="table-scroll"><table class="admin-table"><thead><tr><th>제목</th><th>게시 상태</th><th>노출 기간</th><th>작성자</th><th>수정 일시</th><th>관리</th></tr></thead><tbody>
+            <tr th:each="notice : ${notices}"><td><span class="cell-primary" th:text="${notice.title}">공지 제목</span></td><td><span class="status-badge" th:classappend="${notice.statusTone}" th:text="${notice.statusLabel}">상태</span></td><td th:text="${notice.periodLabel}">기간</td><td th:text="${notice.author}">작성자</td><td th:text="${notice.updatedAt}">수정 일시</td><td><button class="table-link" type="button" disabled title="공지 편집 API 연동 후 사용할 수 있습니다.">편집</button></td></tr>
+            <tr th:if="${#lists.isEmpty(notices)}"><td class="table-empty" colspan="6">등록된 공지가 없습니다.</td></tr>
+          </tbody></table></div></div>
+          <div class="admin-panel" id="facility-rules" hidden><div class="table-scroll"><table class="admin-table"><thead><tr><th>이용 수칙</th><th>분류</th><th>게시 상태</th><th>최근 수정</th><th>관리</th></tr></thead><tbody>
+            <tr th:each="rule : ${rules}"><td><span class="cell-primary" th:text="${rule.title}">이용 수칙</span></td><td th:text="${rule.category}">분류</td><td><span class="status-badge" th:classappend="${rule.statusTone}" th:text="${rule.statusLabel}">상태</span></td><td th:text="${rule.updatedAt}">수정 일시</td><td><button class="table-link" type="button" disabled title="이용 수칙 편집 API 연동 후 사용할 수 있습니다.">편집</button></td></tr>
+            <tr th:if="${#lists.isEmpty(rules)}"><td class="table-empty" colspan="5">등록된 이용 수칙이 없습니다.</td></tr>
+          </tbody></table></div></div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div th:replace="~{fragments/admin :: notificationModal('시설 알림', '담당 시설의 요청과 운영 알림을 확인합니다.')}"></div>
+
+<!-- 매칭방 개설 -->
+<div class="modal-backdrop" id="room-editor-modal" hidden>
+  <section class="admin-modal wide" role="dialog" aria-modal="true" aria-labelledby="room-editor-title">
+    <div class="modal-header"><div><h2 id="room-editor-title">매칭방 생성</h2><p>담당 시설의 운영 시간에 맞춰 매칭방을 개설합니다. 연속된 1시간 블록을 선택하세요.</p></div><button class="modal-close" type="button" data-close-room-editor aria-label="닫기">×</button></div>
+    <form id="room-editor-form" method="post" th:action="@{/admin/rooms}">
+      <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-field"><label for="room-editor-facility">담당 시설</label><select id="room-editor-facility" name="facilityId" required><option th:each="facility : ${facilities}" th:value="${facility.id}" th:text="${facility.name}" th:selected="${selectedFacility?.id == facility.id}">시설</option></select></div>
+          <div class="form-field"><label for="room-editor-sport">종목</label><select id="room-editor-sport" name="sport" required><option th:each="sport : ${sports}" th:value="${sport.id}" th:text="${sport.name}">종목</option></select></div>
+          <div class="form-field"><label for="room-editor-title-input">방 이름</label><input id="room-editor-title-input" name="title" maxlength="70" placeholder="매칭방 이름을 입력하세요." required /></div>
+          <div class="form-field"><label for="room-editor-date">이용 날짜</label><input id="room-editor-date" name="date" type="date" required /></div>
+          <div class="form-field full"><div class="room-editor-section-label"><strong>예약 시간</strong><span>1시간 블록을 선택하세요. 연속된 시간만 한 방으로 예약됩니다.</span></div><div class="room-hour-grid" id="room-editor-hour-grid" role="group" aria-label="1시간 예약 블록">
+            <label th:each="slot : ${roomEditorHourSlots}" class="room-hour-slot" th:classappend="${slot.disabled} ? 'is-unavailable' : ''">
+              <input type="checkbox" name="hours" th:value="${slot.time}" th:disabled="${slot.disabled}" />
+              <strong th:text="${slot.time}">06:00</strong>
+              <small th:text="${slot.label != null ? slot.label : '예약 가능'}">예약 가능</small>
+            </label>
+          </div><p class="room-editor-time-summary" id="room-editor-time-summary" aria-live="polite">시간대를 선택해 주세요.</p></div>
+          <div class="form-field"><label for="room-editor-team-a">A팀 정원</label><input id="room-editor-team-a" name="teamASeats" type="number" min="1" max="30" required /></div>
+          <div class="form-field"><label for="room-editor-team-b">B팀 정원</label><input id="room-editor-team-b" name="teamBSeats" type="number" min="1" max="30" required /></div>
+          <div class="form-field full"><p class="room-editor-capacity-hint" id="room-editor-capacity-hint"></p></div>
+          <div class="form-field"><label for="room-editor-fee">참가비 (1인)</label><input id="room-editor-fee" name="fee" type="number" min="0" step="500" required /></div>
+          <div class="form-field"><label for="room-editor-level">실력 수준</label><select id="room-editor-level" name="level"><option value="all">모든 실력</option><option value="1">1단계</option><option value="2">2단계</option><option value="3">3단계</option><option value="4">4단계</option><option value="5">5단계</option></select></div>
+          <div class="form-field full"><label for="room-editor-note">참가 안내</label><textarea id="room-editor-note" name="note" maxlength="250" rows="3" placeholder="준비물이나 매치 운영 안내를 입력해 주세요."></textarea></div>
+        </div>
+        <p class="room-editor-footnote">시설 관리자가 개설한 매칭방은 이용자 화면에 공개됩니다. 시설 관리자는 참가 인원에 포함되지 않습니다.</p>
+      </div>
+      <div class="modal-footer"><button class="admin-button" type="button" data-close-room-editor>취소</button><button class="admin-button primary" type="submit">매칭방 생성</button></div>
+    </form>
+  </section>
+</div>
+
+<!-- 시설 등록·수정 -->
+<div class="modal-backdrop" id="facility-modal" hidden>
+  <section class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="facility-modal-title">
+    <div class="modal-header"><div><h2 id="facility-modal-title">시설 등록</h2><p>담당 기관에 소속된 시설 정보만 등록할 수 있습니다.</p></div><button class="modal-close" type="button" data-close-facility aria-label="닫기">×</button></div>
+    <form id="facility-form" method="post" th:action="@{/admin/facilities}" th:attr="data-facility-base=@{/admin/facilities}">
+      <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-field full"><label for="facility-name">시설명</label><input id="facility-name" name="name" placeholder="시설명을 입력하세요." required /></div>
+          <div class="form-field full"><label for="facility-address">위치</label><input id="facility-address" name="address" placeholder="도로명 주소를 입력하세요." required /></div>
+          <fieldset class="form-field full facility-sports-field" aria-describedby="facility-sports-help">
+            <legend>이용 종목</legend>
+            <div class="facility-sport-options" role="group" aria-label="시설 이용 종목 선택">
+              <label class="facility-sport-option"><input type="checkbox" value="테니스" data-facility-sport /> <span>테니스</span></label>
+              <label class="facility-sport-option"><input type="checkbox" value="축구+풋살" data-facility-sport /> <span>축구+풋살</span></label>
+              <label class="facility-sport-option"><input type="checkbox" value="족구" data-facility-sport /> <span>족구</span></label>
+              <label class="facility-sport-option"><input type="checkbox" value="농구" data-facility-sport /> <span>농구</span></label>
+              <label class="facility-sport-option"><input type="checkbox" value="배드민턴" data-facility-sport /> <span>배드민턴</span></label>
+            </div>
+            <input id="facility-sports-value" type="hidden" name="sports" />
+            <small id="facility-sports-help">지원 종목 중 하나 이상 선택해 주세요.</small>
+          </fieldset>
+          <div class="form-field"><label for="facility-capacity">수용 인원</label><input id="facility-capacity" name="capacity" type="number" min="1" max="1000" required /></div>
+          <div class="form-field"><label for="facility-zone-count">대관 가능 구역 수</label><input id="facility-zone-count" name="reservableZoneCount" type="number" min="1" max="100" required aria-describedby="facility-zone-count-help" /><small id="facility-zone-count-help">같은 시간에 서로 다른 매칭방이 동시에 이용할 수 있는 코트·구장 수입니다.</small></div>
+          <div class="form-field full"><label for="facility-operating-status">운영 상태</label><select id="facility-operating-status" name="status" required><option value="" selected disabled>운영 상태 선택</option><option>운영 중</option><option>점검 중</option><option>운영 중지</option></select></div>
+        </div>
+        <div class="facility-map-preview"><strong>위치 미리보기</strong><span id="facility-map-address">주소를 입력하면 여기에 표시됩니다.</span><small>지도 API 연동 후 지도와 좌표를 표시합니다.</small></div>
+      </div>
+      <div class="modal-footer"><button class="admin-button" type="button" data-close-facility>취소</button><button class="admin-button primary" type="submit">시설 저장</button></div>
+    </form>
+  </section>
+</div>
+
+<!-- 점검 일지 등록 -->
+<div class="modal-backdrop" id="maintenance-modal" hidden>
+  <section class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="maintenance-modal-title">
+    <div class="modal-header"><div><h2 id="maintenance-modal-title">점검 일지 등록</h2><p>점검 결과를 입력하면 서버에 기록됩니다.</p></div><button class="modal-close" type="button" data-close-maintenance aria-label="닫기">×</button></div>
+    <form id="maintenance-form" method="post" th:action="@{/admin/facility/maintenance}">
+      <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+      <div class="modal-body"><div class="form-grid">
+        <div class="form-field"><label for="maintenance-date">점검 일시</label><input id="maintenance-date" name="date" type="datetime-local" required /></div>
+        <div class="form-field"><label for="maintenance-area">시설·공간</label><select id="maintenance-area" name="area"><option th:each="facility : ${facilities}" th:value="${facility.name}" th:text="${facility.name}">시설</option></select></div>
+        <div class="form-field"><label for="maintenance-category">점검 분류</label><select id="maintenance-category" name="category"><option>정기 안전 점검</option><option>배수·위생 점검</option><option>조명·전기 점검</option><option>바닥·네트 점검</option><option>설비 점검</option><option>청결·위생</option><option>이용자 요청 조치</option></select></div>
+        <div class="form-field"><label for="maintenance-status">처리 상태</label><select id="maintenance-status" name="status"><option>예정</option><option>진행 중</option><option>완료</option><option>조치 필요</option></select></div>
+        <div class="form-field full"><label for="maintenance-result">점검 결과 및 메모</label><textarea id="maintenance-result" name="result" placeholder="확인한 항목과 조치 내용을 입력해 주세요." required></textarea></div>
+        <div class="form-field full"><label for="maintenance-owner">담당자</label><input id="maintenance-owner" name="owner" required th:value="${adminUser?.name}" /></div>
+      </div></div>
+      <div class="modal-footer"><button class="admin-button" type="button" data-close-maintenance>취소</button><button class="admin-button primary" type="submit">일지 저장</button></div>
+    </form>
+  </section>
+</div>
+
+<div th:replace="~{fragments/admin :: toast}"></div>
+
+<script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/admin-shell.js}"></script>
+<script th:src="@{/js/admin-facility.js}"></script>
+</body>
+</html>

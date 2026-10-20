@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1254 1254" role="img" aria-labelledby="title">
+  <title id="title">SPO:IT</title>
+  <defs>
+    <linearGradient id="spoit-green" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#70D052" />
+      <stop offset="1" stop-color="#5ABE45" />
+    </linearGradient>
+  </defs>
+  <rect x="60" y="60" width="1134" height="1134" rx="194" fill="#000" />
+  <path d="M621 180H706V335H613C512 335 434 409 434 500c0 44 20 84 53 112v108h-38c-101 0-183-98-183-220 0-178 159-320 355-320Z" fill="#fff" />
+  <path d="M769 559h38c99 0 179 91 179 207 0 177-149 304-326 304H531V915h129c86 0 155-64 155-149 0-37-16-70-46-91V559Z" fill="#fff" />
+  <circle cx="626" cy="494" r="96" fill="url(#spoit-green)" />
+  <circle cx="626" cy="758" r="96" fill="url(#spoit-green)" />
+</svg>

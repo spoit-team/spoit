@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('팀 관리 · SPO:IT', 'SPO:IT 팀 정보, 팀원, 가입 신청을 관리합니다.', ${ {'team-pages.css'} })}"></head>
+<body class="team-page bg-canvas text-ink antialiased">
+<header th:replace="~{fragments/layout :: siteHeader('teams')}"></header>
+
+<main class="team-page-main wrap">
+  <section class="team-page-heading" aria-labelledby="team-management-title">
+    <div>
+      <p class="team-page-eyebrow">SPO:IT <span aria-hidden="true">/</span> TEAM MANAGEMENT</p>
+      <h1 id="team-management-title">팀 관리</h1>
+      <p>소속 팀의 정보를 확인하고 팀원과 가입 신청을 관리하세요.</p>
+    </div>
+    <a class="team-button team-button-quiet" th:href="@{/teams}">팀 둘러보기 <span aria-hidden="true">→</span></a>
+  </section>
+
+  <p th:if="${message != null}" id="team-management-message" class="team-status-message" role="status" th:text="${message}">팀 관리 안내</p>
+  <p th:if="${error != null}" id="team-management-error" class="team-status-message is-error" role="alert" th:text="${error}">팀 관리 요청을 처리하지 못했습니다.</p>
+
+  <div id="managed-team-selector" class="managed-team-selector">
+    <span th:if="${!#lists.isEmpty(managedTeams)}" class="managed-team-label">관리할 팀</span>
+    <a th:each="team : ${managedTeams}" class="team-selector-button" th:classappend="${team.active} ? 'is-active' : ''"
+       th:href="@{/teams/manage(team=${team.id}, tab=${tab})}" th:attr="aria-pressed=${team.active}"
+       th:text="${team.name + ' (' + team.memberCount + '명)'}">팀 이름</a>
+  </div>
+
+  <nav class="team-management-tabs" role="tablist" aria-label="팀 관리 메뉴" th:if="${managedTeam != null}">
+    <a class="team-management-tab" th:classappend="${tab == 'team'} ? 'is-active' : ''" role="tab" id="management-tab-team" aria-controls="management-panel" th:aria-selected="${tab == 'team'}" th:tabindex="${tab == 'team'} ? 0 : -1" th:href="@{/teams/manage(team=${managedTeam.id}, tab='team')}">내 팀</a>
+    <a class="team-management-tab" th:classappend="${tab == 'members'} ? 'is-active' : ''" role="tab" id="management-tab-members" aria-controls="management-panel" th:aria-selected="${tab == 'members'}" th:tabindex="${tab == 'members'} ? 0 : -1" th:href="@{/teams/manage(team=${managedTeam.id}, tab='members')}">팀원 <span th:text="${managedTeam.memberCount}">0</span></a>
+    <a class="team-management-tab" th:classappend="${tab == 'applications'} ? 'is-active' : ''" role="tab" id="management-tab-applications" aria-controls="management-panel" th:aria-selected="${tab == 'applications'}" th:tabindex="${tab == 'applications'} ? 0 : -1" th:href="@{/teams/manage(team=${managedTeam.id}, tab='applications')}">가입 신청 <span th:text="${managedTeam.pendingApplicationCount != null ? managedTeam.pendingApplicationCount : 0}">0</span></a>
+  </nav>
+
+  <section id="management-panel" role="tabpanel" th:attr="aria-labelledby=${'management-tab-' + tab}" tabindex="0">
+    <div th:if="${managedTeam == null}">
+      <section class="team-empty-state">
+        <h2>관리할 팀이 없습니다</h2>
+        <p>새 팀을 만들거나 SPO:IT 팀 목록에서 함께 운동할 팀을 찾아보세요.</p>
+        <div class="team-empty-actions">
+          <button class="team-button team-button-primary" type="button" data-team-create>팀 만들기</button>
+          <a class="team-button team-button-quiet" th:href="@{/teams}">팀 둘러보기</a>
+        </div>
+      </section>
+    </div>
+
+    <div th:if="${managedTeam != null}" id="team-management-content">
+      <!-- 내 팀 -->
+      <section th:if="${tab == 'team'}" class="team-management-section team-management-overview">
+        <div class="managed-team-toolbar">
+          <div class="managed-team-title">
+            <span class="team-mark" th:attr="data-sport=${managedTeam.sportId}" aria-hidden="true" th:text="${managedTeam.initials}">팀</span>
+            <div><h2 th:text="${managedTeam.name}">팀 이름</h2><p th:text="${managedTeam.sportName + ' · ' + managedTeam.areaLabel + ' · ' + (managedTeam.leader ? '팀장' : '팀원')}">종목 · 지역 · 팀장</p></div>
+          </div>
+          <div class="team-row-actions">
+            <button th:if="${managedTeam.leader}" class="team-button team-button-quiet" type="button" data-team-edit>팀 정보 수정</button>
+            <button class="team-button team-button-primary" type="button" data-team-create>팀 만들기</button>
+          </div>
+        </div>
+        <div class="team-management-summary">
+          <div class="team-summary-item"><div class="team-summary-label">팀원 / 최대 인원</div><div class="team-summary-value" th:text="${managedTeam.memberCount + ' / ' + managedTeam.maxMembers + '명'}">0 / 0명</div></div>
+          <div class="team-summary-item"><div class="team-summary-label">팀장</div><div class="team-summary-value" th:text="${managedTeam.leaderName}">미정</div></div>
+          <div class="team-summary-item"><div class="team-summary-label">창단일</div><div class="team-summary-value" th:text="${managedTeam.founded}">창단일</div></div>
+          <div class="team-summary-item"><div class="team-summary-label">활동 시간</div><div class="team-summary-value" th:text="${managedTeam.time}">활동 시간</div></div>
+        </div>
+        <div class="team-management-note">팀 정보와 일정은 서버에 저장된 값입니다. 평균 레이팅은 팀원 레이팅을 기준으로 서버가 계산하며 이 화면에서 직접 변경할 수 없습니다.</div>
+        <div class="team-management-overview-block">
+          <div class="team-section-heading"><div><h2>예정 일정</h2><p>팀에서 함께할 다음 활동을 확인하세요.</p></div><span class="team-badge" th:text="${#lists.size(managedTeam.schedules) + '건'}">0건</span></div>
+          <div class="team-schedule-list">
+            <article th:each="schedule : ${managedTeam.schedules}" class="team-schedule-row">
+              <time class="team-schedule-date" th:attr="datetime=${schedule.date}" th:text="${schedule.dateLabel}">일정</time>
+              <div><div class="team-schedule-title" th:text="${schedule.title}">일정 제목</div><div class="team-schedule-meta" th:text="${schedule.place}">장소</div></div>
+              <span class="team-schedule-time" th:text="${schedule.time}">시간</span>
+            </article>
+            <p th:if="${#lists.isEmpty(managedTeam.schedules)}" class="team-management-empty">등록된 예정 일정이 없습니다.</p>
+          </div>
+        </div>
+        <div class="team-management-overview-block">
+          <div class="team-section-heading"><div><h2>팀 소개</h2><p th:text="${managedTeam.intro}">팀 소개</p></div></div>
+          <div class="team-management-danger">
+            <div><b th:text="${managedTeam.leader ? '팀 해체' : '팀 탈퇴'}">팀 탈퇴</b><span th:text="${managedTeam.leader ? (managedTeam.otherMembersRemain ? '팀장 외 다른 팀원이 남아 있어 해체할 수 없습니다. 팀원을 먼저 정리해 주세요.' : '팀장만 남아 있어 해체할 수 있습니다. 확인창에 팀 이름을 입력해야 합니다.') : '팀원 목록에서 내 계정이 제외됩니다.'}">안내</span></div>
+            <button th:if="${managedTeam.leader}" class="team-button team-button-danger" type="button" data-team-disband th:disabled="${managedTeam.otherMembersRemain}" th:title="${managedTeam.otherMembersRemain} ? '팀장 외 팀원이 남아 있습니다.' : null">팀 해체</button>
+            <button th:if="${!managedTeam.leader}" class="team-button team-button-danger" type="button" data-team-leave>팀 탈퇴</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 팀원 -->
+      <section th:if="${tab == 'members'}" class="team-management-section">
+        <div class="team-section-heading">
+          <div><h2 th:text="${managedTeam.name + ' 팀원'}" >팀원</h2><p>팀장과 팀원을 구분해 관리합니다.</p></div>
+          <span class="team-badge" th:classappend="${managedTeam.leader} ? 'is-recruiting' : ''" th:text="${managedTeam.leader ? '팀장 권한' : '팀원 보기'}">권한</span>
+        </div>
+        <div class="team-member-list">
+          <article th:each="member : ${managedTeam.members}" class="team-row">
+            <div class="team-member-identity">
+              <span class="team-roster-avatar" aria-hidden="true" th:text="${member.initials}">팀</span>
+              <div><div class="team-member-name" th:text="${member.name + (member.current ? ' · 나' : '')}">팀원</div><div class="team-member-handle" th:text="${'@' + member.handle + ' · 가입 ' + member.joined}">@handle</div></div>
+            </div>
+            <div class="team-row-actions">
+              <span th:if="${member.leader or !managedTeam.leader}" class="team-member-role" th:text="${member.leader ? '팀장' : '팀원'}">팀원</span>
+              <th:block th:if="${managedTeam.leader and !member.leader}">
+                <button class="team-button team-button-quiet team-button-compact" type="button" data-team-transfer th:attr="data-member-id=${member.id},data-member-name=${member.name}">팀장 위임</button>
+                <button class="team-button team-button-danger team-button-compact" type="button" data-team-remove-member th:attr="data-member-id=${member.id},data-member-name=${member.name}">팀원 추방</button>
+              </th:block>
+            </div>
+          </article>
+        </div>
+        <p class="team-management-note">팀장 위임과 팀원 추방은 서버에 요청되며, 처리 결과는 감사 기록과 함께 저장됩니다.</p>
+      </section>
+
+      <!-- 가입 신청 -->
+      <section th:if="${tab == 'applications'}" class="team-management-section">
+        <div class="team-section-heading">
+          <div><h2>가입 신청</h2><p th:text="${managedTeam.name + ' 팀으로 들어온 가입 신청을 확인합니다.'}">가입 신청을 확인합니다.</p></div>
+          <span class="team-badge" th:text="${'가입 신청 대기 ' + (managedTeam.pendingApplicationCount != null ? managedTeam.pendingApplicationCount : 0) + '건'}">가입 신청 대기 0건</span>
+        </div>
+        <div class="team-application-list">
+          <article th:each="application : ${managedTeam.applications}" class="team-application-row">
+            <div class="team-application-copy">
+              <div class="team-member-name"><span th:text="${application.name}">신청자</span> <span class="team-member-handle" th:text="${'@' + application.handle}">@handle</span></div>
+              <p th:text="${'신청 ' + application.date}">신청 날짜</p>
+              <p th:if="${application.message != null}" class="team-application-message" th:text="${application.message}">신청 메시지</p>
+            </div>
+            <div class="team-application-actions">
+              <th:block th:if="${application.pending and managedTeam.leader}">
+                <form method="post" th:action="@{/teams/{teamId}/applications/{applicationId}/reject(teamId=${managedTeam.id}, applicationId=${application.id})}">
+                  <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                  <button class="team-button team-button-quiet team-button-compact" type="submit">거절</button>
+                </form>
+                <form method="post" th:action="@{/teams/{teamId}/applications/{applicationId}/approve(teamId=${managedTeam.id}, applicationId=${application.id})}">
+                  <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                  <button class="team-button team-button-primary team-button-compact" type="submit">승인</button>
+                </form>
+              </th:block>
+              <span th:if="${!application.pending or !managedTeam.leader}" class="team-badge" th:classappend="${application.approved} ? 'is-recruiting' : ''" th:text="${application.statusLabel}">검토 중</span>
+            </div>
+          </article>
+          <p th:if="${#lists.isEmpty(managedTeam.applications)}" class="team-management-empty" th:text="${managedTeam.leader ? '이 팀에 도착한 가입 신청이 없습니다.' : '가입 신청 내용은 팀장만 확인하고 관리할 수 있습니다.'}">가입 신청이 없습니다.</p>
+        </div>
+      </section>
+    </div>
+  </section>
+</main>
+
+<!-- 팀 만들기 -->
+<dialog id="team-create-dialog" class="team-dialog" aria-labelledby="team-create-title">
+  <form id="team-create-form" method="post" th:action="@{/teams}">
+    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+    <div class="team-dialog-heading"><div><h2 id="team-create-title">새 팀 만들기</h2><p>함께 운동할 팀을 만들고 기본 정보를 입력하세요.</p></div><button class="team-dialog-close" type="button" data-dialog-close aria-label="닫기">×</button></div>
+    <div class="team-dialog-body">
+      <label class="team-form-field"><span>팀 이름</span><input name="name" maxlength="30" required autocomplete="organization" /></label>
+      <div class="team-form-grid">
+        <label class="team-form-field"><span>종목</span><select name="sport" required><option th:each="sport : ${sports}" th:value="${sport.id}" th:text="${sport.name}">종목</option></select></label>
+        <label class="team-form-field"><span>팀 실력 단계</span><select name="level" required><option th:each="level : ${#numbers.sequence(1, 5)}" th:value="${level}" th:text="${level + '단계'}">1단계</option></select></label>
+        <label class="team-form-field"><span>최대 팀원 수</span><input name="maxMembers" type="number" min="2" max="30" required /></label>
+        <label class="team-form-field"><span>모집 상태</span><select name="recruitStatus" required><option value="" selected disabled>모집 상태 선택</option><option value="recruiting">모집 중</option><option value="closed">모집 마감</option></select></label>
+      </div>
+      <label class="team-form-field"><span>활동 지역</span><select name="area" required><option value="">지역 선택</option><option th:each="district : ${districts}" th:value="${district.id}" th:text="${district.name}">지역</option></select></label>
+      <fieldset class="team-form-field team-activity-days"><legend>정기 활동 요일</legend><div class="team-activity-day-options" role="group" aria-label="정기 활동 요일 선택">
+        <label><input type="checkbox" name="activityDays" value="1" /><span>월</span></label>
+        <label><input type="checkbox" name="activityDays" value="2" /><span>화</span></label>
+        <label><input type="checkbox" name="activityDays" value="3" /><span>수</span></label>
+        <label><input type="checkbox" name="activityDays" value="4" /><span>목</span></label>
+        <label><input type="checkbox" name="activityDays" value="5" /><span>금</span></label>
+        <label><input type="checkbox" name="activityDays" value="6" /><span>토</span></label>
+        <label><input type="checkbox" name="activityDays" value="7" /><span>일</span></label>
+      </div><small>요일 값은 월요일 1부터 일요일 7까지 전송합니다.</small></fieldset>
+      <div class="team-form-grid">
+        <label class="team-form-field"><span>활동 시작 시간</span><input name="activityStartTime" type="time" required /></label>
+        <label class="team-form-field"><span>활동 종료 시간</span><input name="activityEndTime" type="time" required /></label>
+      </div>
+      <p class="team-form-error" data-activity-error role="alert" hidden></p>
+      <label class="team-form-field"><span>팀 소개</span><textarea name="intro" maxlength="240" required></textarea></label>
+    </div>
+    <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-primary" type="submit">팀 만들기</button></div>
+  </form>
+</dialog>
+
+<!-- 팀 정보 수정 -->
+<dialog id="team-edit-dialog" class="team-dialog" aria-labelledby="team-edit-title">
+  <form id="team-edit-form" method="post" th:if="${managedTeam != null}" th:action="@{/teams/{id}(id=${managedTeam.id})}">
+    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+    <div class="team-dialog-heading"><div><h2 id="team-edit-title">팀 정보 수정</h2><p>팀 소개와 활동 정보를 수정합니다.</p></div><button class="team-dialog-close" type="button" data-dialog-close aria-label="닫기">×</button></div>
+    <div class="team-dialog-body">
+      <label class="team-form-field"><span>팀 이름</span><input name="name" maxlength="30" required autocomplete="organization" th:value="${managedTeam.name}" /></label>
+      <div class="team-form-grid">
+        <label class="team-form-field"><span>종목</span><select name="sport" required><option th:each="sport : ${sports}" th:value="${sport.id}" th:text="${sport.name}" th:selected="${managedTeam.sportId == sport.id}">종목</option></select></label>
+        <label class="team-form-field"><span>팀 실력 단계</span><select name="level" required><option th:each="level : ${#numbers.sequence(1, 5)}" th:value="${level}" th:text="${level + '단계'}" th:selected="${managedTeam.level == level}">1단계</option></select></label>
+        <label class="team-form-field"><span>최대 팀원 수</span><input name="maxMembers" type="number" max="30" required th:attr="min=${managedTeam.memberCount > 2 ? managedTeam.memberCount : 2}" th:value="${managedTeam.maxMembers}" /><small>현재 소속 인원보다 작은 값은 저장할 수 없습니다.</small></label>
+        <label class="team-form-field"><span>모집 상태</span><select name="recruitStatus" required><option value="recruiting" th:selected="${managedTeam.recruitStatus == 'recruiting'}">모집 중</option><option value="closed" th:selected="${managedTeam.recruitStatus == 'closed'}">모집 마감</option></select></label>
+      </div>
+      <label class="team-form-field"><span>활동 지역</span><select name="area" required><option value="">지역 선택</option><option th:each="district : ${districts}" th:value="${district.id}" th:text="${district.name}" th:selected="${managedTeam.areaId == district.id}">지역</option></select></label>
+      <fieldset class="team-form-field team-activity-days"><legend>정기 활동 요일</legend><div class="team-activity-day-options" role="group" aria-label="정기 활동 요일 선택">
+        <label><input type="checkbox" name="activityDays" value="1" th:checked="${managedTeam.activityDays != null and #lists.contains(managedTeam.activityDays, 1)}" /><span>월</span></label>
+        <label><input type="checkbox" name="activityDays" value="2" th:checked="${managedTeam.activityDays != null and #lists.contains(managedTeam.activityDays, 2)}" /><span>화</span></label>
+        <label><input type="checkbox" name="activityDays" value="3" th:checked="${managedTeam.activityDays != null and #lists.contains(managedTeam.activityDays, 3)}" /><span>수</span></label>
+        <label><input type="checkbox" name="activityDays" value="4" th:checked="${managedTeam.activityDays != null and #lists.contains(managedTeam.activityDays, 4)}" /><span>목</span></label>
+        <label><input type="checkbox" name="activityDays" value="5" th:checked="${managedTeam.activityDays != null and #lists.contains(managedTeam.activityDays, 5)}" /><span>금</span></label>
+        <label><input type="checkbox" name="activityDays" value="6" th:checked="${managedTeam.activityDays != null and #lists.contains(managedTeam.activityDays, 6)}" /><span>토</span></label>
+        <label><input type="checkbox" name="activityDays" value="7" th:checked="${managedTeam.activityDays != null and #lists.contains(managedTeam.activityDays, 7)}" /><span>일</span></label>
+      </div><small>요일 값은 월요일 1부터 일요일 7까지 전송합니다.</small></fieldset>
+      <div class="team-form-grid">
+        <label class="team-form-field"><span>활동 시작 시간</span><input name="activityStartTime" type="time" required th:value="${managedTeam.activityStartTime}" /></label>
+        <label class="team-form-field"><span>활동 종료 시간</span><input name="activityEndTime" type="time" required th:value="${managedTeam.activityEndTime}" /></label>
+      </div>
+      <p class="team-form-error" data-activity-error role="alert" hidden></p>
+      <label class="team-form-field"><span>팀 소개</span><textarea name="intro" maxlength="240" required th:text="${managedTeam.intro}">팀 소개</textarea></label>
+    </div>
+    <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-primary" type="submit">변경 저장</button></div>
+  </form>
+</dialog>
+
+<!-- 팀장 위임 -->
+<dialog id="team-transfer-dialog" class="team-dialog" aria-labelledby="team-transfer-title">
+  <form id="team-transfer-form" method="post" th:if="${managedTeam != null}" th:action="@{/teams/{id}/leadership(id=${managedTeam.id})}">
+    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+    <input type="hidden" name="memberId" id="team-transfer-member-id" />
+    <div class="team-dialog-heading"><div><h2 id="team-transfer-title">팀장을 위임할까요?</h2><p>팀 운영 권한이 변경됩니다.</p></div><button class="team-dialog-close" type="button" data-dialog-close aria-label="닫기">×</button></div>
+    <div class="team-dialog-body"><p class="team-dialog-summary"><strong id="team-transfer-member-name">팀원</strong> 님에게 팀장 권한을 위임합니다. 위임 후에는 팀원 권한으로 변경됩니다.</p></div>
+    <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-primary" type="submit">팀장 위임</button></div>
+  </form>
+</dialog>
+
+<!-- 팀원 추방 -->
+<dialog id="team-remove-dialog" class="team-dialog" aria-labelledby="team-remove-title">
+  <form id="team-remove-form" method="post" th:if="${managedTeam != null}" th:action="@{/teams/{id}/members/remove(id=${managedTeam.id})}">
+    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+    <input type="hidden" name="memberId" id="team-remove-member-id" />
+    <div class="team-dialog-heading"><div><h2 id="team-remove-title">팀원을 추방할까요?</h2><p>추방 전에 대상을 확인해 주세요.</p></div><button class="team-dialog-close" type="button" data-dialog-close aria-label="닫기">×</button></div>
+    <div class="team-dialog-body"><p class="team-dialog-summary"><strong id="team-remove-member-name">팀원</strong> 님을 팀에서 제외합니다. 이 작업은 서버에 기록되며 되돌릴 수 없습니다.</p></div>
+    <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-danger" type="submit">추방</button></div>
+  </form>
+</dialog>
+
+<!-- 팀 탈퇴 -->
+<dialog id="team-leave-dialog" class="team-dialog" aria-labelledby="team-leave-title">
+  <form method="post" th:if="${managedTeam != null}" th:action="@{/teams/{id}/leave(id=${managedTeam.id})}">
+    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+    <div class="team-dialog-heading"><div><h2 id="team-leave-title">팀에서 탈퇴할까요?</h2><p>진행 전에 내용을 확인해 주세요.</p></div><button class="team-dialog-close" type="button" data-dialog-close aria-label="닫기">×</button></div>
+    <div class="team-dialog-body"><p class="team-dialog-summary" th:text="${managedTeam.name + ' 팀원 목록에서 내 계정이 제외됩니다. 진행 중인 가입 신청과 일정을 먼저 확인해 주세요.'}">탈퇴 안내</p></div>
+    <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-danger" type="submit">팀 탈퇴</button></div>
+  </form>
+</dialog>
+
+<!-- 팀 해체 -->
+<dialog id="team-disband-dialog" class="team-dialog" aria-labelledby="team-disband-title">
+  <form id="team-disband-form" method="post" th:if="${managedTeam != null}" th:action="@{/teams/{id}/disband(id=${managedTeam.id})}" th:attr="data-team-name=${managedTeam.name}">
+    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+    <div class="team-dialog-heading"><div><h2 id="team-disband-title">팀을 해체할까요?</h2><p>진행 전에 내용을 확인해 주세요.</p></div><button class="team-dialog-close" type="button" data-dialog-close aria-label="닫기">×</button></div>
+    <div class="team-dialog-body">
+      <p class="team-dialog-summary">해체 후에는 되돌릴 수 없습니다. 확인을 위해 팀 이름을 그대로 입력해 주세요: <strong th:text="${managedTeam.name}">팀 이름</strong></p>
+      <label class="team-form-field"><span>팀 이름 확인</span><input name="teamNameConfirmation" type="text" required autocomplete="off" /></label>
+      <p class="team-form-error" role="alert" hidden></p>
+    </div>
+    <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-danger" type="submit">팀 해체</button></div>
+  </form>
+</dialog>
+
+<div id="team-management-toast" class="team-toast" role="status" aria-live="polite" hidden></div>
+
+<script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/site-menu.js}"></script>
+<script th:src="@{/js/team-management.js}"></script>
+</body>
+</html>

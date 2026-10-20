@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('매치 참가 신청 · SPO:IT', 'SPO:IT 매칭방 신청 내용을 확인하고 참가 신청을 접수합니다.', ${ {'match-join.css'} })}"></head>
+<body class="match-join-body">
+<header th:replace="~{fragments/layout :: simpleHeader('matches')}"></header>
+
+<main class="match-join-wrap">
+  <a th:href="@{/matches}" class="match-join-back"><span aria-hidden="true">←</span> 매칭방 목록</a>
+  <div class="match-join-title-row">
+    <div>
+      <p class="match-join-eyebrow">SPO:IT MATCH</p>
+      <h1>매치 참가 신청</h1>
+      <p class="match-join-lede">선택한 참가 정보를 확인하고 안내에 따라 신청을 완료해 주세요.</p>
+    </div>
+    <p class="match-join-status-tag"><span aria-hidden="true">●</span> 신청 접수</p>
+  </div>
+
+  <ol class="match-join-stepper" aria-label="신청 진행 단계">
+    <li data-step-indicator="1" th:classappend="${completed} ? 'is-done' : 'is-current'" th:aria-current="${completed ? null : 'step'}"><span class="step-number" th:text="${completed} ? '✓' : '1'">1</span><span><b>신청 내용</b><small>참가자 확인</small></span></li>
+    <li data-step-indicator="2" th:classappend="${completed} ? 'is-done' : ''"><span class="step-number" th:text="${completed} ? '✓' : '2'">2</span><span><b>결제 안내</b><small>비용 확인</small></span></li>
+    <li data-step-indicator="3" th:classappend="${completed} ? 'is-current' : ''" th:aria-current="${completed ? 'step' : null}"><span class="step-number" th:text="${completed} ? '✓' : '3'">3</span><span><b>신청 완료</b><small>접수 결과</small></span></li>
+  </ol>
+
+  <div th:if="${unavailableMessage != null}" class="join-unavailable">
+    <span class="join-unavailable-icon" aria-hidden="true">!</span>
+    <h2 th:text="${unavailableMessage}">신청 내용을 확인할 수 없습니다.</h2>
+    <p>매치 상세 화면에서 참가 방식과 인원을 다시 선택해 주세요.</p>
+    <a th:href="@{/matches/{id}(id=${roomId})}" class="join-button join-button-primary">매치 상세로 돌아가기</a>
+  </div>
+
+  <div th:unless="${unavailableMessage != null}" id="join-layout" class="match-join-layout">
+    <form th:unless="${completed}" id="join-form" class="join-workflow" novalidate method="post" th:action="@{/matches/{id}/apply(id=${room.id})}">
+      <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+      <div class="join-workflow-topline">
+        <div><span class="join-workflow-kicker">MATCH APPLICATION</span><h2 id="stage-heading" tabindex="-1">신청 내용을 확인해 주세요</h2></div>
+        <span id="stage-index" class="join-stage-index">STEP 01 / 03</span>
+      </div>
+
+      <section class="join-stage" data-step-panel="1" aria-labelledby="apply-heading">
+        <div class="join-stage-intro"><h3 id="apply-heading">선택한 참가 정보를 확인해 주세요</h3><p>매치 상세 화면에서 선택한 신청자와 참가 인원입니다. 인원을 바꾸려면 상세 화면으로 돌아가 주세요.</p></div>
+        <div class="join-selection-review" aria-live="polite">
+          <div class="join-selected-heading">
+            <div><span class="join-selected-kind" th:text="${selection.kindLabel}">개인 신청</span><h4 th:text="${selection.applicantName + '님 신청'}">회원님 신청</h4></div>
+            <span class="join-selected-count" th:text="${selection.seats + '명'}">1명</span>
+          </div>
+          <dl class="join-selected-contact">
+            <div><dt>연락처</dt><dd th:text="${selection.applicantPhone}">010-0000-0000</dd></div>
+            <div><dt>신청 방식</dt><dd th:text="${selection.kind == 'team' ? '팀 단위 참가' : '개인 참가'}">개인 참가</dd></div>
+          </dl>
+          <div class="join-selected-roster"><h4>참가 인원</h4><ul>
+            <li th:each="person : ${selection.participants}" class="join-selected-person"><span th:text="${person.name}">참가자</span><small th:text="${person.roleLabel}">참가자</small></li>
+          </ul></div>
+        </div>
+        <div th:if="${!canReserve}" id="capacity-notice" class="join-inline-notice">
+          <span aria-hidden="true">ℹ</span><span><b>현재 선택으로 예약할 수 없습니다.</b> <span th:text="${capacityNotice}">현재 남은 자리를 확인해 주세요.</span></span>
+        </div>
+        <p th:if="${error != null}" class="join-error" role="alert" th:text="${error}">신청을 처리하지 못했습니다.</p>
+        <label class="join-agreement"><input id="rules-agree" name="agreeRules" type="checkbox" value="true" /><span><b>매치 운영 규칙과 취소·노쇼 안내를 확인했습니다.</b><small>참가 신청 후 취소는 마이페이지의 신청 내역에서 진행할 수 있습니다.</small></span></label>
+        <p id="join-error" class="join-error" role="alert" hidden></p>
+        <div class="join-stage-actions">
+          <a th:href="@{/matches/{id}(id=${room.id})}" class="join-button join-button-quiet">참가 인원 다시 선택</a>
+          <button id="continue-button" type="button" class="join-button join-button-primary" th:disabled="${!canReserve}">결제 안내로 <span aria-hidden="true">→</span></button>
+        </div>
+      </section>
+
+      <section class="join-stage" data-step-panel="2" aria-labelledby="payment-heading" hidden>
+        <div class="join-stage-intro"><h3 id="payment-heading">참가비와 결제 안내</h3><p>안내된 참가비와 취소 규정을 확인해 주세요. 결제 수단 선택은 이 화면에서 저장되거나 전달되지 않습니다.</p></div>
+        <fieldset id="payment-methods" class="join-fieldset">
+          <legend>결제 수단 <span class="optional-mark">안내</span></legend>
+          <div class="join-payment-options">
+            <label class="join-payment-option is-selected"><input type="radio" name="paymentGuidanceChoice" data-payment-method value="card" checked /><span class="payment-mark payment-mark-card" aria-hidden="true">▰</span><span><b>신용·체크카드</b><small>안내용 선택</small></span><i aria-hidden="true"></i></label>
+            <label class="join-payment-option"><input type="radio" name="paymentGuidanceChoice" data-payment-method value="easy" /><span class="payment-mark payment-mark-easy" aria-hidden="true">P</span><span><b>간편결제</b><small>안내용 선택</small></span><i aria-hidden="true"></i></label>
+            <label class="join-payment-option"><input type="radio" name="paymentGuidanceChoice" data-payment-method value="transfer" /><span class="payment-mark payment-mark-transfer" aria-hidden="true">↔</span><span><b>계좌이체</b><small>안내용 선택</small></span><i aria-hidden="true"></i></label>
+          </div>
+        </fieldset>
+        <div id="payment-guidance-notice" class="join-guidance-notice"><span aria-hidden="true">ⓘ</span><p><b>결제 안내</b><br />이 화면에서는 결제를 실행하지 않습니다. 결제 수단과 처리 시점은 서버의 결제 정책 또는 시설 안내를 따릅니다.</p></div>
+        <label class="join-agreement join-payment-agreement"><input id="payment-agree" name="agreePayment" type="checkbox" value="true" /><span><b id="payment-agreement-label">참가비 안내와 취소 안내를 확인했습니다.</b><small>이 화면은 결제 수단과 참가비 정보를 안내하며 결제를 실행하거나 상태를 저장하지 않습니다.</small></span></label>
+        <p id="payment-error" class="join-error" role="alert" hidden></p>
+        <div class="join-stage-actions"><button id="back-button" type="button" class="join-button join-button-quiet"><span aria-hidden="true">←</span> 신청 정보로</button><button id="submit-application" type="submit" class="join-button join-button-primary" th:disabled="${!canReserve}">신청 접수</button></div>
+      </section>
+    </form>
+
+    <section th:if="${completed}" class="join-workflow join-stage join-complete-stage" aria-labelledby="complete-heading">
+      <div id="completion-content">
+      <div class="join-complete-icon" aria-hidden="true">✓</div>
+      <h3 id="complete-heading" tabindex="-1" th:text="${completion.title}">매치 참가 신청이 접수되었습니다</h3>
+      <p th:text="${completion.message}">신청이 접수되었습니다. 참가 확정은 서버 처리 결과를 따르며 이 화면에서는 결제를 실행하지 않습니다.</p>
+      <dl class="join-complete-ticket">
+        <div><dt>매칭방</dt><dd th:text="${completion.roomTitle}">매칭방</dd></div>
+        <div><dt>신청자</dt><dd th:text="${completion.applicantText}">회원 · 1명 신청</dd></div>
+        <div><dt>참가자</dt><dd th:text="${completion.participantText}">회원</dd></div>
+        <div><dt>접수 번호</dt><dd th:text="${completion.receiptNo}">접수 번호</dd></div>
+        <div><dt>신청 상태</dt><dd th:text="${completion.stateLabel}">신청 접수</dd></div>
+        <div><dt>결제 안내</dt><dd th:text="${completion.paymentGuidance}">결제는 이 화면에서 처리하지 않습니다.</dd></div>
+        <div><dt>참가비 합계</dt><dd th:text="${completion.totalText}">서버 확인 필요</dd></div>
+      </dl>
+      <div th:if="${completion.teamAssigned}" class="join-team-result"><span th:text="${'A팀 ' + completion.teamACount + '명'}">A팀</span><span th:text="${'B팀 ' + completion.teamBCount + '명'}">B팀</span></div>
+      <div class="join-complete-actions"><a class="join-button join-button-quiet" th:href="@{/matches}">매칭방 더 보기</a><a class="join-button join-button-primary" th:href="@{/mypage#reservations}">내 신청 내역 확인</a></div>
+      </div>
+    </section>
+
+    <aside id="application-summary" class="join-summary" th:classappend="${completed} ? 'is-complete' : ''" aria-labelledby="summary-heading">
+      <div class="join-summary-title"><span class="join-summary-kicker">YOUR MATCH</span><h2 id="summary-heading">신청 요약</h2></div>
+      <div class="join-summary-room">
+        <span class="join-summary-sport" th:text="${room.sportName + ' · ' + room.statusLabel}">종목</span>
+        <h3 th:text="${room.title}">매칭방</h3>
+        <p class="join-summary-place" th:text="${room.facilityName}">시설</p>
+        <dl class="join-summary-facts">
+          <div class="join-summary-fact"><dt>이용 일시</dt><dd th:text="${room.dateLabel + ' ' + room.time}">일시</dd></div>
+          <div class="join-summary-fact"><dt>장소</dt><dd th:text="${room.place}">장소</dd></div>
+          <div class="join-summary-fact"><dt>종목·실력</dt><dd th:text="${room.sportName + ' · ' + room.levelLabel}">종목</dd></div>
+          <div class="join-summary-fact"><dt>참가비</dt><dd th:text="${room.feeText + '원 / 1인'}">참가비</dd></div>
+          <div class="join-summary-fact"><dt>신청 인원</dt><dd th:text="${selection != null ? selection.seats + '명 · ' + selection.kindLabel : ''}">인원</dd></div>
+        </dl>
+      </div>
+      <div class="join-summary-participants">
+        <div class="join-summary-participants-top"><span>현재 참가 인원</span><b th:text="${room.capacityLabel}">0 / 8명</b></div>
+        <div class="join-summary-progress" role="progressbar" aria-label="매칭방 참가 인원과 좌석 예약" aria-valuemin="0" th:attr="aria-valuemax=${room.capacity}, aria-valuenow=${room.occupiedSeats}"><span th:style="'width:' + ${room.occupancyPercent ?: 0} + '%'"></span></div>
+        <p class="join-summary-remaining" th:text="${canReserve ? room.remainingLabel + ' · 신청 인원 ' + selection.seats + '명' : '현재 선택으로 예약할 수 없습니다.'}">남은 자리</p>
+      </div>
+      <div class="join-summary-total">
+        <div><span th:text="${completed ? '신청 상태' : '참가비 안내'}">참가비 안내</span><b th:text="${completed ? completion.stateLabel : (canReserve ? feeTotalText : '예약 불가')}">-</b></div>
+        <small th:text="${completed ? '결제 상태는 이 화면에서 저장하지 않습니다.' : feeSummaryNote}">참가 인원 기준 안내 금액입니다.</small>
+      </div>
+      <p class="join-summary-footnote"><span aria-hidden="true">✓</span> 신청 내용은 서버로 전송되며, 결제는 별도 안내에 따라 진행됩니다.</p>
+    </aside>
+  </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: simpleFooter}"></footer>
+
+<script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/match-join-page.js}" th:attr="data-completed=${completed}"></script>
+</body>
+</html>

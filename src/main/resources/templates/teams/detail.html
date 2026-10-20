@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('팀 상세 · SPO:IT', 'SPO:IT 팀 소개, 활동 정보, 팀원과 모집 상태를 확인합니다.', ${ {'team-pages.css'} })}"></head>
+<body class="team-page is-team-detail-view bg-canvas text-ink antialiased">
+<header th:replace="~{fragments/layout :: siteHeader('teams')}"></header>
+
+<main class="team-page-main wrap">
+  <div th:if="${team == null}">
+    <a class="team-detail-back" th:href="@{/teams}"><span aria-hidden="true">←</span> 팀 목록으로 돌아가기</a>
+    <div class="team-empty-state"><h2>팀 정보를 찾을 수 없습니다</h2><p>삭제되었거나 주소가 올바르지 않습니다.</p><a class="team-button team-button-primary" th:href="@{/teams}">팀 목록으로 돌아가기</a></div>
+  </div>
+
+  <div th:if="${team != null}" id="team-detail" aria-live="polite">
+    <a class="team-detail-back" th:href="@{/teams}"><span aria-hidden="true">←</span> 팀 목록으로 돌아가기</a>
+    <p th:if="${message != null}" id="team-status-message" class="team-status-message" role="status" th:text="${message}">팀 안내</p>
+    <article class="team-detail-card" th:attr="aria-label=${team.name + ' 팀 상세 정보'}">
+      <section class="team-detail-hero">
+        <div class="team-detail-heading">
+          <span class="team-mark" th:attr="data-sport=${team.sportId}" aria-hidden="true" th:text="${team.initials}">팀</span>
+          <div class="team-detail-copy">
+            <h1 th:text="${team.name}">팀 이름</h1>
+            <p><a class="team-detail-sport-link" th:href="@{/teams(sport=${team.sportId})}" th:aria-label="${team.sportName + ' 팀 목록 보기'}" th:text="${team.sportName}">종목</a><span aria-hidden="true"> · </span><span th:text="${team.areaLabel}">지역</span></p>
+            <div class="team-badges">
+              <span class="team-badge" th:classappend="${team.recruiting} ? 'is-recruiting' : 'is-closed'" th:text="${team.recruiting ? '팀원 모집 중' : '모집 마감'}">모집 중</span>
+              <span class="team-badge" th:text="${'팀 실력 ' + team.level + '단계'}">팀 실력 1단계</span>
+              <span th:each="tag : ${team.tags}" class="team-badge" th:text="${tag}">태그</span>
+            </div>
+          </div>
+          <div class="team-detail-actions">
+            <button class="team-button team-button-quiet" type="button" data-team-share>공유</button>
+            <a th:if="${team.manager}" class="team-button team-button-quiet" th:href="@{/teams/manage(team=${team.id})}">팀 관리</a>
+          </div>
+        </div>
+        <div class="team-detail-summary">
+          <div class="team-summary-item"><div class="team-summary-label">팀원 / 최대 인원</div><div class="team-summary-value" th:text="${team.memberCount + ' / ' + team.maxMembers + '명'}">0 / 0명</div></div>
+          <div class="team-summary-item"><div class="team-summary-label">평균 레이팅</div><div class="team-summary-value" th:text="${team.ratingText}">기록 없음</div></div>
+          <div class="team-summary-item"><div class="team-summary-label">활동 시간</div><div class="team-summary-value" th:text="${team.time}">활동 시간</div></div>
+          <div class="team-summary-item"><div class="team-summary-label">창단일</div><div class="team-summary-value" th:text="${team.founded}">창단일</div></div>
+        </div>
+      </section>
+
+      <div class="team-detail-layout">
+        <section class="team-detail-info-group" aria-label="팀 소개, 활동 정보 및 모집 상태">
+          <div class="team-detail-hero team-detail-main">
+            <section class="team-content-section"><h2>팀 소개</h2><p th:text="${team.intro}">팀 소개</p><div class="team-tag-list"><span th:each="tag : ${team.tags}" class="team-badge" th:text="${'# ' + tag}"># 태그</span></div></section>
+            <section class="team-content-section">
+              <h2>활동 정보</h2>
+              <div class="team-detail-summary">
+                <div class="team-summary-item"><div class="team-summary-label">종목</div><div class="team-summary-value"><a class="team-detail-sport-link" th:href="@{/teams(sport=${team.sportId})}" th:aria-label="${team.sportName + ' 팀 목록 보기'}"><span th:text="${team.sportName}">종목</span><span aria-hidden="true"> ↗</span></a></div></div>
+                <div class="team-summary-item"><div class="team-summary-label">지역</div><div class="team-summary-value" th:text="${team.areaLabel}">지역</div></div>
+                <div class="team-summary-item"><div class="team-summary-label">팀장</div><div class="team-summary-value" th:text="${team.leaderName}">미정</div></div>
+                <div class="team-summary-item"><div class="team-summary-label">활동 시간</div><div class="team-summary-value" th:text="${team.time}">활동 시간</div></div>
+              </div>
+            </section>
+          </div>
+          <aside class="team-recruitment-panel" aria-label="팀원 모집 상태">
+            <span class="team-badge" th:classappend="${team.recruiting} ? 'is-recruiting' : 'is-closed'" th:text="${team.recruiting ? '팀원 모집 중' : '모집 마감'}">모집 상태</span>
+            <h2 th:text="${team.recruiting ? '함께 운동할 팀원을 찾고 있어요' : '지금은 신규 팀원을 모집하지 않아요'}">모집 안내</h2>
+            <p th:text="${team.recruiting ? '가입 신청을 보내면 팀장이 확인 후 승인 여부를 알려드립니다.' : '모집이 다시 시작되면 팀 상세에서 확인할 수 있습니다.'}">모집 안내</p>
+            <div class="team-recruitment-positions">
+              <div th:each="position : ${team.recruitPositions}" class="team-recruitment-position"><span th:text="${position.name}">포지션</span><b th:text="${position.count + '명'}">0명</b></div>
+              <p th:if="${#lists.isEmpty(team.recruitPositions)}">현재 모집 중인 포지션이 없습니다.</p>
+            </div>
+            <span th:if="${team.member}" class="team-badge is-recruiting">이미 소속된 팀입니다</span>
+            <form th:if="${team.pendingApplicationId != null}" method="post" th:action="@{/teams/{teamId}/applications/{applicationId}/cancel(teamId=${team.id}, applicationId=${team.pendingApplicationId})}">
+              <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+              <button class="team-button team-button-quiet" type="submit">가입 신청 취소</button>
+            </form>
+            <button th:if="${!team.member and team.pendingApplicationId == null and team.recruiting}" class="team-button team-button-primary" type="button" data-team-apply>가입 신청하기</button>
+            <button th:if="${!team.member and team.pendingApplicationId == null and !team.recruiting}" class="team-button team-button-quiet" type="button" disabled>모집이 마감되었습니다</button>
+            <div class="team-leader-line"><span class="team-roster-avatar" aria-hidden="true" th:text="${team.leaderInitials}">팀</span><span th:text="${'팀장 · ' + team.leaderName}">팀장</span></div>
+          </aside>
+        </section>
+        <section class="team-detail-roster-group" aria-label="팀원 목록">
+          <section class="team-content-section"><h2 th:text="${'팀원 ' + team.memberCount + '명'}">팀원</h2><div class="team-roster-list"><div th:each="person : ${team.members}" class="team-roster-person"><span class="team-roster-avatar" aria-hidden="true" th:text="${person.initials}">팀</span><span th:text="${person.name + (person.leader ? ' · 팀장' : '')}">팀원</span></div></div></section>
+        </section>
+      </div>
+    </article>
+  </div>
+</main>
+
+<dialog id="team-application-dialog" class="team-dialog" aria-labelledby="team-application-title">
+  <form id="team-application-form" method="post" th:if="${team != null}" th:action="@{/teams/{id}/applications(id=${team.id})}">
+    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+    <div class="team-dialog-heading"><div><h2 id="team-application-title">팀 가입 신청</h2><p>팀장에게 전달할 내용을 작성해 주세요.</p></div><button class="team-dialog-close" type="button" data-dialog-close aria-label="닫기">×</button></div>
+    <div class="team-dialog-body">
+      <p id="team-application-summary" class="team-dialog-summary" th:text="${team != null ? team.name + ' · ' + team.sportName + ' · ' + team.areaLabel : ''}">팀 정보</p>
+      <label class="team-form-field"><span>자기소개</span><textarea id="team-application-message" name="message" rows="4" maxlength="200" placeholder="운동 경험이나 참여 가능한 시간을 적어 주세요."></textarea><small><span id="team-application-count">0</span> / 200자</small></label>
+      <p th:if="${applicationError != null}" id="team-application-error" class="team-form-error" role="alert" th:text="${applicationError}">신청을 처리하지 못했습니다.</p>
+    </div>
+    <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-primary" type="submit">가입 신청 보내기</button></div>
+  </form>
+</dialog>
+
+<div id="team-toast" class="team-toast" role="status" aria-live="polite" hidden></div>
+
+<script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/site-menu.js}"></script>
+<script th:src="@{/js/teams.js}"></script>
+</body>
+</html>

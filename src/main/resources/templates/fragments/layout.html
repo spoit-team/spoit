@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(title, description, styles)">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title th:text="${title}">SPO:IT</title>
+  <meta name="description" th:content="${description}" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="preconnect" href="https://images.unsplash.com" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+  <link rel="stylesheet" th:href="@{/css/styles.css}" />
+  <link rel="stylesheet" th:each="style : ${styles}" th:href="@{/css/{name}(name=${style})}" />
+  <link rel="stylesheet" th:href="@{/css/notification-center.css}" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body>
+
+<!-- 주요 사용자 페이지 공통 헤더 -->
+<header th:fragment="siteHeader(active)" class="sticky top-0 z-40 border-b border-line bg-white/90 backdrop-blur-xl">
+  <div class="wrap flex h-[68px] items-center gap-7 mobile-nav-header">
+    <a th:href="@{/matches}" class="flex shrink-0 items-center gap-2.5" aria-label="SPO:IT 홈">
+      <img class="size-[34px] shrink-0" th:src="@{/images/spoit-mark.svg}" alt="" aria-hidden="true" />
+      <span class="flex flex-col leading-none"><b class="text-[16px] font-extrabold tracking-[-.04em]">SPO<span style="color:#5FAE4E">:</span>IT</b><small class="mt-1 hidden whitespace-nowrap text-[8px] font-medium tracking-[.01em] text-faint xl:block">SPORTS · PEOPLE · CONNECTION</small></span>
+    </a>
+    <nav class="primary-nav hidden items-center gap-1 text-sm font-semibold text-ink-2 md:flex" aria-label="주요 메뉴">
+      <a class="primary-nav-link flex h-[68px] items-center px-3.5 hover:text-ink"
+         th:classappend="${active == 'matches'} ? 'text-ink' : 'text-ink-2'"
+         th:href="@{/matches}">매칭방 찾기</a>
+      <a class="primary-nav-link flex h-[68px] items-center rounded-lg px-3.5 hover:bg-paper-soft hover:text-ink"
+         th:classappend="${active == 'teams'} ? 'text-ink' : 'text-ink-2'"
+         th:href="@{/teams}">SPO:IT 팀</a>
+      <a class="primary-nav-link flex h-[68px] items-center rounded-lg px-3.5 hover:bg-paper-soft hover:text-ink"
+         th:classappend="${active == 'mypage'} ? 'text-ink' : 'text-ink-2'"
+         th:href="@{/mypage}">마이페이지</a>
+      <a class="primary-nav-link flex h-[68px] items-center gap-1.5 rounded-lg px-3.5 hover:bg-paper-soft hover:text-ink"
+         th:classappend="${active == 'admin'} ? 'text-ink' : 'text-ink-2'"
+         th:href="@{/admin/facility}">시설 관리 <span class="rounded bg-book-soft px-1.5 py-0.5 text-[10px] font-bold text-book-ink">관리자</span></a>
+    </nav>
+    <div class="ml-auto flex items-center gap-2">
+      <a th:href="@{/mypage#notifications}" class="relative grid size-[38px] place-items-center rounded-[10px] border border-line bg-paper text-ink-2 hover:bg-paper-soft hover:text-ink" aria-label="알림 확인" title="알림">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        <span th:if="${unreadCount != null and unreadCount > 0}" class="absolute -right-1 -top-1 grid h-[17px] min-w-[17px] place-items-center rounded-full border-2 border-white px-1 text-[10px] font-bold leading-none text-white" style="background-color:var(--color-danger)" th:text="${unreadCount}" aria-hidden="true">0</span>
+      </a>
+      <div th:if="${currentMember == null}" data-auth-guest class="flex items-center gap-2">
+        <a class="rounded-lg px-3 py-2 text-sm font-semibold text-ink-2 hover:bg-paper-soft" th:href="@{/login}">로그인</a>
+        <a class="flex h-[38px] items-center gap-1.5 rounded-lg bg-ink px-3.5 text-sm font-bold text-white transition hover:bg-ink-2 active:scale-[.98]" th:href="@{/signup}">회원가입 <span aria-hidden="true">↗</span></a>
+      </div>
+      <div th:if="${currentMember != null}" data-auth-member class="flex items-center gap-2">
+        <a th:href="@{/mypage}" class="hidden max-w-[180px] truncate rounded-lg px-2 py-2 text-xs font-semibold text-ink-2 hover:bg-paper-soft sm:block" th:text="${currentMember.name}" th:aria-label="${currentMember.name + ' 계정 마이페이지'}">회원</a>
+        <form th:action="@{/logout}" method="post" class="contents">
+          <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+          <button type="submit" class="flex h-[38px] items-center rounded-lg bg-ink px-3.5 text-sm font-bold text-white transition hover:bg-ink-2">로그아웃</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- 매치 상세·신청 화면 헤더 -->
+<header th:fragment="simpleHeader(active)" class="match-join-header">
+  <div class="match-join-header-inner">
+    <a th:href="@{/matches}" class="flex shrink-0 items-center gap-2.5" aria-label="SPO:IT 홈">
+      <img class="size-[34px] shrink-0" th:src="@{/images/spoit-mark.svg}" alt="" aria-hidden="true" />
+      <span class="flex flex-col leading-none"><b class="text-[16px] font-extrabold tracking-[-.04em]">SPO<span style="color:#5FAE4E">:</span>IT</b><small class="mt-1 hidden whitespace-nowrap text-[8px] font-medium tracking-[.01em] text-faint xl:block">SPORTS · PEOPLE · CONNECTION</small></span>
+    </a>
+    <nav class="match-join-header-nav" aria-label="주요 메뉴">
+      <a th:href="@{/matches}" th:aria-current="${active == 'matches' ? 'page' : null}">매칭방 찾기</a>
+      <a th:href="@{/mypage#reservations}">내 신청 내역</a>
+    </nav>
+  </div>
+</header>
+
+<!-- 공통 푸터 -->
+<footer th:fragment="siteFooter" class="bg-white py-9">
+  <div class="wrap">
+    <div class="grid gap-7 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1fr]">
+      <div><div class="flex items-center gap-2"><img class="size-8 shrink-0 rounded-[9px]" th:src="@{/images/spoit-mark.svg}" alt="" aria-hidden="true" /><b class="font-extrabold">SPO<span style="color:#5FAE4E">:</span>IT</b></div><p class="mt-3 max-w-xs text-[13px] leading-6 text-muted">공공 체육시설에서 함께 운동할 사람을 찾아보세요.<br />참가는 가볍게, 경기는 즐겁게.</p></div>
+      <div><b class="text-[13px] font-extrabold">이용 안내</b><button type="button" class="mt-2 block py-1 text-left text-[13px] text-muted hover:text-ink" disabled title="도움말 콘텐츠는 준비 중입니다.">시설 예약 방법</button><a class="block py-1 text-left text-[13px] text-muted hover:text-ink" th:href="@{/terms} + '#refund'">환불 · 취소 규정</a><button type="button" class="block py-1 text-left text-[13px] text-muted hover:text-ink" disabled title="도움말 콘텐츠는 준비 중입니다.">매치 개설 가이드</button><button type="button" class="block py-1 text-left text-[13px] text-muted hover:text-ink" disabled title="도움말 콘텐츠는 준비 중입니다.">자주 묻는 질문</button></div>
+      <div><b class="text-[13px] font-extrabold">제휴 · 문의</b><button type="button" class="mt-2 block py-1 text-left text-[13px] text-muted hover:text-ink" disabled title="문의 접수 기능은 준비 중입니다.">공공시설 등록 제안</button><button type="button" class="block py-1 text-left text-[13px] text-muted hover:text-ink" disabled title="문의 접수 기능은 준비 중입니다.">기업 · 단체 대관</button><span class="block py-1 text-[13px] text-muted">고객센터 연락처는 서비스 오픈 시 안내합니다.</span></div>
+      <div><b class="text-[13px] font-extrabold">약관 · 정책</b><a class="mt-2 block py-1 text-left text-[13px] text-muted hover:text-ink" th:href="@{/terms}">이용약관</a><a class="block py-1 text-left text-[13px] text-muted hover:text-ink" th:href="@{/privacy}">개인정보처리방침</a><button type="button" class="block py-1 text-left text-[13px] text-muted hover:text-ink" disabled title="약관 문서는 준비 중입니다.">위치기반서비스 이용약관</button><button type="button" class="block py-1 text-left text-[13px] text-muted hover:text-ink" disabled title="정책 문서는 준비 중입니다.">입점 · 제휴 정책</button></div>
+    </div>
+    <div class="mt-7 flex flex-wrap justify-between gap-2 border-t border-line pt-4 text-[11px] text-faint"><span>사업자 정보는 서비스 오픈 시 안내합니다.</span><span>© 2026 SPO<span style="color:#5FAE4E">:</span>IT</span></div>
+  </div>
+</footer>
+
+<!-- 매치 상세·신청 화면 푸터 -->
+<footer th:fragment="simpleFooter" class="match-join-footer">
+  <div class="match-join-wrap"><span>© 2026 SPO<span style="color:#5FAE4E">:</span>IT</span><span>공공 체육시설 운동 매칭 플랫폼</span></div>
+</footer>
+
+</body>
+</html>

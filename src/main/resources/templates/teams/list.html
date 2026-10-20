@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('팀 찾기 · SPO:IT', '종목과 지역에 맞는 SPO:IT 팀을 찾고 가입을 신청하세요.', ${ {'team-pages.css'} })}"></head>
+<body class="team-page bg-canvas text-ink antialiased">
+<header th:replace="~{fragments/layout :: siteHeader('teams')}"></header>
+
+<main class="team-page-main wrap">
+  <section class="team-page-heading" aria-labelledby="team-page-title">
+    <div>
+      <p class="team-page-eyebrow">SPO:IT <span aria-hidden="true">/</span> TEAMS</p>
+      <h1 id="team-page-title">SPO:IT 팀</h1>
+      <p>종목과 지역이 맞는 팀을 찾아 함께 운동해 보세요. 평균 레이팅은 팀원 레이팅을 기준으로 서버가 계산합니다.</p>
+    </div>
+    <a class="team-button team-button-primary" th:href="@{/teams/manage}">내 팀 관리 <span aria-hidden="true">→</span></a>
+  </section>
+
+  <p th:if="${message != null}" id="team-status-message" class="team-status-message" role="status" th:text="${message}">팀 안내</p>
+
+  <div id="team-sport-tabs" class="team-sport-tabs" aria-label="종목별 팀 필터" role="group">
+    <a th:each="sport : ${sportTabs}" class="team-sport-tab" th:classappend="${sport.active} ? 'is-active' : ''" th:href="@{${sport.url}}" th:attr="aria-pressed=${sport.active}">
+      <span class="team-sport-tab-emoji" aria-hidden="true" th:text="${sport.emoji}">🏅</span>
+      <span th:text="${sport.name}">전체</span>
+      <span class="team-sport-tab-count" th:text="${sport.count}">0</span>
+    </a>
+  </div>
+
+  <section id="team-statistics" class="team-statistics" aria-label="팀 현황 요약">
+    <div th:each="stat : ${statistics}" class="team-statistic"><div class="team-statistic-label" th:text="${stat.label}">등록 팀</div><div class="team-statistic-value"><span th:text="${stat.value}">0</span><small th:text="${stat.unit}">팀</small></div></div>
+  </section>
+
+  <form id="team-filters" class="team-filters" role="search" method="get" th:action="@{/teams}">
+    <input type="hidden" name="sport" th:value="${filters != null ? filters.sport : 'all'}" />
+    <label class="team-search-field" for="team-query"><span>팀 검색</span><input id="team-query" name="q" type="search" placeholder="팀 이름 또는 지역" autocomplete="off" th:value="${filters != null ? filters.query : ''}" /></label>
+    <label><span>지역</span><select id="team-area" name="area"><option value="">전체 지역</option><option th:each="district : ${districts}" th:value="${district.id}" th:text="${district.name}" th:selected="${filters != null and filters.area == district.id}">지역</option></select></label>
+    <label><span>실력 단계</span><select id="team-level" name="level"><option value="">전체 단계</option><option th:each="level : ${#numbers.sequence(1, 5)}" th:value="${level}" th:text="${level + '단계'}" th:selected="${filters != null and filters.level == level}">1단계</option></select></label>
+    <label><span>정렬</span><select id="team-sort" name="sort"><option value="recent" th:selected="${filters == null or filters.sort == 'recent'}">최근 활동순</option><option value="members" th:selected="${filters != null and filters.sort == 'members'}">팀원 많은순</option><option value="rating" th:selected="${filters != null and filters.sort == 'rating'}">평균 레이팅순</option><option value="name" th:selected="${filters != null and filters.sort == 'name'}">이름순</option></select></label>
+    <label class="team-recruiting-filter"><input id="team-recruiting-only" name="recruiting" type="checkbox" value="true" th:checked="${filters != null and filters.recruitingOnly}" /> 모집 중만</label>
+    <button class="team-button team-button-primary" type="submit">팀 검색</button>
+    <a class="team-button team-button-quiet" th:href="@{/teams}">조건 초기화</a>
+  </form>
+
+  <div class="team-results-heading"><p id="team-result-count" aria-live="polite" th:text="${resultCount != null ? resultCount + '개의 팀' : '0개의 팀'}">0개의 팀</p><span>팀을 선택하면 소개와 가입 정보를 볼 수 있습니다.</span></div>
+  <section id="team-list-view" aria-label="팀 목록">
+    <div id="team-grid" class="team-grid">
+      <article th:each="team : ${teams}" class="team-card">
+        <div class="team-card-top"><span class="team-mark" th:attr="data-sport=${team.sportId}" aria-hidden="true" th:text="${team.initials}">팀</span><div><h2 class="team-card-name" th:text="${team.name}">팀 이름</h2><p class="team-card-subtitle" th:text="${team.sportName + ' · ' + team.areaLabel}">종목 · 지역</p></div></div>
+        <div class="team-badges">
+          <span class="team-badge" th:classappend="${team.recruiting} ? 'is-recruiting' : 'is-closed'" th:text="${team.statusLabel}">모집 중</span>
+          <span class="team-badge" th:text="${'팀 실력 ' + team.level + '단계'}">팀 실력 1단계</span>
+          <span th:each="tag : ${team.tags}" class="team-badge" th:text="${tag}">태그</span>
+        </div>
+        <div class="team-card-meta">
+          <div><div class="team-card-meta-label">팀원 / 최대 인원</div><div class="team-card-meta-value" th:text="${team.memberCount + ' / ' + team.maxMembers + '명'}">0 / 0명</div></div>
+          <div><div class="team-card-meta-label">평균 레이팅</div><div class="team-card-meta-value" th:text="${team.ratingText}">기록 없음</div></div>
+          <div style="grid-column:1 / -1"><div class="team-card-meta-label">활동 시간</div><div class="team-card-meta-value" th:text="${team.time}">활동 시간</div></div>
+        </div>
+        <div class="team-card-footer"><span th:text="${team.footerNote}">모집 자리 0명</span><a class="team-card-link" th:href="@{/teams/{id}(id=${team.id})}">팀 정보 보기 <span aria-hidden="true">→</span></a></div>
+      </article>
+      <div th:if="${#lists.isEmpty(teams)}" class="team-empty-state">
+        <h2>조건에 맞는 팀이 없습니다</h2>
+        <p>검색어나 필터를 바꾸어 다시 찾아보세요.</p>
+        <a class="team-button team-button-quiet" th:href="@{/teams}">조건 초기화</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/site-menu.js}"></script>
+<script th:src="@{/js/teams.js}"></script>
+</body>
+</html>
