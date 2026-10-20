@@ -46,7 +46,7 @@
         <a class="flex h-[38px] items-center gap-1.5 rounded-lg bg-ink px-3.5 text-sm font-bold text-white transition hover:bg-ink-2 active:scale-[.98]" th:href="@{/signup}">회원가입 <span aria-hidden="true">↗</span></a>
       </div>
       <div th:if="${currentMember != null}" data-auth-member class="flex items-center gap-2">
-        <a th:href="@{/mypage}" class="hidden max-w-[180px] truncate rounded-lg px-2 py-2 text-xs font-semibold text-ink-2 hover:bg-paper-soft sm:block" th:text="${currentMember.name}" th:aria-label="${currentMember.name + ' 계정 마이페이지'}">회원</a>
+        <a th:href="@{/mypage}" class="hidden max-w-[180px] truncate rounded-lg px-2 py-2 text-xs font-semibold text-ink-2 hover:bg-paper-soft sm:block" th:text="${currentMember.nickname}" th:aria-label="${currentMember.nickname + ' 계정 마이페이지'}">회원</a>
         <form th:action="@{/logout}" method="post" class="contents">
           <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
           <button type="submit" class="flex h-[38px] items-center rounded-lg bg-ink px-3.5 text-sm font-bold text-white transition hover:bg-ink-2">로그아웃</button>

@@ -47,7 +47,11 @@
     }
 
     if (target.closest('[data-team-share]')) {
-      navigator.clipboard?.writeText(window.location.href)
+      if (!navigator.clipboard?.writeText) {
+        announce('현재 브라우저에서 링크 복사를 사용할 수 없습니다.');
+        return;
+      }
+      navigator.clipboard.writeText(window.location.href)
         .then(function () { announce('팀 링크를 복사했습니다.'); })
         .catch(function () { announce('현재 브라우저에서 링크 복사를 사용할 수 없습니다.'); });
     }

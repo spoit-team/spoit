@@ -7,7 +7,6 @@
   if (!dialog || !form) return;
 
   const script = document.currentScript;
-  const capacity = Number(script?.dataset.capacity || 0);
   const availableSeats = Number(script?.dataset.availableSeats || 0);
 
   const phoneInput = document.getElementById('applicant-phone');
@@ -27,24 +26,31 @@
   const submitButton = document.getElementById('selection-submit');
   const heading = document.getElementById('selection-dialog-heading');
   const lede = document.getElementById('selection-dialog-lede');
+  const clubOptions = Array.from(teamOptions?.querySelectorAll('.md-team-option') || []);
+  const clubRadios = Array.from(teamOptions?.querySelectorAll('input[name="clubId"]') || []);
+  const rosters = Array.from(document.querySelectorAll('[data-team-roster]'));
 
   let selectionKind = 'individual';
   let teamStep = 1;
 
-  function selectedTeamOption() {
-    return teamOptions?.querySelector('input[name="teamId"]:checked')?.closest('.md-team-option') || null;
+  function selectedClubRadio() {
+    return teamOptions?.querySelector('input[name="clubId"]:checked') || null;
   }
 
-  function selectedTeamId() {
-    return teamOptions?.querySelector('input[name="teamId"]:checked')?.value || null;
+  function selectedClubOption() {
+    return selectedClubRadio()?.closest('.md-team-option') || null;
   }
 
-  function rosterFor(teamId) {
-    return document.querySelector('[data-team-roster="' + teamId + '"]');
+  function selectedClubId() {
+    return selectedClubRadio()?.value || null;
   }
 
-  function checkedMemberIds(teamId) {
-    const roster = rosterFor(teamId);
+  function rosterFor(clubId) {
+    return document.querySelector('[data-team-roster="' + clubId + '"]');
+  }
+
+  function checkedClubMemberIds(clubId) {
+    const roster = rosterFor(clubId);
     if (!roster) return [];
     return Array.from(roster.querySelectorAll('input[type="checkbox"]:checked:not(:disabled)')).map(function (input) { return input.value; });
   }
@@ -60,9 +66,9 @@
 
   function seatCount() {
     if (selectionKind === 'individual') return 1;
-    const option = selectedTeamOption();
+    const option = selectedClubOption();
     if (!option) return 1;
-    return 1 + checkedMemberIds(option.dataset.teamIndex).length + leaderSeats(option);
+    return 1 + checkedClubMemberIds(option.dataset.teamIndex).length + leaderSeats(option);
   }
 
   function showError(message) {
@@ -90,21 +96,21 @@
 
   function renderTeamStep() {
     const isTeam = selectionKind === 'team';
-    const teamId = selectedTeamId();
+    const clubId = selectedClubId();
 
-    teamOptions?.querySelectorAll('.md-team-option').forEach(function (option) {
-      const radio = option.querySelector('input[name="teamId"]');
+    clubOptions.forEach(function (option) {
+      const radio = option.querySelector('input[name="clubId"]');
       option.classList.toggle('is-selected', Boolean(radio?.checked));
     });
 
-    document.querySelectorAll('[data-team-roster]').forEach(function (roster) {
-      const isActiveRoster = isTeam && teamStep === 2 && roster.dataset.teamRoster === teamId;
-      roster.hidden = roster.dataset.teamRoster !== teamId;
+    rosters.forEach(function (roster) {
+      const isActiveRoster = isTeam && teamStep === 2 && roster.dataset.teamRoster === clubId;
+      roster.hidden = roster.dataset.teamRoster !== clubId;
       roster.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
         checkbox.disabled = !isActiveRoster || checkbox.dataset.leaderOnly === 'true' || checkbox.dataset.applicant === 'true';
       });
     });
-    teamOptions?.querySelectorAll('input[name="teamId"]').forEach(function (radio) {
+    clubRadios.forEach(function (radio) {
       radio.disabled = !isTeam;
     });
 
@@ -122,20 +128,20 @@
         ? teamStep === 1 ? '참가 팀원 선택' : '결제 안내로 이동'
         : '결제 안내로 이동';
       submitButton.disabled = isTeam
-        ? teamStep === 1 ? !teamId : !hasParticipants() || seatCount() > availableSeats
+        ? teamStep === 1 ? !clubId : !hasParticipants() || seatCount() > availableSeats
         : availableSeats < 1;
     }
 
-    const option = selectedTeamOption();
+    const option = selectedClubOption();
     if (option && selectedTeamName) selectedTeamName.textContent = option.querySelector('b')?.textContent || '';
     if (selectedTeamCount) selectedTeamCount.textContent = '총 ' + seatCount() + '명 · 신청자 포함';
     updateNotice();
   }
 
   function hasParticipants() {
-    const option = selectedTeamOption();
+    const option = selectedClubOption();
     if (!option) return false;
-    return checkedMemberIds(option.dataset.teamIndex).length > 0 || leaderSeats(option) > 0;
+    return checkedClubMemberIds(option.dataset.teamIndex).length > 0 || leaderSeats(option) > 0;
   }
 
   function openSelection(kind) {
@@ -152,7 +158,7 @@
     showError('');
     renderTeamStep();
     if (!dialog.open) dialog.showModal();
-    if (kind === 'team') teamOptions?.querySelector('input[name="teamId"]')?.focus({ preventScroll: true });
+    if (kind === 'team') teamOptions?.querySelector('input[name="clubId"]')?.focus({ preventScroll: true });
     else phoneInput?.focus({ preventScroll: true });
   }
 
@@ -163,14 +169,14 @@
   });
 
   teamOptions?.addEventListener('change', function (event) {
-    if (!event.target.matches('input[name="teamId"]')) return;
+    if (!event.target.matches('input[name="clubId"]')) return;
     const roster = rosterFor(event.target.value);
     roster?.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) { checkbox.checked = false; });
     showError('');
     renderTeamStep();
   });
 
-  document.querySelectorAll('[data-team-roster]').forEach(function (roster) {
+  rosters.forEach(function (roster) {
     roster.addEventListener('change', function () {
       showError('');
       renderTeamStep();
@@ -182,7 +188,7 @@
       event.preventDefault();
       teamStep = 1;
       renderTeamStep();
-      teamOptions?.querySelector('input[name="teamId"]')?.focus({ preventScroll: true });
+      teamOptions?.querySelector('input[name="clubId"]')?.focus({ preventScroll: true });
       return;
     }
     dialog.close();
@@ -199,14 +205,14 @@
   form.addEventListener('submit', function (event) {
     if (selectionKind === 'team' && teamStep === 1) {
       event.preventDefault();
-      if (!selectedTeamId()) {
+      if (!selectedClubId()) {
         showError('신청할 등록 팀을 선택해 주세요.');
-        teamOptions?.querySelector('input[name="teamId"]')?.focus({ preventScroll: true });
+        teamOptions?.querySelector('input[name="clubId"]')?.focus({ preventScroll: true });
         return;
       }
       teamStep = 2;
       renderTeamStep();
-      rosterFor(selectedTeamId())?.querySelector('input[type="checkbox"]:not(:disabled)')?.focus({ preventScroll: true });
+      rosterFor(selectedClubId())?.querySelector('input[type="checkbox"]:not(:disabled)')?.focus({ preventScroll: true });
       return;
     }
 
@@ -222,7 +228,7 @@
     if (selectionKind === 'team' && !hasParticipants()) {
       event.preventDefault();
       showError('신청 대표 외에 참가할 팀원을 한 명 이상 선택해 주세요.');
-      rosterFor(selectedTeamId())?.querySelector('input[type="checkbox"]:not(:disabled)')?.focus({ preventScroll: true });
+      rosterFor(selectedClubId())?.querySelector('input[type="checkbox"]:not(:disabled)')?.focus({ preventScroll: true });
       return;
     }
   });

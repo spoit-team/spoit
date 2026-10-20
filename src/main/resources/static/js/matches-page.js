@@ -120,8 +120,8 @@
   /* 매칭방 상세 모달 */
   const dialog = document.getElementById('app-dialog');
 
-  function openRoomDialog(roomId) {
-    const source = document.querySelector('[data-room-id="' + roomId + '"] [data-room-dialog-content]');
+  function openMatchDialog(matchId) {
+    const source = document.querySelector('[data-room-id="' + matchId + '"] [data-room-dialog-content]');
     if (!dialog || !source) return;
 
     dialog.innerHTML = source.innerHTML;
@@ -135,7 +135,7 @@
     if (!dialog.open) dialog.showModal();
   }
 
-  function closeRoomDialog() {
+  function closeMatchDialog() {
     if (dialog?.open) dialog.close();
   }
 
@@ -145,7 +145,7 @@
 
     const detailButton = target.closest('[data-room-detail]');
     if (detailButton) {
-      openRoomDialog(detailButton.dataset.roomDetail);
+      openMatchDialog(detailButton.dataset.roomDetail);
       return;
     }
 
@@ -153,7 +153,7 @@
     if (link && dialog?.contains(link)) return;
 
     if (target.closest('[data-close]')) {
-      closeRoomDialog();
+      closeMatchDialog();
       return;
     }
 
@@ -163,10 +163,10 @@
   });
 
   dialog?.addEventListener('click', function (event) {
-    if (event.target === dialog) closeRoomDialog();
+    if (event.target === dialog) closeMatchDialog();
   });
 
   document.addEventListener('keydown', function (event) {
-    if (event.key === 'Escape' && dialog?.open) closeRoomDialog();
+    if (event.key === 'Escape' && dialog?.open) closeMatchDialog();
   });
 })();

@@ -4,18 +4,8 @@
   'use strict';
 
   const tabs = Array.from(document.querySelectorAll('[data-management-tab], .team-management-tab'));
-  const toast = document.getElementById('team-management-toast');
-  let toastTimer = 0;
   let activeDialog = null;
   let dialogOpener = null;
-
-  function announce(text) {
-    if (!toast) return;
-    toast.textContent = text;
-    toast.hidden = false;
-    window.clearTimeout(toastTimer);
-    toastTimer = window.setTimeout(function () { toast.hidden = true; }, 2600);
-  }
 
   function openDialog(dialog, focusSelector) {
     if (!dialog || dialog.open) return;
@@ -45,13 +35,13 @@
 
     if (target.closest('[data-team-create]')) {
       const dialog = document.getElementById('team-create-dialog');
-      openDialog(dialog, 'input[name="name"]');
+      openDialog(dialog, 'input[name="clubName"]');
       return;
     }
 
     if (target.closest('[data-team-edit]')) {
       const dialog = document.getElementById('team-edit-dialog');
-      openDialog(dialog, 'input[name="name"]');
+      openDialog(dialog, 'input[name="clubName"]');
       return;
     }
 
@@ -77,7 +67,7 @@
     }
 
     if (target.closest('[data-team-disband]')) {
-      openDialog(document.getElementById('team-disband-dialog'), 'input[name="teamNameConfirmation"]');
+      openDialog(document.getElementById('team-disband-dialog'), 'input[name="clubNameConfirmation"]');
     }
   });
 
@@ -154,7 +144,7 @@
   const disbandForm = document.getElementById('team-disband-form');
   disbandForm?.addEventListener('submit', function (event) {
     const expected = disbandForm.dataset.teamName || '';
-    const input = disbandForm.querySelector('input[name="teamNameConfirmation"]');
+    const input = disbandForm.querySelector('input[name="clubNameConfirmation"]');
     const error = disbandForm.querySelector('.team-form-error');
     if (!input || input.value.trim() === expected) {
       if (error) error.hidden = true;

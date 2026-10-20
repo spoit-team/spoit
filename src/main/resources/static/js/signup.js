@@ -12,7 +12,7 @@
   const stepOneLabel = document.getElementById('step-1-label');
   const stepTwoLabel = document.getElementById('step-2-label');
   const roleSelect = document.getElementById('signup-role');
-  const preferredRegion = document.getElementById('signup-preferred-region');
+  const regionSelect = document.getElementById('signup-preferred-region');
   const facilitySignupFields = document.getElementById('facility-signup-fields');
   const systemSignupFields = document.getElementById('system-signup-fields');
   const facilityName = document.getElementById('signup-facility-name');
@@ -195,7 +195,7 @@
       event.preventDefault();
       return;
     }
-    if (preferredRegion) preferredRegion.disabled = false;
+    if (regionSelect) regionSelect.disabled = false;
   });
 
   updateRoleFields();

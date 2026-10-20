@@ -18,7 +18,7 @@
       <span class="mypage-avatar" aria-hidden="true" th:text="${member.initial}">플</span>
       <div class="mypage-player-copy">
         <p class="mypage-player-eyebrow">SPO:IT PLAYER PROFILE</p>
-        <h2 id="player-profile-heading"><span th:text="${member.name}">회원</span><span class="mypage-player-suffix">님의 플레이 프로필</span></h2>
+        <h2 id="player-profile-heading"><span th:text="${member.nickname}">회원</span><span class="mypage-player-suffix">님의 플레이 프로필</span></h2>
         <div class="mypage-player-meta"><span class="mypage-role-badge" th:text="${member.roleLabel}">일반 사용자</span><span class="mypage-meta-dot" aria-hidden="true">·</span><span th:text="${member.email}">email</span></div>
         <p class="mypage-player-regions" th:text="${member.regionText}">선호 지역을 설정해 보세요.</p>
       </div>
@@ -42,7 +42,7 @@
     <div class="mypage-sport-levels">
       <div class="mypage-sport-levels-heading"><h3>다른 종목 레이팅</h3><p>대표 종목 외에 참가 기록이 있는 종목의 레이팅을 간략히 표시합니다.</p></div>
       <div class="mypage-sport-level-list" aria-live="polite">
-        <a th:each="sport : ${otherSports}" class="mypage-sport-level-row" th:href="@{/mypage(recordSport=${sport.id})} + '#match-records'" th:aria-label="${sport.name + ' 경기 기록 보기'}">
+        <a th:each="sport : ${otherSports}" class="mypage-sport-level-row" th:href="@{/mypage(recordSport=${sport.sportId})} + '#match-records'" th:aria-label="${sport.name + ' 경기 기록 보기'}">
           <span th:text="${sport.name}">종목</span><strong th:text="${sport.ratingText}">기록 없음</strong><small th:text="${sport.note}">경기 기록</small>
         </a>
         <p th:if="${#lists.isEmpty(otherSports)}" class="mypage-sport-level-empty" th:text="${summary.otherSportsNote}">매칭 참가 기록이 생기면 종목별 레이팅을 표시합니다.</p>
@@ -79,7 +79,7 @@
                 <span class="mypage-rating-sport-copy"><span class="mypage-rating-sport-name">전체 종목</span><small>모든 경기 기록</small></span>
                 <span class="mypage-rating-sport-grade"><strong th:text="${historyTotalCount + '경기'}">0경기</strong><small>전체 기록</small></span>
               </a>
-              <a th:each="sport : ${sports}" class="mypage-rating-sport" th:href="@{/mypage(recordSport=${sport.id})} + '#match-records'" th:aria-current="${sport.selected ? 'true' : null}" th:classappend="${sport.selected} ? 'is-selected' : ''">
+              <a th:each="sport : ${sports}" class="mypage-rating-sport" th:href="@{/mypage(recordSport=${sport.sportId})} + '#match-records'" th:aria-current="${sport.selected ? 'true' : null}" th:classappend="${sport.selected} ? 'is-selected' : ''">
                 <span class="mypage-rating-sport-copy"><span class="mypage-rating-sport-name" th:text="${sport.name}">종목</span><small th:text="${'경기 ' + sport.count + '회 · ' + sport.note}">기록</small></span>
                 <span class="mypage-rating-sport-grade">
                   <strong th:text="${sport.grade}">기록 없음</strong><small th:text="${sport.caption}">종목 레이팅</small>
@@ -159,7 +159,7 @@
                 </div>
                 <div class="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
                   <a th:if="${entry.canViewPaymentGuidance}" th:href="@{${entry.paymentGuidanceUrl}}" class="h-9 shrink-0 self-start rounded-lg bg-match px-3 py-2 text-xs font-bold text-white hover:bg-match-hover sm:self-center">결제 안내</a>
-                  <form th:if="${entry.canCancel}" method="post" th:action="@{/mypage/applications/{id}/cancel(id=${entry.id})}">
+                  <form th:if="${entry.canCancel}" method="post" th:action="@{/mypage/applications/{applicationId}/cancel(applicationId=${entry.applicationId})}">
                     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                     <button type="submit" class="h-9 shrink-0 self-start rounded-lg border border-line-strong px-3 text-xs font-bold text-ink-2 hover:border-danger hover:text-danger sm:self-center" th:text="${entry.cancelLabel}">신청 취소</button>
                   </form>
@@ -214,8 +214,8 @@
               </div>
             </a>
             <div class="mypage-notification-actions">
-              <form th:if="${!item.read}" method="post" th:action="@{/mypage/notifications/{id}/read(id=${item.id})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action">읽음</button></form>
-              <form method="post" th:action="@{/mypage/notifications/{id}/delete(id=${item.id})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action is-delete" th:aria-label="${'알림 삭제: ' + item.title}">삭제</button></form>
+              <form th:if="${!item.read}" method="post" th:action="@{/mypage/notifications/{notificationId}/read(notificationId=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action">읽음</button></form>
+              <form method="post" th:action="@{/mypage/notifications/{notificationId}/delete(notificationId=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action is-delete" th:aria-label="${'알림 삭제: ' + item.title}">삭제</button></form>
             </div>
           </article>
           <p th:if="${#lists.isEmpty(notifications)}" class="mypage-notification-empty">확인할 알림이 없습니다.</p>
@@ -244,8 +244,8 @@
           </div>
         </a>
         <div class="mypage-notification-actions">
-          <form th:if="${!item.read}" method="post" th:action="@{/mypage/notifications/{id}/read(id=${item.id})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action">읽음</button></form>
-          <form method="post" th:action="@{/mypage/notifications/{id}/delete(id=${item.id})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action is-delete" th:aria-label="${'알림 삭제: ' + item.title}">삭제</button></form>
+          <form th:if="${!item.read}" method="post" th:action="@{/mypage/notifications/{notificationId}/read(notificationId=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action">읽음</button></form>
+          <form method="post" th:action="@{/mypage/notifications/{notificationId}/delete(notificationId=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action is-delete" th:aria-label="${'알림 삭제: ' + item.title}">삭제</button></form>
         </div>
       </article>
       <p th:if="${#lists.isEmpty(notifications)}" class="mypage-notification-empty">확인할 알림이 없습니다.</p>

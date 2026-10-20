@@ -511,7 +511,7 @@ button { color: inherit; }
 .date-schedule-heading { align-items: center; margin-bottom: 12px; }
 .calendar-month-nav { display: flex; align-items: center; gap: 10px; }
 .calendar-month-nav strong { min-width: 102px; color: var(--admin-ink-2); font-size: 12px; text-align: center; }
-.date-schedule-layout { display: grid; grid-template-columns: minmax(260px,.92fr) minmax(350px,1.08fr); border-top: 1px solid var(--admin-line-strong); border-bottom: 1px solid var(--admin-line-strong); }
+.date-schedule-layout { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); border-top: 1px solid var(--admin-line-strong); border-bottom: 1px solid var(--admin-line-strong); }
 .date-calendar-panel { min-width: 0; padding: 14px 18px 10px 0; border-right: 1px solid var(--admin-line-strong); background: #fafbfc; }
 .date-calendar-weekdays, .date-calendar { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); }
 .date-calendar { grid-auto-rows: 58px; }
@@ -524,7 +524,7 @@ button { color: inherit; }
 .date-calendar-day.is-current { background: var(--admin-blue-soft); box-shadow: inset 0 0 0 1px var(--admin-blue); color: var(--admin-blue-ink); }
 .date-calendar-day.outside-month { color: #c4c7ce; }
 .calendar-day-number { font-family: Archivo,sans-serif; font-size: 11px; font-weight: 700; }
-.date-calendar-day small { display: block; max-width: 100%; overflow: hidden; color: var(--admin-blue-ink); font-size: 8px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.date-calendar-day small { display: block; max-width: 100%; overflow: hidden; color: var(--admin-blue-ink); font-size: 9px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .date-calendar-day.has-closure small:last-child { color: #95620d; }
 .date-calendar-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; color: var(--admin-muted); font-size: 9.5px; }
 .date-calendar-legend span { display: inline-flex; align-items: center; gap: 5px; }
@@ -642,7 +642,7 @@ button { color: inherit; }
   .room-roster-actions { gap: 8px; }
 }
 
-@media (max-width: 840px) {
+@media (max-width: 960px) {
   .date-schedule-layout { grid-template-columns: 1fr; }
   .date-calendar-panel { padding: 12px 0; border-right: 0; border-bottom: 1px solid var(--admin-line-strong); }
   .date-schedule-editor { padding: 14px 0 10px; }
@@ -652,7 +652,7 @@ button { color: inherit; }
   .calendar-month-nav { width: 100%; justify-content: space-between; }
   .date-calendar { grid-auto-rows: 50px; }
   .date-calendar-day { min-height: 50px; padding: 4px 2px; }
-  .date-calendar-day small { font-size: 7px; }
+  .date-calendar-day small { font-size: 8px; }
   .date-hour-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .hour-slot { font-size: 9px; }
   .popular-hours-chart { padding: 15px; }

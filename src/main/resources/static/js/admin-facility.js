@@ -75,12 +75,12 @@
     const teamA = Number(document.getElementById('room-editor-team-a')?.value || 0);
     const teamB = Number(document.getElementById('room-editor-team-b')?.value || 0);
     if (!hint) return;
-    const capacity = teamA + teamB;
-    if (!capacity) {
+    const maxParticipants = teamA + teamB;
+    if (!maxParticipants) {
       hint.textContent = 'A팀과 B팀 정원을 입력하면 전체 정원이 표시됩니다.';
       return;
     }
-    hint.textContent = '최대 참가 인원 ' + capacity + '명 (A팀 ' + teamA + '명 · B팀 ' + teamB + '명)';
+    hint.textContent = '최대 참가 인원 ' + maxParticipants + '명 (A팀 ' + teamA + '명 · B팀 ' + teamB + '명)';
   }
 
   function setFacilitySports(value) {

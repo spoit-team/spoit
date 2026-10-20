@@ -37,7 +37,7 @@
 
         <div class="section-heading"><div class="section-title-wrap"><h2>최근 접수된 신고</h2><p>신고만으로 자동 제재하지 않고, 관련 로그를 검토한 뒤 처리합니다.</p></div><button class="admin-button small" type="button" data-view-target="system-reports">신고함 열기 →</button></div>
         <div class="card"><div class="table-scroll"><table class="admin-table"><thead><tr><th>신고 번호</th><th>신고 유형</th><th>신고 대상</th><th>접수 시각</th><th>우선순위</th><th>처리 상태</th><th>조사</th></tr></thead><tbody>
-          <tr th:each="report : ${dashboard?.recentReports}"><td th:text="${report.id}">신고 번호</td><td th:text="${report.type}">유형</td><td th:text="${report.target}">대상</td><td th:text="${report.receivedAt}">시각</td><td><span class="status-badge" th:classappend="${report.priorityTone}" th:text="${report.priority}">우선순위</span></td><td><span class="status-badge" th:classappend="${report.statusTone}" th:text="${report.statusLabel}">상태</span></td><td><a class="table-link" th:href="@{/admin/system(view='reports')} + '#system-reports'">보기</a></td></tr>
+          <tr th:each="report : ${dashboard?.recentReports}"><td th:text="${report.reportId}">신고 번호</td><td th:text="${report.type}">유형</td><td th:text="${report.target}">대상</td><td th:text="${report.receivedAt}">시각</td><td><span class="status-badge" th:classappend="${report.priorityTone}" th:text="${report.priority}">우선순위</span></td><td><span class="status-badge" th:classappend="${report.statusTone}" th:text="${report.statusLabel}">상태</span></td><td><a class="table-link" th:href="@{/admin/system(view='reports')} + '#system-reports'">보기</a></td></tr>
           <tr th:if="${#lists.isEmpty(dashboard?.recentReports)}"><td class="table-empty" colspan="7">접수된 신고가 없습니다.</td></tr>
         </tbody></table></div></div>
       </section>
@@ -91,15 +91,15 @@
           </form>
           <div class="result-meta"><b th:text="${#lists.size(reports)}">0</b>건의 신고</div>
           <div class="table-scroll"><table class="admin-table"><thead><tr><th>신고 번호</th><th>신고 유형</th><th>신고 대상</th><th>신고자</th><th>접수 시각</th><th>관련 로그</th><th>우선순위</th><th>처리 상태</th><th>관리</th></tr></thead><tbody>
-            <tr th:each="report : ${reports}"><td th:text="${report.id}">신고 번호</td><td th:text="${report.type}">유형</td><td><span class="cell-primary" th:text="${report.target}">대상</span></td><td th:text="${report.reporter}">신고자</td><td th:text="${report.receivedAt}">시각</td><td th:text="${report.relatedLogs + '건'}">0건</td><td><span class="status-badge" th:classappend="${report.priorityTone}" th:text="${report.priority}">우선순위</span></td><td><span class="status-badge" th:classappend="${report.statusTone}" th:text="${report.statusLabel}">상태</span></td><td><button class="table-link" type="button" data-open-report th:attr="data-report-id=${report.id}">조사</button></td></tr>
+            <tr th:each="report : ${reports}"><td th:text="${report.reportId}">신고 번호</td><td th:text="${report.type}">유형</td><td><span class="cell-primary" th:text="${report.target}">대상</span></td><td th:text="${report.reporter}">신고자</td><td th:text="${report.receivedAt}">시각</td><td th:text="${report.relatedLogs + '건'}">0건</td><td><span class="status-badge" th:classappend="${report.priorityTone}" th:text="${report.priority}">우선순위</span></td><td><span class="status-badge" th:classappend="${report.statusTone}" th:text="${report.statusLabel}">상태</span></td><td><button class="table-link" type="button" data-open-report th:attr="data-report-id=${report.reportId}">조사</button></td></tr>
             <tr th:if="${#lists.isEmpty(reports)}"><td class="table-empty" colspan="9">조건에 맞는 신고가 없습니다.</td></tr>
           </tbody></table></div>
           <div class="table-footer" th:if="${reportPagination?.totalPages != null and reportPagination.totalPages > 1}"><span>신고자·대상자 정보는 권한이 있는 관리자에게만 표시됩니다.</span><div class="pagination"><a class="page-button" th:href="@{${reportPagination.prevUrl}}" aria-label="이전 페이지">‹</a><span class="page-button" aria-current="page" th:text="${reportPagination.page}">1</span><a class="page-button" th:href="@{${reportPagination.nextUrl}}" aria-label="다음 페이지">›</a></div></div>
         </div>
 
         <!-- 신고별 상세: 서버가 렌더링한 내용을 모달에서 엽니다. -->
-        <template th:each="report : ${reports}" th:id="${'report-detail-' + report.id}" th:attr="data-report-title=${report.type + ' · ' + report.id},data-report-subtitle=${report.summary}">
-          <form th:id="${'report-decision-form-' + report.id}" method="post" th:action="@{/admin/system/reports/{id}/decision(id=${report.id})}">
+        <template th:each="report : ${reports}" th:id="${'report-detail-' + report.reportId}" th:attr="data-report-title=${report.type + ' · ' + report.reportId},data-report-subtitle=${report.summary}">
+          <form th:id="${'report-decision-form-' + report.reportId}" method="post" th:action="@{/admin/system/reports/{id}/decision(id=${report.reportId})}">
             <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
             <div class="modal-body">
               <div class="report-detail-grid">
@@ -108,7 +108,7 @@
                     <div class="report-summary-top"><b th:text="${report.summary}">신고 요약</b><span class="status-badge" th:classappend="${report.priorityTone}" th:text="${report.priority + ' 우선순위'}">우선순위</span></div>
                     <p class="report-summary-copy" th:text="${report.detail}">신고 상세 내용</p>
                     <div class="report-kv-grid">
-                      <div class="report-kv"><small>신고 번호</small><b th:text="${report.id}">신고 번호</b></div>
+                      <div class="report-kv"><small>신고 번호</small><b th:text="${report.reportId}">신고 번호</b></div>
                       <div class="report-kv"><small>접수 시각</small><b th:text="${report.receivedAt}">시각</b></div>
                       <div class="report-kv"><small>신고자</small><b th:text="${report.reporter}">신고자</b></div>
                       <div class="report-kv"><small>신고 대상</small><b th:text="${report.target}">대상</b></div>
@@ -125,8 +125,8 @@
                 </div>
                 <aside class="report-decision-card">
                   <span class="report-decision-label">검토 결과</span>
-                  <div class="form-field"><label th:for="${'sanction-action-' + report.id}">처리 조치</label><select th:id="${'sanction-action-' + report.id}" name="action"><option value="warn">경고 발송</option><option value="suspend-3">3일 이용 정지</option><option value="suspend-7">7일 이용 정지</option><option value="suspend-permanent">영구 이용 정지</option><option value="dismiss">신고 기각</option></select></div>
-                  <div class="form-field"><label th:for="${'sanction-reason-' + report.id}">처리 사유</label><textarea th:id="${'sanction-reason-' + report.id}" name="reason" placeholder="확인한 로그와 운영 정책에 따른 판단 근거를 기록해 주세요." required></textarea><small>이 사유는 대상자 안내와 감사 로그에 남습니다.</small></div>
+                  <div class="form-field"><label th:for="${'sanction-action-' + report.reportId}">처리 조치</label><select th:id="${'sanction-action-' + report.reportId}" name="action"><option value="warn">경고 발송</option><option value="suspend-3">3일 이용 정지</option><option value="suspend-7">7일 이용 정지</option><option value="suspend-permanent">영구 이용 정지</option><option value="dismiss">신고 기각</option></select></div>
+                  <div class="form-field"><label th:for="${'sanction-reason-' + report.reportId}">처리 사유</label><textarea th:id="${'sanction-reason-' + report.reportId}" name="reason" placeholder="확인한 로그와 운영 정책에 따른 판단 근거를 기록해 주세요." required></textarea><small>이 사유는 대상자 안내와 감사 로그에 남습니다.</small></div>
                   <label class="report-notify-option"><input name="notify" type="checkbox" checked /> 처리 결과를 신고자와 대상자에게 안내</label>
                   <div class="report-action-note">신고 내용과 관련 로그를 확인한 뒤 조치를 선택해 주세요.</div>
                 </aside>
@@ -150,7 +150,7 @@
           <form class="toolbar" method="get" th:action="@{/admin/system}"><input type="hidden" name="view" value="penalties" /><label class="search-control"><span aria-hidden="true">⌕</span><input id="penalty-search" name="q" type="search" placeholder="계정, 신고 번호, 조치 사유 검색" th:value="${penaltyFilters?.q}" /></label><select class="field-control" id="penalty-status-filter" name="status" aria-label="제재 상태"><option value="all">전체 상태</option><option value="active" th:selected="${penaltyFilters?.status == 'active'}">적용 중</option><option value="done" th:selected="${penaltyFilters?.status == 'done'}">처리 완료</option><option value="released" th:selected="${penaltyFilters?.status == 'released'}">해제</option></select><button class="admin-button small" type="submit">검색</button></form>
           <div class="result-meta"><b th:text="${#lists.size(penalties)}">0</b>건의 제재 기록</div>
           <div class="table-scroll"><table class="admin-table"><thead><tr><th>대상 계정</th><th>조치</th><th>적용 기간</th><th>근거 신고</th><th>처리 사유</th><th>상태</th><th>관리</th></tr></thead><tbody>
-            <tr th:each="penalty : ${penalties}"><td><span class="cell-primary" th:text="${penalty.account}">계정</span><span class="cell-secondary" th:text="${penalty.email}">이메일</span></td><td th:text="${penalty.action}">조치</td><td><span th:text="${penalty.startAt}">시작</span><span class="cell-secondary" th:text="${penalty.endAt != null ? '종료 ' + penalty.endAt : '기간 없음'}">종료</span></td><td><a class="table-link" th:href="@{/admin/system(view='reports')} + '#system-reports'" th:text="${penalty.reportId ?: '—'}">신고</a></td><td class="wrap-content" th:text="${penalty.reason}">사유</td><td><span class="status-badge" th:classappend="${penalty.statusTone}" th:text="${penalty.statusLabel}">상태</span></td><td><form th:if="${penalty.active}" method="post" th:action="@{/admin/system/penalties/{id}/release(id=${penalty.id})}" data-confirm="이 제재를 조기 해제할까요? 조치 내용은 감사 로그에 기록됩니다."><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button class="admin-button small danger-ghost" type="submit">조기 해제</button></form><span th:unless="${penalty.active}" class="cell-secondary">—</span></td></tr>
+            <tr th:each="penalty : ${penalties}"><td><span class="cell-primary" th:text="${penalty.account}">계정</span><span class="cell-secondary" th:text="${penalty.email}">이메일</span></td><td th:text="${penalty.action}">조치</td><td><span th:text="${penalty.startAt}">시작</span><span class="cell-secondary" th:text="${penalty.endAt != null ? '종료 ' + penalty.endAt : '기간 없음'}">종료</span></td><td><a class="table-link" th:href="@{/admin/system(view='reports')} + '#system-reports'" th:text="${penalty.reportId ?: '—'}">신고</a></td><td class="wrap-content" th:text="${penalty.reason}">사유</td><td><span class="status-badge" th:classappend="${penalty.statusTone}" th:text="${penalty.statusLabel}">상태</span></td><td><form th:if="${penalty.active}" method="post" th:action="@{/admin/system/penalties/{id}/release(id=${penalty.penaltyId})}" data-confirm="이 제재를 조기 해제할까요? 조치 내용은 감사 로그에 기록됩니다."><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button class="admin-button small danger-ghost" type="submit">조기 해제</button></form><span th:unless="${penalty.active}" class="cell-secondary">—</span></td></tr>
             <tr th:if="${#lists.isEmpty(penalties)}"><td class="table-empty" colspan="7">조건에 맞는 페널티 기록이 없습니다.</td></tr>
           </tbody></table></div>
         </div>
@@ -174,21 +174,21 @@
           <div class="result-meta"><b th:text="${#lists.size(users)}">0</b>개 계정</div>
           <div class="table-scroll"><table class="admin-table"><thead><tr><th>계정</th><th>역할</th><th>승인 상태</th><th>계정 상태</th><th>가입 일자</th><th>최근 활동</th><th>관리</th></tr></thead><tbody>
             <tr th:each="user : ${users}">
-              <td><span class="cell-primary" th:text="${user.name}">이름</span><span class="cell-secondary" th:text="${user.email + ' · ' + user.id}">이메일</span></td>
+              <td><span class="cell-primary" th:text="${user.nickname}">이름</span><span class="cell-secondary" th:text="${user.email + ' · ' + user.userId}">이메일</span></td>
               <td><span class="role-badge" th:classappend="${user.roleTone}" th:text="${user.roleLabel}">역할</span></td>
               <td><span class="status-badge" th:classappend="${user.approvalTone}" th:text="${user.approvalLabel}">승인</span></td>
               <td><span class="status-badge" th:classappend="${user.statusTone}" th:text="${user.statusLabel}">상태</span><span th:if="${user.sanction != null}" class="cell-secondary" th:text="${user.sanction}">제재</span></td>
               <td th:text="${user.joinedAt}">가입일</td>
               <td th:text="${user.lastActive}">활동</td>
               <td><div class="table-actions">
-                <button class="admin-button small" type="button" data-user-role th:attr="data-user-id=${user.id},data-user-label=${user.name + ' · ' + user.email},data-user-role-value=${user.roleValue}">역할 변경</button>
+                <button class="admin-button small" type="button" data-user-role th:attr="data-user-id=${user.userId},data-user-label=${user.nickname + ' · ' + user.email},data-user-role-value=${user.roleValue}">역할 변경</button>
                 <th:block th:if="${user.pending}">
-                  <form method="post" th:action="@{/admin/system/users/{id}/approve(id=${user.id})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button class="admin-button small" type="submit">승인</button></form>
-                  <form method="post" th:action="@{/admin/system/users/{id}/reject(id=${user.id})}" data-confirm="이 가입 요청을 거절할까요?"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button class="admin-button small danger-ghost" type="submit">거절</button></form>
+                  <form method="post" th:action="@{/admin/system/users/{id}/approve(id=${user.userId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button class="admin-button small" type="submit">승인</button></form>
+                  <form method="post" th:action="@{/admin/system/users/{id}/reject(id=${user.userId})}" data-confirm="이 가입 요청을 거절할까요?"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button class="admin-button small danger-ghost" type="submit">거절</button></form>
                 </th:block>
                 <th:block th:unless="${user.pending}">
-                  <form th:if="${user.suspended}" method="post" th:action="@{/admin/system/users/{id}/restore(id=${user.id})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button class="admin-button small" type="submit">복구</button></form>
-                  <form th:unless="${user.suspended}" class="user-suspension-form" method="post" th:action="@{/admin/system/users/{id}/suspend(id=${user.id})}" data-confirm="이 계정을 정지할까요? 입력한 사유는 감사 로그에 기록됩니다."><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><input class="user-suspension-reason" name="reason" type="text" maxlength="200" placeholder="정지 사유" th:attr="aria-label=${user.name + ' 계정 정지 사유'}" required /><button class="admin-button small danger-ghost" type="submit">정지</button></form>
+                  <form th:if="${user.suspended}" method="post" th:action="@{/admin/system/users/{id}/restore(id=${user.userId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button class="admin-button small" type="submit">복구</button></form>
+                  <form th:unless="${user.suspended}" class="user-suspension-form" method="post" th:action="@{/admin/system/users/{id}/suspend(id=${user.userId})}" data-confirm="이 계정을 정지할까요? 입력한 사유는 감사 로그에 기록됩니다."><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><input class="user-suspension-reason" name="reason" type="text" maxlength="200" placeholder="정지 사유" th:attr="aria-label=${user.nickname + ' 계정 정지 사유'}" required /><button class="admin-button small danger-ghost" type="submit">정지</button></form>
                 </th:block>
               </div></td>
             </tr>

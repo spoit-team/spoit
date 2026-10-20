@@ -25,11 +25,11 @@
     <span class="join-unavailable-icon" aria-hidden="true">!</span>
     <h2 th:text="${unavailableMessage}">신청 내용을 확인할 수 없습니다.</h2>
     <p>매치 상세 화면에서 참가 방식과 인원을 다시 선택해 주세요.</p>
-    <a th:href="@{/matches/{id}(id=${roomId})}" class="join-button join-button-primary">매치 상세로 돌아가기</a>
+    <a th:href="@{/matches/{matchId}(matchId=${matchId})}" class="join-button join-button-primary">매치 상세로 돌아가기</a>
   </div>
 
   <div th:unless="${unavailableMessage != null}" id="join-layout" class="match-join-layout">
-    <form th:unless="${completed}" id="join-form" class="join-workflow" novalidate method="post" th:action="@{/matches/{id}/apply(id=${room.id})}">
+    <form th:unless="${completed}" id="join-form" class="join-workflow" novalidate method="post" th:action="@{/matches/{matchId}/apply(matchId=${match.matchId})}">
       <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
       <div class="join-workflow-topline">
         <div><span class="join-workflow-kicker">MATCH APPLICATION</span><h2 id="stage-heading" tabindex="-1">신청 내용을 확인해 주세요</h2></div>
@@ -45,10 +45,10 @@
           </div>
           <dl class="join-selected-contact">
             <div><dt>연락처</dt><dd th:text="${selection.applicantPhone}">010-0000-0000</dd></div>
-            <div><dt>신청 방식</dt><dd th:text="${selection.kind == 'team' ? '팀 단위 참가' : '개인 참가'}">개인 참가</dd></div>
+            <div><dt>신청 방식</dt><dd th:text="${selection.applicationType == 'team' ? '팀 단위 참가' : '개인 참가'}">개인 참가</dd></div>
           </dl>
           <div class="join-selected-roster"><h4>참가 인원</h4><ul>
-            <li th:each="person : ${selection.participants}" class="join-selected-person"><span th:text="${person.name}">참가자</span><small th:text="${person.roleLabel}">참가자</small></li>
+            <li th:each="person : ${selection.participants}" class="join-selected-person"><span th:text="${person.nickname}">참가자</span><small th:text="${person.roleLabel}">참가자</small></li>
           </ul></div>
         </div>
         <div th:if="${!canReserve}" id="capacity-notice" class="join-inline-notice">
@@ -58,7 +58,7 @@
         <label class="join-agreement"><input id="rules-agree" name="agreeRules" type="checkbox" value="true" /><span><b>매치 운영 규칙과 취소·노쇼 안내를 확인했습니다.</b><small>참가 신청 후 취소는 마이페이지의 신청 내역에서 진행할 수 있습니다.</small></span></label>
         <p id="join-error" class="join-error" role="alert" hidden></p>
         <div class="join-stage-actions">
-          <a th:href="@{/matches/{id}(id=${room.id})}" class="join-button join-button-quiet">참가 인원 다시 선택</a>
+          <a th:href="@{/matches/{matchId}(matchId=${match.matchId})}" class="join-button join-button-quiet">참가 인원 다시 선택</a>
           <button id="continue-button" type="button" class="join-button join-button-primary" th:disabled="${!canReserve}">결제 안내로 <span aria-hidden="true">→</span></button>
         </div>
       </section>
@@ -102,21 +102,21 @@
     <aside id="application-summary" class="join-summary" th:classappend="${completed} ? 'is-complete' : ''" aria-labelledby="summary-heading">
       <div class="join-summary-title"><span class="join-summary-kicker">YOUR MATCH</span><h2 id="summary-heading">신청 요약</h2></div>
       <div class="join-summary-room">
-        <span class="join-summary-sport" th:text="${room.sportName + ' · ' + room.statusLabel}">종목</span>
-        <h3 th:text="${room.title}">매칭방</h3>
-        <p class="join-summary-place" th:text="${room.facilityName}">시설</p>
+        <span class="join-summary-sport" th:text="${match.sportName + ' · ' + match.statusLabel}">종목</span>
+        <h3 th:text="${match.title}">매칭방</h3>
+        <p class="join-summary-place" th:text="${match.facilityName}">시설</p>
         <dl class="join-summary-facts">
-          <div class="join-summary-fact"><dt>이용 일시</dt><dd th:text="${room.dateLabel + ' ' + room.time}">일시</dd></div>
-          <div class="join-summary-fact"><dt>장소</dt><dd th:text="${room.place}">장소</dd></div>
-          <div class="join-summary-fact"><dt>종목·실력</dt><dd th:text="${room.sportName + ' · ' + room.levelLabel}">종목</dd></div>
-          <div class="join-summary-fact"><dt>참가비</dt><dd th:text="${room.feeText + '원 / 1인'}">참가비</dd></div>
+          <div class="join-summary-fact"><dt>이용 일시</dt><dd th:text="${match.dateLabel + ' ' + match.time}">일시</dd></div>
+          <div class="join-summary-fact"><dt>장소</dt><dd th:text="${match.place}">장소</dd></div>
+          <div class="join-summary-fact"><dt>종목·실력</dt><dd th:text="${match.sportName + ' · ' + match.levelLabel}">종목</dd></div>
+          <div class="join-summary-fact"><dt>참가비</dt><dd th:text="${match.feeText + '원 / 1인'}">참가비</dd></div>
           <div class="join-summary-fact"><dt>신청 인원</dt><dd th:text="${selection != null ? selection.seats + '명 · ' + selection.kindLabel : ''}">인원</dd></div>
         </dl>
       </div>
       <div class="join-summary-participants">
-        <div class="join-summary-participants-top"><span>현재 참가 인원</span><b th:text="${room.capacityLabel}">0 / 8명</b></div>
-        <div class="join-summary-progress" role="progressbar" aria-label="매칭방 참가 인원과 좌석 예약" aria-valuemin="0" th:attr="aria-valuemax=${room.capacity}, aria-valuenow=${room.occupiedSeats}"><span th:style="'width:' + ${room.occupancyPercent ?: 0} + '%'"></span></div>
-        <p class="join-summary-remaining" th:text="${canReserve ? room.remainingLabel + ' · 신청 인원 ' + selection.seats + '명' : '현재 선택으로 예약할 수 없습니다.'}">남은 자리</p>
+        <div class="join-summary-participants-top"><span>현재 참가 인원</span><b th:text="${match.capacityLabel}">0 / 8명</b></div>
+        <div class="join-summary-progress" role="progressbar" aria-label="매칭방 참가 인원과 좌석 예약" aria-valuemin="0" th:attr="aria-valuemax=${match.maxParticipants}, aria-valuenow=${match.occupiedSeats}"><span th:style="'width:' + ${match.occupancyPercent ?: 0} + '%'"></span></div>
+        <p class="join-summary-remaining" th:text="${canReserve ? match.remainingLabel + ' · 신청 인원 ' + selection.seats + '명' : '현재 선택으로 예약할 수 없습니다.'}">남은 자리</p>
       </div>
       <div class="join-summary-total">
         <div><span th:text="${completed ? '신청 상태' : '참가비 안내'}">참가비 안내</span><b th:text="${completed ? completion.stateLabel : (canReserve ? feeTotalText : '예약 불가')}">-</b></div>
