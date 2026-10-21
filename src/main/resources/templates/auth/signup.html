@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('회원가입 · SPO:IT', 'SPO:IT 회원으로 가입하고 공공 체육시설과 운동 매치를 이용하세요.', ${ {} })}"></head>
+<body class="bg-canvas text-ink antialiased">
+<header class="border-b border-line bg-white">
+  <div class="wrap flex h-[68px] items-center justify-between gap-4">
+    <a th:href="@{/matches}" class="flex shrink-0 items-center gap-2.5" aria-label="SPO:IT 홈">
+      <img class="size-[34px] shrink-0" th:src="@{/images/spoit-mark.svg}" alt="" aria-hidden="true" />
+      <span class="flex flex-col leading-none"><b class="text-[16px] font-extrabold tracking-[-.04em]">SPO<span style="color:#5FAE4E">:</span>IT</b><small class="mt-1 hidden whitespace-nowrap text-[8px] font-medium tracking-[.01em] text-faint xl:block">SPORTS · PEOPLE · CONNECTION</small></span>
+    </a>
+    <p class="text-xs font-medium text-muted sm:text-sm">이미 계정이 있으신가요? <a th:href="@{/login}" class="ml-1 font-extrabold text-book hover:text-book-ink">로그인</a></p>
+  </div>
+</header>
+
+<main class="px-4 py-8 sm:py-12">
+  <section class="mx-auto w-full max-w-[600px] rounded-card border border-line bg-white p-5 shadow-[0_1px_0_rgba(19,21,25,.03),0_1px_2px_rgba(19,21,25,.045)] sm:p-8" aria-labelledby="signup-title">
+    <div>
+      <p class="text-xs font-extrabold tracking-[.08em] text-book">SPO:IT · JOIN</p>
+      <h1 id="signup-title" class="mt-2 text-[25px] font-extrabold tracking-[-.04em]">회원가입</h1>
+      <p class="mt-2 text-sm leading-6 text-muted">체육시설 예약과 동네 운동 매치를 한 계정으로 이용하세요.</p>
+    </div>
+
+    <div class="mt-6 flex items-center gap-3" aria-label="가입 단계">
+      <div class="flex items-center gap-2"><span id="step-1-dot" class="auth-step-dot is-current" aria-current="step">1</span><span id="step-1-label" class="text-xs font-bold text-book-ink">약관 동의</span></div>
+      <span class="h-px flex-1 bg-line" aria-hidden="true"></span>
+      <div class="flex items-center gap-2"><span id="step-2-dot" class="auth-step-dot">2</span><span id="step-2-label" class="text-xs font-semibold text-faint">회원 정보</span></div>
+    </div>
+
+    <p th:if="${error != null}" class="auth-message is-error mt-5" role="alert" th:text="${error}">입력 정보를 확인해 주세요.</p>
+    <p th:if="${message != null}" class="auth-message is-success mt-5" role="status" th:text="${message}">가입 안내</p>
+
+    <form id="signup-form" class="mt-6" method="post" th:action="@{/signup}" novalidate th:attr="data-start-step=${error != null and signupForm != null and signupForm.agreeService and signupForm.agreePrivacy ? 2 : 1}">
+      <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+      <section id="signup-step-1" aria-labelledby="terms-title">
+        <div class="flex items-end justify-between gap-3">
+          <div><h2 id="terms-title" class="text-base font-extrabold">약관에 동의해 주세요</h2><p class="mt-1 text-xs text-muted">서비스 이용을 위해 필수 항목을 확인해 주세요.</p></div>
+          <span class="shrink-0 text-[11px] font-medium text-faint">1 / 2</span>
+        </div>
+
+        <label class="mt-5 flex min-h-12 cursor-pointer items-center gap-2.5 rounded-[10px] border border-line bg-paper-soft px-3.5 py-2.5 text-sm font-extrabold text-ink"><input id="agree-all" class="auth-checkbox" type="checkbox" />전체 약관에 동의합니다</label>
+
+        <div class="mt-3 divide-y divide-line rounded-[10px] border border-line">
+          <div class="px-3.5 py-1">
+            <div class="flex min-h-12 items-center gap-2.5">
+              <label for="agree-service" class="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-[13px] font-semibold text-ink-2"><input id="agree-service" name="agreeService" class="auth-checkbox" type="checkbox" required th:checked="${signupForm != null and signupForm.agreeService}" /><span><b class="text-book">[필수]</b> 서비스 이용약관 동의</span></label>
+              <button type="button" data-terms-toggle="terms-service" aria-expanded="false" class="min-h-11 shrink-0 rounded-md border border-line-strong px-2.5 py-1.5 text-[11px] font-semibold text-muted hover:border-faint hover:text-ink">보기</button>
+            </div>
+            <p id="terms-service" class="auth-terms-copy" hidden>SPO:IT은 공공 체육시설 예약과 운동 매치 정보를 제공하는 서비스입니다. 계정은 본인이 사용하며, 예약과 매치 이용 시 각 시설의 운영 규정을 따라야 합니다. 세부 약관은 <a th:href="@{/terms}" class="font-semibold text-book hover:text-book-ink">이용약관</a>에서 확인할 수 있습니다.</p>
+          </div>
+          <div class="px-3.5 py-1">
+            <div class="flex min-h-12 items-center gap-2.5">
+              <label for="agree-privacy" class="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-[13px] font-semibold text-ink-2"><input id="agree-privacy" name="agreePrivacy" class="auth-checkbox" type="checkbox" required th:checked="${signupForm != null and signupForm.agreePrivacy}" /><span><b class="text-book">[필수]</b> 개인정보 수집 및 이용 동의</span></label>
+              <button type="button" data-terms-toggle="terms-privacy" aria-expanded="false" class="min-h-11 shrink-0 rounded-md border border-line-strong px-2.5 py-1.5 text-[11px] font-semibold text-muted hover:border-faint hover:text-ink">보기</button>
+            </div>
+            <p id="terms-privacy" class="auth-terms-copy" hidden>회원 식별과 서비스 제공에 필요한 이메일, 닉네임 등 최소 정보를 이용합니다. 수집 항목과 보유 기간은 <a th:href="@{/privacy}" class="font-semibold text-book hover:text-book-ink">개인정보처리방침</a>을 따릅니다.</p>
+          </div>
+          <div class="px-3.5 py-1">
+            <div class="flex min-h-12 items-center gap-2.5">
+              <label for="agree-marketing" class="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-[13px] font-semibold text-ink-2"><input id="agree-marketing" name="marketingOptIn" class="auth-checkbox" type="checkbox" th:checked="${signupForm != null and signupForm.marketingOptIn}" /><span><b class="text-faint">[선택]</b> 혜택 및 이벤트 소식 수신 동의</span></label>
+              <button type="button" data-terms-toggle="terms-marketing" aria-expanded="false" class="min-h-11 shrink-0 rounded-md border border-line-strong px-2.5 py-1.5 text-[11px] font-semibold text-muted hover:border-faint hover:text-ink">보기</button>
+            </div>
+            <p id="terms-marketing" class="auth-terms-copy" hidden>새로운 시설과 지역 매치, 이벤트 소식을 이메일로 받아볼 수 있습니다. 선택 동의는 가입 후에도 설정에서 변경할 수 있습니다.</p>
+          </div>
+        </div>
+        <p id="terms-error" class="auth-error mt-2 text-xs font-semibold" role="alert" hidden>필수 약관에 동의해야 다음 단계로 이동할 수 있습니다.</p>
+
+        <button id="next-step" type="button" class="mt-5 h-12 w-full rounded-[10px] bg-book text-sm font-extrabold text-white shadow-[0_2px_8px_rgba(38,109,198,.2)] transition hover:bg-book-hover">약관 동의하고 다음 <span aria-hidden="true">→</span></button>
+        <a th:href="@{/matches}" class="mt-3 flex h-10 items-center justify-center rounded-[10px] text-xs font-semibold text-muted hover:bg-paper-soft hover:text-ink">홈으로</a>
+      </section>
+
+      <section id="signup-step-2" aria-labelledby="profile-title" hidden>
+        <div class="flex items-end justify-between gap-3 border-b border-line pb-4">
+          <div><h2 id="profile-title" class="text-base font-extrabold">회원 정보를 입력해 주세요</h2><p class="mt-1 text-xs text-muted">가입 후 프로필에서 언제든지 수정할 수 있습니다.</p></div>
+          <span class="shrink-0 text-[11px] font-medium text-faint">2 / 2</span>
+        </div>
+
+        <div class="mt-4 space-y-4">
+          <div>
+            <label for="signup-role" class="mb-1.5 block text-xs font-bold text-muted">가입 유형 <span class="text-book">· 필수</span></label>
+            <select id="signup-role" name="role" class="auth-input">
+              <option value="member" th:selected="${signupForm != null and signupForm.role == 'member'}">일반 사용자</option>
+              <option value="facility" th:selected="${signupForm != null and signupForm.role == 'facility'}">시설물 관리자 신청</option>
+              <option value="system" th:selected="${signupForm != null and signupForm.role == 'system'}">시스템 관리자 초대 등록</option>
+            </select>
+            <p id="signup-role-hint" class="mt-1.5 text-[11px] leading-5 text-faint">관리자 유형은 신청 정보 확인 후 권한이 부여됩니다.</p>
+          </div>
+          <div id="facility-signup-fields" class="space-y-1" hidden>
+            <label for="signup-facility-name" class="mb-1.5 block text-xs font-bold text-muted">소속 시설·기관 <span class="text-book">· 필수</span></label>
+            <input id="signup-facility-name" name="facilityName" class="auth-input" type="text" maxlength="60" placeholder="소속 시설·기관명을 입력하세요." aria-describedby="signup-role-error" th:value="${signupForm != null ? signupForm.facilityName : ''}" />
+          </div>
+          <div id="system-signup-fields" class="space-y-1" hidden>
+            <label for="signup-admin-invite" class="mb-1.5 block text-xs font-bold text-muted">관리자 초대 코드 <span class="text-book">· 필수</span></label>
+            <input id="signup-admin-invite" name="adminInviteCode" class="auth-input" type="text" autocomplete="off" placeholder="초대 코드를 입력하세요" aria-describedby="signup-role-error" />
+          </div>
+          <p id="signup-role-error" class="auth-error text-xs font-semibold" role="alert" hidden></p>
+          <div>
+            <label for="signup-email" class="mb-1.5 block text-xs font-bold text-muted">이메일 <span class="text-book">· 필수</span></label>
+            <input id="signup-email" name="email" class="auth-input" type="email" autocomplete="email" placeholder="name@example.com" aria-describedby="signup-email-hint signup-email-error" required th:value="${signupForm != null ? signupForm.email : ''}" />
+            <p id="signup-email-hint" class="mt-1.5 text-[11px] text-faint">로그인과 예약 안내에 사용할 이메일입니다.</p>
+            <p id="signup-email-error" class="auth-error mt-1.5 text-xs font-semibold" role="alert" hidden></p>
+          </div>
+          <div>
+            <label for="signup-phone" class="mb-1.5 block text-xs font-bold text-muted">연락처 <span class="text-book">· 필수</span></label>
+            <input id="signup-phone" name="phone" class="auth-input" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" pattern="[0-9+() -]{8,20}" placeholder="010-0000-0000" aria-describedby="signup-phone-hint signup-phone-error" required th:value="${signupForm != null ? signupForm.phone : ''}" />
+            <p id="signup-phone-hint" class="mt-1.5 text-[11px] text-faint">매치 신청과 안내에 사용할 연락처입니다.</p>
+            <p id="signup-phone-error" class="auth-error mt-1.5 text-xs font-semibold" role="alert" hidden></p>
+          </div>
+          <div>
+            <label for="signup-password" class="mb-1.5 block text-xs font-bold text-muted">비밀번호 <span class="text-book">· 필수</span></label>
+            <div class="relative"><input id="signup-password" name="password" class="auth-input pr-16" type="password" autocomplete="new-password" placeholder="8자 이상, 영문과 숫자 포함" aria-describedby="signup-password-error" required /><button type="button" data-toggle-password="signup-password" class="absolute inset-y-0 right-0 rounded-r-[10px] px-3 text-xs font-semibold text-muted hover:text-ink" aria-label="비밀번호 표시">보기</button></div>
+            <p id="signup-password-error" class="auth-error mt-1.5 text-xs font-semibold" role="alert" hidden></p>
+          </div>
+          <div>
+            <label for="signup-password-confirm" class="mb-1.5 block text-xs font-bold text-muted">비밀번호 확인 <span class="text-book">· 필수</span></label>
+            <input id="signup-password-confirm" name="passwordConfirm" class="auth-input" type="password" autocomplete="new-password" placeholder="비밀번호를 다시 입력하세요" aria-describedby="signup-password-confirm-error" required />
+            <p id="signup-password-confirm-error" class="auth-error mt-1.5 text-xs font-semibold" role="alert" hidden></p>
+          </div>
+          <div>
+            <label for="signup-nickname" class="mb-1.5 block text-xs font-bold text-muted">닉네임 <span class="text-book">· 필수</span></label>
+            <input id="signup-nickname" name="nickname" class="auth-input" type="text" autocomplete="nickname" maxlength="12" placeholder="운동할 때 사용할 이름" aria-describedby="signup-nickname-hint signup-nickname-error" required th:value="${signupForm != null ? signupForm.nickname : ''}" />
+            <p id="signup-nickname-hint" class="mt-1.5 text-[11px] text-faint">한글, 영문, 숫자, 밑줄로 2~12자 입력할 수 있습니다.</p>
+            <p id="signup-nickname-error" class="auth-error mt-1.5 text-xs font-semibold" role="alert" hidden></p>
+          </div>
+          <fieldset class="border-t border-line pt-4">
+            <legend class="text-xs font-bold text-muted">선호 지역 <span class="font-medium text-faint">· 선택, 한 곳 선택</span></legend>
+            <p class="mt-1 text-[11px] text-faint">관심 지역 시설과 매치를 먼저 찾아볼 때 사용합니다. 가입 후 마이페이지에서 바꿀 수 있습니다.</p>
+            <select id="signup-preferred-region" name="regionId" class="auth-input mt-3">
+              <option value="">선호 지역 선택 안 함</option>
+              <option th:each="district : ${districts}" th:value="${district.regionId}" th:text="${district.name}" th:selected="${signupForm != null and signupForm.regionId == district.regionId}">지역</option>
+            </select>
+          </fieldset>
+        </div>
+
+        <div class="mt-6 grid grid-cols-[.85fr_1.4fr] gap-2">
+          <button id="previous-step" type="button" class="h-12 rounded-[10px] border border-line-strong bg-white text-sm font-bold text-ink-2 transition hover:border-faint hover:bg-paper-soft">← 이전 단계</button>
+          <button type="submit" class="h-12 rounded-[10px] bg-book text-sm font-extrabold text-white shadow-[0_2px_8px_rgba(38,109,198,.2)] transition hover:bg-book-hover">회원가입 완료</button>
+        </div>
+        <a th:href="@{/matches}" class="mt-3 flex h-9 items-center justify-center rounded-[10px] text-xs font-semibold text-muted hover:bg-paper-soft hover:text-ink">홈으로</a>
+      </section>
+    </form>
+  </section>
+
+  <footer class="mx-auto mt-5 flex max-w-[600px] flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] text-faint">
+    <a th:href="@{/matches}" class="hover:text-ink-2">SPO:IT 홈</a><span aria-hidden="true">·</span><a th:href="@{/terms}" class="hover:text-ink-2">이용약관</a><span aria-hidden="true">·</span><a th:href="@{/privacy}" class="hover:text-ink-2">개인정보처리방침</a>
+  </footer>
+</main>
+
+<script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/auth-form.js}"></script>
+<script th:src="@{/js/signup.js}"></script>
+</body>
+</html>

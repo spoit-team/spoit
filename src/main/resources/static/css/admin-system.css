@@ -1,0 +1,21 @@
+/* System administrator presentation, isolated from the facility admin screen. */
+.admin-body[data-admin-role="system"] .admin-content .card { border: 0; border-radius: 0; background: transparent; }
+.admin-body[data-admin-role="system"] .admin-content .metric-grid { border: 0; border-bottom: 1px solid var(--admin-line-strong); border-radius: 0; background: transparent; }
+.admin-body[data-admin-role="system"] .admin-content .metric-card + .metric-card { border-left: 0; }
+.admin-body[data-admin-role="system"] .admin-content .dashboard-grid { border: 0; border-block: 1px solid var(--admin-line-strong); border-radius: 0; background: transparent; }
+.admin-body[data-admin-role="system"] .admin-content .dashboard-grid > .card + .card { position: relative; border-left: 0; }
+.admin-body[data-admin-role="system"] .admin-content .dashboard-grid > .card + .card::before { position: absolute; top: 18px; bottom: 18px; left: 0; width: 1px; background: var(--admin-line-strong); content: ""; }
+.admin-body[data-admin-role="system"] .admin-content .admin-view > .card { border-block: 1px solid var(--admin-line-strong); }
+.admin-body[data-admin-role="system"] .admin-content .section-heading { padding-top: 13px; border-top: 1px solid var(--admin-line-strong); }
+.admin-body[data-admin-role="system"] .admin-content .setting-grid { border: 0; border-bottom: 1px solid var(--admin-line-strong); border-radius: 0; background: transparent; }
+
+@media (max-width: 960px) {
+  .admin-body[data-admin-role="system"] #system-dashboard .dashboard-grid { grid-template-columns: minmax(0,1fr); }
+  .admin-body[data-admin-role="system"] #system-dashboard .dashboard-grid > .card + .card { border-top: 1px solid var(--admin-line-strong); border-left: 0; }
+  .admin-body[data-admin-role="system"] #system-dashboard .dashboard-grid > .card + .card::before { display: none; }
+}
+
+@media (max-width: 840px) {
+  .admin-body[data-admin-role="system"] .admin-content .dashboard-grid > .card + .card { border-top: 1px solid var(--admin-line-strong); border-left: 0; }
+  .admin-body[data-admin-role="system"] .admin-content .dashboard-grid > .card + .card::before { display: none; }
+}

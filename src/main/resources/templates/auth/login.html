@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('로그인 · SPO:IT', 'SPO:IT에 로그인하고 운동 매치와 마이페이지를 이용하세요.', ${ {} })}"></head>
+<body class="bg-canvas text-ink antialiased">
+<header class="border-b border-line bg-white">
+  <div class="wrap flex h-[68px] items-center justify-between gap-4">
+    <a th:href="@{/matches}" class="flex shrink-0 items-center gap-2.5" aria-label="SPO:IT 홈">
+      <img class="size-[34px] shrink-0" th:src="@{/images/spoit-mark.svg}" alt="" aria-hidden="true" />
+      <span class="flex flex-col leading-none"><b class="text-[16px] font-extrabold tracking-[-.04em]">SPO<span style="color:#5FAE4E">:</span>IT</b><small class="mt-1 hidden whitespace-nowrap text-[8px] font-medium tracking-[.01em] text-faint xl:block">SPORTS · PEOPLE · CONNECTION</small></span>
+    </a>
+    <a th:href="@{/matches}" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-ink-2 hover:bg-paper-soft hover:text-ink"><span aria-hidden="true">←</span> 메인으로</a>
+  </div>
+</header>
+
+<main class="flex min-h-[calc(100vh-68px)] flex-col items-center justify-center px-4 py-10 sm:py-14">
+  <section class="w-full max-w-[460px] rounded-card border border-line bg-white p-5 shadow-[0_1px_0_rgba(19,21,25,.03),0_1px_2px_rgba(19,21,25,.045)] sm:p-8" aria-labelledby="login-title">
+    <div class="text-center">
+      <p class="text-xs font-extrabold tracking-[.08em] text-book">SPO:IT</p>
+      <h1 id="login-title" class="mt-2 text-[25px] font-extrabold tracking-[-.04em]">로그인</h1>
+      <p class="mt-2 text-sm leading-6 text-muted">SPO:IT에서 예약과 운동 매치를 이어가세요.</p>
+    </div>
+
+    <p th:if="${error != null}" class="auth-message is-error mt-5" role="alert" th:text="${error}">로그인 정보를 확인해 주세요.</p>
+    <p th:if="${message != null}" class="auth-message is-success mt-5" role="status" th:text="${message}">로그인 안내</p>
+
+    <form id="login-form" method="post" th:action="@{/login}" class="mt-6 space-y-4">
+      <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+      <input type="hidden" name="redirect" th:value="${redirect}" />
+      <div>
+        <label for="login-email" class="mb-1.5 block text-xs font-bold text-muted">이메일</label>
+        <input id="login-email" name="email" class="auth-input" type="email" autocomplete="email" placeholder="name@example.com" required th:value="${email}" aria-describedby="login-email-error" />
+        <p id="login-email-error" class="auth-error mt-1.5 text-xs font-semibold" role="alert" hidden></p>
+      </div>
+      <div>
+        <label for="login-password" class="mb-1.5 block text-xs font-bold text-muted">비밀번호</label>
+        <div class="relative">
+          <input id="login-password" name="password" class="auth-input pr-16" type="password" autocomplete="current-password" placeholder="비밀번호를 입력하세요" required aria-describedby="login-password-error" />
+          <button type="button" data-toggle-password="login-password" class="absolute inset-y-0 right-0 rounded-r-[10px] px-3 text-xs font-semibold text-muted hover:text-ink" aria-label="비밀번호 표시">보기</button>
+        </div>
+        <p id="login-password-error" class="auth-error mt-1.5 text-xs font-semibold" role="alert" hidden></p>
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-0.5 text-xs">
+        <label class="inline-flex cursor-pointer items-center gap-2 font-medium text-ink-2"><input id="remember-login" name="remember" class="auth-checkbox" type="checkbox" th:checked="${remember}" /> 로그인 상태 유지</label>
+        <div class="flex items-center gap-2 text-muted">
+          <a th:href="@{/login/find-account}" class="hover:text-book">아이디 찾기</a>
+          <span aria-hidden="true" class="text-faint">|</span>
+          <a th:href="@{/login/find-password}" class="hover:text-book">비밀번호 찾기</a>
+        </div>
+      </div>
+      <button type="submit" class="h-12 w-full rounded-[10px] bg-book text-sm font-extrabold text-white shadow-[0_2px_8px_rgba(38,109,198,.2)] transition hover:bg-book-hover active:scale-[.99]">로그인</button>
+    </form>
+
+    <p class="mt-5 text-center text-xs font-medium text-muted">아직 계정이 없으신가요? <a th:href="@{/signup}" class="ml-1 font-extrabold text-book hover:text-book-ink">회원가입</a></p>
+  </section>
+
+  <footer class="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] text-faint">
+    <a th:href="@{/matches}" class="hover:text-ink-2">SPO:IT 홈</a><span aria-hidden="true">·</span><a th:href="@{/terms}" class="hover:text-ink-2">이용약관</a><span aria-hidden="true">·</span><a th:href="@{/privacy}" class="hover:text-ink-2">개인정보처리방침</a>
+  </footer>
+</main>
+
+<script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/auth-form.js}"></script>
+</body>
+</html>

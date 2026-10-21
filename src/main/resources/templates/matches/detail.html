@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('매칭방 상세 · SPO:IT', '매칭방 시설과 참가 현황을 확인하고 개인 또는 등록 팀으로 참가자를 선택합니다.', ${ {'match-detail.css'} })}"></head>
+<body class="match-detail-body">
+<header th:replace="~{fragments/layout :: simpleHeader('matches')}"></header>
+
+<main class="match-detail-wrap">
+  <a th:href="@{/matches}" class="match-detail-back"><span aria-hidden="true">←</span> 매칭방 목록</a>
+
+  <div th:if="${unavailableMessage != null}" class="md-unavailable">
+    <span aria-hidden="true">!</span>
+    <h1>매칭방 정보를 찾을 수 없습니다.</h1>
+    <p th:text="${unavailableMessage}">목록으로 돌아가 다른 매칭방을 선택해 주세요.</p>
+    <a class="md-button md-button-primary" th:href="@{/matches}">매칭방 목록으로</a>
+  </div>
+
+  <div th:unless="${unavailableMessage != null}">
+  <div class="match-detail-heading">
+    <div>
+      <p class="match-detail-eyebrow">SPO:IT MATCH</p>
+      <div class="match-detail-title-line"><h1 th:text="${match.title}">매칭방</h1><span class="md-status" th:classappend="${match.statusClass}" th:text="${match.statusLabel}">모집 중</span></div>
+      <p class="match-detail-subtitle" th:text="${match.sportName + ' · ' + match.place}">종목 · 장소</p>
+    </div>
+    <p class="match-detail-status-tag"><span aria-hidden="true">●</span> 매치 안내</p>
+  </div>
+
+  <div class="match-detail-grid">
+    <article class="match-detail-main">
+      <figure class="md-facility-visual">
+        <img th:if="${match.facility.image != null}" th:src="@{${match.facility.image}}" th:alt="${match.facility.imageAlt}" />
+        <div th:if="${match.facility.image == null}" class="md-facility-fallback" aria-hidden="true" th:text="${match.facility.fallbackName}">시설</div>
+        <figcaption th:text="${match.facility.caption}">시설명</figcaption>
+      </figure>
+
+      <section class="md-section" aria-labelledby="room-info-heading">
+        <div class="md-section-heading">
+          <div><p class="md-section-kicker">MATCH INFO</p><h2 id="room-info-heading">매칭방 정보</h2></div>
+          <span class="md-room-code" th:text="${match.matchId}">방 번호</span>
+        </div>
+        <dl class="md-facts">
+          <div th:each="fact : ${match.facts}" class="md-fact"><dt th:text="${fact.label}">항목</dt><dd th:text="${fact.value}">값</dd></div>
+        </dl>
+        <p class="md-room-note" th:text="${match.note}">안내</p>
+      </section>
+
+      <section class="md-section" aria-labelledby="roster-heading">
+        <div class="md-section-heading">
+          <div><p class="md-section-kicker">PLAYERS</p><h2 id="roster-heading">A팀 · B팀 참가 현황</h2><p class="md-roster-subtitle">경기별로 배정되는 팀이며 등록 팀과는 별도입니다.</p></div>
+          <span class="md-roster-count" th:text="${match.confirmedCount + '명 확정 · ' + match.pendingConfirmationCount + '명 확정 대기 / 최대 ' + match.maxParticipants + '명'}">참가 현황</span>
+        </div>
+
+        <div class="md-team-rating-comparison" role="group" aria-label="A팀과 B팀 평균 레이팅">
+          <div><span>팀 평균 레이팅</span><small th:text="${match.ratingNote}">기준</small></div>
+          <div class="md-team-rating-values">
+            <span>A팀<b th:text="${match.teamA.averageText}">기록 없음</b></span>
+            <span>B팀<b th:text="${match.teamB.averageText}">기록 없음</b></span>
+          </div>
+        </div>
+
+        <div class="md-participant-groups">
+          <div class="md-team-split">
+            <section class="md-roster-group">
+              <h3 class="is-team-a"><span>A팀</span><span class="md-team-heading-meta"><span class="md-team-average">평균 <b th:text="${match.teamA.averageText}">기록 없음</b></span><span th:text="${#lists.size(match.teamA.members) + '명'}">0명</span></span></h3>
+              <ul class="md-roster-list">
+                <li th:each="person : ${match.teamA.members}"><span th:text="${person.nickname + (person.host ? ' · 방장' : '')}">참가자</span><small th:text="${person.meta}">상태</small></li>
+                <li th:if="${#lists.isEmpty(match.teamA.members)}" class="md-roster-empty">아직 참가자가 없습니다.</li>
+              </ul>
+            </section>
+            <section class="md-roster-group">
+              <h3 class="is-team-b"><span>B팀</span><span class="md-team-heading-meta"><span class="md-team-average">평균 <b th:text="${match.teamB.averageText}">기록 없음</b></span><span th:text="${#lists.size(match.teamB.members) + '명'}">0명</span></span></h3>
+              <ul class="md-roster-list">
+                <li th:each="person : ${match.teamB.members}"><span th:text="${person.nickname + (person.host ? ' · 방장' : '')}">참가자</span><small th:text="${person.meta}">상태</small></li>
+                <li th:if="${#lists.isEmpty(match.teamB.members)}" class="md-roster-empty">아직 참가자가 없습니다.</li>
+              </ul>
+            </section>
+          </div>
+
+          <section th:if="${!#lists.isEmpty(match.pendingParticipants)}" class="md-roster-group md-pending-group">
+            <h3><span>확정 대기 참가자</span><span th:text="${#lists.size(match.pendingParticipants) + '명'}">0명</span></h3>
+            <ul class="md-roster-list">
+              <li th:each="person, index : ${match.pendingParticipants}"><span th:text="${index.count + '. ' + person.nickname}">1. 참가자</span><small>신청 확인 대기</small></li>
+            </ul>
+          </section>
+
+          <p th:if="${match.pendingConfirmationCount > 0}" class="md-apply-message is-pending" th:text="${'확정 대기 ' + match.pendingConfirmationCount + '명'}">확정 대기</p>
+        </div>
+      </section>
+
+      <section th:if="${match.facility.visible}" class="md-section" aria-labelledby="facility-heading">
+        <div class="md-section-heading"><div><p class="md-section-kicker">FACILITY</p><h2 id="facility-heading">시설 정보</h2></div></div>
+        <dl class="md-facts">
+          <div th:each="fact : ${match.facility.facts}" class="md-fact"><dt th:text="${fact.label}">항목</dt><dd th:text="${fact.value}">값</dd></div>
+        </dl>
+      </section>
+    </article>
+
+    <aside class="md-apply-panel" aria-labelledby="apply-heading">
+      <p class="md-section-kicker">JOIN THIS MATCH</p>
+      <h2 id="apply-heading">참가 신청</h2>
+      <div class="md-apply-message" th:classappend="${match.applyMessageClass}" role="status" aria-live="polite" th:text="${match.applyMessage}">안내</div>
+
+      <div class="md-capacity">
+        <div><span>현재 참가 인원</span><b th:text="${match.occupancyLabel}">0 / 8명</b></div>
+        <div class="md-capacity-track" role="progressbar" aria-label="매칭방 참가 인원" aria-valuemin="0" th:attr="aria-valuemax=${match.maxParticipants}, aria-valuenow=${match.occupiedSeats}">
+          <span th:style="'width:' + ${match.occupancyPercent ?: 0} + '%'"></span>
+        </div>
+        <small th:text="${match.occupancyCaption}">안내</small>
+      </div>
+
+      <section th:if="${match.myApplication.visible}" class="md-my-application" aria-labelledby="my-application-heading">
+        <div class="md-my-application-heading"><h3 id="my-application-heading">내 신청 내역</h3><a th:href="@{/mypage#reservations}">신청 내역 관리</a></div>
+        <dl class="md-my-application-facts">
+          <div><dt>신청 유형</dt><dd th:text="${match.myApplication.kindLabel}">개인 참가</dd></div>
+          <div><dt>신청 인원</dt><dd th:text="${match.myApplication.seatsText}">1명</dd></div>
+          <div><dt>접수 번호</dt><dd th:text="${match.myApplication.receiptNo}">접수 번호</dd></div>
+          <div><dt>접수 일시</dt><dd th:text="${match.myApplication.createdAtText}">일시</dd></div>
+          <div><dt>신청 상태</dt><dd th:classappend="${match.myApplication.statusClass}" th:text="${match.myApplication.statusLabel}">확정</dd></div>
+          <div th:if="${match.myApplication.teamLabel != null}"><dt>팀 배정</dt><dd th:text="${match.myApplication.teamLabel}">A팀</dd></div>
+        </dl>
+        <p class="md-my-application-note" th:text="${match.myApplication.note}">안내</p>
+      </section>
+
+      <div th:if="${match.canApply and currentMember != null}" class="md-apply-actions">
+        <button type="button" class="md-button md-button-primary" data-open-selection="individual">개인으로 참가하기</button>
+        <button type="button" id="team-apply-button" class="md-button md-button-secondary" data-open-selection="team" th:disabled="${!match.hasTeams}">등록 팀으로 신청하기</button>
+        <p th:if="${!match.hasTeams}" class="md-team-unavailable">이 종목에 등록된 팀이 없습니다.</p>
+      </div>
+      <div th:if="${match.canApply and currentMember == null}" class="md-apply-actions">
+        <a class="md-button md-button-primary" th:href="@{/login(redirect=${'/matches/' + match.matchId})}">로그인 후 참가 신청</a>
+      </div>
+      <p class="md-apply-footnote"><span aria-hidden="true">ⓘ</span> 참가 인원 선택과 결제 안내는 다음 단계에서 진행합니다. 결제는 서버의 결제 정책과 안내에 따라 처리됩니다.</p>
+    </aside>
+  </div>
+  </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: simpleFooter}"></footer>
+
+<dialog id="selection-dialog" class="md-dialog" aria-labelledby="selection-dialog-heading" th:unless="${unavailableMessage != null or currentMember == null}">
+  <form id="selection-form" method="post" th:action="@{/matches/{matchId}/selection(matchId=${match.matchId})}">
+    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+    <header class="md-dialog-header">
+      <div><span id="selection-sport-pill" class="md-sport-pill" th:text="${match.sportName + ' 매치'}">종목 매치</span><h2 id="selection-dialog-heading">참가 방식 선택</h2><p id="selection-dialog-lede">신청자와 참가 정보를 확인해 주세요.</p></div>
+      <button type="button" class="md-dialog-close" data-close-dialog aria-label="닫기"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+    </header>
+    <div class="md-dialog-body">
+      <section class="md-selection-recap" aria-label="매치 요약">
+        <h3 th:text="${match.title}">매칭방</h3>
+        <dl>
+          <div><dt>경기 일시</dt><dd th:text="${match.dateLabel + ' ' + match.time}">일시</dd></div>
+          <div><dt>시설</dt><dd th:text="${match.place}">시설</dd></div>
+          <div><dt>남은 자리</dt><dd th:text="${match.availableSeats > 0 ? match.availableSeats + '자리 / ' + match.maxParticipants + '명' : '정원 마감 · 예약 불가'}">자리</dd></div>
+          <div><dt>참가비</dt><dd th:text="${match.feeText + '원 / 1인'}">참가비</dd></div>
+        </dl>
+      </section>
+
+      <input type="hidden" name="applicationType" id="selection-kind" value="individual" />
+
+      <section id="individual-panel" class="md-selection-panel">
+        <h3>신청자 정보</h3>
+        <p class="md-selection-help">현재 로그인한 회원 한 명으로 참가합니다.</p>
+        <div class="md-applicant-row"><span class="md-avatar" th:text="${currentMember.initial}">P</span><span><small>신청 대표</small><b th:text="${currentMember.nickname}">회원</b></span></div>
+      </section>
+
+      <section id="team-panel" class="md-selection-panel" hidden>
+        <div class="md-team-steps" role="group" aria-label="등록 팀 신청 단계">
+          <span id="team-step-indicator-1" class="is-active" aria-current="step"><b>1</b> 등록 팀 선택</span><i aria-hidden="true"></i><span id="team-step-indicator-2"><b>2</b> 참가 팀원 선택</span>
+        </div>
+        <div id="team-step-select">
+          <h3>참가할 등록 팀을 선택하세요</h3>
+          <div id="team-options" class="md-team-options">
+            <label th:each="club : ${match.clubs}" class="md-team-option" th:attr="data-team-index=${club.clubId}, data-leader-auto=${club.leaderAuto}, data-leader-is-applicant=${club.leaderIsApplicant}">
+              <input type="radio" name="clubId" class="sr-only" th:value="${club.clubId}" />
+              <span class="md-team-radio" aria-hidden="true"></span>
+              <span class="md-team-option-copy"><b th:text="${club.clubName}">팀</b><small th:text="${'팀장 ' + club.leaderName + ' · 등록 팀원 ' + club.memberCount + '명 · 평균 레이팅 ' + club.averageRatingText}">팀 정보</small></span>
+              <span class="md-team-option-count"><b th:text="${club.selectionCount}">1</b><small>팀장 포함</small></span>
+            </label>
+          </div>
+          <p class="md-selection-help md-team-note">등록 팀 전체가 자동으로 참가하지 않습니다. 경기마다 함께할 팀원을 선택합니다.</p>
+        </div>
+        <div id="team-step-roster" hidden>
+          <div class="md-team-pick-bar"><strong id="team-selected-name"></strong><span id="team-selected-count"></span></div>
+          <div class="md-team-roster-heading"><h3>참가 팀원을 선택하세요</h3><span>신청자 포함 인원</span></div>
+          <div th:each="club : ${match.clubs}" th:id="'team-roster-' + ${club.clubId}" class="md-team-roster-list" th:attr="data-team-roster=${club.clubId}" hidden>
+            <div class="md-team-member md-team-captain">
+              <span class="md-team-member-avatar" aria-hidden="true" th:text="${club.leaderInitial}">P</span>
+              <span class="md-team-member-name" th:text="${club.leaderName}">팀장</span>
+              <small th:text="${club.leaderCaption}">팀장 · 자동 포함</small>
+            </div>
+              <label th:each="member : ${club.members}" class="md-team-member">
+                <input type="checkbox" name="clubMemberIds" th:value="${member.clubMemberId}" th:attr="data-team=${club.clubId},data-leader-only=${member.leaderOnly},data-applicant=${member.applicant}" th:disabled="${member.leaderOnly or member.applicant}" />
+              <span class="md-team-member-avatar" aria-hidden="true" th:text="${member.initial}">P</span>
+              <span class="md-team-member-name" th:text="${member.nickname}">팀원</span>
+              <small class="md-team-member-rating" th:text="${member.ratingText}">기록 없음</small>
+            </label>
+          </div>
+          <p class="md-selection-help md-team-note">신청 대표와 등록 팀장은 자동으로 포함됩니다. 선택 인원이 남은 자리보다 많으면 신청할 수 없습니다.</p>
+        </div>
+      </section>
+
+      <label class="md-contact-field" for="applicant-phone"><span class="md-contact-label">연락처 <small>필수</small></span>
+        <input id="applicant-phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" readonly th:value="${currentMember.phone}" aria-describedby="applicant-phone-help" />
+      </label>
+      <p class="md-field-help" id="applicant-phone-help">참가 안내는 가입 연락처로 전송됩니다. 연락처 변경은 <a th:href="@{/mypage/profile}" class="font-bold underline">프로필</a>에서 할 수 있습니다.</p>
+      <p id="selection-capacity-notice" class="md-selection-notice" role="status" aria-live="polite"></p>
+      <p id="selection-error" class="md-selection-error" role="alert" hidden></p>
+    </div>
+    <footer class="md-dialog-actions">
+      <button id="selection-back" type="button" class="md-button md-button-quiet">취소</button>
+      <button id="selection-submit" type="submit" class="md-button md-button-primary">결제 안내로 이동</button>
+    </footer>
+  </form>
+</dialog>
+
+<script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/match-detail-page.js}" th:attr="data-available-seats=${match != null ? match.availableSeats : 0}, data-capacity=${match != null ? match.maxParticipants : 0}"></script>
+</body>
+</html>

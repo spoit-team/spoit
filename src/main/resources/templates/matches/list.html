@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('SPO:IT · 동네 운동 매칭', '지역·종목·날짜·시간에 맞는 운동 매칭방을 찾고 참가 신청하세요.', ${ {'playon-matches.css', 'playon-match-cards.css'} })}"></head>
+<body class="match-cards-page">
+<header th:replace="~{fragments/layout :: siteHeader('matches')}"></header>
+
+<main id="top">
+  <section id="sports-showcase" th:attr="data-sport=${search.sportId}" class="sport-showcase border-b border-line">
+    <div id="sport-visual" class="sport-visual" th:attr="data-sport=${search.sportId}" aria-hidden="true">
+      <div class="sport-visual-layer is-active" th:style="${sportImageUrl != null ? 'background-image: url(' + sportImageUrl + ')' : ''}"></div>
+    </div>
+    <div class="wrap sport-showcase-content pb-8 pt-7 sm:pb-10 sm:pt-8 lg:pb-10">
+      <div class="sport-showcase-intro">
+        <h1 class="text-[30px] font-extrabold leading-[1.3] tracking-[-.045em] sm:text-[36px]">함께 운동할 사람을<br />매칭방에서 만나보세요</h1>
+        <p class="mt-3 max-w-[52ch] text-sm leading-7">종목·지역·날짜·시간에 맞는 매칭방을 찾고 개인 또는 팀으로 참가 신청할 수 있습니다. 정원이 차면 참가자를 A·B팀으로 자동 배정합니다.</p>
+      </div>
+      <p id="sport-visual-announcement" class="sr-only" aria-live="polite" aria-atomic="true" th:text="${selectedSportName + ' 배경'}">전체 종목 배경</p>
+
+      <form id="search-form" class="sport-search-panel mt-7 rounded-card border border-line p-5 shadow-[0_1px_0_rgba(19,21,25,.03),0_1px_2px_rgba(19,21,25,.045)] sm:p-6" method="get" th:action="@{/matches}">
+        <input type="hidden" name="sportId" th:value="${search.sportId}" />
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-sm font-extrabold tracking-[-.03em]">종목 선택 <span class="text-book">·</span></h2>
+          <span class="text-xs font-semibold text-muted">참가 가능한 방 <b id="sport-total" class="font-extrabold text-ink-2" th:text="${totalRoomCount + '개'}">0개</b></span>
+        </div>
+        <div class="sport-tabs-navigation mt-3" role="group" aria-label="종목 목록 가로 이동">
+          <button id="sport-tabs-previous" class="sport-tabs-scroll-button" type="button" aria-label="이전 종목" aria-controls="sport-tabs" title="이전 종목" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 18-6-6 6-6" /></svg>
+          </button>
+          <div id="sport-tabs" class="sport-tabs-track" role="group" aria-label="종목 선택" tabindex="0">
+            <a th:each="sport : ${sports}"
+               th:href="@{/matches(sportId=${sport.sportId}, regionId=${search.regionId}, date=${search.dateIdx}, hours=${search.hours})}"
+               th:aria-current="${sport.sportId == search.sportId ? 'true' : null}"
+               th:classappend="${sport.sportId == search.sportId} ? 'border-ink bg-ink text-white shadow-md' : 'border-line-strong bg-white text-ink-2 hover:-translate-y-px hover:border-faint hover:text-ink'"
+               class="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-3.5 text-[13px] font-semibold transition">
+              <span th:text="${sport.name}">전체</span>
+              <span th:classappend="${sport.sportId == search.sportId} ? 'border-white/20 bg-white/15 text-white' : 'border-line bg-paper-soft text-faint'"
+                    class="rounded-full border px-2 py-0.5 text-[11px] font-bold" th:text="${sport.count}">0</span>
+            </a>
+          </div>
+          <button id="sport-tabs-next" class="sport-tabs-scroll-button" type="button" aria-label="다음 종목" aria-controls="sport-tabs" title="다음 종목" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 18 6-6-6-6" /></svg>
+          </button>
+        </div>
+        <div class="mt-4 flex flex-wrap items-end justify-between gap-2 border-t border-line pt-4">
+          <h2 class="text-sm font-extrabold">시설·매칭 검색 조건</h2>
+          <p class="text-xs text-muted">시설 지역·종목·날짜·시간에 맞는 참가방을 찾아보세요</p>
+        </div>
+        <div class="mt-3 grid gap-3 md:grid-cols-[1.1fr_1fr_1.15fr_auto] md:items-end">
+          <label class="block"><span class="mb-1.5 block text-xs font-bold text-muted">지역 <span class="text-book">·</span></span>
+            <select id="district-select" name="regionId" class="search-filter-select h-[50px] w-full appearance-none rounded-[10px] border border-line-strong bg-white pl-3 pr-10 text-sm font-semibold text-ink-2 hover:border-faint">
+              <option th:each="district : ${districts}" th:value="${district.regionId}" th:text="${district.name}" th:selected="${district.regionId == search.regionId}">전체 지역</option>
+            </select>
+          </label>
+          <label class="block"><span class="mb-1.5 block text-xs font-bold text-muted">이용 날짜 <span class="text-book">·</span></span>
+            <select id="date-select" name="date" class="search-filter-select h-[50px] w-full appearance-none rounded-[10px] border border-line-strong bg-white pl-3 pr-10 text-sm font-semibold text-ink-2 hover:border-faint">
+              <option value="" th:selected="${search.dateIdx == null}">전체 날짜</option>
+              <option th:each="date : ${dates}" th:value="${date.idx}" th:text="${date.label}" th:selected="${search.dateIdx != null and search.dateIdx == date.idx}">날짜</option>
+            </select>
+          </label>
+          <div class="relative">
+            <span class="mb-1.5 block text-xs font-bold text-muted">시간 <span class="text-book">·</span></span>
+            <button id="time-button" type="button" class="flex h-[50px] w-full items-center gap-2 rounded-[10px] border border-line-strong bg-white px-3 text-left text-sm font-semibold text-ink-2 hover:border-faint" aria-expanded="false" aria-controls="time-popover">
+              <svg viewBox="0 0 24 24" class="size-[17px] shrink-0 text-muted" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" stroke-linecap="round" /></svg>
+              <span id="time-value" th:classappend="${selectedHoursLabel != null} ? 'text-ink-2' : 'text-faint'" class="min-w-0 flex-1 truncate" th:text="${selectedHoursLabel != null ? selectedHoursLabel : '시간 선택'}">시간 선택</span>
+              <svg viewBox="0 0 24 24" class="size-4 shrink-0 text-muted" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
+            </button>
+            <div id="time-popover" class="absolute left-0 top-[76px] z-30 hidden w-[min(360px,calc(100vw-40px))] rounded-xl border border-line bg-white p-4 shadow-xl">
+              <div class="text-xs font-extrabold">이용 시간 · 1시간 단위 복수 선택</div>
+              <div id="hour-options" class="mt-3 grid grid-cols-4 gap-1.5">
+                <label th:each="hour : ${hourOptions}" class="hour-option cursor-pointer rounded-md border border-line px-2 py-2 text-center font-mono text-xs font-semibold text-ink-2 hover:border-book hover:bg-book-soft">
+                  <input type="checkbox" name="hours" class="sr-only" th:value="${hour}" th:checked="${selectedHours != null and #lists.contains(selectedHours, hour)}" />
+                  <span th:text="${#strings.substring(hour, 0, 2) + '시'}">09시</span>
+                </label>
+              </div>
+              <div class="mt-3 flex items-center justify-between border-t border-line pt-3">
+                <a th:href="@{/matches(sportId=${search.sportId}, regionId=${search.regionId}, date=${search.dateIdx})}" class="text-xs font-semibold text-muted hover:text-ink">초기화</a>
+                <button type="button" id="apply-hours" class="rounded-lg bg-book px-3 py-2 text-xs font-bold text-white hover:bg-book-hover">적용</button>
+              </div>
+              <p class="mt-2 text-[11px] leading-5 text-muted">1시간 단위로 여러 시간대를 선택할 수 있습니다. 선택한 시간대가 모두 포함된 방을 찾습니다.</p>
+            </div>
+          </div>
+          <button class="match-search-submit flex h-[50px] items-center justify-center gap-2 rounded-[10px] bg-match px-6 text-sm font-bold text-white transition hover:bg-match-hover active:scale-[.985]" type="submit"><svg viewBox="0 0 24 24" class="size-[18px]" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.5" stroke="currentColor" stroke-width="2" /><path d="m16 16 4.2 4.2" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>매칭방 검색</button>
+        </div>
+        <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3.5 text-xs text-muted">
+          <span class="font-bold text-ink-2">참가 방식</span><span>개인 신청</span><span aria-hidden="true">·</span><span>팀 대표 신청</span><span aria-hidden="true">·</span><span>내 신청은 마이페이지에서 확인·취소할 수 있습니다.</span>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section id="matches" class="wrap scroll-mt-20 py-9 sm:py-11">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div><h2 class="text-[22px] font-extrabold tracking-[-.04em]">참여 가능한 매칭방</h2><p class="mt-1.5 text-sm text-muted">시설 정보와 모집 현황을 함께 보고, 조건에 맞는 매칭방을 찾을 수 있습니다.</p></div>
+      <div class="match-view-actions">
+        <a th:href="@{/mypage#reservations}" class="match-applications-link">내 신청 내역 <span aria-hidden="true">→</span></a>
+      </div>
+    </div>
+    <div class="mt-5 flex flex-wrap items-center gap-2.5 border-b border-line pb-4">
+      <div id="result-count" class="text-sm font-semibold text-muted"><b class="text-[16px] font-extrabold text-ink" th:text="${roomCount}">0</b>개의 매칭방</div>
+      <div id="active-filters" class="active-filter-strip" role="region" aria-label="현재 검색 조건" tabindex="0">
+        <span th:each="filter : ${activeFilters}" class="inline-flex items-center gap-1 rounded-full border border-[#c9e0ff] bg-book-soft py-1 pl-2.5 pr-1 text-xs font-bold text-book-ink">
+          <span th:text="${filter.label}">조건</span>
+          <a th:href="@{${filter.url}}" class="grid size-5 place-items-center rounded-full bg-black/5 text-[13px] leading-none hover:bg-black/10" th:aria-label="${filter.label + ' 조건 해제'}">×</a>
+        </span>
+        <a th:if="${!#lists.isEmpty(activeFilters)}" th:href="@{/matches}" class="px-2 text-xs font-semibold text-muted hover:text-ink">조건 초기화</a>
+      </div>
+    </div>
+    <div class="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+      <p id="match-count" aria-live="polite">모집 중 <b class="font-mono font-extrabold text-match-ink" th:text="${recruitingCount + '개'}">0개</b><span class="mx-1.5 text-line-strong">·</span>팀 배정 <b class="font-mono font-extrabold text-ink-2" th:text="${matchedCount + '개'}">0개</b></p>
+      <span>모집 중인 방을 누르면 상세 정보와 참가 신청을 확인할 수 있습니다.</span>
+    </div>
+
+    <div id="match-results" class="mt-4" aria-live="polite">
+      <div th:if="${#lists.isEmpty(matches)}" class="match-list-empty">
+        <p>검색 조건에 맞는 매칭방이 없습니다.</p>
+        <a th:href="@{/matches}" class="match-list-button match-list-button-secondary">조건 초기화</a>
+      </div>
+
+      <article th:each="match : ${matches}" class="match-list-row" th:attr="data-room-id=${match.matchId}">
+        <figure class="match-list-photo">
+          <span class="match-list-photo-fallback" aria-hidden="true" th:text="${match.sportName}">종목</span>
+          <img th:if="${match.photoUrl != null}" th:src="@{${match.photoUrl}}" th:alt="${match.photoAlt}" loading="lazy" decoding="async" />
+        </figure>
+        <div class="match-list-content">
+          <div class="match-list-heading">
+            <div class="match-list-kicker">
+              <span class="match-list-sport" th:text="${match.sportName + ' 매칭'}">종목 매칭</span><span class="match-list-dot" aria-hidden="true">·</span>
+              <span th:text="${match.facilityDistrictName + ' · ' + match.levelLabel}">지역 · 단계</span>
+            </div>
+            <span class="match-list-state" th:classappend="${match.statusClass}"><i aria-hidden="true"></i><span th:text="${match.statusLabel}">모집 중</span></span>
+          </div>
+          <h3 class="match-list-title" th:text="${match.title}">매칭방</h3>
+          <div class="match-list-meta">
+            <span><i aria-hidden="true">◷</i><b th:text="${match.dateLabel + ' ' + match.time}">일시</b></span>
+            <span><i aria-hidden="true">⌖</i><span th:text="${match.place}">장소</span></span>
+            <span><i aria-hidden="true">₩</i><span th:text="${match.feeText + '원 · ' + match.gender + ' · ' + match.age}">참가비</span></span>
+          </div>
+          <div class="match-list-footer">
+            <div class="match-list-participants">
+              <div class="match-list-participants-top">
+                <div class="match-list-avatars">
+                  <span th:each="person : ${match.avatarParticipants}" th:title="${person.nickname}" class="grid size-7 place-items-center rounded-full border-2 border-white bg-match-soft text-[10px] font-extrabold text-match-ink" th:text="${person.initial}">P</span>
+                  <span th:if="${match.extraParticipantCount > 0}" class="match-list-extra text-[11px] font-semibold text-muted" th:text="${'+' + match.extraParticipantCount}">+1</span>
+                </div>
+                <span class="match-list-count" th:text="${match.participantSummary}">0명 확정 / 8명</span>
+                <span class="match-list-remaining" th:classappend="${match.remainingSeats == 0} ? 'is-full' : ''" th:text="${match.remainingLabel}">N자리 남음</span>
+                <span th:if="${match.pendingConfirmationCount > 0}" class="match-list-pending" th:text="${'확정 대기 ' + match.pendingConfirmationCount + '명'}">확정 대기</span>
+              </div>
+              <div class="match-list-progress" role="progressbar" aria-label="참여 인원과 예약 좌석" aria-valuemin="0" th:attr="aria-valuemax=${match.maxParticipants}, aria-valuenow=${match.occupiedSeats}">
+                <span th:style="'width:' + ${match.occupiedPercent ?: 0} + '%'"></span>
+              </div>
+              <div th:if="${match.showTeams}" class="match-list-teams">
+                <span th:text="${'A팀 ' + match.teamACount + '명'}">A팀</span><span class="match-list-teams-note">자동 배정</span><span class="match-list-team-b" th:text="${'B팀 ' + match.teamBCount + '명'}">B팀</span>
+              </div>
+            </div>
+            <div class="match-list-actions">
+              <button type="button" class="match-list-button match-list-button-secondary" th:attr="data-room-detail=${match.matchId}">상세 보기</button>
+              <a th:if="${match.canApply}" th:href="@{/matches/{matchId}(matchId=${match.matchId})}" class="match-list-button match-list-button-primary">매치 참가하기</a>
+              <button th:unless="${match.canApply}" type="button" class="match-list-button match-list-button-primary" disabled aria-disabled="true" th:text="${match.actionLabel}">예약 마감</button>
+            </div>
+          </div>
+        </div>
+
+        <div th:id="'room-dialog-' + ${match.matchId}" class="hidden" data-room-dialog-content>
+          <header class="room-dialog-header">
+            <div class="room-dialog-heading-copy">
+              <span class="room-dialog-badge" th:classappend="${match.statusClass}" th:text="${match.detail.badge}">모집 중</span>
+              <h2 th:text="${match.detail.title}">매칭방</h2>
+              <p th:text="${match.detail.facilityName}">시설</p>
+            </div>
+            <button type="button" data-close class="room-dialog-close" aria-label="상세 보기 닫기">×</button>
+          </header>
+          <div class="room-dialog-scroll">
+            <section class="room-detail-section room-detail-section-first">
+              <h3>매칭방 정보</h3>
+              <dl class="room-detail-facts">
+                <div th:each="fact : ${match.detail.facts}" class="room-detail-fact"><dt th:text="${fact.label}">항목</dt><dd th:text="${fact.value}">값</dd></div>
+              </dl>
+            </section>
+            <p class="room-detail-note" th:text="${match.detail.note}">안내</p>
+            <section th:if="${match.detail.facilityVisible}" class="room-detail-section">
+              <h3>시설 정보</h3>
+              <dl class="room-detail-facts">
+                <div th:each="fact : ${match.detail.facilityFacts}" class="room-detail-fact"><dt th:text="${fact.label}">항목</dt><dd th:text="${fact.value}">값</dd></div>
+              </dl>
+            </section>
+            <section th:if="${match.detail.matched}" class="room-detail-section">
+              <h3>자동 배정 팀</h3>
+              <div class="room-detail-rosters">
+                <section class="room-team-list">
+                  <h3 class="text-sm font-extrabold text-match-ink">A팀 <span class="font-mono text-xs font-semibold text-muted" th:text="${match.detail.teamACount + '명'}">0명</span></h3>
+                  <ul class="mt-2 divide-y divide-line">
+                    <li th:each="person : ${match.detail.teamA}" class="flex items-center justify-between py-2 text-sm"><span th:text="${person.host ? person.nickname + ' · 방장' : person.nickname}">참가자</span><span class="text-xs font-semibold text-match-ink">A팀</span></li>
+                    <li th:if="${#lists.isEmpty(match.detail.teamA)}" class="py-2 text-xs text-muted">배정된 참가자가 없습니다.</li>
+                  </ul>
+                </section>
+                <section class="room-team-list">
+                  <h3 class="text-sm font-extrabold text-[#6d5ca9]">B팀 <span class="font-mono text-xs font-semibold text-muted" th:text="${match.detail.teamBCount + '명'}">0명</span></h3>
+                  <ul class="mt-2 divide-y divide-line">
+                    <li th:each="person : ${match.detail.teamB}" class="flex items-center justify-between py-2 text-sm"><span th:text="${person.host ? person.nickname + ' · 방장' : person.nickname}">참가자</span><span class="text-xs font-semibold text-[#6d5ca9]">B팀</span></li>
+                    <li th:if="${#lists.isEmpty(match.detail.teamB)}" class="py-2 text-xs text-muted">배정된 참가자가 없습니다.</li>
+                  </ul>
+                </section>
+              </div>
+            </section>
+            <section th:unless="${match.detail.matched}" class="room-detail-section">
+              <div class="room-detail-section-heading">
+                <h3>참가자</h3>
+                <span th:text="${'정원 ' + match.participantCount + ' / ' + match.maxParticipants + '명'}">정원</span>
+              </div>
+              <ul class="room-dialog-list">
+                <li th:each="person : ${match.detail.participants}"><span th:text="${person.host ? person.nickname + ' · 방장' : person.nickname}">참가자</span><span>팀 배정 대기</span></li>
+                <li th:if="${#lists.isEmpty(match.detail.participants)}"><span>아직 참가자가 없습니다.</span></li>
+              </ul>
+              <p class="room-detail-hint">정원이 채워지면 참가자를 A팀과 B팀에 자동 배정합니다.</p>
+            </section>
+            <section th:if="${match.pendingConfirmationCount > 0}" class="room-detail-section">
+              <div class="room-detail-section-heading"><h3>확정 대기</h3><span th:text="${match.pendingConfirmationCount + '명'}">0명</span></div>
+              <ul class="room-dialog-list">
+                <li th:each="person, index : ${match.detail.pendingParticipants}"><span th:text="${(index.count) + '. ' + person.nickname}">1. 참가자</span><span>신청 확인 대기</span></li>
+              </ul>
+            </section>
+          </div>
+          <footer class="room-dialog-actions">
+            <button type="button" data-close class="match-list-button match-list-button-secondary">닫기</button>
+            <a th:if="${match.detail.canJoin}" th:href="@{/matches/{matchId}(matchId=${match.matchId})}" class="match-list-button match-list-button-primary">매치 참가하기</a>
+            <button th:unless="${match.detail.canJoin}" type="button" class="match-list-button match-list-button-primary" disabled aria-disabled="true">예약 마감</button>
+          </footer>
+        </div>
+      </article>
+    </div>
+  </section>
+</main>
+
+<footer th:replace="~{fragments/layout :: siteFooter}"></footer>
+
+<div id="toast" class="pointer-events-none fixed bottom-5 left-1/2 z-[70] -translate-x-1/2 translate-y-3 rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white opacity-0 shadow-xl transition-all" role="status" aria-live="polite"></div>
+<dialog id="app-dialog" class="max-w-none rounded-2xl border-0 p-0 shadow-2xl backdrop:bg-ink/45"></dialog>
+
+<script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/site-menu.js}"></script>
+<script th:src="@{/js/matches-page.js}"></script>
+</body>
+</html>
