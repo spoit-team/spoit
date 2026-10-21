@@ -1,4 +1,4 @@
-package co.kr.spoit.common;
+package co.kr.spoit.notification.service;
 
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.ControllerAdvice;

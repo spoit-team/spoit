@@ -1,4 +1,4 @@
-package co.kr.spoit.config;
+package co.kr.spoit.global.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
