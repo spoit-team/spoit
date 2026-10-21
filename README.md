@@ -123,11 +123,19 @@ spoit/
 ├── db/
 │   ├── schema.sql              # 전체 테이블 DDL (MySQL 8)
 │   └── erd.mermaid             # ERD
-├── src/                        # Spring Boot 소스
+├── src/                        # Spring Boot 핵심 소스와 공통 템플릿·정적 리소스
+├── preview/                    # 선택 사항: 프리뷰 전용 컨트롤러·fixture·모델·테스트 (기본 빌드 제외)
 ├── Dockerfile
 ├── CONTRIBUTING.md             # 팀 작업 규칙
+├── PREVIEW.md                  # 프리뷰 UI 활성화/비활성화 방법
 └── build.gradle
 ```
+
+기본 빌드는 `preview/`를 포함하지 않으며, 메인 코어 페이지 컨트롤러가 기존 화면을 빈 데이터로 렌더링해
+모든 페이지 URL이 HTTP 200으로 열립니다. 프리뷰 fixture가 필요할 때만 `-Ppreview=true`로
+명시적으로 활성화하며, 이때는 코어 페이지 컨트롤러와 코어 라우트 테스트가 빌드에서 제외됩니다.
+`preview/` 폴더를 삭제해도 동일하게 동작합니다.
+자세한 내용은 [PREVIEW.md](PREVIEW.md)를 참고하세요.
 
 ## DB 스키마 변경 규칙
 
