@@ -1,0 +1,39 @@
+name: 트러블슈팅
+description: 개발 중 발생한 문제와 해결 과정을 기록합니다
+title: "[Trouble] "
+labels: ["trouble-shooting"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 문제 상황
+      description: 무엇을 하다가 어떤 문제가 생겼는지
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: 에러 메시지 / 로그
+      render: shell
+  - type: input
+    id: env
+    attributes:
+      label: 환경
+      placeholder: "예) Windows 11, JDK 17, Spring Boot 4.0.8, 브랜치 feature/xxx"
+  - type: textarea
+    id: tried
+    attributes:
+      label: 시도한 방법
+      description: 해본 것과 결과 (안 된 것도 기록)
+  - type: textarea
+    id: cause
+    attributes:
+      label: 원인
+  - type: textarea
+    id: solution
+    attributes:
+      label: 해결 방법
+  - type: textarea
+    id: learned
+    attributes:
+      label: 배운 점 / 재발 방지
