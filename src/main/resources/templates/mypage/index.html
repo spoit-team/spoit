@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('마이페이지 · SPO:IT', 'SPO:IT 플레이 프로필, 종목별 레이팅과 경기 이력, 참가 신청을 확인합니다.', ${ {'mypage.css'} })}"></head>
+<body class="mypage-page bg-canvas text-ink antialiased">
+<header th:replace="~{fragments/layout :: siteHeader('mypage')}"></header>
+
+<main class="mypage-main wrap">
+  <section class="mypage-heading" aria-labelledby="mypage-title">
+    <div class="mypage-heading-copy">
+      <p class="mypage-eyebrow">SPO:IT <span aria-hidden="true">/</span> MY PAGE</p>
+      <h1 id="mypage-title">마이페이지</h1>
+      <p>매칭 기록과 나의 플레이 프로필을 확인하세요.</p>
+    </div>
+  </section>
+
+  <section id="profile" class="mypage-player-profile" aria-labelledby="player-profile-heading">
+    <div class="mypage-player-identity">
+      <span class="mypage-avatar" aria-hidden="true" th:text="${member.initial}">플</span>
+      <div class="mypage-player-copy">
+        <p class="mypage-player-eyebrow">SPO:IT PLAYER PROFILE</p>
+        <h2 id="player-profile-heading"><span th:text="${member.nickname}">회원</span><span class="mypage-player-suffix">님의 플레이 프로필</span></h2>
+        <div class="mypage-player-meta"><span class="mypage-role-badge" th:text="${member.roleLabel}">일반 사용자</span><span class="mypage-meta-dot" aria-hidden="true">·</span><span th:text="${member.email}">email</span></div>
+        <p class="mypage-player-regions" th:text="${member.regionText}">선호 지역을 설정해 보세요.</p>
+      </div>
+      <a th:href="@{/mypage/profile}" class="mypage-edit-link">프로필 수정 <span aria-hidden="true">↗</span></a>
+    </div>
+
+    <div class="mypage-player-summary">
+      <div class="mypage-skill-highlight">
+        <span class="mypage-summary-label">대표 종목 레이팅</span>
+        <strong th:text="${summary.representativeRatingText}">기록 없음</strong>
+        <a class="mypage-skill-sport-link" th:href="@{/mypage(recordSport=${summary.representativeSportId})} + '#match-records'" th:text="${summary.representativeSportName}">종목</a>
+        <p th:text="${summary.skillNote}">참가 확정 매치의 개인 레이팅 평균을 표시합니다.</p>
+      </div>
+      <dl class="mypage-player-counts">
+        <div><dt>참가 매치</dt><dd th:text="${summary.confirmedCount}">0</dd></div>
+        <div><dt>완료 매치</dt><dd th:text="${summary.completedCount}">0</dd></div>
+        <div><dt>확정 대기</dt><dd th:text="${summary.waitingCount}">0</dd></div>
+      </dl>
+    </div>
+
+    <div class="mypage-sport-levels">
+      <div class="mypage-sport-levels-heading"><h3>다른 종목 레이팅</h3><p>대표 종목 외에 참가 기록이 있는 종목의 레이팅을 간략히 표시합니다.</p></div>
+      <div class="mypage-sport-level-list" aria-live="polite">
+        <a th:each="sport : ${otherSports}" class="mypage-sport-level-row" th:href="@{/mypage(recordSport=${sport.sportId})} + '#match-records'" th:aria-label="${sport.name + ' 경기 기록 보기'}">
+          <span th:text="${sport.name}">종목</span><strong th:text="${sport.ratingText}">기록 없음</strong><small th:text="${sport.note}">경기 기록</small>
+        </a>
+        <p th:if="${#lists.isEmpty(otherSports)}" class="mypage-sport-level-empty" th:text="${summary.otherSportsNote}">매칭 참가 기록이 생기면 종목별 레이팅을 표시합니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <div id="mypage-message" class="auth-message mypage-message" role="status" aria-live="polite" th:if="${message != null}" th:text="${message}"></div>
+  <aside class="mypage-notice" aria-label="데이터 안내">
+    <span class="mypage-notice-mark" aria-hidden="true">i</span>
+  <p>신청·프로필·알림은 서버에서 제공하는 현재 회원 데이터입니다. 결제 안내는 참고 정보이며 이 화면에는 결제 상태를 저장하지 않습니다.</p>
+  </aside>
+
+  <div class="mypage-layout">
+    <nav class="mypage-nav" aria-label="마이페이지 메뉴">
+      <a href="#profile" class="mypage-nav-link" aria-current="location">플레이 프로필</a>
+      <a href="#match-records" class="mypage-nav-link">종목별 레이팅·경기 이력</a>
+      <a href="#reservations" class="mypage-nav-link">신청 내역</a>
+      <a href="#notifications" class="mypage-nav-link">알림 확인 <span th:if="${(unreadCount ?: 0) > 0}" th:text="${unreadCount}"></span></a>
+      <a th:href="@{/mypage/profile}" class="mypage-nav-link mypage-nav-edit">프로필 수정 <span aria-hidden="true">↗</span></a>
+    </nav>
+
+    <div class="mypage-content">
+      <section id="match-records" class="mypage-section" aria-labelledby="match-records-heading">
+        <div class="mypage-section-heading">
+          <span class="mypage-section-index" aria-hidden="true">01</span>
+          <div><h2 id="match-records-heading">종목별 레이팅과 경기 이력</h2><p>레이팅과 확정 경기 기록을 한곳에서 확인하고, 종목을 선택해 이력을 좁혀볼 수 있습니다.</p></div>
+        </div>
+        <div class="mypage-records-layout">
+          <section class="mypage-records-ratings" aria-labelledby="match-ratings-heading">
+            <div class="mypage-records-subheading"><div><h3 id="match-ratings-heading">종목별 레이팅</h3><p>종목을 누르면 해당 경기 이력으로 연결됩니다.</p></div></div>
+            <div class="mypage-rating-sport-list" role="group" aria-label="종목별 레이팅">
+              <a class="mypage-rating-sport" th:href="@{/mypage} + '#match-records'" th:aria-current="${selectedSport == 'all' ? 'true' : null}" th:classappend="${selectedSport == 'all'} ? 'is-selected' : ''">
+                <span class="mypage-rating-sport-copy"><span class="mypage-rating-sport-name">전체 종목</span><small>모든 경기 기록</small></span>
+                <span class="mypage-rating-sport-grade"><strong th:text="${historyTotalCount + '경기'}">0경기</strong><small>전체 기록</small></span>
+              </a>
+              <a th:each="sport : ${sports}" class="mypage-rating-sport" th:href="@{/mypage(recordSport=${sport.sportId})} + '#match-records'" th:aria-current="${sport.selected ? 'true' : null}" th:classappend="${sport.selected} ? 'is-selected' : ''">
+                <span class="mypage-rating-sport-copy"><span class="mypage-rating-sport-name" th:text="${sport.name}">종목</span><small th:text="${'경기 ' + sport.count + '회 · ' + sport.note}">기록</small></span>
+                <span class="mypage-rating-sport-grade">
+                  <strong th:text="${sport.grade}">기록 없음</strong><small th:text="${sport.caption}">종목 레이팅</small>
+                  <span th:if="${sport.hasAverage}" class="mypage-rating-meter" role="img" th:aria-label="${sport.name + ' 평균 레이팅 ' + sport.grade + '점, 5점 만점'}"><i th:style="'width:' + ${sport.meterPercent ?: 0} + '%'"></i></span>
+                </span>
+              </a>
+            </div>
+          </section>
+
+          <section class="mypage-records-history" aria-labelledby="match-history-heading">
+            <div class="mypage-records-subheading mypage-history-heading">
+              <div><h3 id="match-history-heading">경기 이력</h3><p th:text="${historyFilterLabel}">전체 종목의 확정 매치</p></div>
+              <span class="mypage-history-count" aria-live="polite" th:text="${historyCount + '경기'}">0경기</span>
+            </div>
+            <div class="mypage-match-history-list" aria-live="polite">
+              <article th:each="item : ${history}" class="mypage-match-history-item">
+                <button type="button" class="mypage-match-history-main" th:attr="data-match-history-toggle=${item.id}, aria-expanded=false">
+                  <span class="mypage-match-history-date" th:text="${item.date}">날짜</span>
+                  <span class="mypage-match-history-copy">
+                    <span class="mypage-match-history-title" th:text="${item.title}">경기</span>
+                    <span class="mypage-match-history-meta">
+                      <span th:text="${item.sportName}">종목</span><span aria-hidden="true">·</span><span th:text="${item.place}">장소</span><span aria-hidden="true">·</span><span th:text="${item.applicationType}">신청 유형</span>
+                      <span class="mypage-match-history-status" th:classappend="${item.statusComplete} ? 'is-complete' : ''" th:text="${item.statusLabel}">상태</span>
+                    </span>
+                  </span>
+                  <span class="mypage-match-history-score"><small>내 레이팅</small><strong th:text="${item.ratingText}">기록 없음</strong></span>
+                  <span class="mypage-match-history-chevron" aria-hidden="true">⌄</span>
+                </button>
+                <div class="mypage-match-history-detail" hidden>
+                  <div class="mypage-match-score-summary">
+                    <div class="mypage-match-player-score">
+                      <small>내 레이팅</small>
+                      <strong><span th:text="${item.ratingText}">기록 없음</span><span th:if="${item.hasRating}">/ 5.00</span></strong>
+                      <span th:if="${item.hasRating}" class="mypage-rating-meter" role="img" th:aria-label="${'내 레이팅 ' + item.ratingText + '점, 5점 만점'}"><i th:style="'width:' + ${item.ratingPercent ?: 0} + '%'"></i></span>
+                    </div>
+                    <div th:if="${item.hasTeamAverages}" class="mypage-match-team-averages" role="group" aria-label="A팀과 B팀 평균 레이팅">
+                      <span th:classappend="${item.myTeam == 'A'} ? 'is-mine' : ''"><i class="is-team-a" aria-hidden="true"></i>A팀 <b th:text="${item.averageAText}">기록 없음</b></span>
+                      <span th:classappend="${item.myTeam == 'B'} ? 'is-mine' : ''"><i class="is-team-b" aria-hidden="true"></i>B팀 <b th:text="${item.averageBText}">기록 없음</b></span>
+                    </div>
+                  </div>
+                  <dl class="mypage-match-history-facts">
+                    <div th:each="fact : ${item.facts}"><dt th:text="${fact.label}">항목</dt><dd th:text="${fact.value}">값</dd></div>
+                  </dl>
+                  <p class="mypage-match-history-note" th:text="${item.note}">안내</p>
+                </div>
+              </article>
+              <p th:if="${#lists.isEmpty(history)}" class="mypage-match-history-empty" th:text="${historyEmptyNote}">확정된 경기 이력이 없습니다.</p>
+            </div>
+          </section>
+        </div>
+        <p class="mypage-rating-disclaimer">표시 레이팅은 서버가 제공한 값이며 공식 실력 지표가 아닙니다. 매칭방의 1~5단계 모집 조건과는 별도입니다.</p>
+      </section>
+
+      <section id="reservations" class="mypage-section" aria-labelledby="reservations-heading">
+        <div class="mypage-section-heading">
+          <span class="mypage-section-index" aria-hidden="true">02</span>
+            <div><h2 id="reservations-heading">신청 내역</h2><p>진행 중인 참가 신청과 확정 대기·완료·취소 상태를 확인하고 신청을 관리합니다.</p></div>
+        </div>
+        <div class="divide-y divide-line" aria-live="polite">
+          <section aria-labelledby="current-reservations-heading">
+            <div class="flex items-center justify-between border-b border-line pb-2">
+              <h3 id="current-reservations-heading" class="text-sm font-extrabold">현재 신청</h3>
+              <span class="text-xs font-semibold text-muted" th:text="${#lists.size(currentReservations) + '건'}">0건</span>
+            </div>
+            <div th:if="${!#lists.isEmpty(currentReservations)}" class="divide-y divide-line">
+              <article th:each="entry : ${currentReservations}" class="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-[10px] font-extrabold text-match-ink" th:text="${entry.sportName}">종목</span>
+                    <span class="text-[10px] text-faint" th:text="${entry.typeLabel}">개인 신청</span>
+                    <span class="text-[10px] font-extrabold" th:classappend="${entry.stateClass}" th:text="${entry.stateLabel}">참가 중</span>
+                  </div>
+                  <h4 class="mt-1 text-sm font-extrabold" th:text="${entry.title}">매칭방</h4>
+                  <p class="mt-1 text-xs leading-5 text-muted" th:text="${entry.metaLine}">날짜 · 시간 · 장소</p>
+                  <p class="mt-1 text-[11px] text-faint" th:text="${entry.seatLine}">참가 1명</p>
+                  <p th:if="${entry.statusNote != null}" class="mt-1 text-[11px] text-muted" th:text="${entry.statusNote}">안내</p>
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
+                  <a th:if="${entry.canViewPaymentGuidance}" th:href="@{${entry.paymentGuidanceUrl}}" class="h-9 shrink-0 self-start rounded-lg bg-match px-3 py-2 text-xs font-bold text-white hover:bg-match-hover sm:self-center">결제 안내</a>
+                  <form th:if="${entry.canCancel}" method="post" th:action="@{/mypage/applications/{applicationId}/cancel(applicationId=${entry.applicationId})}">
+                    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                    <button type="submit" class="h-9 shrink-0 self-start rounded-lg border border-line-strong px-3 text-xs font-bold text-ink-2 hover:border-danger hover:text-danger sm:self-center" th:text="${entry.cancelLabel}">신청 취소</button>
+                  </form>
+                </div>
+              </article>
+            </div>
+            <p th:if="${#lists.isEmpty(currentReservations)}" class="py-5 text-sm text-muted"><span>진행 중인 신청이 없습니다.</span> <a th:href="@{/matches}" class="font-bold text-book-ink hover:underline">매칭방 둘러보기</a></p>
+          </section>
+
+          <section aria-labelledby="past-reservations-heading">
+            <div class="flex items-center justify-between border-b border-line pb-2">
+              <h3 id="past-reservations-heading" class="text-sm font-extrabold">지난 참여 · 취소</h3>
+              <span class="text-xs font-semibold text-muted" th:text="${#lists.size(pastReservations) + '건'}">0건</span>
+            </div>
+            <div th:if="${!#lists.isEmpty(pastReservations)}" class="divide-y divide-line">
+              <article th:each="entry : ${pastReservations}" class="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-[10px] font-extrabold text-match-ink" th:text="${entry.sportName}">종목</span>
+                    <span class="text-[10px] text-faint" th:text="${entry.typeLabel}">개인 신청</span>
+                    <span class="text-[10px] font-extrabold" th:classappend="${entry.stateClass}" th:text="${entry.stateLabel}">이용 완료</span>
+                  </div>
+                  <h4 class="mt-1 text-sm font-extrabold" th:text="${entry.title}">매칭방</h4>
+                  <p class="mt-1 text-xs leading-5 text-muted" th:text="${entry.metaLine}">날짜 · 시간 · 장소</p>
+                  <p class="mt-1 text-[11px] text-faint" th:text="${entry.seatLine}">참가 1명</p>
+                  <p th:if="${entry.statusNote != null}" class="mt-1 text-[11px] text-muted" th:text="${entry.statusNote}">안내</p>
+                </div>
+              </article>
+            </div>
+            <p th:if="${#lists.isEmpty(pastReservations)}" class="py-5 text-sm text-muted">완료하거나 취소한 내역이 없습니다.</p>
+          </section>
+        </div>
+      </section>
+
+      <section id="notifications" class="mypage-section" aria-labelledby="notifications-heading">
+        <div class="mypage-section-heading mypage-notifications-heading">
+          <span class="mypage-section-index" aria-hidden="true">03</span>
+          <div><h2 id="notifications-heading">알림 확인 <span class="mypage-unread-count" aria-live="polite" th:text="${(unreadCount ?: 0) > 0 ? '· ' + unreadCount + '건 미확인' : '· 모두 확인했습니다'}">· 모두 확인했습니다</span></h2><p>예약과 팀 활동 관련 알림입니다.</p></div>
+          <form method="post" th:action="@{/mypage/notifications/read-all}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+            <button type="submit" class="mypage-text-button" th:disabled="${(unreadCount ?: 0) == 0}" th:classappend="${(unreadCount ?: 0) == 0} ? 'opacity-40' : ''">모두 읽음 처리</button>
+          </form>
+        </div>
+        <div class="mypage-notification-list" aria-live="polite">
+          <article th:each="item : ${notifications}" class="mypage-notification-item" th:classappend="${item.read} ? 'is-read' : ''">
+            <span aria-hidden="true"></span>
+            <a class="mypage-notification-link" th:href="@{${item.href}}">
+              <div class="mypage-notification-copy">
+                <div class="mypage-notification-meta"><span th:text="${item.type}">알림</span><span th:text="${item.read ? '읽음' : '새 알림'}">새 알림</span></div>
+                <h3 th:text="${item.title}">알림 제목</h3>
+                <p th:text="${item.body}">알림 내용</p>
+                <time th:text="${item.time}">시간</time>
+              </div>
+            </a>
+            <div class="mypage-notification-actions">
+              <form th:if="${!item.read}" method="post" th:action="@{/mypage/notifications/{notificationId}/read(notificationId=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action">읽음</button></form>
+              <form method="post" th:action="@{/mypage/notifications/{notificationId}/delete(notificationId=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action is-delete" th:aria-label="${'알림 삭제: ' + item.title}">삭제</button></form>
+            </div>
+          </article>
+          <p th:if="${#lists.isEmpty(notifications)}" class="mypage-notification-empty">확인할 알림이 없습니다.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<div id="notification-modal" class="mypage-notification-backdrop" hidden>
+  <section class="mypage-notification-dialog" role="dialog" aria-modal="true" aria-labelledby="notification-modal-title" aria-describedby="notification-modal-description">
+    <header class="mypage-notification-dialog-header">
+      <div><span>SPO:IT ALERT</span><h2 id="notification-modal-title">알림</h2><p id="notification-modal-description">예약과 팀 활동 관련 알림입니다.</p></div>
+      <button type="button" class="mypage-notification-close" data-close-notifications aria-label="알림 창 닫기">×</button>
+    </header>
+    <div class="mypage-notification-modal-summary" aria-live="polite" th:text="${'알림 ' + #lists.size(notifications) + '건 · 미확인 ' + (unreadCount ?: 0) + '건'}">알림 0건</div>
+    <div class="mypage-notification-list" aria-live="polite">
+      <article th:each="item : ${notifications}" class="mypage-notification-item" th:classappend="${item.read} ? 'is-read' : ''">
+        <span aria-hidden="true"></span>
+        <a class="mypage-notification-link" th:href="@{${item.href}}">
+          <div class="mypage-notification-copy">
+            <div class="mypage-notification-meta"><span th:text="${item.type}">알림</span><span th:text="${item.read ? '읽음' : '새 알림'}">새 알림</span></div>
+            <h3 th:text="${item.title}">알림 제목</h3>
+            <p th:text="${item.body}">알림 내용</p>
+            <time th:text="${item.time}">시간</time>
+          </div>
+        </a>
+        <div class="mypage-notification-actions">
+          <form th:if="${!item.read}" method="post" th:action="@{/mypage/notifications/{notificationId}/read(notificationId=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action">읽음</button></form>
+          <form method="post" th:action="@{/mypage/notifications/{notificationId}/delete(notificationId=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action is-delete" th:aria-label="${'알림 삭제: ' + item.title}">삭제</button></form>
+        </div>
+      </article>
+      <p th:if="${#lists.isEmpty(notifications)}" class="mypage-notification-empty">확인할 알림이 없습니다.</p>
+    </div>
+    <footer class="mypage-notification-dialog-footer">
+      <form method="post" th:action="@{/mypage/notifications/read-all}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+        <button type="submit" class="mypage-text-button" th:disabled="${(unreadCount ?: 0) == 0}">모두 읽음 처리</button>
+      </form>
+      <button type="button" class="mypage-notification-done" data-close-notifications>닫기</button>
+    </footer>
+  </section>
+</div>
+
+<script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/site-menu.js}"></script>
+<script th:src="@{/js/mypage-page.js}"></script>
+</body>
+</html>

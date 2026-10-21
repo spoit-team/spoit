@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('프로필 수정 · SPO:IT', 'SPO:IT 프로필과 대표 종목을 설정합니다.', ${ {'mypage.css'} })}"></head>
+<body class="mypage-page profile-edit-page bg-canvas text-ink antialiased">
+<header th:replace="~{fragments/layout :: siteHeader('mypage')}"></header>
+
+<main class="mypage-main profile-edit-main wrap">
+  <section class="mypage-heading" aria-labelledby="profile-edit-title">
+    <div class="mypage-heading-copy">
+      <p class="mypage-eyebrow">SPO:IT <span aria-hidden="true">/</span> PROFILE SETTINGS</p>
+      <h1 id="profile-edit-title">프로필 수정</h1>
+      <p>마이페이지에 표시할 대표 종목과 회원 정보를 설정합니다.</p>
+    </div>
+    <a th:href="@{/mypage}" class="mypage-edit-link profile-edit-back">마이페이지로 <span aria-hidden="true">↗</span></a>
+  </section>
+
+  <p th:if="${error != null}" id="profile-edit-error" class="auth-message is-error mypage-message" role="alert" th:text="${error}">프로필을 저장하지 못했습니다.</p>
+  <p th:if="${message != null}" id="profile-edit-message" class="auth-message is-success mypage-message" role="status" th:text="${message}">프로필 저장 결과</p>
+  <aside class="mypage-notice profile-edit-notice" aria-label="프로필 안내">
+    <span class="mypage-notice-mark" aria-hidden="true">i</span>
+    <p>프로필은 서버에 저장됩니다. 레이팅은 확정 매치 기록을 기준으로 서버가 계산하며 이 화면에서 직접 설정할 수 없습니다.</p>
+  </aside>
+
+  <form id="profile-form" class="profile-edit-form" method="post" th:action="@{/mypage/profile}">
+    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+    <section class="mypage-section profile-edit-section" aria-labelledby="representative-heading">
+      <div class="mypage-section-heading">
+        <span class="mypage-section-index" aria-hidden="true">01</span>
+        <div><h2 id="representative-heading">대표 종목 설정</h2><p>마이페이지 프로필 상단에 강조할 종목을 선택하세요.</p></div>
+      </div>
+      <div class="profile-edit-sport-control">
+        <label for="profile-representative-sport">대표 종목</label>
+        <select id="profile-representative-sport" name="representativeSportId" class="auth-input" required aria-describedby="representative-help">
+          <option value="">대표 종목 선택</option>
+          <option th:each="sport : ${sports}" th:value="${sport.sportId}" th:text="${sport.name}" th:selected="${profile != null and profile.representativeSportId == sport.sportId}" th:attr="data-rating=${sport.ratingText != null ? sport.ratingText : '기록 없음'},data-rating-note=${sport.ratingNote != null ? sport.ratingNote : '확정 매치 기록이 없으면 기록 없음으로 표시합니다.'}">종목</option>
+        </select>
+        <p id="representative-help">종목을 선택하면 해당 종목의 개인 레이팅 평균을 마이페이지에 표시합니다.</p>
+      </div>
+      <div class="profile-edit-preview" aria-live="polite" aria-atomic="true">
+        <span class="profile-edit-preview-label">현재 표시 레이팅</span>
+        <strong id="representative-level-preview" th:text="${profile != null and profile.representativeRatingText != null ? profile.representativeRatingText : '기록 없음'}">기록 없음</strong>
+        <p id="representative-level-note" th:text="${profile != null and profile.representativeRatingNote != null ? profile.representativeRatingNote : '확정 매치 기록이 없으면 기록 없음으로 표시합니다.'}">확정 매치 기록에 따라 표시하며 직접 수정할 수 없습니다.</p>
+      </div>
+    </section>
+
+    <section class="mypage-section profile-edit-section" aria-labelledby="member-info-heading">
+      <div class="mypage-section-heading">
+        <span class="mypage-section-index" aria-hidden="true">02</span>
+        <div><h2 id="member-info-heading">회원 정보</h2><p>마이페이지 프로필에 표시할 이름과 연락처입니다.</p></div>
+      </div>
+      <div class="mypage-profile-fields">
+        <div class="mypage-field mypage-field-wide">
+          <label for="profile-email" class="mb-1.5 block text-xs font-bold text-muted">이메일</label>
+          <input id="profile-email" class="auth-input bg-paper-soft" type="email" readonly aria-describedby="email-help" th:value="${profile != null ? profile.email : ''}" />
+          <p id="email-help" class="mt-1 text-[11px] text-faint">로그인 계정 식별자입니다. 이메일 변경은 본인 확인 절차가 필요합니다.</p>
+        </div>
+        <div class="mypage-field"><label for="profile-nickname" class="mb-1.5 block text-xs font-bold text-muted">닉네임</label><input id="profile-nickname" name="nickname" class="auth-input" type="text" maxlength="12" required autocomplete="nickname" aria-describedby="nickname-help" th:value="${profile != null ? profile.nickname : ''}" /><p id="nickname-help" class="text-faint">한글, 영문, 숫자, 밑줄로 2~12자 입력합니다.</p><p id="profile-nickname-error" class="auth-error mt-1.5 text-xs font-semibold" role="alert" hidden></p></div>
+        <div class="mypage-field"><label for="profile-phone" class="mb-1.5 block text-xs font-bold text-muted">연락처 <span class="font-medium text-book">· 필수</span></label><input id="profile-phone" name="phone" class="auth-input" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" pattern="[0-9+() -]{8,20}" placeholder="010-0000-0000" required th:value="${profile != null ? profile.phone : ''}" /></div>
+      </div>
+    </section>
+
+    <section class="mypage-section profile-edit-section" aria-labelledby="regions-heading">
+      <div class="mypage-section-heading">
+        <span class="mypage-section-index" aria-hidden="true">03</span>
+        <div><h2 id="regions-heading">선호 지역</h2><p>선호 지역은 마이페이지 프로필에 함께 표시됩니다.</p></div>
+      </div>
+      <fieldset class="profile-edit-regions">
+        <legend class="sr-only">선호 지역 선택</legend>
+        <label for="profile-region" class="mb-1.5 block text-xs font-bold text-muted">선호 지역 <span class="font-medium text-faint">· 한 곳 선택</span></label>
+        <select id="profile-region" name="regionId" class="auth-input">
+          <option value="">선호 지역 선택 안 함</option>
+          <option th:each="district : ${districts}" th:value="${district.regionId}" th:text="${district.name}" th:selected="${profile != null and profile.regionId == district.regionId}">지역</option>
+        </select>
+      </fieldset>
+    </section>
+
+    <div class="mypage-form-actions profile-edit-actions">
+      <a th:href="@{/mypage}" class="mypage-secondary-button profile-edit-cancel">취소</a>
+      <button type="submit" class="mypage-primary-button rounded-[10px] px-5 text-sm font-extrabold">프로필 저장</button>
+    </div>
+  </form>
+
+  <section class="mypage-section profile-edit-withdrawal" aria-labelledby="withdrawal-heading">
+    <div class="mypage-section-heading">
+      <span class="mypage-section-index" aria-hidden="true">04</span>
+      <div><h2 id="withdrawal-heading">회원 탈퇴</h2><p>현재 닉네임을 확인한 뒤 탈퇴를 요청합니다.</p></div>
+    </div>
+    <div class="profile-edit-withdrawal-content">
+      <p>탈퇴 요청은 서버 확인 후 처리됩니다. 진행 중인 신청과 정산 상태를 먼저 확인해 주세요.</p>
+      <button id="open-withdrawal-dialog" type="button" class="profile-withdrawal-open">회원 탈퇴 확인</button>
+    </div>
+  </section>
+
+  <dialog id="profile-withdrawal-dialog" class="profile-withdrawal-dialog" aria-labelledby="withdrawal-dialog-title" aria-describedby="withdrawal-dialog-description">
+    <form id="profile-withdrawal-form" class="profile-withdrawal-dialog-content" method="post" th:action="@{/mypage/withdrawal-requests}">
+      <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+      <div class="profile-withdrawal-dialog-heading">
+        <div><h2 id="withdrawal-dialog-title">회원 탈퇴를 확인할까요?</h2><p id="withdrawal-dialog-description">본인 확인을 위해 현재 닉네임을 입력해 주세요.</p></div>
+        <button class="profile-withdrawal-close" type="button" data-close-withdrawal aria-label="닫기">×</button>
+      </div>
+      <p class="profile-withdrawal-note">탈퇴 요청은 서버에서 처리됩니다. 처리 결과는 등록된 이메일로 안내됩니다.</p>
+      <label class="profile-withdrawal-label" for="withdrawal-nickname">현재 닉네임 입력</label>
+      <p class="profile-withdrawal-current">입력할 닉네임: <strong id="withdrawal-current-nickname" th:text="${profile != null ? profile.nickname : ''}">닉네임</strong></p>
+      <input id="withdrawal-nickname" name="nicknameConfirmation" class="auth-input" type="text" autocomplete="off" required aria-describedby="withdrawal-nickname-help withdrawal-error" />
+      <p id="withdrawal-nickname-help" class="profile-withdrawal-help">위 닉네임과 일치하면 확인 버튼이 활성화됩니다.</p>
+      <p id="withdrawal-error" class="profile-withdrawal-error" role="alert" hidden>현재 닉네임을 정확히 입력해 주세요.</p>
+      <div class="profile-withdrawal-actions">
+        <button class="profile-withdrawal-cancel" type="button" data-close-withdrawal>취소</button>
+        <button id="confirm-withdrawal" class="profile-withdrawal-confirm" type="submit" disabled>탈퇴 요청</button>
+      </div>
+    </form>
+  </dialog>
+</main>
+
+<script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/site-menu.js}"></script>
+<script th:src="@{/js/profile-edit.js}"></script>
+</body>
+</html>

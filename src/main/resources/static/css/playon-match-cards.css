@@ -1,0 +1,100 @@
+/* The copied main keeps the shared search and room behavior, changing only its result layout. */
+.match-cards-page #match-results {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 16px;
+}
+
+.match-cards-page #match-results .match-list-row {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-paper);
+  transition: border-color .16s ease, transform .16s ease;
+}
+
+.match-cards-page #match-results .match-list-row:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-line-strong);
+}
+
+.match-cards-page #match-results .match-list-photo {
+  width: 100%;
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+  border-radius: 0;
+}
+
+.match-cards-page #match-results .match-list-content {
+  flex: 1 1 auto;
+  gap: 12px;
+  padding: 16px;
+}
+
+.match-cards-page #match-results .match-list-heading {
+  align-items: flex-start;
+}
+
+.match-cards-page #match-results .match-list-title {
+  min-height: 2.8em;
+}
+
+.match-cards-page #match-results .match-list-meta {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.match-cards-page #match-results .match-list-meta span {
+  align-items: flex-start;
+}
+
+.match-cards-page #match-results .match-list-footer {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 13px;
+  margin-top: auto;
+}
+
+.match-cards-page #match-results .match-list-actions {
+  width: 100%;
+}
+
+.match-cards-page #match-results .match-list-button {
+  min-height: 40px;
+  flex: 1 1 0;
+}
+
+.match-cards-page #match-results .match-list-empty {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 640px) {
+  .match-cards-page #match-results {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1080px) {
+  .match-cards-page #match-results {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-cards-page #match-results .match-list-row {
+    transition: none;
+  }
+
+  .match-cards-page #match-results .match-list-row:hover {
+    transform: none;
+  }
+}
