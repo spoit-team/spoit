@@ -40,17 +40,17 @@
             <span id="ops-application-count" class="status-badge" th:text="${#lists.size(match.applications) + '건'}">0건</span>
           </div>
           <div id="ops-application-list" class="ops-list">
-            <article th:each="application : ${match.applications}" class="ops-row">
+            <article th:each="opsApplication : ${match.applications}" class="ops-row">
               <div class="ops-row-main">
-                <div class="ops-row-title"><span th:text="${application.applicantName + ' · ' + application.seats + '명'}">신청자</span> <span class="status-badge" th:classappend="${application.statusTone}" th:text="${application.statusLabel}">상태</span></div>
-                <span class="ops-row-meta" th:text="${application.kindLabel + ' · ' + application.memberNames + ' · ' + application.createdAt + ' · 접수 ' + application.receiptNo}">신청 정보</span>
-                <span th:if="${application.rejectionReason != null}" class="ops-row-note" th:text="${'반려 사유: ' + application.rejectionReason}">반려 사유</span>
-                <div th:if="${application.pending}" class="ops-row-actions">
-                  <form method="post" th:action="@{/admin/rooms/{matchId}/applications/{applicationId}/confirm(matchId=${match.matchId}, applicationId=${application.applicationId})}">
+                <div class="ops-row-title"><span th:text="${opsApplication.applicantName + ' · ' + opsApplication.seats + '명'}">신청자</span> <span class="status-badge" th:classappend="${opsApplication.statusTone}" th:text="${opsApplication.statusLabel}">상태</span></div>
+                <span class="ops-row-meta" th:text="${opsApplication.kindLabel + ' · ' + opsApplication.memberNames + ' · ' + opsApplication.createdAt + ' · 접수 ' + opsApplication.receiptNo}">신청 정보</span>
+                <span th:if="${opsApplication.rejectionReason != null}" class="ops-row-note" th:text="${'반려 사유: ' + opsApplication.rejectionReason}">반려 사유</span>
+                <div th:if="${opsApplication.pending}" class="ops-row-actions">
+                  <form method="post" th:action="@{/admin/rooms/{matchId}/applications/{applicationId}/confirm(matchId=${match.matchId}, applicationId=${opsApplication.applicationId})}">
                     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                     <button class="admin-button small primary" type="submit">참가 확정</button>
                   </form>
-                  <form method="post" class="ops-reject-form" th:action="@{/admin/rooms/{matchId}/applications/{applicationId}/reject(matchId=${match.matchId}, applicationId=${application.applicationId})}">
+                  <form method="post" class="ops-reject-form" th:action="@{/admin/rooms/{matchId}/applications/{applicationId}/reject(matchId=${match.matchId}, applicationId=${opsApplication.applicationId})}">
                     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                     <label class="ops-reject-reason"><span class="sr-only">반려 사유</span><input class="field-control" name="reason" type="text" maxlength="200" placeholder="반려 사유" required /></label>
                     <button class="admin-button small" type="submit">반려</button>

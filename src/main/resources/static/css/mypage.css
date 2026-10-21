@@ -930,6 +930,10 @@
   line-height: 1.6;
 }
 
+#reservations > div > section + section {
+  padding-top: 20px;
+}
+
 .mypage-form {
   display: grid;
   gap: 18px;
