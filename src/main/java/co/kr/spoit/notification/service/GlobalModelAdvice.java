@@ -1,8 +1,11 @@
-package co.kr.spoit.common;
+package co.kr.spoit.notification.service;
 
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * 모든 컨트롤러 응답에 공통 뷰 속성을 추가한다.
@@ -32,12 +35,19 @@ public class GlobalModelAdvice {
      * 값을 대체한다.</p>
      *
      * @param model 뷰 렌더링에 사용할 모델
+     * @param request CSRF 토큰을 조회할 현재 요청
      */
     @ModelAttribute
-    public void addCommonViewAttributes(Model model) {
+    public void addCommonViewAttributes(Model model, HttpServletRequest request) {
         // 인증 도입 전까지는 비로그인 상태를 나타내는 null을 유지한다.
         model.addAttribute("currentMember", null);
         // 알림 데이터가 없으므로 0으로 고정해 배지 렌더링을 단순화한다.
         model.addAttribute("unreadCount", 0);
+        // 응답 버퍼가 커밋된 뒤에는 세션을 새로 만들 수 없으므로, 뷰 렌더링 전에
+        // 지연 로딩된 CSRF 토큰을 강제로 초기화해 세션과 토큰을 미리 준비한다.
+        CsrfToken csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
+        if (csrfToken != null) {
+            csrfToken.getToken();
+        }
     }
 }
