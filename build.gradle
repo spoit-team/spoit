@@ -32,6 +32,9 @@ sourceSets {
             java {
                 srcDir(new File(previewRoot, 'java'))
                 exclude 'co/kr/spoit/web/CorePageController.java'
+                // 로그인 라우트는 미리보기 컨트롤러가 fixture로 담당하므로
+                // 실제 인증용 로그인 컨트롤러는 제외해 중복 매핑을 막습니다.
+                exclude 'co/kr/spoit/member/controller/MemberAuthController.java'
             }
             def previewResources = new File(previewRoot, 'resources')
             if (previewResources.isDirectory()) {
@@ -46,6 +49,9 @@ sourceSets {
                 // 기본 경로 테스트는 모델이 비어 있는 페이지 컨트롤러를 검증하므로
                 // 기본 빌드에만 포함합니다.
                 exclude 'co/kr/spoit/web/CorePageRouteTest.java'
+                // 로그인 화면은 미리보기 fixture가 렌더링하므로 실제 로그인
+                // 컨트롤러의 모델 계약 테스트도 기본 빌드에만 포함합니다.
+                exclude 'co/kr/spoit/member/controller/MemberAuthControllerTest.java'
             }
         }
     }
