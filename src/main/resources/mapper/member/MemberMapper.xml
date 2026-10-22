@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- MemberMapper: app_user 회원 조회 -->
+<mapper namespace="co.kr.spoit.member.mapper.MemberMapper">
+
+    <select id="findByEmail" resultType="co.kr.spoit.member.domain.Member">
+        SELECT user_id, email, password_hash, nickname, phone, role, status, created_at
+        FROM app_user
+        WHERE email = #{email}
+    </select>
+
+</mapper>
