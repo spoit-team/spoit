@@ -1,23 +1,6 @@
 (function () {
   'use strict';
 
-  const { query: $ } = window.PlayOnUI || {};
-
-  const toast = $('#toast');
-  let toastTimer = null;
-
-  function flash(message) {
-    if (!toast || !message) return;
-    toast.textContent = message;
-    toast.classList.remove('opacity-0', 'translate-y-3');
-    toast.classList.add('opacity-100', 'translate-y-0');
-    window.clearTimeout(toastTimer);
-    toastTimer = window.setTimeout(function () {
-      toast.classList.add('opacity-0', 'translate-y-3');
-      toast.classList.remove('opacity-100', 'translate-y-0');
-    }, 2800);
-  }
-
   /* 종목 탭 가로 이동 */
   const sportTabsNavigation = document.querySelector('.sport-tabs-navigation');
   const sportTabsTrack = document.getElementById('sport-tabs');
@@ -155,10 +138,6 @@
     if (target.closest('[data-close]')) {
       closeMatchDialog();
       return;
-    }
-
-    if (target.closest('[data-action="help"]')) {
-      flash('이용 안내는 준비 중입니다.');
     }
   });
 

@@ -8,7 +8,7 @@ import org.apache.ibatis.annotations.Param;
 import co.kr.spoit.member.domain.Member;
 
 /**
- * {@code app_user} 조회 매퍼. SQL은 {@code resources/mapper/MemberMapper.xml}에 있다.
+ * {@code app_user} 조회 매퍼. SQL은 {@code resources/mapper/member/MemberMapper.xml}에 있다.
  * 비밀번호 비교는 BCrypt가 하므로 SQL에 비밀번호 조건을 넣지 않는다.
  */
 @Mapper

@@ -2,7 +2,7 @@
 (function (global) {
   'use strict';
 
-  const header = document.querySelector('body > header.sticky, body > header.mypage-topbar');
+  const header = document.querySelector('body > header.sticky');
   const headerInner = header?.querySelector('.mobile-nav-header');
   const sourceNav = headerInner?.querySelector('nav.primary-nav');
   const actions = headerInner?.querySelector('.ml-auto');
