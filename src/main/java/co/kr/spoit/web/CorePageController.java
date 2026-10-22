@@ -87,49 +87,8 @@ public class CorePageController {
     }
 
     /* ------------------------------------------------------------------
-     * 매칭 화면: 목록/카드/상세/신청을 GET으로 렌더링하며 실제 신청 처리는 하지 않는다.
+     * 매칭 화면(목록/카드/상세/신청)은 MatchController가 담당한다.
      * ------------------------------------------------------------------ */
-
-    /** 매칭 목록 화면을 렌더링한다. */
-    @GetMapping("/matches")
-    public String matches(Model model) {
-        addMatchListModel(model);
-        return "matches/list";
-    }
-
-    /** 매칭 카드 화면을 렌더링한다. 목록과 같은 모델 계약을 공유하고 뷰만 다르다. */
-    @GetMapping("/matches/cards")
-    public String matchCards(Model model) {
-        addMatchListModel(model);
-        return "matches/cards";
-    }
-
-    /** 매칭 상세 화면을 렌더링한다. 매칭을 조회하지 않아 match는 null이고 미존재 안내 문구를 함께 전달한다. */
-    @GetMapping("/matches/{matchId}")
-    public String matchDetail(@PathVariable long matchId, Model model) {
-        // 조회 연동 전이라 항상 미존재 안내를 노출한다.
-        model.addAttribute("unavailableMessage", "매칭방 정보를 찾을 수 없습니다.");
-        model.addAttribute("match", null);
-        return "matches/detail";
-    }
-
-    /** 매칭 신청 화면을 렌더링한다. 신청·예약·요금 계산을 하지 않으므로 completed/canReserve는 false이다. */
-    @GetMapping("/matches/{matchId}/apply")
-    public String matchApply(@PathVariable long matchId, Model model) {
-        model.addAttribute("matchId", matchId);
-        model.addAttribute("completed", false);
-        model.addAttribute("unavailableMessage", "신청 내용을 확인할 수 없습니다.");
-        model.addAttribute("match", null);
-        model.addAttribute("selection", null);
-        // 좌석/잔여 인원을 조회하지 않았으므로 예약 가능으로 단정하지 않는다.
-        model.addAttribute("canReserve", false);
-        model.addAttribute("capacityNotice", "");
-        model.addAttribute("error", null);
-        model.addAttribute("feeTotalText", "");
-        model.addAttribute("feeSummaryNote", "");
-        model.addAttribute("completion", null);
-        return "matches/join";
-    }
 
     /* ------------------------------------------------------------------
      * 팀/클럽 화면: 목록·상세·관리 탭을 렌더링하며 클럽 데이터는 아직 조회하지 않는다.
@@ -255,29 +214,6 @@ public class CorePageController {
         model.addAttribute("auditLogs", EMPTY_LIST);
         model.addAttribute("auditPagination", null);
         return "admin/system";
-    }
-
-    /** 매칭 목록/카드가 공유하는 검색·요약 모델을 구성한다. 조회 전이므로 조건은 null, 카운트는 0이다. */
-    private void addMatchListModel(Model model) {
-        model.addAttribute("search", map(
-                "sportId", null,
-                "regionId", null,
-                "dateIdx", null,
-                "hours", EMPTY_LIST));
-        model.addAttribute("sports", EMPTY_LIST);
-        model.addAttribute("districts", EMPTY_LIST);
-        model.addAttribute("dates", EMPTY_LIST);
-        model.addAttribute("hourOptions", EMPTY_LIST);
-        model.addAttribute("selectedHours", EMPTY_LIST);
-        model.addAttribute("selectedHoursLabel", null);
-        model.addAttribute("selectedSportName", "");
-        model.addAttribute("sportImageUrl", null);
-        model.addAttribute("totalRoomCount", 0);
-        model.addAttribute("roomCount", 0);
-        model.addAttribute("recruitingCount", 0);
-        model.addAttribute("matchedCount", 0);
-        model.addAttribute("activeFilters", EMPTY_LIST);
-        model.addAttribute("matches", EMPTY_LIST);
     }
 
     /** 관리자 화면 공통 셸 속성을 구성한다. 관리자 인증이 없어 adminUser는 null이고 알림도 비어 있다. */
