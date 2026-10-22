@@ -20,7 +20,7 @@
   <div id="managed-team-selector" class="managed-team-selector">
     <span th:if="${!#lists.isEmpty(managedClubs)}" class="managed-team-label">관리할 팀</span>
     <a th:each="club : ${managedClubs}" class="team-selector-button" th:classappend="${club.active} ? 'is-active' : ''"
-       th:href="@{/teams/manage(clubId=${club.clubId}, tab=${tab})}" th:attr="aria-pressed=${club.active}"
+       th:href="@{/teams/manage(clubId=${club.clubId}, tab=${tab})}" th:attr="aria-current=${club.active} ? 'true' : null"
        th:text="${club.clubName + ' (' + club.memberCount + '명)'}">팀 이름</a>
   </div>
 
