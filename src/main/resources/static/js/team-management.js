@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const tabs = Array.from(document.querySelectorAll('[data-management-tab], .team-management-tab'));
+  const tabs = Array.from(document.querySelectorAll('.team-management-tab'));
   let activeDialog = null;
   let dialogOpener = null;
 

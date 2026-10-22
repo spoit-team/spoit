@@ -20,7 +20,13 @@ class MemberRoleTest {
                 Arguments.of("ROLE_FACILITY_MANAGER", MemberRole.FACILITY_MANAGER),
                 Arguments.of("ROLE_ADMIN", MemberRole.ADMIN),
                 Arguments.of("무언가", MemberRole.MEMBER),
-                Arguments.of(null, MemberRole.MEMBER));
+                Arguments.of(null, MemberRole.MEMBER),
+                Arguments.of("NOT_ADMIN", MemberRole.MEMBER),
+                Arguments.of("xADMIN", MemberRole.MEMBER),
+                Arguments.of("FACILITY_ADMIN", MemberRole.MEMBER),
+                Arguments.of("SUPER_USER", MemberRole.MEMBER),
+                Arguments.of("ADMIN", MemberRole.ADMIN),
+                Arguments.of("admin", MemberRole.ADMIN));
     }
 
     @ParameterizedTest

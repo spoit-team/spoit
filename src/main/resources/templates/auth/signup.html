@@ -27,7 +27,7 @@
     </div>
 
     <p th:if="${error != null}" class="auth-message is-error mt-5" role="alert" th:text="${error}">입력 정보를 확인해 주세요.</p>
-    <p th:if="${message != null}" class="auth-message is-success mt-5" role="status" th:text="${message}">가입 안내</p>
+    <p th:if="${message != null}" id="signup-message" class="auth-message is-success mt-5" role="status" th:text="${message}">가입 안내</p>
 
     <form id="signup-form" class="mt-6" method="post" th:action="@{/signup}" novalidate th:attr="data-start-step=${error != null and signupForm != null and signupForm.agreeService and signupForm.agreePrivacy ? 2 : 1}">
       <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
@@ -122,9 +122,9 @@
             <p id="signup-nickname-error" class="auth-error mt-1.5 text-xs font-semibold" role="alert" hidden></p>
           </div>
           <fieldset class="border-t border-line pt-4">
-            <legend class="text-xs font-bold text-muted">선호 지역 <span class="font-medium text-faint">· 선택, 한 곳 선택</span></legend>
+            <legend id="signup-region-legend" class="text-xs font-bold text-muted">선호 지역 <span class="font-medium text-faint">· 선택, 한 곳 선택</span></legend>
             <p class="mt-1 text-[11px] text-faint">관심 지역 시설과 매치를 먼저 찾아볼 때 사용합니다. 가입 후 마이페이지에서 바꿀 수 있습니다.</p>
-            <select id="signup-preferred-region" name="regionId" class="auth-input mt-3">
+            <select id="signup-preferred-region" name="regionId" class="auth-input mt-3" aria-labelledby="signup-region-legend">
               <option value="">선호 지역 선택 안 함</option>
               <option th:each="district : ${districts}" th:value="${district.regionId}" th:text="${district.name}" th:selected="${signupForm != null and signupForm.regionId == district.regionId}">지역</option>
             </select>

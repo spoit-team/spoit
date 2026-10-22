@@ -17,7 +17,7 @@
   <p th:if="${message != null}" id="team-status-message" class="team-status-message" role="status" th:text="${message}">팀 안내</p>
 
   <div id="team-sport-tabs" class="team-sport-tabs" aria-label="종목별 팀 필터" role="group">
-    <a th:each="sport : ${sportTabs}" class="team-sport-tab" th:classappend="${sport.active} ? 'is-active' : ''" th:href="@{${sport.url}}" th:attr="aria-pressed=${sport.active}">
+    <a th:each="sport : ${sportTabs}" class="team-sport-tab" th:classappend="${sport.active} ? 'is-active' : ''" th:href="@{${sport.url}}" th:attr="aria-current=${sport.active} ? 'page' : null">
       <span class="team-sport-tab-emoji" aria-hidden="true" th:text="${sport.emoji}">🏅</span>
       <span th:text="${sport.name}">전체</span>
       <span class="team-sport-tab-count" th:text="${sport.count}">0</span>
