@@ -1,45 +1,70 @@
 package co.kr.spoit.global.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
+import co.kr.spoit.member.security.MemberLoginFailureHandler;
+import co.kr.spoit.member.security.MemberLoginSuccessHandler;
+import lombok.RequiredArgsConstructor;
+
 /**
- * Spring Security의 현재 스캐폴드 설정이다.
- *
- * <p>현재 단계에서는 실제 인증/인가가 구현되어 있지 않다. 모든 요청을
- * {@code permitAll()}로 허용하고 폼 로그인과 HTTP Basic을 비활성화하여,
- * 컨트롤러가 인증 없이 페이지를 렌더링할 수 있도록 한 임시 구성이다.
- * 따라서 로그인 화면({@code /login})은 표시되지만 세션 인증이나 권한 검사는
- * 수행되지 않는다.</p>
- *
- * <p>향후 인증을 도입할 때는 URL별 접근 규칙, 로그인/로그아웃 처리,
- * 인증 주체(principal) 조회를 이곳에서 구성하고, POST 기반 업무 요청에 대한
- * CSRF 정책도 함께 명시해야 한다. 현재는 별도 CSRF 설정을 두지 않았으므로
- * Spring Security의 기본 CSRF 보호가 그대로 적용된다. GET 페이지만 제공하는
- * 현 상태에서는 문제가 없지만, 상태를 변경하는 POST 엔드포인트를 추가할 때는
- * 폼에 CSRF 토큰을 포함하거나 의도적으로 예외 처리 여부를 결정해야 한다.</p>
+ * 폼 로그인 기반 인증 설정으로, member 패키지의 인증·핸들러를 필터 체인에 연결만 한다.
+ * 모든 화면 라우트는 공개 상태를 유지해야 하며, 보호가 필요한 경로는 {@code authorizeHttpRequests}에 추가한다.
+ * 로그아웃은 CSRF 보호를 위해 {@code POST /logout}만 허용하고, remember-me 키는 운영에서
+ * {@code spoit.security.remember-me-key}로 반드시 외부 주입해 토큰 위조를 막는다.
  */
 @Configuration
+@RequiredArgsConstructor
 public class SecurityConfig {
 
+    private final MemberLoginSuccessHandler loginSuccessHandler;
+    private final MemberLoginFailureHandler loginFailureHandler;
+
+    /** remember-me 토큰 서명 키. 운영에서는 외부 설정으로 덮어쓴다. */
+    @Value("${spoit.security.remember-me-key:spoit-remember-me-dev-key}")
+    private String rememberMeKey;
+
     /**
-     * 보안 필터 체인을 구성한다.
-     *
-     * <p>현재 반환하는 체인은 화면 확인용이며, 인증 실패/성공 핸들러,
-     * 세션 정책, 예외 처리 등은 아직 정의되어 있지 않다.</p>
-     *
-     * @param http 스프링 시큐리티가 제공하는 필터 체인 빌더
-     * @return 구성이 완료된 필터 체인
-     * @throws Exception 필터 체인 구성 중 발생할 수 있는 예외
+     * 비밀번호 검증기를 등록한다.
+     * {@code app_user.password_hash}에 BCrypt 해시가 저장돼 있다는 전제이며,
+     * 다른 알고리즘 데이터가 섞이면 {@code DelegatingPasswordEncoder}로 교체해야 한다.
      */
     @Bean
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    /** 보안 필터 체인을 구성한다. */
+    @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        // 모든 경로를 임시로 공개한다. 실제 권한 규칙은 인증 도입 시 교체한다.
         http.authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
-                // 화면 렌더링만 수행하는 동안 사용하지 않는 인증 방식을 끈다.
-                .formLogin(form -> form.disable())
+                .formLogin(form -> form
+                        .loginPage("/login")
+                        // 시큐리티가 처리하는 POST 경로이며 컨트롤러 핸들러는 없다.
+                        .loginProcessingUrl("/login")
+                        .usernameParameter("email")
+                        .passwordParameter("password")
+                        .successHandler(loginSuccessHandler)
+                        .failureHandler(loginFailureHandler)
+                        .permitAll())
+                .rememberMe(remember -> remember
+                        .rememberMeParameter("remember")
+                        .key(rememberMeKey)
+                        .tokenValiditySeconds(60 * 60 * 24 * 14))
+                .logout(logout -> logout
+                        .logoutUrl("/logout")
+                        .logoutSuccessUrl("/login?message="
+                                + java.net.URLEncoder.encode("로그아웃되었습니다.",
+                                        java.nio.charset.StandardCharsets.UTF_8))
+                        .invalidateHttpSession(true)
+                        .clearAuthentication(true)
+                        .deleteCookies("JSESSIONID", "remember-me")
+                        .permitAll())
                 .httpBasic(basic -> basic.disable());
         return http.build();
     }

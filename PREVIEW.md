@@ -52,8 +52,21 @@ Preview controllers and fixtures are included only with an explicit flag:
 ```
 
 When preview is enabled, the build adds the preview source roots and excludes the core
-page controller and its route test from the main/test source sets. The preview controllers
-own the page routes, so there are no duplicate mappings and no runtime conditional switch.
+page controller, the real login controller, and their tests from the main/test source sets.
+The preview controllers own the page routes, so there are no duplicate mappings and no
+runtime conditional switch.
+
+Excluded in preview builds:
+
+```
+co/kr/spoit/web/CorePageController.java
+co/kr/spoit/member/controller/MemberAuthController.java   (+ MemberAuthControllerTest)
+```
+
+The login *domain* (`member.domain`, `member.mapper`, `member.service`, `member.security`)
+still compiles in preview builds; only the page controller that would duplicate
+`GET /login` is excluded. `POST /login` therefore performs real authentication even with
+`-Ppreview=true`; only the rendered login screen comes from fixtures.
 
 ## Removing or disabling preview
 

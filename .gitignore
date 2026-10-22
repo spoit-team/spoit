@@ -40,3 +40,6 @@ application-local.properties
 
 codemap.md
 codemap.json
+
+### Local docs ###
+/docs/
