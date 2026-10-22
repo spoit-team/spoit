@@ -239,24 +239,6 @@ public class CorePageController {
      * ------------------------------------------------------------------ */
 
     /**
-     * 팀 목록 화면을 렌더링한다.
-     *
-     * @param model 팀 목록 템플릿에 전달할 모델
-     * @return 팀 목록 뷰 이름
-     */
-    @GetMapping("/teams")
-    public String teams(Model model) {
-        model.addAttribute("sportTabs", EMPTY_LIST);
-        model.addAttribute("statistics", EMPTY_LIST);
-        // 필터 폼 객체가 아직 없으므로 템플릿이 기본 필터 UI를 사용한다.
-        model.addAttribute("filters", null);
-        model.addAttribute("districts", EMPTY_LIST);
-        model.addAttribute("resultCount", 0);
-        model.addAttribute("clubs", EMPTY_LIST);
-        return "teams/list";
-    }
-
-    /**
      * 팀 상세 화면을 렌더링한다.
      *
      * <p>클럽을 조회하지 않으므로 {@code club}은 {@code null}이며, 템플릿은
