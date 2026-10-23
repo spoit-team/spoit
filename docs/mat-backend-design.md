@@ -1,18 +1,18 @@
-# MAT 백엔드 최소 골격 설계
+# MAT 백엔드 설계와 MySQL Mapper 통합 테스트
 
 ## 1. 분석 근거와 작업 범위
 
-기준은 `develop`의 `87ed48b`이며, `README.md`, `CONTRIBUTING.md`, `db/schema.sql`, 기존 Java 소스 및 `build.gradle`을 확인했다.
+현재 기준은 MAT 최소 골격이 병합된 PR #17의 `1b205c1`이다. `README.md`, `CONTRIBUTING.md`, `db/schema.sql`, 기존 Java 소스와 빌드·CI 설정을 함께 확인했다.
 
 - README는 MAT의 책임을 참가자 관리, A/B팀 배정, 경기 결과 제출, 팀장 기술평가, 종목별 MMR로 정의한다. 참가 신청·취소는 RES, 회원은 COM, 시설 운영은 FAC 영역이다.
-- Java 17, Spring Boot 3.5.16, MyBatis 3.0.5, MySQL, Gradle, Lombok을 사용한다. JPA 계층이나 신규 의존성을 도입하지 않는다.
-- 기존 기본 패키지는 `co.kr.spoit`이다. `web.CorePageController`는 페이지 렌더링과 빈 모델 제공을 담당하며, 주석에 향후 Controller → Service → Mapper/DB 연결 방향을 명시한다. 기본 소스에 재사용할 MAT Domain/Mapper/Service 구현은 없으므로, 기존에 확립된 매퍼 규칙이 있다고 가정하지 않는다.
-- `preview/`는 선택적으로 포함하는 미리보기 소스다. 미리보기 데이터나 임시 레이팅 표시를 운영 정책으로 가져오지 않는다.
-- CONTRIBUTING의 기본 흐름은 최신 develop에서 작업 브랜치를 만들고 PR로 통합하는 것이다. main/develop 직접 push와 민감정보 커밋은 금지되어 있다.
+- Java 17, Spring Boot 3.5.16, MyBatis 3.0.5, MySQL, Gradle, Lombok을 사용한다. JPA 계층이나 신규 테스트 의존성은 추가하지 않는다.
+- 기본 패키지는 `co.kr.spoit`이다. PR #17의 `mat.domain`, `mat.dto`, `mat.mapper`, `mat.service` 구조와 기존 조회 계약을 그대로 검증한다.
+- `web.CorePageController`는 페이지 렌더링과 빈 모델 제공을 담당한다. `preview/`의 미리보기 데이터나 임시 레이팅 표시는 운영 정책으로 사용하지 않는다.
+- 이전에 전체 컴파일을 막았던 공통 중복 클래스는 정리되었다. 현재 `HomeController`, `SecurityConfig`, `GlobalModelAdvice`의 패키지는 각각 `global.common`, `global.config`, `notification.service`와 일치한다. MAT 소스만 분리하는 임시 Gradle 스크립트 없이 기본 전체 소스를 컴파일하는 상태다.
 
-원본 `C:\workspace\spoit`에 있던 사용자 설정 변경을 보존하기 위해 `C:\Users\msnam\OneDrive\문서\ChatGPT\FinalProject\spoit-mat` worktree에서 `codex/mat-backend-skeleton` 브랜치로 작업했다. 원본은 `develop`에 그대로 있다. 커밋·push는 수행하지 않았다. RES·COM·FAC 코드, 스키마, 설정 파일은 변경하지 않았다.
+이번 작업은 기존 체크아웃의 `feature/mat-mapper-integration-test` 브랜치에서 수행한다. 별도 worktree 생성, 커밋·push·merge·PR 생성은 수행하지 않았다. RES·COM·FAC 및 MAT 프로덕션 코드, `build.gradle`, `db/schema.sql`, 애플리케이션 설정, 기존 테스트는 변경하지 않는다.
 
-이번 구현은 **경기 참가자 목록 조회와 회원·종목별 MMR 조회의 Domain / DTO / Mapper / Service 연결**까지다. HTTP 엔드포인트, 화면 연결, 쓰기 작업, 자동 팀 배정, 결과 확정, 평가 집계, 레이팅 계산·반영은 다음 단계로 남긴다.
+기존 최소 골격은 **경기 참가자 목록 조회와 회원·종목별 MMR 조회의 Domain / DTO / Mapper / Service 연결**이다. 이번에는 실제 MySQL에서 두 Mapper의 SQL·필드 매핑·복합 키 조건을 검증하는 테스트와 실행 환경을 추가한다. HTTP 엔드포인트, 화면 연결, 쓰기 작업, 자동 팀 배정, 결과 확정, 평가 집계, 레이팅 계산·반영은 범위에 포함하지 않는다.
 
 ## 2. 테이블과 담당 경계
 
@@ -107,42 +107,86 @@ DDL에 명시된 값은 저장 계약으로 인정하되, 계산 정책으로 �
 
 Elo K/D, 배치 경기 수, 평가 보정식과 계수, 팀 평균 산정 대상·시점, 반올림, MMR 상·하한, 티어, 결측 평가, 재반영·정정 정책은 확정하지 않았다. `algorithm_version` 컬럼이 있다는 이유만으로 버전값이나 공식을 생성하지 않는다. 별도 Python 실험의 가정·수치를 운영 정책으로 사용하지 않는다.
 
-## 7. 검증 결과
+## 7. MySQL 통합 테스트 구성
 
-JDK 17과 저장소의 Gradle Wrapper 9.8.1을 사용했다.
+### 검증 범위
+
+`AbstractMySqlMapperTest`는 `@MybatisTest`로 실제 프로덕션 Mapper를 등록하고 `@AutoConfigureTestDatabase(replace = NONE)`으로 실제 MySQL을 사용한다. Mock Mapper나 H2로 대체하지 않는다. underscore-to-camel-case 설정을 끈 상태에서 SQL의 명시적 별칭이 Java 필드에 매핑되는지 확인한다.
+
+| 테스트 | 검증 내용 |
+|---|---|
+| `MatchParticipantMapperIntegrationTest` 3개 | 참가자 ID 오름차순, 다른 경기 배제, 전체 9개 필드, 대기·확정·취소 상태, 미배정·취소 시각의 NULL, 빈 목록, DECIMAL 소수 두 자리 |
+| `SportRatingMapperIntegrationTest` 3개 | 회원·종목 두 키 조건, 전체 5개 필드, 미존재 조합의 빈 Optional, 조회 전후 행 수 불변, DECIMAL 양수·음수 저장 한계와 소수 두 자리 |
+| `MySqlTestConnectionValidationTest` 24개 | 허용 주소 4개와 거부 주소 20개. 개발 DB명·원격 주소·쿼리·사용자 정보·다중 호스트·잘못된 포트 등을 연결 전에 거부 |
+| 기존 서비스 테스트 13개 | 잘못된 식별자, 저장값 보존, 미등록 레이팅 비합성 |
+| 기존 Spring 애플리케이션·화면 테스트 16개 | 전체 컨텍스트와 기존 화면 경로 회귀 검증 |
+
+전체 기본 테스트 실행 결과는 59개 통과다. DECIMAL 경계 데이터는 MySQL 저장 타입과 Java `BigDecimal` 매핑을 확인하기 위한 값이며, 허용 MMR의 상·하한 정책을 정하지 않는다.
+
+Fixture는 `src/test/resources/mat/mapper-fixture.sql`에 있다. FK를 만족하는 최소 회원·종목·지역·시설·경기·신청·참가자·레이팅 데이터를 INSERT하고, 참가자는 `30, 10, 20, 5` 순으로 넣어 정렬 여부를 검증한다. `@Sql`에서 UTF-8을 명시하고 각 테스트의 Spring 트랜잭션이 종료될 때 롤백한다. Fixture와 테스트 Java 코드에는 DDL·TRUNCATE가 없다.
+
+### 연결 차단 조건과 DB 격리
+
+테스트는 `MAT_TEST_DB_URL`, `MAT_TEST_DB_USERNAME`, `MAT_TEST_DB_PASSWORD` 세 환경변수가 모두 있어야 시작한다. 누락하면 개발 DB 설정으로 대체하지 않고 실패한다. URL은 `jdbc:mysql://localhost:포트/spoit_mat_test` 또는 `jdbc:mysql://127.0.0.1:포트/spoit_mat_test`만 허용한다. 포트는 1~65535이며 사용자 지정 쿼리, 사용자 정보, 다중 호스트는 허용하지 않는다. 필요한 JDBC 옵션은 검증 후 고정값으로 추가한다. 오류에는 입력한 URL·비밀번호를 출력하지 않는다.
+
+`spring.config.import`를 비우고 SQL 자동 초기화를 끈다. 검증한 연결 값과 JDBC 드라이버는 `@DynamicPropertySource`로 지정한다. `@BeforeTransaction`에서 `SELECT DATABASE()`가 `spoit_mat_test`인지 확인하므로 다른 DB에서는 fixture를 실행하지 않는다. 테스트 자체가 `db/schema.sql`을 실행하거나 기존 DB를 초기화하지 않는다.
+
+로컬 실행 스크립트 `scripts/test-mat-mysql.ps1`은 매번 새 임시 datadir과 동적 loopback 포트로 별도 MySQL 서버를 시작하고, 그 서버의 새 `spoit_mat_test` DB에만 저장소 스키마를 적용한다. 실행 중 난수 비밀번호의 테스트 계정을 생성하며 권한은 전용 DB의 `SELECT/INSERT/UPDATE/DELETE`로 제한한다. root 비밀번호도 난수이며 비밀번호를 명령 인수·로그·설정 파일에 기록하지 않는다. 종료 시 임시 서버·디렉터리를 정리하고 호출 전 환경변수를 복원한다.
+
+스크립트는 기존 `@SpringBootTest`도 같은 임시 DB를 사용하도록 해당 프로세스의 `SPRING_DATASOURCE_*`를 설정한다. 개발용 DB 계정이나 비밀번호 파일을 복사·수정하지 않는다. 실패 시 기존 MySQL로 전환하는 대체 경로는 없다.
+
+### 실행 방법
+
+로컬 준비물은 Windows의 PowerShell 7, JDK 17, MySQL Server 8.4 실행 파일이다. 이번 검증 환경의 MySQL은 8.4.13이며 CI는 기존 8.4.11 이미지를 사용한다. 스크립트가 새 서버를 시작하므로 개발 MySQL 서비스에 스키마를 적용할 필요가 없다.
+
+기본 실행은 저장소 루트에서 전체 `clean build`를 수행한다.
+
+```powershell
+pwsh -File scripts/test-mat-mysql.ps1 -JavaHome '<JDK17 경로>'
+```
+
+MySQL이 기본 설치 경로와 다른 곳에 있다면 `-MySqlBin '<MySQL bin 경로>'`를 추가한다. PowerShell 7 세션에서 Mapper 및 연결 검증 테스트만 선택할 수도 있다.
+
+```powershell
+& ./scripts/test-mat-mysql.ps1 -JavaHome '<JDK17 경로>' -GradleArgs @('test', '--tests', 'co.kr.spoit.mat.mapper.*', '--no-daemon', '--console=plain')
+```
+
+일반 `gradlew test`만 실행하면 새 통합 테스트에 필요한 전용 환경변수가 없으므로 실패한다. 로컬에서는 위 스크립트로 준비와 실행을 함께 수행한다.
+
+CI는 기존 MySQL 8.4.11 서비스의 DB명을 `spoit_mat_test`로 바꾸고 `MAT_TEST_DB_*`를 제공한다. 기존 전체 컨텍스트 테스트의 `SPRING_DATASOURCE_*`와 스키마 적용 대상도 같은 임시 DB를 사용하며 `./gradlew build`에서 새 테스트를 함께 실행한다.
+
+### 실행 결과
+
+2026-10-22, JDK 17 / Gradle Wrapper 9.8.1 / 로컬 MySQL **8.4.13**에서 확인했다.
 
 | 검증 | 결과 |
 |---|---|
-| MAT 구현 전 `gradlew.bat compileJava --no-daemon --console=plain` | 기존 중복 클래스 3개로 실패 |
-| MAT 구현 후 `gradlew.bat test --no-daemon --console=plain` | 동일한 중복 클래스가 컴파일을 차단하여 전체 테스트는 실행되지 않음 |
-| `gradlew.bat -I build/mat-verification.init.gradle test --tests 'co.kr.spoit.mat.*' --no-daemon --console=plain` | MAT 프로덕션·테스트 소스 컴파일 성공, 단위 테스트 **13개 통과**, 실패·건너뜀 0 |
-| `node --test src/test/frontend/match-selection.test.mjs` | 기존 참가 신청 동작 검사 통과 |
+| 실행 스크립트의 기본 `clean build --no-daemon --console=plain` | **BUILD SUCCESSFUL**. 전체 프로덕션·테스트 컴파일, JAR 생성, 테스트 완료 |
+| Gradle 테스트 결과 | **59개 통과, 실패 0, 오류 0, 건너뜀 0** |
+| 실제 MySQL Mapper 테스트 | 참가자 3개 + 레이팅 3개 통과 |
+| 테스트 DB URL 차단 검사 | 24개 통과 |
+| 기존 서비스·애플리케이션·화면 테스트 | 29개 통과 |
+| 스크립트 성공 종료 정리 | 새 mysqld 프로세스·임시 폴더가 남지 않고 환경변수 복원 확인 |
+| 의도된 Gradle 실패 후 정리 | 존재하지 않는 태스크를 호출해 실패시킨 뒤에도 동일한 정리·환경 복원 확인 |
 
-기본 브랜치 `87ed48b`에 다음 파일 쌍이 같은 package/class 이름을 선언하고 있다. 기존 공통 코드는 이번 작업 범위 밖이므로 수정하지 않았다.
+HTML 보고서는 `build/reports/tests/test/index.html`, JUnit XML은 `build/test-results/test/`에서 확인할 수 있다. 이전 `87ed48b`의 중복 클래스 실패 기록과 MAT 단독 컴파일 우회 절차는 현재 검증 절차에서 제거했다.
 
-- `common/HomeController.java`와 `global/common/HomeController.java`: `co.kr.spoit.common.HomeController`
-- `config/SecurityConfig.java`와 `global/config/SecurityConfig.java`: `co.kr.spoit.config.SecurityConfig`
-- `common/GlobalModelAdvice.java`와 `notification/service/GlobalModelAdvice.java`: `co.kr.spoit.common.GlobalModelAdvice`
+GitHub Actions는 설정만 변경했고 원격 실행은 하지 않았다. CI의 MySQL **8.4.11** 실행 결과를 로컬 8.4.13 검증으로 대신 주장하지 않는다.
 
-위 경로의 기준은 `src/main/java/co/kr/spoit/`다. 기본 컴파일에서는 MAT의 Lombok 접근자를 찾지 못하는 후속 오류도 나타났지만, 중복 클래스와 분리한 MAT 컴파일 및 테스트에서는 접근자가 정상 생성됨을 확인했다. 전체 프로젝트 빌드가 성공한 것으로 해석하면 안 된다.
+이 검증은 두 조회 Mapper의 실제 SQL 실행·매핑 및 테스트 데이터 롤백을 대상으로 한다. 미구현 상태 전이, 동시성 제어, 쓰기 서비스, 레이팅 계산·반영의 정합성까지 검증하는 것은 아니다.
 
-분리 검증용 `build/mat-verification.init.gradle`은 Git에서 무시되는 로컬 파일이며, 저장소의 `build.gradle`이나 소스를 바꾸지 않는다. 아래 내용으로 재생성할 수 있다.
+## 8. 이번 변경 파일과 이유
 
-```groovy
-allprojects {
-    afterEvaluate {
-        layout.buildDirectory.set(layout.projectDirectory.dir('build/mat-verification'))
-        sourceSets.main.java.setIncludes(['co/kr/spoit/mat/**'])
-        sourceSets.main.resources.setSrcDirs([])
-        sourceSets.test.java.setIncludes(['co/kr/spoit/mat/**'])
-        sourceSets.test.resources.setSrcDirs([])
-        tasks.withType(JavaCompile).configureEach {
-            options.encoding = 'UTF-8'
-        }
-    }
-}
-```
+| 파일 | 이유 |
+|---|---|
+| `src/test/java/co/kr/spoit/mat/mapper/AbstractMySqlMapperTest.java` | 실제 MySQL 연결, 전용 DB 검증, UTF-8 fixture, 롤백을 공유 |
+| `src/test/java/co/kr/spoit/mat/mapper/MatchParticipantMapperIntegrationTest.java` | 참가자 SQL 조건·정렬·필드 매핑 검증 |
+| `src/test/java/co/kr/spoit/mat/mapper/SportRatingMapperIntegrationTest.java` | 회원·종목 키 조건과 레이팅 저장값 매핑 검증 |
+| `src/test/java/co/kr/spoit/mat/mapper/MySqlTestConnectionValidationTest.java` | 잘못된 DB 대상으로의 연결을 사전에 차단하는 규칙 검증 |
+| `src/test/resources/mat/mapper-fixture.sql` | 실제 FK를 만족하는 최소 통합 테스트 데이터 |
+| `scripts/test-mat-mysql.ps1` | 기존 개발 DB와 분리된 임시 MySQL 실행·정리 |
+| `.github/workflows/ci.yml` | 기존 CI MySQL 서비스에 전용 DB와 MAT 테스트 연결 값 제공 |
+| `docs/mat-backend-design.md` | 현재 구조·검증 경계·재현 명령을 문서화 |
+| `docs/mat-mapper-integration-test-pr.md` | 팀 템플릿에 따른 PR 초안 |
 
-서비스 테스트는 잘못된 식별자에서 DB 조회를 수행하지 않는지, 미등록 레이팅을 임의 생성하지 않는지, 참가 상태·미배정/취소 시각·소수 MMR을 그대로 전달하는지 확인한다. 테스트는 Mockito를 사용하며 로컬 DB나 비밀번호를 사용하지 않는다. MySQL SQL 실행, Spring 전체 컨텍스트의 매퍼 등록, 실제 트랜잭션 동작은 아직 통합 검증하지 않았다. 후속 통합 테스트는 공통 중복 클래스 정리와 별도 테스트 DB 준비 후 수행해야 한다.
-
-추가 파일은 MAT 프로덕션 소스 8개, 서비스 테스트 2개, 이 설계 문서 1개다. 기존 추적 파일의 수정과 스테이징은 없다.
+프로덕션 코드와 스키마를 바꾸지 않고 저장소의 기존 의존성을 사용한다. 미확정 레이팅 정책은 추가하지 않는다.
