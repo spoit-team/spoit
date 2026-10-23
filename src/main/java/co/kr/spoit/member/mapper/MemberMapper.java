@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import co.kr.spoit.member.domain.Member;
+import co.kr.spoit.member.dto.SportOption;
 import co.kr.spoit.member.dto.SignupRegion;
 
 /**
@@ -33,4 +34,26 @@ public interface MemberMapper {
 
     /** 회원이 선택한 선호 지역을 `region_id` 순으로 조회한다. */
     List<SignupRegion> findRegions(@Param("userId") Long userId);
+
+    /** 종목 선택지를 `sport_id` 순으로 조회한다. */
+    List<SportOption> findSports();
+
+    /** 선택한 종목이 실제로 존재하는지 확인한다. */
+    boolean sportExists(@Param("sportId") Long sportId);
+
+    /** 회원의 저장된 대표 종목을 조회한다. 미설정이면 null. */
+    SportOption findRepresentativeSport(@Param("userId") Long userId);
+
+    /** 회원의 닉네임·연락처를 저장한다. 선호 종목은 user_preferred_sport로 별도 저장한다. */
+    int updateProfileBasics(@Param("userId") Long userId, @Param("nickname") String nickname,
+            @Param("phone") String phone);
+
+    /** 회원의 선호 종목을 저장한다. 회원당 1행이며 기존 행을 대체한다. */
+    int upsertUserPreferredSport(@Param("userId") Long userId, @Param("sportId") Long sportId);
+
+    /** 회원의 선호 종목 설정을 삭제한다. 미선택 저장 시 사용한다. */
+    int deleteUserPreferredSport(@Param("userId") Long userId);
+
+    /** 회원의 선호 지역을 전부 삭제한다. 지역 저장은 삭제 후 재등록으로 대체한다. */
+    int deleteUserRegions(@Param("userId") Long userId);
 }

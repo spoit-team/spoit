@@ -122,6 +122,14 @@
             <p id="signup-nickname-error" class="auth-error mt-1.5 text-xs font-semibold" role="alert" hidden></p>
           </div>
           <fieldset class="border-t border-line pt-4">
+            <legend id="signup-sport-legend" class="text-xs font-bold text-muted">선호 종목 <span class="font-medium text-faint">· 선택, 한 곳 선택</span></legend>
+            <p class="mt-1 text-[11px] text-faint">마이페이지에 표시할 대표 종목입니다. 선택하지 않아도 가입할 수 있습니다.</p>
+            <select id="signup-preferred-sport" name="representativeSportId" class="auth-input mt-3" aria-labelledby="signup-sport-legend">
+              <option value="">선호 종목 선택 안 함</option>
+              <option th:each="sport : ${sports}" th:value="${sport.sportId}" th:text="${sport.name}" th:selected="${signupForm != null and signupForm.representativeSportId == sport.sportId}">종목</option>
+            </select>
+          </fieldset>
+          <fieldset class="border-t border-line pt-4">
             <legend id="signup-region-legend" class="text-xs font-bold text-muted">선호 지역 <span class="font-medium text-faint">· 선택, 한 곳 선택</span></legend>
             <p class="mt-1 text-[11px] text-faint">관심 지역 시설과 매치를 먼저 찾아볼 때 사용합니다. 선택하지 않아도 가입할 수 있습니다.</p>
             <select id="signup-preferred-region" name="regionId" class="auth-input mt-3" aria-labelledby="signup-region-legend">

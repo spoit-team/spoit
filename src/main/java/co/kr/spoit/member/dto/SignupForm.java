@@ -31,6 +31,9 @@ public class SignupForm {
     /** 선택 지역. 미선택이면 null이다. */
     private Long regionId;
 
+    /** 선택 선호 종목. 미선택이면 null이다. */
+    private Long representativeSportId;
+
     @Override
     public String toString() {
         return "SignupForm{"
@@ -42,6 +45,7 @@ public class SignupForm {
                 + ", phone='" + phone + '\''
                 + ", nickname='" + nickname + '\''
                 + ", regionId=" + regionId
+                + ", representativeSportId=" + representativeSportId
                 + '}';
     }
 }
