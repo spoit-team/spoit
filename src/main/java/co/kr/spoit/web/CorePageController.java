@@ -27,53 +27,8 @@ public class CorePageController {
      * ------------------------------------------------------------------ */
 
     /* ------------------------------------------------------------------
-     * 마이페이지: 로그인 회원이 연결되지 않아 모든 값이 빈 상태이며, 빈 문자열·0은 템플릿의 널 안전 표시용이다.
+     * 마이페이지: 요약·프로필 수정 화면 모두 member.controller.MyPageController가 담당한다.
      * ------------------------------------------------------------------ */
-
-    /** 마이페이지 요약 화면을 렌더링한다. 회원·활동·기록·예약·알림을 모두 빈 상태로 전달한다. */
-    @GetMapping("/mypage")
-    public String myPage(Model model) {
-        // 비로그인/미연동 상태에서도 템플릿이 참조할 수 있는 빈 회원 표현이다.
-        model.addAttribute("member", map(
-                "initial", "",
-                "nickname", "",
-                "roleLabel", "",
-                "email", "",
-                "regionText", ""));
-        model.addAttribute("summary", map(
-                "representativeRatingText", "",
-                "representativeSportId", "",
-                "representativeSportName", "",
-                "skillNote", "",
-                "confirmedCount", 0,
-                "completedCount", 0,
-                "waitingCount", 0,
-                "otherSportsNote", ""));
-        model.addAttribute("otherSports", EMPTY_LIST);
-        model.addAttribute("sports", EMPTY_LIST);
-        model.addAttribute("selectedSport", "all");
-        model.addAttribute("historyTotalCount", 0);
-        model.addAttribute("historyFilterLabel", "전체 종목");
-        model.addAttribute("historyCount", 0);
-        model.addAttribute("history", EMPTY_LIST);
-        model.addAttribute("historyEmptyNote", "확정된 경기 기록이 없습니다.");
-        model.addAttribute("currentReservations", EMPTY_LIST);
-        model.addAttribute("pastReservations", EMPTY_LIST);
-        model.addAttribute("notifications", EMPTY_LIST);
-        model.addAttribute("message", null);
-        return "mypage/index";
-    }
-
-    /** 프로필 수정 화면을 렌더링한다. 프로필은 null, 종목·지역 선택지는 빈 목록으로 전달한다. */
-    @GetMapping("/mypage/profile")
-    public String profile(Model model) {
-        model.addAttribute("profile", null);
-        model.addAttribute("sports", EMPTY_LIST);
-        model.addAttribute("districts", EMPTY_LIST);
-        model.addAttribute("error", null);
-        model.addAttribute("message", null);
-        return "mypage/profile";
-    }
 
     /* ------------------------------------------------------------------
      * 매칭 화면(목록/카드/상세/신청)은 MatchController가 담당한다.

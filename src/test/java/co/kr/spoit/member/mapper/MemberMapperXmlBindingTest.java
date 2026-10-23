@@ -35,5 +35,8 @@ class MemberMapperXmlBindingTest {
         assertThat(configuration
                 .hasStatement("co.kr.spoit.member.mapper.MemberMapper.insertUserRegion"))
                 .isTrue();
+        assertThat(configuration
+                .hasStatement("co.kr.spoit.member.mapper.MemberMapper.findRegions"))
+                .isTrue();
     }
 }
