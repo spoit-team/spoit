@@ -90,6 +90,7 @@
                u.nickname,
                mp.participation_status,
                mp.match_side,
+               mp.entry_mmr,
                mp.joined_at
           FROM match_participant mp
           JOIN app_user u ON u.user_id = mp.user_id
@@ -102,6 +103,32 @@
                    #{st}
                </foreach>
          ORDER BY mp.match_id, mp.joined_at, mp.participant_id
+    </select>
+
+    <!-- RES-02 상세: 상태와 관계없이 조회 (삭제된 시설만 제외) -->
+    <select id="findMatchDetail" resultType="co.kr.spoit.match.dto.MatchDetailRow">
+        SELECT sm.match_id,
+               sm.title,
+               sm.created_by,
+               sm.sport_id,
+               s.name AS sport_name,
+               f.facility_id,
+               f.name AS facility_name,
+               f.address,
+               r.name AS region_name,
+               sm.start_at,
+               sm.end_at,
+               sm.min_participants,
+               sm.max_participants,
+               sm.team_a_capacity,
+               sm.team_b_capacity,
+               sm.fee_per_person,
+               sm.required_skill,
+               sm.status,
+               sm.captain_a_participant_id,
+               sm.captain_b_participant_id
+        <include refid="searchFrom"/>
+         WHERE sm.match_id = #{matchId}
     </select>
 
     <select id="findSports" resultType="co.kr.spoit.match.dto.SportTab">

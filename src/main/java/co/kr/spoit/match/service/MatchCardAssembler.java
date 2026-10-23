@@ -178,7 +178,7 @@ public class MatchCardAssembler {
         return new String(Character.toChars(trimmed.codePointAt(0)));
     }
 
-    private String formatFee(BigDecimal fee) {
+    static String formatFee(BigDecimal fee) {
         return new DecimalFormat("#,##0").format(fee == null ? BigDecimal.ZERO : fee);
     }
 }

@@ -1,5 +1,6 @@
 package co.kr.spoit.match.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import lombok.Getter;
@@ -19,5 +20,7 @@ public class ParticipantRow {
     private String participationStatus;
     /** A, B, 미배정이면 null */
     private String matchSide;
+    /** 신청 당시 MMR 스냅샷 */
+    private BigDecimal entryMmr;
     private LocalDateTime joinedAt;
 }
