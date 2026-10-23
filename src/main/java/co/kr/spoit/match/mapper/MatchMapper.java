@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 
 import co.kr.spoit.match.dto.DistrictOption;
 import co.kr.spoit.match.dto.MatchCountSummary;
+import co.kr.spoit.match.dto.MatchDetailRow;
 import co.kr.spoit.match.dto.MatchRow;
 import co.kr.spoit.match.dto.MatchSearchQuery;
 import co.kr.spoit.match.dto.ParticipantRow;
@@ -28,6 +29,9 @@ public interface MatchMapper {
     /** 여러 매칭방의 참가자를 한 번에 조회 (N+1 방지) */
     List<ParticipantRow> findParticipants(@Param("matchIds") List<Long> matchIds,
                                           @Param("statuses") List<String> statuses);
+
+    /** 매칭방 한 건 (없거나 시설이 삭제됐으면 null) */
+    MatchDetailRow findMatchDetail(@Param("matchId") long matchId);
 
     /* 검색 필터 선택지: sport/region 담당자가 공용 조회를 만들면 그쪽으로 옮긴다. */
 
