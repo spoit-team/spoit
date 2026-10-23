@@ -2,6 +2,7 @@ package co.kr.spoit.mat.mapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import co.kr.spoit.mat.domain.MatchParticipant;
 import java.math.BigDecimal;
@@ -9,6 +10,9 @@ import java.time.LocalDateTime;
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+
+@EnabledIfEnvironmentVariable(named = "MAT_TEST_DB_URL", matches = ".+")
+
 
 class MatchParticipantMapperIntegrationTest extends AbstractMySqlMapperTest {
 

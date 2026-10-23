@@ -2,11 +2,16 @@ package co.kr.spoit.mat.mapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+
 import co.kr.spoit.mat.domain.SportRating;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+
+@EnabledIfEnvironmentVariable(named = "MAT_TEST_DB_URL", matches = ".+")
+
 
 class SportRatingMapperIntegrationTest extends AbstractMySqlMapperTest {
 
