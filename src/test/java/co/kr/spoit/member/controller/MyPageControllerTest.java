@@ -3,14 +3,23 @@ package co.kr.spoit.member.controller;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -26,9 +35,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import co.kr.spoit.mat.dto.SportRatingResponse;
+import co.kr.spoit.mat.service.SportRatingService;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.member.dto.SignupRegion;
+import co.kr.spoit.member.dto.SportOption;
 import co.kr.spoit.member.service.MemberService;
 
 /** 마이페이지 화면이 세션 주체의 정보만 노출하는지 검증한다. DB 없이 standalone MockMvc를 쓴다. */
@@ -40,18 +52,22 @@ class MyPageControllerTest {
     private static final String PHONE = "010-1234-5678";
 
     private MemberService memberService;
+    private SportRatingService sportRatingService;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         memberService = mock(MemberService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new MyPageController(memberService)).build();
+        sportRatingService = mock(SportRatingService.class);
+        mockMvc = MockMvcBuilders.standaloneSetup(new MyPageController(memberService, sportRatingService)).build();
     }
 
     @Test
     @DisplayName("로그인 회원은 마이페이지에서 본인 닉네임과 이메일을 본다")
     void myPageShowsOwnIdentity() throws Exception {
         given(memberService.findRegions(USER_ID)).willReturn(List.of());
+        given(memberService.findSports()).willReturn(List.of(sportOption(2L, "농구")));
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.empty());
 
         mockMvc.perform(get("/mypage").with(principal()))
                 .andExpect(status().isOk())
@@ -66,10 +82,25 @@ class MyPageControllerTest {
     void regionTextFollowsStoredRegions(List<SignupRegion> regions, String expectedText)
             throws Exception {
         given(memberService.findRegions(USER_ID)).willReturn(regions);
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.empty());
 
         mockMvc.perform(get("/mypage").with(principal()))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("member", hasEntry("regionText", expectedText)));
+    }
+
+    @Test
+    @DisplayName("마이페이지 요약은 설정한 대표 종목과 레이팅을 보여준다")
+    void summaryShowsRepresentativeSportAndRating() throws Exception {
+        given(memberService.findRegions(USER_ID)).willReturn(List.of());
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.of(sportOption(2L, "농구")));
+        given(sportRatingService.findByUserIdAndSportId(USER_ID, 2L)).willReturn(
+                Optional.of(new SportRatingResponse(USER_ID, 2L, new BigDecimal("1015.66"), 4, null)));
+
+        mockMvc.perform(get("/mypage").with(principal()))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("summary", hasEntry("representativeSportName", "농구")))
+                .andExpect(model().attribute("summary", hasEntry("representativeRatingText", "1015.66")));
     }
 
     @Test
@@ -78,13 +109,16 @@ class MyPageControllerTest {
         given(memberService.findRegions(USER_ID))
                 .willReturn(List.of(region(11L, "강남구"), region(12L, "송파구")));
         given(memberService.findSignupRegions()).willReturn(List.of(region(11L, "강남구")));
+        given(memberService.findSports()).willReturn(List.of(sportOption(2L, "농구")));
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.of(sportOption(2L, "농구")));
 
         mockMvc.perform(get("/mypage/profile").with(principal()))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("profile", hasEntry("nickname", NICKNAME)))
                 .andExpect(model().attribute("profile", hasEntry("email", EMAIL)))
                 .andExpect(model().attribute("profile", hasEntry("phone", PHONE)))
-                .andExpect(model().attribute("profile", hasEntry("regionId", 11L)));
+                .andExpect(model().attribute("profile", hasEntry("regionId", 11L)))
+                .andExpect(model().attribute("profile", hasEntry("representativeSportId", 2L)));
     }
 
     @Test
@@ -92,6 +126,8 @@ class MyPageControllerTest {
     void profileFillsRegionOptions() throws Exception {
         given(memberService.findRegions(USER_ID)).willReturn(List.of(region(11L, "강남구")));
         given(memberService.findSignupRegions()).willReturn(List.of(region(11L, "강남구"), region(12L, "송파구")));
+        given(memberService.findSports()).willReturn(List.of(sportOption(2L, "농구")));
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.empty());
 
         mockMvc.perform(get("/mypage/profile").with(principal()))
                 .andExpect(status().isOk())
@@ -99,9 +135,56 @@ class MyPageControllerTest {
     }
 
     @Test
+    @DisplayName("프로필 저장은 폼 값을 서비스에 전달하고 프로필 화면으로 리다이렉트한다")
+    void saveProfileDelegatesToServiceAndRedirects() throws Exception {
+        given(memberService.findSports()).willReturn(List.of(sportOption(5L, "테니스")));
+
+        mockMvc.perform(post("/mypage/profile").with(principal())
+                        .param("nickname", NICKNAME)
+                        .param("phone", PHONE)
+                        .param("representativeSportId", "5")
+                        .param("regionId", "11"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/mypage/profile?message=%ED%94%84%EB%A1%9C%ED%95%84%EC%9D%84+%EC%A0%80%EC%9E%A5%ED%96%88%EC%8A%B5%EB%8B%88%EB%8B%A4."));
+
+        verify(memberService).updateProfile(eq(USER_ID), argThat(form ->
+                form.getRepresentativeSportId() == 5L && NICKNAME.equals(form.getNickname())));
+    }
+
+    @Test
+    @DisplayName("닉네임이 형식에 맞지 않으면 저장하지 않고 오류와 함께 다시 그린다")
+    void invalidNicknameRendersProfileWithError() throws Exception {
+        // 서비스 계약: 닉네임 형식 오류 시 IllegalArgumentException으로 저장을 거부한다.
+        given(memberService.findSports()).willReturn(List.of(sportOption(2L, "농구")));
+        given(memberService.findSignupRegions()).willReturn(List.of(region(11L, "강남구")));
+        willThrow(new IllegalArgumentException("닉네임은 한글, 영문, 숫자, 밑줄로 2~12자 입력해 주세요."))
+                .given(memberService).updateProfile(eq(USER_ID), argThat(form -> true));
+
+        mockMvc.perform(post("/mypage/profile").with(principal())
+                        .param("nickname", "!")
+                        .param("phone", PHONE))
+                .andExpect(status().isOk())
+                .andExpect(view().name("mypage/profile"))
+                .andExpect(model().attributeExists("error"));
+
+        // 서비스가 예외로 저장을 거부했으므로 저장 성공 경로는 실행되지 않는다.
+    }
+
+    @Test
+    @DisplayName("비로그인으로 프로필을 저장하면 로그인 화면으로 보낸다")
+    void anonymousSaveRedirectsToLogin() throws Exception {
+        mockMvc.perform(post("/mypage/profile")
+                        .param("nickname", NICKNAME)
+                        .param("phone", PHONE))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login"));
+    }
+
+    @Test
     @DisplayName("비로그인 사용자는 마이페이지와 프로필 화면을 빈 값으로 본다")
     void anonymousSeesEmptyValues() throws Exception {
         given(memberService.findSignupRegions()).willReturn(List.of());
+        given(memberService.findSports()).willReturn(List.of());
 
         mockMvc.perform(get("/mypage"))
                 .andExpect(status().isOk())
@@ -149,5 +232,12 @@ class MyPageControllerTest {
         region.setRegionId(regionId);
         region.setName(name);
         return region;
+    }
+
+    private static SportOption sportOption(Long sportId, String name) {
+        SportOption sport = new SportOption();
+        sport.setSportId(sportId);
+        sport.setName(name);
+        return sport;
     }
 }

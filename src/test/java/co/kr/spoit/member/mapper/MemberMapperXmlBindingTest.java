@@ -38,5 +38,26 @@ class MemberMapperXmlBindingTest {
         assertThat(configuration
                 .hasStatement("co.kr.spoit.member.mapper.MemberMapper.findRegions"))
                 .isTrue();
+        assertThat(configuration
+                .hasStatement("co.kr.spoit.member.mapper.MemberMapper.findSports"))
+                .isTrue();
+        assertThat(configuration
+                .hasStatement("co.kr.spoit.member.mapper.MemberMapper.sportExists"))
+                .isTrue();
+        assertThat(configuration
+                .hasStatement("co.kr.spoit.member.mapper.MemberMapper.findRepresentativeSport"))
+                .isTrue();
+        assertThat(configuration
+                .hasStatement("co.kr.spoit.member.mapper.MemberMapper.updateProfileBasics"))
+                .isTrue();
+        assertThat(configuration
+                .hasStatement("co.kr.spoit.member.mapper.MemberMapper.upsertUserPreferredSport"))
+                .isTrue();
+        assertThat(configuration
+                .hasStatement("co.kr.spoit.member.mapper.MemberMapper.deleteUserPreferredSport"))
+                .isTrue();
+        assertThat(configuration
+                .hasStatement("co.kr.spoit.member.mapper.MemberMapper.deleteUserRegions"))
+                .isTrue();
     }
 }

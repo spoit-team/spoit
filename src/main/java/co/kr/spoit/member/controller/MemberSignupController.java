@@ -32,7 +32,8 @@ public class MemberSignupController {
     private static final String[] ALLOWED_FIELDS = {
             "agreeService", "agreePrivacy", "marketingOptIn",
             "role", "facilityName", "adminInviteCode",
-            "email", "phone", "password", "passwordConfirm", "nickname", "regionId"
+            "email", "phone", "password", "passwordConfirm", "nickname", "regionId",
+            "representativeSportId"
     };
 
     private final MemberService memberService;
@@ -76,6 +77,7 @@ public class MemberSignupController {
     private String renderForm(Model model, SignupForm form, String error) {
         model.addAttribute("signupForm", form);
         model.addAttribute("districts", memberService.findSignupRegions());
+        model.addAttribute("sports", memberService.findSports());
         model.addAttribute("error", error);
         model.addAttribute("message", null);
         return VIEW;

@@ -48,6 +48,7 @@ import org.springframework.transaction.support.DefaultTransactionStatus;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.dto.SignupForm;
 import co.kr.spoit.member.dto.SignupRegion;
+import co.kr.spoit.member.dto.SportOption;
 import co.kr.spoit.member.mapper.MemberMapper;
 
 /**
@@ -133,6 +134,38 @@ class MemberSignupControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("auth/signup"))
                 .andExpect(model().attribute("districts", List.of(region)));
+    }
+
+    @Test
+    @DisplayName("가입 화면은 종목 선택지를 모델에 담아 렌더링한다")
+    void signupPageRendersSports() throws Exception {
+        SportOption sport = new SportOption();
+        sport.setSportId(2L);
+        sport.setName("풋살");
+        given(memberMapper.findSports()).willReturn(List.of(sport));
+
+        mockMvc.perform(get("/signup"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("sports", List.of(sport)));
+    }
+
+    @Test
+    @DisplayName("선택한 선호 종목은 생성된 회원 ID로 저장한다")
+    void selectedSportUsesGeneratedMemberId() throws Exception {
+        given(memberMapper.regionExists(7L)).willReturn(true);
+        given(memberMapper.sportExists(5L)).willReturn(true);
+        given(memberMapper.insert(any(Member.class))).willAnswer(invocation -> {
+            Member member = invocation.getArgument(0);
+            member.setUserId(42L);
+            return 1;
+        });
+
+        mockMvc.perform(signup(Map.of("representativeSportId", "5", "regionId", "7")))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrlPattern("/login?message=*"));
+
+        verify(memberMapper).upsertUserPreferredSport(42L, 5L);
+        verify(memberMapper).insertUserRegion(42L, 7L);
     }
 
     @Test
@@ -223,6 +256,7 @@ class MemberSignupControllerTest {
                 Arguments.of("필수 약관 미동의", Map.of("agreeService", "false")),
                 Arguments.of("지원하지 않는 마케팅 동의", Map.of("marketingOptIn", "true")),
                 Arguments.of("존재하지 않는 지역", Map.of("regionId", "9999")),
+                Arguments.of("존재하지 않는 종목", Map.of("representativeSportId", "9999")),
                 Arguments.of("비밀번호 72바이트 초과",
                         Map.of("password", overLimitPassword, "passwordConfirm", overLimitPassword)),
                 Arguments.of("연락처 형식 위반", Map.of("phone", "02-123-45a")),
