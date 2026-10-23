@@ -200,18 +200,7 @@ INSERT INTO user_region (user_id, region_id) VALUES
   (51, 9),
   (52, 34),
   (53, 37),
-  (54, 40),
-  (1, 8),
-  (2, 28),
-  (4, 18),
-  (6, 18),
-  (9, 27),
-  (14, 28),
-  (19, 18),
-  (22, 27),
-  (25, 28),
-  (30, 35),
-  (40, 30);
+  (54, 40);
 
 -- 2. 시설
 INSERT INTO facility (facility_id, region_id, name, address, latitude, longitude, concurrent_match_limit, status, deleted_at) VALUES
