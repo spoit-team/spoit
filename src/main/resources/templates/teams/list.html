@@ -46,12 +46,12 @@
         <div class="team-card-top"><span class="team-mark" th:attr="data-sport=${club.sportId}" aria-hidden="true" th:text="${club.initials}">팀</span><div><h2 class="team-card-name" th:text="${club.clubName}">팀 이름</h2><p class="team-card-subtitle" th:text="${club.sportName + ' · ' + club.areaLabel}">종목 · 지역</p></div></div>
         <div class="team-badges">
           <span class="team-badge" th:classappend="${club.recruiting} ? 'is-recruiting' : 'is-closed'" th:text="${club.statusLabel}">모집 중</span>
-          <span class="team-badge" th:text="${'팀 실력 ' + club.level + '단계'}">팀 실력 1단계</span>
-          <span th:each="tag : ${club.tags}" class="team-badge" th:text="${tag}">태그</span>
+          <!-- <span class="team-badge" th:text="${'팀 실력 ' + club.level + '단계'}">팀 실력 1단계</span> -->
+          <!-- <span th:each="tag : ${club.tags}" class="team-badge" th:text="${tag}">태그</span> -->
         </div>
         <div class="team-card-meta">
           <div><div class="team-card-meta-label">팀원 / 최대 인원</div><div class="team-card-meta-value" th:text="${club.memberCount + ' / ' + club.maxMembers + '명'}">0 / 0명</div></div>
-          <div><div class="team-card-meta-label">평균 레이팅</div><div class="team-card-meta-value" th:text="${club.ratingText}">기록 없음</div></div>
+          <!-- <div><div class="team-card-meta-label">평균 레이팅</div><div class="team-card-meta-value" th:text="${club.ratingText}">기록 없음</div></div> -->
           <div style="grid-column:1 / -1"><div class="team-card-meta-label">활동 시간</div><div class="team-card-meta-value" th:text="${club.time}">활동 시간</div></div>
         </div>
         <div class="team-card-footer"><span th:text="${club.footerNote}">모집 자리 0명</span><a class="team-card-link" th:href="@{/teams/{clubId}(clubId=${club.clubId})}">팀 정보 보기 <span aria-hidden="true">→</span></a></div>

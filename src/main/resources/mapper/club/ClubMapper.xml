@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="co.kr.spoit.club.mapper.ClubMapper">
+
+    <select id="selectClubSummaryList" resultType="co.kr.spoit.club.domain.ClubSummary">
+        SELECT club_id AS clubId
+              ,club_name AS clubName
+              ,c.sport_id AS sportId
+              ,c.recruit_status AS recruitStatus
+              ,c.max_members AS maxMembers
+              ,c.activity_days AS activityDays
+              ,c.activity_start_time AS activityStartTime
+              ,c.activity_end_time AS activityEndTime
+              ,c.image_url AS imageUrl
+              ,c.created_at AS createdAt
+              ,s.name AS sportName
+              ,(SELECT COUNT(*) FROM club_member m where m.club_id = c.club_id
+              AND m.left_at IS NULL) AS memberCount
+              ,(SELECT GROUP_CONCAT(rg.name ORDER BY rg.region_id SEPARATOR ', ')
+                FROM club_region cr
+                JOIN region rg ON cr.region_id = rg.region_id
+                WHERE cr.club_id = c.club_id) AS areaLabel
+        FROM club c
+    JOIN sport s ON c.sport_id = s.sport_id
+    WHERE c.deleted_at IS NULL
+        <if test="query != null and query != ''">
+            AND c.club_name LIKE CONCAT('%', #{query}, '%')
+        </if>
+        <if test="sportId != null">
+            AND c.sport_id = #{sportId}
+        </if>
+        <if test="regionId != null">
+            AND EXISTS (SELECT 1 FROM club_region r
+                        WHERE r.club_id = c.club_id AND r.region_id = #{regionId})
+        </if>
+        <if test="recruitingOnly">
+            AND c.recruit_status = '모집중'
+        </if>
+    <choose>
+    <when test="sort == 'name'">
+        ORDER BY c.club_name ASC</when>
+    <when test="sort == 'members'">
+        ORDER BY memberCount DESC, c.created_at DESC</when>
+    <otherwise>
+        ORDER BY c.created_at DESC</otherwise>
+    </choose>
+    </select>
+    </mapper>
