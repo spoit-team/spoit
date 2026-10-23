@@ -25,4 +25,5 @@ public class ClubSummary {
     private LocalDateTime createdAt;
     private Integer memberCount;
     private String areaLabel;
+    private String intro;
 }
