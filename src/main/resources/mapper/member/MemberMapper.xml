@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!-- MemberMapper: app_user 회원 조회 -->
+<!-- MemberMapper: app_user 회원 조회·저장과 선호 지역 -->
 <mapper namespace="co.kr.spoit.member.mapper.MemberMapper">
 
     <select id="findByEmail" resultType="co.kr.spoit.member.domain.Member">
@@ -8,5 +8,30 @@
         FROM app_user
         WHERE email = #{email}
     </select>
+
+    <insert id="insert" parameterType="co.kr.spoit.member.domain.Member"
+            useGeneratedKeys="true" keyProperty="userId">
+        INSERT INTO app_user (email, password_hash, nickname, phone, role, status)
+        VALUES (#{email}, #{passwordHash}, #{nickname}, #{phone}, #{role}, #{status})
+    </insert>
+
+    <!-- 화면의 'districts'와 같은 의미로 하위 자치구만 선택지로 노출한다. -->
+    <select id="findSignupRegions" resultType="co.kr.spoit.member.dto.SignupRegion">
+        SELECT region_id, name
+          FROM region
+         WHERE parent_region_id IS NOT NULL
+         ORDER BY name
+    </select>
+
+    <select id="regionExists" resultType="boolean">
+        SELECT COUNT(*) > 0
+          FROM region
+         WHERE region_id = #{regionId}
+    </select>
+
+    <insert id="insertUserRegion">
+        INSERT INTO user_region (user_id, region_id)
+        VALUES (#{userId}, #{regionId})
+    </insert>
 
 </mapper>

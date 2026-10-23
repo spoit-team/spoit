@@ -37,9 +37,11 @@ out/
 .vscode/
 
 application-local.properties
+seed-accounts.md
+test-accounts.md
 
 codemap.md
 codemap.json
 
 ### Local docs ###
-/docs/
+/docs/local/
