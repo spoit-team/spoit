@@ -68,4 +68,17 @@ class ClubServiceTest {
         club.setMemberCount(3);
         return club;
     }
+
+    @Test
+    void showsDefaultAreaWhenClubHasNoRegion() {
+    ClubSummary club = club("모집중", "2,4", 19, 21);
+    club.setAreaLabel(null);
+    when(clubMapper.selectClubSummaryList(null, null, null, false, "recent")).thenReturn(List.of(club));
+
+    ClubCardResponse card = service.findClubCards().get(0);
+
+    assertThat(card.getAreaLabel()).isEqualTo("지역 미정");
+}
+
+    
 }

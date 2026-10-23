@@ -34,7 +34,7 @@ public class ClubCardResponse {
         card.setInitials(initials(club.getClubName()));
         card.setSportId(club.getSportId());
         card.setSportName(club.getSportName());
-        card.setAreaLabel(club.getAreaLabel());
+        card.setAreaLabel(club.getAreaLabel() != null ? club.getAreaLabel() : "지역 미정");
         card.setRecruiting(recruiting);
         card.setStatusLabel(recruiting ? "팀원 모집 중" : "모집 마감");
         card.setMemberCount(club.getMemberCount());
