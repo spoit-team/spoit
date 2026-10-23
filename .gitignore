@@ -37,6 +37,7 @@ out/
 .vscode/
 
 application-local.properties
+seed-accounts.md
 
 codemap.md
 codemap.json

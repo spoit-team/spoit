@@ -23,19 +23,8 @@ public class CorePageController {
     private static final List<Object> EMPTY_LIST = Collections.emptyList();
 
     /* ------------------------------------------------------------------
-     * 인증 화면: 로그인은 MemberAuthController가 담당하고, 여기서는 회원가입 폼만 렌더링한다.
+     * 인증 화면: 로그인은 MemberAuthController, 회원가입은 MemberSignupController가 담당한다.
      * ------------------------------------------------------------------ */
-
-    /** 회원가입 화면을 렌더링한다. 폼 객체와 지역 목록은 아직 조회하지 않아 null/빈 목록으로 전달한다. */
-    @GetMapping("/signup")
-    public String signup(Model model) {
-        // 폼 객체가 아직 없으므로 null을 넘겨 템플릿의 빈 폼을 사용한다.
-        model.addAttribute("signupForm", null);
-        model.addAttribute("districts", EMPTY_LIST);
-        model.addAttribute("error", null);
-        model.addAttribute("message", null);
-        return "auth/signup";
-    }
 
     /* ------------------------------------------------------------------
      * 마이페이지: 로그인 회원이 연결되지 않아 모든 값이 빈 상태이며, 빈 문자열·0은 템플릿의 널 안전 표시용이다.

@@ -22,7 +22,19 @@
   const message = document.getElementById('signup-message');
   const termsError = document.getElementById('terms-error');
   const requiredConsents = [document.getElementById('agree-service'), document.getElementById('agree-privacy')];
-  const allConsents = [document.getElementById('agree-service'), document.getElementById('agree-privacy'), document.getElementById('agree-marketing')];
+  // 동의 대상은 실제로 선택 가능한 체크박스만 모읍니다. 비활성 항목(마케팅)은 전체 동의에 포함하지 않습니다.
+  const allConsents = [
+    document.getElementById('agree-service'),
+    document.getElementById('agree-privacy'),
+    document.getElementById('agree-marketing')
+  ].filter(function (checkbox) { return checkbox && !checkbox.disabled; });
+  const EMAIL_MAX_LENGTH = 255;
+  const PASSWORD_MAX_BYTES = 72;
+  // 서버의 BCrypt 72바이트 제한과 같은 기준으로 셉니다. TextEncoder가 없으면 퍼센트 인코딩으로 대신 계산합니다.
+  function utf8ByteLength(value) {
+    if (typeof TextEncoder === 'function') return new TextEncoder().encode(value).length;
+    return encodeURIComponent(value).replace(/%[0-9A-F]{2}/g, 'x').length;
+  }
   const fields = {
     email: document.getElementById('signup-email'),
     phone: document.getElementById('signup-phone'),
@@ -61,22 +73,23 @@
     const role = roleSelect.value;
     const isFacility = role === 'facility';
     const isSystem = role === 'system';
-    facilitySignupFields.hidden = !isFacility;
-    systemSignupFields.hidden = !isSystem;
-    facilityName.required = isFacility;
-    adminInvite.required = isSystem;
-    facilityName.setAttribute('aria-invalid', 'false');
-    adminInvite.setAttribute('aria-invalid', 'false');
-    roleError.hidden = true;
-    roleHint.textContent = isFacility
-      ? '소속 시설 확인 후 권한을 승인합니다. 승인 전에는 일반 사용자 권한으로 이용할 수 있습니다.'
-      : isSystem
-        ? '시스템 관리자 권한은 초대 코드 확인과 별도 승인이 필요합니다. 검증은 서버에서 처리합니다.'
-        : '일반 사용자 계정으로 가입합니다.';
+    if (facilitySignupFields) facilitySignupFields.hidden = !isFacility;
+    if (systemSignupFields) systemSignupFields.hidden = !isSystem;
+    if (facilityName) facilityName.required = isFacility;
+    if (adminInvite) adminInvite.required = isSystem;
+    facilityName?.setAttribute('aria-invalid', 'false');
+    adminInvite?.setAttribute('aria-invalid', 'false');
+    if (roleError) roleError.hidden = true;
+    if (!roleHint) return;
+    if (isFacility || isSystem) {
+      roleHint.textContent = '시설물 관리자·시스템 관리자 가입은 아직 지원하지 않습니다. 일반 사용자만 가입할 수 있습니다.';
+    } else {
+      roleHint.textContent = '현재는 일반 사용자로만 가입할 수 있습니다.';
+    }
   }
 
   function validateRoleFields() {
-    const role = roleSelect.value;
+    const role = roleSelect ? roleSelect.value : 'member';
     let input = null;
     let errorText = '';
     if (role === 'facility' && !facilityName.value.trim()) {
@@ -86,10 +99,12 @@
       input = adminInvite;
       errorText = '관리자 초대 코드를 입력해 주세요.';
     }
-    facilityName.setAttribute('aria-invalid', input === facilityName ? 'true' : 'false');
-    adminInvite.setAttribute('aria-invalid', input === adminInvite ? 'true' : 'false');
-    roleError.textContent = errorText;
-    roleError.hidden = !errorText;
+    facilityName?.setAttribute('aria-invalid', input === facilityName ? 'true' : 'false');
+    adminInvite?.setAttribute('aria-invalid', input === adminInvite ? 'true' : 'false');
+    if (roleError) {
+      roleError.textContent = errorText;
+      roleError.hidden = !errorText;
+    }
     if (input) input.focus();
     return !errorText;
   }
@@ -98,6 +113,7 @@
     email: function () {
       const input = fields.email;
       if (!input.value.trim()) return setFieldError('email', '이메일을 입력해 주세요.');
+      if (input.value.trim().length > EMAIL_MAX_LENGTH) return setFieldError('email', '이메일은 255자까지 입력할 수 있습니다.');
       if (input.validity.typeMismatch) return setFieldError('email', '올바른 이메일 형식으로 입력해 주세요.');
       return setFieldError('email', '');
     },
@@ -111,6 +127,7 @@
       const value = fields.password.value;
       if (!value) return setFieldError('password', '비밀번호를 입력해 주세요.');
       if (value.length < 8 || !/[A-Za-z]/.test(value) || !/[0-9]/.test(value)) return setFieldError('password', '영문과 숫자를 포함해 8자 이상 입력해 주세요.');
+      if (utf8ByteLength(value) > PASSWORD_MAX_BYTES) return setFieldError('password', '비밀번호는 UTF-8 기준 72바이트까지 입력할 수 있습니다.');
       return setFieldError('password', '');
     },
     passwordConfirm: function () {
@@ -144,7 +161,8 @@
 
   allConsents.forEach(function (checkbox) {
     checkbox?.addEventListener('change', function () {
-      document.getElementById('agree-all').checked = allConsents.every(function (item) { return item && item.checked; });
+      const agreeAll = document.getElementById('agree-all');
+      if (agreeAll) agreeAll.checked = allConsents.every(function (item) { return item.checked; });
       if (requiredConsents.every(function (item) { return item && item.checked; })) termsError.hidden = true;
     });
   });
@@ -189,6 +207,17 @@
     if (!valid) {
       event.preventDefault();
       Object.keys(fields).map(function (key) { return fields[key]; }).find(function (input) { return input?.getAttribute('aria-invalid') === 'true'; })?.focus();
+      return;
+    }
+    // 현재 구현된 가입은 일반 사용자뿐입니다. 선택지를 조작해도 관리자 가입으로 제출되지 않게 막습니다.
+    if (roleSelect && roleSelect.value !== 'member') {
+      event.preventDefault();
+      showStep(2);
+      if (roleError) {
+        roleError.textContent = '현재는 일반 사용자로만 가입할 수 있습니다.';
+        roleError.hidden = false;
+      }
+      roleSelect.focus();
       return;
     }
     if (!validateRoleFields()) {

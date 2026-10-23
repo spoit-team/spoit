@@ -24,5 +24,16 @@ class MemberMapperXmlBindingTest {
         assertThat(configuration.hasMapper(MemberMapper.class)).isTrue();
         assertThat(configuration.hasStatement("co.kr.spoit.member.mapper.MemberMapper.findByEmail"))
                 .isTrue();
+        assertThat(configuration.hasStatement("co.kr.spoit.member.mapper.MemberMapper.insert"))
+                .isTrue();
+        assertThat(configuration
+                .hasStatement("co.kr.spoit.member.mapper.MemberMapper.findSignupRegions"))
+                .isTrue();
+        assertThat(configuration
+                .hasStatement("co.kr.spoit.member.mapper.MemberMapper.regionExists"))
+                .isTrue();
+        assertThat(configuration
+                .hasStatement("co.kr.spoit.member.mapper.MemberMapper.insertUserRegion"))
+                .isTrue();
     }
 }
