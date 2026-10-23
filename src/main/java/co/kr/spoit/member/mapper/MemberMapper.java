@@ -30,4 +30,7 @@ public interface MemberMapper {
 
     /** 회원의 선호 지역을 저장한다. */
     int insertUserRegion(@Param("userId") Long userId, @Param("regionId") Long regionId);
+
+    /** 회원이 선택한 선호 지역을 `region_id` 순으로 조회한다. */
+    List<SignupRegion> findRegions(@Param("userId") Long userId);
 }

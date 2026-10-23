@@ -34,4 +34,13 @@
         VALUES (#{userId}, #{regionId})
     </insert>
 
+    <!-- 마이페이지 선호 지역 표시·선택용. region_id는 양쪽 테이블에 있어 별칭을 붙인다. -->
+    <select id="findRegions" resultType="co.kr.spoit.member.dto.SignupRegion">
+        SELECT r.region_id, r.name
+          FROM user_region ur
+          JOIN region r ON r.region_id = ur.region_id
+         WHERE ur.user_id = #{userId}
+         ORDER BY ur.region_id
+    </select>
+
 </mapper>

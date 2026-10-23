@@ -20,4 +20,7 @@ public interface MemberService {
 
     /** 회원가입 화면에 노출할 지역 선택지를 조회한다. */
     List<SignupRegion> findSignupRegions();
+
+    /** 회원이 선택한 선호 지역을 조회한다. 없으면 빈 목록. */
+    List<SignupRegion> findRegions(Long userId);
 }

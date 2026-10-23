@@ -111,6 +111,14 @@ public class MemberServiceImpl implements MemberService {
         return memberMapper.findSignupRegions();
     }
 
+    @Override
+    public List<SignupRegion> findRegions(Long userId) {
+        if (userId == null || userId <= 0) {
+            return List.of();
+        }
+        return memberMapper.findRegions(userId);
+    }
+
     private static boolean isMemberRole(String role) {
         String value = trim(role).toLowerCase(Locale.ROOT);
         return value.isEmpty() || SIGNUP_ROLE_MEMBER.equals(value);
