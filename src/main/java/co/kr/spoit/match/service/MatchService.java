@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -22,6 +23,8 @@ import co.kr.spoit.match.dto.DateOption;
 import co.kr.spoit.match.dto.DistrictOption;
 import co.kr.spoit.match.dto.MatchCardView;
 import co.kr.spoit.match.dto.MatchCountSummary;
+import co.kr.spoit.match.dto.MatchDetailPage;
+import co.kr.spoit.match.dto.MatchDetailRow;
 import co.kr.spoit.match.dto.MatchListView;
 import co.kr.spoit.match.dto.MatchRow;
 import co.kr.spoit.match.dto.MatchSearchCondition;
@@ -33,7 +36,7 @@ import co.kr.spoit.match.mapper.MatchMapper;
 import lombok.RequiredArgsConstructor;
 
 /**
- * RES-01 시설·매칭 검색.
+ * RES-01 시설·매칭 검색, RES-02 매칭방 상세.
  */
 @Service
 @RequiredArgsConstructor
@@ -56,6 +59,7 @@ public class MatchService {
 
     private final MatchMapper matchMapper;
     private final MatchCardAssembler assembler;
+    private final MatchDetailAssembler detailAssembler;
 
     /**
      * @param condition 검색 조건 (정규화되며 모델 "search"로 그대로 쓰인다)
@@ -109,6 +113,22 @@ public class MatchService {
                 .activeFilters(buildActiveFilters(condition, basePath, sportName, regionName, dates))
                 .matches(cards)
                 .build();
+    }
+
+    /**
+     * RES-02 매칭방 상세. 없거나 시설이 삭제된 방이면 empty.
+     *
+     * @param currentUserId 로그인 회원 (비로그인이면 null), 이미 신청했는지 판단에 쓴다
+     */
+    public Optional<MatchDetailPage> findDetail(long matchId, Long currentUserId) {
+        MatchDetailRow row = matchMapper.findMatchDetail(matchId);
+        if (row == null) {
+            return Optional.empty();
+        }
+        LocalDateTime now = LocalDateTime.now(ZONE);
+        List<ParticipantRow> participants =
+                matchMapper.findParticipants(List.of(matchId), ParticipationStatus.occupyingValues());
+        return Optional.of(detailAssembler.toPage(row, participants, currentUserId, now, now.toLocalDate()));
     }
 
     /* ---------------- 조회 결과 변환 ---------------- */

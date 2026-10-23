@@ -1,5 +1,6 @@
 package co.kr.spoit.match.controller;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -11,13 +12,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import co.kr.spoit.match.dto.MatchListView;
 import co.kr.spoit.match.dto.MatchSearchCondition;
 import co.kr.spoit.match.service.MatchService;
+import co.kr.spoit.member.domain.MemberPrincipal;
 import lombok.RequiredArgsConstructor;
 
 /**
  * 매칭(=시설 예약) 화면 컨트롤러.
  *
- * <p>CorePageController에서 분리했다. RES-01 검색(카드형)은 실제 조회,
- * 상세·신청은 RES-02/03 구현 전까지 기존 빈 모델을 유지한다.</p>
+ * <p>CorePageController에서 분리했다. RES-01 검색(카드형)·RES-02 상세는 실제 조회,
+ * 신청은 RES-03 구현 전까지 기존 빈 모델을 유지한다.</p>
  */
 @Controller
 @RequestMapping("/matches")
@@ -37,11 +39,18 @@ public class MatchController {
         return "matches/cards";
     }
 
-    /** RES-02에서 구현 예정 */
+    /** RES-02 상세 (매치 참가하기 → 이 화면에서 참가 방식 선택) */
     @GetMapping("/{matchId}")
-    public String detail(@PathVariable long matchId, Model model) {
-        model.addAttribute("unavailableMessage", "매칭방 정보를 찾을 수 없습니다.");
-        model.addAttribute("match", null);
+    public String detail(@PathVariable long matchId,
+                         @AuthenticationPrincipal MemberPrincipal principal,
+                         Model model) {
+        Long userId = principal == null ? null : principal.getUserId();
+        matchService.findDetail(matchId, userId).ifPresentOrElse(
+                match -> model.addAttribute("match", match),
+                () -> {
+                    model.addAttribute("unavailableMessage", "목록으로 돌아가 다른 매칭방을 선택해 주세요.");
+                    model.addAttribute("match", null);
+                });
         return "matches/detail";
     }
 
