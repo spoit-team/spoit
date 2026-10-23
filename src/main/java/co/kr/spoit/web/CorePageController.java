@@ -8,7 +8,6 @@ import java.util.Map;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 
 /**
  * 주요 화면 템플릿을 렌더링하는 GET 전용 페이지 컨트롤러이다.
@@ -94,21 +93,6 @@ public class CorePageController {
      * 팀/클럽 화면: 목록·상세·관리 탭을 렌더링하며 클럽 데이터는 아직 조회하지 않는다.
      * ------------------------------------------------------------------ */
 
-    /**
-     * 팀 상세 화면을 렌더링한다.
-     *
-     * <p>클럽을 조회하지 않으므로 {@code club}은 {@code null}이며, 템플릿은
-     * 미존재 상태를 처리해야 한다. 향후 클럽 서비스 연동 지점이다.</p>
-     *
-     * @param clubId 경로에서 전달된 클럽 식별자
-     * @param model 팀 상세 템플릿에 전달할 모델
-     * @return 팀 상세 뷰 이름
-     */
-    @GetMapping("/teams/{clubId}")
-    public String teamDetail(@PathVariable long clubId, Model model) {
-        model.addAttribute("club", null);
-        return "teams/detail";
-    }
 
     /** 팀 관리 화면을 렌더링한다. 기본 탭은 team이며 권한 확인·소유 클럽 조회는 아직 없다. */
     @GetMapping("/teams/manage")

@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.service.ClubService;
@@ -29,5 +30,11 @@ public class ClubController {
         model.addAttribute("districts", List.of());
         model.addAttribute("filters", null);
         return "teams/list";
+    }
+
+    @GetMapping("/teams/{clubId}")
+    public String detail(@PathVariable("clubId") Long clubId, Model model) {
+        model.addAttribute("club", clubService.findClubDetail(clubId));
+        return "teams/detail";
     }
 }
