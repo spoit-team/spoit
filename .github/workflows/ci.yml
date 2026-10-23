@@ -24,7 +24,7 @@ jobs:
         image: mysql:8.4.11
         env:
           MYSQL_ROOT_PASSWORD: test # CI 전용 임시 비밀번호 (운영 비밀번호 아님)
-          MYSQL_DATABASE: spoit
+          MYSQL_DATABASE: spoit_mat_test
         ports:
           - 3306:3306
         options: >-
@@ -34,9 +34,13 @@ jobs:
           --health-retries=20
 
     env:
-      SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/spoit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/spoit_mat_test?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: test
+      MAT_TEST_DB_URL: jdbc:mysql://127.0.0.1:3306/spoit_mat_test
+      MAT_TEST_DB_USERNAME: root
+      MAT_TEST_DB_PASSWORD: test # 이 CI 컨테이너에서만 사용하는 임시 값
+      SPRING_SQL_INIT_MODE: never
 
     steps:
       - name: 코드 체크아웃
@@ -54,7 +58,7 @@ jobs:
       - name: 스키마 적용 (db/schema.sql이 있을 때만)
         run: |
           if [ -f db/schema.sql ]; then
-            mysql -h 127.0.0.1 -P 3306 -uroot -ptest --default-character-set=utf8mb4 spoit < db/schema.sql
+            mysql -h 127.0.0.1 -P 3306 -uroot -ptest --default-character-set=utf8mb4 spoit_mat_test < db/schema.sql
           else
             echo "db/schema.sql 없음 - 건너뜀"
           fi

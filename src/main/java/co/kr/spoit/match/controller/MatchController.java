@@ -16,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * 매칭(=시설 예약) 화면 컨트롤러.
  *
- * <p>CorePageController에서 분리했다. RES-01 목록/카드는 실제 조회,
+ * <p>CorePageController에서 분리했다. RES-01 검색(카드형)은 실제 조회,
  * 상세·신청은 RES-02/03 구현 전까지 기존 빈 모델을 유지한다.</p>
  */
 @Controller
@@ -25,25 +25,15 @@ import lombok.RequiredArgsConstructor;
 public class MatchController {
 
     private static final String LIST_PATH = "/matches";
-    private static final String CARDS_PATH = "/matches/cards";
 
     private final MatchService matchService;
 
-    /** RES-01 목록형 */
+    /** RES-01 매칭방 검색 (카드형으로 고정, 목록형은 쓰지 않는다) */
     @GetMapping
     public String list(@ModelAttribute("search") MatchSearchCondition search,
                        BindingResult bindingResult,
                        Model model) {
         addListModel(search, LIST_PATH, model);
-        return "matches/list";
-    }
-
-    /** RES-01 카드형 (목록과 같은 모델) */
-    @GetMapping("/cards")
-    public String cards(@ModelAttribute("search") MatchSearchCondition search,
-                        BindingResult bindingResult,
-                        Model model) {
-        addListModel(search, CARDS_PATH, model);
         return "matches/cards";
     }
 

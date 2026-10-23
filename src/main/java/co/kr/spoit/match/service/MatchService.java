@@ -59,7 +59,7 @@ public class MatchService {
 
     /**
      * @param condition 검색 조건 (정규화되며 모델 "search"로 그대로 쓰인다)
-     * @param basePath  필터 해제 링크의 기준 경로 (/matches 또는 /matches/cards)
+     * @param basePath  필터 해제 링크의 기준 경로 (/matches)
      */
     public MatchListView search(MatchSearchCondition condition, String basePath) {
         LocalDateTime now = LocalDateTime.now(ZONE);
