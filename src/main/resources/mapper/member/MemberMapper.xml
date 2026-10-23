@@ -9,6 +9,22 @@
         WHERE email = #{email}
     </select>
 
+    <!-- 탈퇴 시 비밀번호 재확인용 조회. -->
+    <select id="findById" resultType="co.kr.spoit.member.domain.Member">
+        SELECT user_id, email, password_hash, nickname, phone, role, status, created_at
+        FROM app_user
+        WHERE user_id = #{userId}
+    </select>
+
+    <!-- 회원 탈퇴는 소프트 삭제이므로 status만 바꾼다. 현재 상태 조건으로 중복 탈퇴를 막는다. -->
+    <update id="updateStatus">
+        UPDATE app_user
+        SET status = #{status}
+        WHERE user_id = #{userId}
+          AND status IN
+        <foreach collection="expectedStatuses" item="expectedStatus" open="(" separator="," close=")">#{expectedStatus}</foreach>
+    </update>
+
     <insert id="insert" parameterType="co.kr.spoit.member.domain.Member"
             useGeneratedKeys="true" keyProperty="userId">
         INSERT INTO app_user (email, password_hash, nickname, phone, role, status)

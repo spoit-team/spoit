@@ -3,11 +3,14 @@ package co.kr.spoit.member.controller;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -18,6 +21,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -50,6 +55,7 @@ class MyPageControllerTest {
     private static final String EMAIL = "player@example.com";
     private static final String NICKNAME = "플레이어";
     private static final String PHONE = "010-1234-5678";
+    private static final String RAW_PASSWORD = "spoit1234!";
 
     private MemberService memberService;
     private SportRatingService sportRatingService;
@@ -178,6 +184,41 @@ class MyPageControllerTest {
                         .param("phone", PHONE))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/login"));
+    }
+
+    @Test
+    @DisplayName("비밀번호가 맞으면 탈퇴를 위임하고 로그인 화면으로 보낸다")
+    void withdrawalDelegatesAndRedirectsToLogin() throws Exception {
+        mockMvc.perform(post("/mypage/withdrawal-requests").with(principal())
+                        .param("password", RAW_PASSWORD))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login?message=" + URLEncoder.encode("탈퇴가 완료되었습니다.", StandardCharsets.UTF_8)));
+
+        verify(memberService).withdraw(USER_ID, RAW_PASSWORD);
+    }
+
+    @Test
+    @DisplayName("비밀번호가 틀리면 탈퇴하지 않고 프로필 화면에 오류를 전달한다")
+    void withdrawalWithWrongPasswordShowsError() throws Exception {
+        willThrow(new IllegalArgumentException("비밀번호가 일치하지 않습니다."))
+                .given(memberService).withdraw(USER_ID, "wrong-password");
+
+        mockMvc.perform(post("/mypage/withdrawal-requests").with(principal())
+                        .param("password", "wrong-password"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/mypage/profile?error="
+                        + URLEncoder.encode("비밀번호가 일치하지 않습니다.", StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    @DisplayName("비로그인 탈퇴 요청은 서비스를 호출하지 않고 로그인 화면으로 보낸다")
+    void anonymousWithdrawalRedirectsToLogin() throws Exception {
+        mockMvc.perform(post("/mypage/withdrawal-requests")
+                        .param("password", RAW_PASSWORD))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login"));
+
+        verify(memberService, never()).withdraw(anyLong(), anyString());
     }
 
     @Test

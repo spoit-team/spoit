@@ -24,6 +24,10 @@ class MemberMapperXmlBindingTest {
         assertThat(configuration.hasMapper(MemberMapper.class)).isTrue();
         assertThat(configuration.hasStatement("co.kr.spoit.member.mapper.MemberMapper.findByEmail"))
                 .isTrue();
+        assertThat(configuration.hasStatement("co.kr.spoit.member.mapper.MemberMapper.findById"))
+                .isTrue();
+        assertThat(configuration.hasStatement("co.kr.spoit.member.mapper.MemberMapper.updateStatus"))
+                .isTrue();
         assertThat(configuration.hasStatement("co.kr.spoit.member.mapper.MemberMapper.insert"))
                 .isTrue();
         assertThat(configuration
