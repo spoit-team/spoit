@@ -6,8 +6,10 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import co.kr.spoit.club.domain.ClubMember;
 import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.club.dto.ClubCardResponse;
+import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
 
 @Service 
@@ -30,6 +32,15 @@ public class ClubServiceImpl implements ClubService {
         }
         return cards;
     }
-    
+
+    @Override 
+    public ClubDetailResponse findClubDetail(Long clubId) {
+        ClubSummary club = clubMapper.selectClubDetail(clubId);
+        if (club == null) {
+            return null;
+        }
+        List<ClubMember> members = clubMapper.selectClubMembers(clubId);
+        return ClubDetailResponse.from(club, members);
+    }
     }
 

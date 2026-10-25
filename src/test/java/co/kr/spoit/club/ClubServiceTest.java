@@ -1,14 +1,19 @@
 package co.kr.spoit.club;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import co.kr.spoit.club.domain.ClubMember;
 import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.club.dto.ClubCardResponse;
+import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
 import co.kr.spoit.club.service.ClubService;
 import co.kr.spoit.club.service.ClubServiceImpl;
 
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -80,5 +85,56 @@ class ClubServiceTest {
     assertThat(card.getAreaLabel()).isEqualTo("지역 미정");
 }
 
-    
+    @Test
+    void convertsClubToDetail() {
+        ClubSummary club = detailClub();
+        club.setIntro("주말 농구 모임");
+        when(clubMapper.selectClubDetail(1L)).thenReturn(club);
+        when(clubMapper.selectClubMembers(1L)).thenReturn(List.of(
+                member("윤드롭", "일반"),
+                member("이슛터", "동호회장")));
+
+        ClubDetailResponse detail = service.findClubDetail(1L);
+
+        assertThat(detail.getInitials()).isEqualTo("강남");
+        assertThat(detail.getAreaLabel()).isEqualTo("강남구");
+        assertThat(detail.getFounded()).isEqualTo("2026.10.20");
+        assertThat(detail.getIntro()).isEqualTo("주말 농구 모임");
+        assertThat(detail.getLeaderName()).isEqualTo("이슛터");
+        assertThat(detail.getLeaderInitials()).isEqualTo("이슛");
+        assertThat(detail.getMembers()).hasSize(2);
+        assertThat(detail.getFooterNote()).isEqualTo("모집 자리: 7명");
+    }
+
+    @Test
+    void showsDefaultLeaderWhenNoLeader() {
+        when(clubMapper.selectClubDetail(1L)).thenReturn(detailClub());
+        when(clubMapper.selectClubMembers(1L)).thenReturn(List.of(member("윤드롭", "일반")));
+
+        ClubDetailResponse detail = service.findClubDetail(1L);
+
+        assertThat(detail.getLeaderName()).isEqualTo("미정");
+        assertThat(detail.getLeaderInitials()).isEqualTo("미정");
+    }
+
+    @Test
+    void returnsNullWhenClubNotFound() {
+        when(clubMapper.selectClubDetail(999L)).thenReturn(null);
+
+        assertThat(service.findClubDetail(999L)).isNull();
+        verify(clubMapper, never()).selectClubMembers(999L);
+    }
+
+    private ClubSummary detailClub() {
+        ClubSummary club = club("모집중", "2,4", 19, 21);
+        club.setCreatedAt(LocalDateTime.of(2026, 10, 20, 9, 0));
+        return club;
+    }
+
+    private ClubMember member(String nickname, String role) {
+        ClubMember member = new ClubMember();
+        member.setNickname(nickname);
+        member.setRole(role);
+        return member;
+    }
 }
