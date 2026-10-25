@@ -30,9 +30,9 @@
       </div>
       <div class="profile-edit-sport-control">
         <label for="profile-representative-sport">대표 종목</label>
-        <select id="profile-representative-sport" name="representativeSportId" class="auth-input" required aria-describedby="representative-help">
-          <option value="">대표 종목 선택</option>
-          <option th:each="sport : ${sports}" th:value="${sport.sportId}" th:text="${sport.name}" th:selected="${profile != null and profile.representativeSportId == sport.sportId}" th:attr="data-rating=${sport.ratingText != null ? sport.ratingText : '기록 없음'},data-rating-note=${sport.ratingNote != null ? sport.ratingNote : '확정 매치 기록이 없으면 기록 없음으로 표시합니다.'}">종목</option>
+        <select id="profile-representative-sport" name="representativeSportId" class="auth-input" aria-describedby="representative-help">
+          <option value="">대표 종목 선택 안 함</option>
+          <option th:each="sport : ${sports}" th:value="${sport.sportId}" th:text="${sport.name}" th:selected="${profile != null and profile.representativeSportId == sport.sportId}">종목</option>
         </select>
         <p id="representative-help">종목을 선택하면 해당 종목의 개인 레이팅 평균을 마이페이지에 표시합니다.</p>
       </div>

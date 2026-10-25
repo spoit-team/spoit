@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="co.kr.spoit.match.mapper.MatchMapper">
+
+    <!-- 검색 공통 FROM: 삭제된 시설의 매칭은 제외 -->
+    <sql id="searchFrom">
+        FROM social_match sm
+        JOIN facility f ON f.facility_id = sm.facility_id
+                       AND f.deleted_at IS NULL
+        JOIN sport s    ON s.sport_id = sm.sport_id
+        JOIN region r   ON r.region_id = f.region_id
+    </sql>
+
+    <!-- 검색 공통 WHERE -->
+    <sql id="searchWhere">
+        <where>
+            sm.start_at &gt;= #{from}
+            AND sm.start_at &lt; #{to}
+            AND sm.status IN
+            <foreach collection="visibleStatuses" item="st" open="(" separator="," close=")">
+                #{st}
+            </foreach>
+            <if test="sportId != null">
+                AND sm.sport_id = #{sportId}
+            </if>
+            <if test="regionId != null">
+                AND f.region_id = #{regionId}
+            </if>
+            <!-- 선택한 시간대 중 하나라도 걸치는 방: 경기 당일 [h시, h+1시) 구간과 겹치면 포함 -->
+            <if test="hours != null and !hours.isEmpty()">
+                AND
+                <foreach collection="hours" item="h" open="(" separator=" OR " close=")">
+                    (sm.start_at &lt; TIMESTAMP(DATE(sm.start_at)) + INTERVAL (#{h} + 1) HOUR
+                     AND sm.end_at &gt; TIMESTAMP(DATE(sm.start_at)) + INTERVAL #{h} HOUR)
+                </foreach>
+            </if>
+        </where>
+    </sql>
+
+    <select id="findMatches"
+            parameterType="co.kr.spoit.match.dto.MatchSearchQuery"
+            resultType="co.kr.spoit.match.dto.MatchRow">
+        SELECT sm.match_id,
+               sm.title,
+               sm.created_by,
+               sm.sport_id,
+               s.name AS sport_name,
+               f.facility_id,
+               f.name AS facility_name,
+               f.address,
+               r.name AS region_name,
+               sm.start_at,
+               sm.end_at,
+               sm.min_participants,
+               sm.max_participants,
+               sm.fee_per_person,
+               sm.required_skill,
+               sm.status
+        <include refid="searchFrom"/>
+        <include refid="searchWhere"/>
+        ORDER BY sm.start_at, sm.match_id
+    </select>
+
+    <select id="countMatches"
+            parameterType="co.kr.spoit.match.dto.MatchSearchQuery"
+            resultType="co.kr.spoit.match.dto.MatchCountSummary">
+        SELECT COUNT(*) AS room_count,
+               COALESCE(SUM(CASE WHEN sm.status = #{recruitingStatus} THEN 1 ELSE 0 END), 0) AS recruiting_count,
+               COALESCE(SUM(CASE WHEN sm.status = #{matchedStatus}    THEN 1 ELSE 0 END), 0) AS matched_count
+        <include refid="searchFrom"/>
+        <include refid="searchWhere"/>
+    </select>
+
+    <select id="countBySport"
+            parameterType="co.kr.spoit.match.dto.MatchSearchQuery"
+            resultType="co.kr.spoit.match.dto.SportCount">
+        SELECT sm.sport_id,
+               COUNT(*) AS room_count
+        <include refid="searchFrom"/>
+        <include refid="searchWhere"/>
+        GROUP BY sm.sport_id
+    </select>
+
+    <!-- uk_match_participant_active (match_id, ...) 인덱스 사용 -->
+    <select id="findParticipants" resultType="co.kr.spoit.match.dto.ParticipantRow">
+        SELECT mp.participant_id,
+               mp.match_id,
+               mp.user_id,
+               u.nickname,
+               mp.participation_status,
+               mp.match_side,
+               mp.entry_mmr,
+               mp.joined_at
+          FROM match_participant mp
+          JOIN app_user u ON u.user_id = mp.user_id
+         WHERE mp.match_id IN
+               <foreach collection="matchIds" item="id" open="(" separator="," close=")">
+                   #{id}
+               </foreach>
+           AND mp.participation_status IN
+               <foreach collection="statuses" item="st" open="(" separator="," close=")">
+                   #{st}
+               </foreach>
+         ORDER BY mp.match_id, mp.joined_at, mp.participant_id
+    </select>
+
+    <!-- RES-02 상세: 상태와 관계없이 조회 (삭제된 시설만 제외) -->
+    <select id="findMatchDetail" resultType="co.kr.spoit.match.dto.MatchDetailRow">
+        SELECT sm.match_id,
+               sm.title,
+               sm.created_by,
+               sm.sport_id,
+               s.name AS sport_name,
+               f.facility_id,
+               f.name AS facility_name,
+               f.address,
+               r.name AS region_name,
+               sm.start_at,
+               sm.end_at,
+               sm.min_participants,
+               sm.max_participants,
+               sm.team_a_capacity,
+               sm.team_b_capacity,
+               sm.fee_per_person,
+               sm.required_skill,
+               sm.status,
+               sm.captain_a_participant_id,
+               sm.captain_b_participant_id
+        <include refid="searchFrom"/>
+         WHERE sm.match_id = #{matchId}
+    </select>
+
+    <select id="findSports" resultType="co.kr.spoit.match.dto.SportTab">
+        SELECT sport_id, name
+          FROM sport
+         ORDER BY sport_id
+    </select>
+
+    <!-- 하위 지역(자치구)만: 서울 → 구 2단계 구조 가정 -->
+    <select id="findDistricts" resultType="co.kr.spoit.match.dto.DistrictOption">
+        SELECT region_id, name
+          FROM region
+         WHERE parent_region_id IS NOT NULL
+         ORDER BY name
+    </select>
+
+</mapper>

@@ -7,13 +7,6 @@ plugins {
 group = 'co.kr'
 version = '0.0.1-SNAPSHOT'
 
-// 미리보기 UI는 선택 사항이며 기본 메인 빌드에서 제외됩니다.
-// preview/ 디렉터리를 컴파일하고 패키징하려면 -Ppreview=true 옵션을 전달하세요.
-def previewProperty = findProperty('preview')
-def previewEnabled = previewProperty != null && previewProperty.toString().toBoolean()
-def previewRoot = file('preview')
-def previewAvailable = previewEnabled && previewRoot.isDirectory()
-
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
@@ -22,33 +15,6 @@ java {
 
 repositories {
     mavenCentral()
-}
-
-sourceSets {
-    main {
-        if (previewAvailable) {
-            // 이 빌드에서는 미리보기 컨트롤러가 페이지 경로를 담당합니다.
-            // 소스 세트 구성 시 기본 페이지 컨트롤러를 제외하여 중복 매핑을 방지합니다.
-            java {
-                srcDir(new File(previewRoot, 'java'))
-                exclude 'co/kr/spoit/web/CorePageController.java'
-            }
-            def previewResources = new File(previewRoot, 'resources')
-            if (previewResources.isDirectory()) {
-                resources.srcDir(previewResources)
-            }
-        }
-    }
-    test {
-        if (previewAvailable) {
-            java {
-                srcDir(new File(previewRoot, 'test/java'))
-                // 기본 경로 테스트는 모델이 비어 있는 페이지 컨트롤러를 검증하므로
-                // 기본 빌드에만 포함합니다.
-                exclude 'co/kr/spoit/web/CorePageRouteTest.java'
-            }
-        }
-    }
 }
 
 dependencies {

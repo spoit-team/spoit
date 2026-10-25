@@ -1,9 +1,5 @@
-# ============================================================
-# 로컬 개발용 설정 예시
-# 1) 이 파일을 복사해 같은 폴더에 application-local.properties 로 저장
-# 2) 아래 비밀번호(필요하면 포트)를 본인 환경에 맞게 수정
-# application-local.properties 는 .gitignore 대상이라 Git에 올라가지 않습니다.
-# ============================================================
+# 선택 설정: application-local.properties로 복사한 뒤 local 프로필을 활성화해야 적용됩니다.
+# 환경 변수 참조를 유지하거나, 무시 대상 로컬 파일에서만 본인 DB 계정 값을 설정하세요.
 
 # --- DB (본인 PC의 MySQL) ---
 spring.datasource.url=jdbc:mysql://localhost:3306/spoit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
@@ -11,9 +7,8 @@ spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
 spring.datasource.username=${DB_USERNAME}
 spring.datasource.password=${DB_PASSWORD}
 
-# --- 개발 편의 ---
-# 템플릿 수정 시 서버 재시작 없이 반영
+# 개발 편의: 템플릿 수정 즉시 반영
 spring.thymeleaf.cache=false
 
-# MyBatis 실행 SQL 로그 확인 (패키지명은 프로젝트에 맞게 수정)
+# 필요 시 MyBatis SQL 로그 활성화
 # logging.level.패키지명.mapper=DEBUG

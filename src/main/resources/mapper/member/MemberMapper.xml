@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- MemberMapper: app_user 회원 조회·저장, 선호 지역(user_region), 선호 종목(user_preferred_sport) -->
+<mapper namespace="co.kr.spoit.member.mapper.MemberMapper">
+
+    <select id="findByEmail" resultType="co.kr.spoit.member.domain.Member">
+        SELECT user_id, email, password_hash, nickname, phone, role, status, created_at
+        FROM app_user
+        WHERE email = #{email}
+    </select>
+
+    <insert id="insert" parameterType="co.kr.spoit.member.domain.Member"
+            useGeneratedKeys="true" keyProperty="userId">
+        INSERT INTO app_user (email, password_hash, nickname, phone, role, status)
+        VALUES (#{email}, #{passwordHash}, #{nickname}, #{phone}, #{role}, #{status})
+    </insert>
+
+    <!-- 화면의 'districts'와 같은 의미로 하위 자치구만 선택지로 노출한다. -->
+    <select id="findSignupRegions" resultType="co.kr.spoit.member.dto.SignupRegion">
+        SELECT region_id, name
+          FROM region
+         WHERE parent_region_id IS NOT NULL
+         ORDER BY name
+    </select>
+
+    <select id="regionExists" resultType="boolean">
+        SELECT COUNT(*) > 0
+          FROM region
+         WHERE region_id = #{regionId}
+    </select>
+
+    <insert id="insertUserRegion">
+        INSERT INTO user_region (user_id, region_id)
+        VALUES (#{userId}, #{regionId})
+    </insert>
+
+    <!-- 마이페이지 선호 지역 표시·선택용. region_id는 양쪽 테이블에 있어 별칭을 붙인다. -->
+    <select id="findRegions" resultType="co.kr.spoit.member.dto.SignupRegion">
+        SELECT r.region_id, r.name
+          FROM user_region ur
+          JOIN region r ON r.region_id = ur.region_id
+         WHERE ur.user_id = #{userId}
+         ORDER BY ur.region_id
+    </select>
+
+    <!-- 프로필 화면의 종목 드롭다운 선택지. -->
+    <select id="findSports" resultType="co.kr.spoit.member.dto.SportOption">
+        SELECT sport_id AS sportId, name AS name FROM sport ORDER BY sport_id
+    </select>
+
+    <!-- 저장 전에 종목 유효성을 확인한다. -->
+    <select id="sportExists" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM sport WHERE sport_id = #{sportId}
+    </select>
+
+    <!-- 마이페이지 요약의 선호 종목 표시용. user_preferred_sport에 저장된 값을 읽는다. -->
+    <select id="findRepresentativeSport" resultType="co.kr.spoit.member.dto.SportOption">
+        SELECT s.sport_id AS sportId, s.name AS name
+          FROM user_preferred_sport ups
+          JOIN sport s ON s.sport_id = ups.sport_id
+         WHERE ups.user_id = #{userId}
+    </select>
+
+    <!-- 프로필 기본 정보 저장. 선호 종목은 user_preferred_sport로 별도 저장한다. -->
+    <update id="updateProfileBasics">
+        UPDATE app_user
+           SET nickname = #{nickname},
+               phone = #{phone}
+         WHERE user_id = #{userId}
+    </update>
+
+    <!-- 선호 종목 저장. 회원당 1행이므로 기존 행을 대체한다. -->
+    <insert id="upsertUserPreferredSport">
+        INSERT INTO user_preferred_sport (user_id, sport_id)
+        VALUES (#{userId}, #{sportId})
+        ON DUPLICATE KEY UPDATE sport_id = VALUES(sport_id)
+    </insert>
+
+    <!-- 선호 종목 해제. 폼에서 미선택으로 저장할 때 사용한다. -->
+    <delete id="deleteUserPreferredSport">
+        DELETE FROM user_preferred_sport WHERE user_id = #{userId}
+    </delete>
+
+    <!-- 지역 저장은 전체 삭제 후 재등록으로 대체한다. -->
+    <delete id="deleteUserRegions">
+        DELETE FROM user_region WHERE user_id = #{userId}
+    </delete>
+
+</mapper>
