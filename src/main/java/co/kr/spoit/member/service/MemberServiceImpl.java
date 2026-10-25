@@ -13,8 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.domain.MemberRole;
+import co.kr.spoit.member.dto.ProfileUpdateForm;
 import co.kr.spoit.member.dto.SignupForm;
 import co.kr.spoit.member.dto.SignupRegion;
+import co.kr.spoit.member.dto.SportOption;
 import co.kr.spoit.member.mapper.MemberMapper;
 import lombok.RequiredArgsConstructor;
 
@@ -82,6 +84,10 @@ public class MemberServiceImpl implements MemberService {
         if (regionId != null && !memberMapper.regionExists(regionId)) {
             throw new IllegalArgumentException("선택한 지역을 찾을 수 없습니다.");
         }
+        Long sportId = form.getRepresentativeSportId();
+        if (sportId != null && !memberMapper.sportExists(sportId)) {
+            throw new IllegalArgumentException("선택한 종목을 찾을 수 없습니다.");
+        }
         if (memberMapper.findByEmail(email).isPresent()) {
             throw new IllegalArgumentException("이미 가입된 이메일입니다.");
         }
@@ -104,6 +110,9 @@ public class MemberServiceImpl implements MemberService {
         if (regionId != null) {
             memberMapper.insertUserRegion(member.getUserId(), regionId);
         }
+        if (sportId != null) {
+            memberMapper.upsertUserPreferredSport(member.getUserId(), sportId);
+        }
     }
 
     @Override
@@ -117,6 +126,54 @@ public class MemberServiceImpl implements MemberService {
             return List.of();
         }
         return memberMapper.findRegions(userId);
+    }
+
+    @Override
+    public List<SportOption> findSports() {
+        return memberMapper.findSports();
+    }
+
+    @Override
+    public Optional<SportOption> findRepresentativeSport(Long userId) {
+        if (userId == null || userId <= 0) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(memberMapper.findRepresentativeSport(userId));
+    }
+
+    @Override
+    @Transactional
+    public void updateProfile(Long userId, ProfileUpdateForm form) {
+        if (userId == null || userId <= 0) {
+            throw new IllegalArgumentException("회원 식별자가 올바르지 않습니다.");
+        }
+        if (form == null) {
+            throw new IllegalArgumentException("입력 정보를 확인해 주세요.");
+        }
+        String nickname = trim(form.getNickname());
+        String phone = trim(form.getPhone());
+        validateNickname(nickname);
+        validatePhone(phone);
+
+        Long sportId = form.getRepresentativeSportId();
+        if (sportId != null && !memberMapper.sportExists(sportId)) {
+            throw new IllegalArgumentException("선택한 종목을 찾을 수 없습니다.");
+        }
+        Long regionId = form.getRegionId();
+        if (regionId != null && !memberMapper.regionExists(regionId)) {
+            throw new IllegalArgumentException("선택한 지역을 찾을 수 없습니다.");
+        }
+
+        memberMapper.updateProfileBasics(userId, nickname, phone);
+        if (sportId != null) {
+            memberMapper.upsertUserPreferredSport(userId, sportId);
+        } else {
+            memberMapper.deleteUserPreferredSport(userId);
+        }
+        memberMapper.deleteUserRegions(userId);
+        if (regionId != null) {
+            memberMapper.insertUserRegion(userId, regionId);
+        }
     }
 
     private static boolean isMemberRole(String role) {

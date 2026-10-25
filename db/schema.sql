@@ -14,7 +14,7 @@ DROP TABLE IF EXISTS audit_log, penalty, report_evidence, admin_request, notific
     sport_evaluation_item, match_result_submission, match_participant, match_application,
     social_match, club_join_request, club_member, club_hashtag, hashtag, club_region, club,
     schedule_change, operating_rule, facility_sport, facility_manager, facility,
-    user_region, region, sport, app_user;
+    user_preferred_sport, user_region, region, sport, app_user;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -56,6 +56,14 @@ CREATE TABLE user_region (
     CONSTRAINT fk_user_region_user   FOREIGN KEY (user_id)   REFERENCES app_user (user_id),
     CONSTRAINT fk_user_region_region FOREIGN KEY (region_id) REFERENCES region (region_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='선호 지역';
+
+CREATE TABLE user_preferred_sport (
+    user_id   BIGINT NOT NULL COMMENT '선호 종목을 설정한 회원',
+    sport_id  BIGINT NOT NULL COMMENT '회원이 선택한 선호 종목',
+    PRIMARY KEY (user_id),
+    CONSTRAINT fk_user_preferred_sport_user  FOREIGN KEY (user_id)  REFERENCES app_user (user_id),
+    CONSTRAINT fk_user_preferred_sport_sport FOREIGN KEY (sport_id) REFERENCES sport (sport_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='선호 종목';
 
 -- ---------------------------------------------------------------------
 -- 시설

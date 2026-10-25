@@ -13,6 +13,7 @@
   const stepTwoLabel = document.getElementById('step-2-label');
   const roleSelect = document.getElementById('signup-role');
   const regionSelect = document.getElementById('signup-preferred-region');
+  const sportSelect = document.getElementById('signup-preferred-sport');
   const facilitySignupFields = document.getElementById('facility-signup-fields');
   const systemSignupFields = document.getElementById('system-signup-fields');
   const facilityName = document.getElementById('signup-facility-name');
@@ -225,6 +226,7 @@
       return;
     }
     if (regionSelect) regionSelect.disabled = false;
+    if (sportSelect) sportSelect.disabled = false;
   });
 
   updateRoleFields();
