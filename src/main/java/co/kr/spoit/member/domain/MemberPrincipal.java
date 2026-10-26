@@ -1,5 +1,6 @@
 package co.kr.spoit.member.domain;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -49,15 +50,18 @@ public class MemberPrincipal implements UserDetails, CredentialsContainer {
                 member.getNickname(),
                 member.getPhone(),
                 MemberRole.from(member.getRole()),
-                isUsable(member.getStatus()),
+                isUsable(member.getStatus(), member.getDeletedAt()),
                 member.getPasswordHash());
     }
 
     /**
-     * 계정 상태가 로그인 가능한지 판정한다. 상태 코드가 확정되지 않았으므로
-     * 허용 목록과 정확히 일치할 때만 통과시키고, 값이 없으면 거부한다(fail-closed).
+     * 계정이 로그인 가능한지 판정한다. 탈퇴 시각이 있으면 status가 활성이어도 거부하고,
+     * 상태 코드가 허용 목록과 정확히 일치할 때만 통과시킨다(fail-closed).
      */
-    private static boolean isUsable(String status) {
+    private static boolean isUsable(String status, LocalDateTime deletedAt) {
+        if (deletedAt != null) {
+            return false;
+        }
         if (status == null || status.isBlank()) {
             return false;
         }

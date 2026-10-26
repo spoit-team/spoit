@@ -1,6 +1,7 @@
 package co.kr.spoit.member.service;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -37,8 +38,6 @@ public class MemberServiceImpl implements MemberService {
     private static final String SIGNUP_ROLE_MEMBER = "member";
     private static final String ACTIVE_STATUS = "활성";
 
-    /** 탈퇴 표시 상태. {@code MemberPrincipal}의 로그인 허용 목록에 없어 자동으로 차단된다. */
-    private static final String WITHDRAWN_STATUS = "탈퇴";
     /** 자발적 탈퇴를 허용하는 현재 상태. 정지·이미 탈퇴한 계정은 바꾸지 않는다. */
     private static final List<String> WITHDRAWABLE_STATUSES = List.of("활성", "ACTIVE", "NORMAL");
 
@@ -193,8 +192,9 @@ public class MemberServiceImpl implements MemberService {
                 || !passwordEncoder.matches(rawPassword, member.getPasswordHash())) {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
-        // 소프트 삭제이므로 다른 행은 건드리지 않고 상태만 바꾼다. 0행이면 이미 탈퇴했거나 허용 상태가 아니다.
-        int updated = memberMapper.updateStatus(userId, WITHDRAWN_STATUS, WITHDRAWABLE_STATUSES);
+        // 소프트 삭제이므로 다른 행은 건드리지 않고 deleted_at만 기록한다.
+        // 0행이면 이미 탈퇴했거나(deleted_at 존재) 허용 상태가 아니다.
+        int updated = memberMapper.recordWithdrawal(userId, LocalDateTime.now(), WITHDRAWABLE_STATUSES);
         if (updated != 1) {
             throw new IllegalStateException("이미 탈퇴했거나 탈퇴할 수 없는 계정입니다.");
         }

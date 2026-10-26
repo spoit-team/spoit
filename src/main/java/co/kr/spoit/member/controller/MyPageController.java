@@ -175,7 +175,7 @@ public class MyPageController {
     }
 
     /**
-     * 회원 탈퇴. 비밀번호를 재확인한 뒤 상태만 바꾸는 소프트 삭제이므로
+     * 회원 탈퇴. 비밀번호를 재확인한 뒤 탈퇴 시각만 기록하는 소프트 삭제이므로
      * 세션과 remember-me 쿠키를 지워 재로그인 경로를 끊는다.
      */
     @PostMapping("/mypage/withdrawal-requests")

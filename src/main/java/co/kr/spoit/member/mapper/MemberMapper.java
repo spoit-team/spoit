@@ -1,5 +1,6 @@
 package co.kr.spoit.member.mapper;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,8 +24,11 @@ public interface MemberMapper {
     /** 탈퇴 시 비밀번호 재확인을 위해 식별자로 조회한다. */
     Optional<Member> findById(@Param("userId") Long userId);
 
-    /** 현재 상태가 {@code expectedStatuses}에 속할 때만 상태를 바꾼다. 변경 행 수로 동시 탈퇴를 판별한다. */
-    int updateStatus(@Param("userId") Long userId, @Param("status") String status,
+    /**
+     * 미탈퇴({@code deleted_at IS NULL})이면서 현재 상태가 {@code expectedStatuses}에 속할 때만
+     * 탈퇴 시각을 기록한다. 변경 행 수로 동시 탈퇴를 판별한다.
+     */
+    int recordWithdrawal(@Param("userId") Long userId, @Param("deletedAt") LocalDateTime deletedAt,
             @Param("expectedStatuses") List<String> expectedStatuses);
 
     /** 회원을 저장하고 {@code useGeneratedKeys}로 {@code userId}를 돌려준다. */

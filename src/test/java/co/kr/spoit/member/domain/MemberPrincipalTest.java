@@ -2,6 +2,7 @@ package co.kr.spoit.member.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDateTime;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +31,15 @@ class MemberPrincipalTest {
     @DisplayName("허용 목록의 상태만 활성으로 판정한다")
     void judgesAccountStatus(String status, boolean enabled) {
         assertThat(MemberPrincipal.from(member(status)).isEnabled()).isEqualTo(enabled);
+    }
+
+    @Test
+    @DisplayName("탈퇴 시각이 있으면 상태가 활성이어도 로그인할 수 없다")
+    void rejectsWithdrawnMemberEvenWhenStatusIsActive() {
+        Member withdrawn = member("활성");
+        withdrawn.setDeletedAt(LocalDateTime.of(2026, 10, 26, 12, 0));
+
+        assertThat(MemberPrincipal.from(withdrawn).isEnabled()).isFalse();
     }
 
     @Test

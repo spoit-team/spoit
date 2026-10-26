@@ -1,9 +1,9 @@
 package co.kr.spoit.member.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -11,19 +11,21 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.mapper.MemberMapper;
 
-/** 탈퇴가 비밀번호 재확인 후 상태 변경 1회로 끝나는지 검증한다. 삭제 대신 논리 삭제(status)를 쓴다. */
+/** 탈퇴가 비밀번호 재확인 후 deleted_at 기록 1회로 끝나는지 검증한다. */
 class MemberServiceImplWithdrawalTest {
 
     private static final Long USER_ID = 7L;
@@ -41,18 +43,21 @@ class MemberServiceImplWithdrawalTest {
     }
 
     @Test
-    @DisplayName("비밀번호가 일치하면 상태를 탈퇴로 바꾼다")
-    void marksStatusWithdrawn() {
+    @DisplayName("비밀번호가 일치하면 탈퇴 시각을 기록한다")
+    void recordsDeletedAt() {
         when(memberMapper.findById(USER_ID)).thenReturn(Optional.of(member()));
-        when(memberMapper.updateStatus(eq(USER_ID), eq("탈퇴"), any())).thenReturn(1);
+        when(memberMapper.recordWithdrawal(eq(USER_ID), any(LocalDateTime.class), any())).thenReturn(1);
 
         memberService.withdraw(USER_ID, RAW_PASSWORD);
 
-        verify(memberMapper).updateStatus(USER_ID, "탈퇴", List.of("활성", "ACTIVE", "NORMAL"));
+        ArgumentCaptor<LocalDateTime> deletedAt = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(memberMapper).recordWithdrawal(eq(USER_ID), deletedAt.capture(),
+                eq(List.of("활성", "ACTIVE", "NORMAL")));
+        assertThat(deletedAt.getValue()).isNotNull();
     }
 
     @Test
-    @DisplayName("비밀번호가 다르면 상태를 바꾸지 않는다")
+    @DisplayName("비밀번호가 다르면 탈퇴 시각을 기록하지 않는다")
     void rejectsWrongPassword() {
         when(memberMapper.findById(USER_ID)).thenReturn(Optional.of(member()));
 
@@ -60,7 +65,7 @@ class MemberServiceImplWithdrawalTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("비밀번호");
 
-        verify(memberMapper, never()).updateStatus(anyLong(), anyString(), any());
+        verify(memberMapper, never()).recordWithdrawal(anyLong(), any(), any());
     }
 
     @Test
@@ -80,14 +85,14 @@ class MemberServiceImplWithdrawalTest {
         assertThatThrownBy(() -> memberService.withdraw(USER_ID, RAW_PASSWORD))
                 .isInstanceOf(IllegalStateException.class);
 
-        verify(memberMapper, never()).updateStatus(anyLong(), anyString(), any());
+        verify(memberMapper, never()).recordWithdrawal(anyLong(), any(), any());
     }
 
     @Test
-    @DisplayName("이미 탈퇴했거나 정지된 계정은 상태를 바꾸지 않는다")
-    void rejectsNonWithdrawableStatus() {
+    @DisplayName("이미 탈퇴했거나 정지된 계정은 시각을 기록하지 않는다")
+    void rejectsNonWithdrawableMember() {
         when(memberMapper.findById(USER_ID)).thenReturn(Optional.of(member()));
-        when(memberMapper.updateStatus(eq(USER_ID), eq("탈퇴"), any())).thenReturn(0);
+        when(memberMapper.recordWithdrawal(eq(USER_ID), any(LocalDateTime.class), any())).thenReturn(0);
 
         assertThatThrownBy(() -> memberService.withdraw(USER_ID, RAW_PASSWORD))
                 .isInstanceOf(IllegalStateException.class);
