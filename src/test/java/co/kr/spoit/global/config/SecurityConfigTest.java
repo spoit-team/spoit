@@ -97,7 +97,6 @@ class SecurityConfigTest {
         member.setNickname("플레이어");
         member.setPhone("010-1234-5678");
         member.setRole("일반 회원");
-        member.setStatus("활성");
         return MemberPrincipal.from(member);
     }
 

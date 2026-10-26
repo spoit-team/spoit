@@ -19,7 +19,6 @@ public class Member {
     private String nickname;
     private String phone;
     private String role;
-    private String status;
     private LocalDateTime createdAt;
     /** 탈퇴 시각. null이면 미탈퇴 회원이다. */
     private LocalDateTime deletedAt;

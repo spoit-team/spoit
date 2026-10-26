@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -30,10 +31,9 @@ class MemberUserDetailsServiceImplTest {
     }
 
     @Test
-    @DisplayName("탈퇴 시각이 있는 회원은 상태가 활성이어도 사용자 조회에서 거부한다")
+    @DisplayName("탈퇴 시각이 있는 회원은 사용자 조회에서 거부한다")
     void rejectsWithdrawnMember() {
         Member member = member();
-        member.setStatus("활성");
         member.setDeletedAt(LocalDateTime.of(2026, 10, 26, 12, 0));
         given(memberService.findByEmail(EMAIL)).willReturn(Optional.of(member));
 
@@ -42,7 +42,17 @@ class MemberUserDetailsServiceImplTest {
     }
 
     @Test
-    @DisplayName("미탈퇴 회원은 인증 주체로 변환한다")
+    @DisplayName("이용정지 기간 중인 회원은 비활성 인증 주체로 변환한다")
+    void disablesSuspendedMember() {
+        Member member = member();
+        member.setPenaltyTime(LocalDateTime.now(ZoneId.of("Asia/Seoul")).plusDays(1));
+        given(memberService.findByEmail(EMAIL)).willReturn(Optional.of(member));
+
+        assertThat(userDetailsService.loadUserByUsername(EMAIL).isEnabled()).isFalse();
+    }
+
+    @Test
+    @DisplayName("미탈퇴·미정지 회원은 인증 주체로 변환한다")
     void loadsActiveMember() {
         given(memberService.findByEmail(EMAIL)).willReturn(Optional.of(member()));
 
@@ -57,7 +67,6 @@ class MemberUserDetailsServiceImplTest {
         member.setNickname("플레이어");
         member.setPhone("010-1234-5678");
         member.setRole("일반 회원");
-        member.setStatus("활성");
         return member;
     }
 }

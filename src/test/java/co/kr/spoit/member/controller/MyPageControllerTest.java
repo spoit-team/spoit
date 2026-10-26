@@ -264,7 +264,6 @@ class MyPageControllerTest {
         member.setNickname(NICKNAME);
         member.setPhone(PHONE);
         member.setRole("일반 회원");
-        member.setStatus("활성");
         return member;
     }
 

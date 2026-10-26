@@ -25,11 +25,11 @@ public interface MemberMapper {
     Optional<Member> findById(@Param("userId") Long userId);
 
     /**
-     * 미탈퇴({@code deleted_at IS NULL})이면서 현재 상태가 {@code expectedStatuses}에 속할 때만
+     * 미탈퇴({@code deleted_at IS NULL})이면서 이용정지 기간이 끝났거나 정지 이력이 없을 때만
      * 탈퇴 시각을 기록한다. 변경 행 수로 동시 탈퇴를 판별한다.
      */
     int recordWithdrawal(@Param("userId") Long userId, @Param("deletedAt") LocalDateTime deletedAt,
-            @Param("expectedStatuses") List<String> expectedStatuses);
+            @Param("now") LocalDateTime now);
 
     /** 회원을 저장하고 {@code useGeneratedKeys}로 {@code userId}를 돌려준다. */
     int insert(Member member);

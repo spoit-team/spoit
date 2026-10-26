@@ -28,7 +28,6 @@ CREATE TABLE app_user (
     nickname       VARCHAR(50)  NOT NULL COMMENT '화면과 매칭에서 표시할 회원명',
     phone          VARCHAR(20)  NOT NULL COMMENT '연락처',
     role           VARCHAR(30)  NOT NULL COMMENT '일반 회원·시설 관리자·시스템 관리자 등 계정 역할',
-    status         VARCHAR(30)  NOT NULL COMMENT '계정 이용 상태 (활성, 정지). 탈퇴는 deleted_at으로 판단',
     created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '계정 생성 시각',
     deleted_at     DATETIME     NULL COMMENT '탈퇴 시각. NULL이면 미탈퇴, 값이 있으면 탈퇴 회원',
     penalty_time   DATETIME     NULL COMMENT '이용정지 종료 시각. NULL이면 정지 종료 시각 미설정',

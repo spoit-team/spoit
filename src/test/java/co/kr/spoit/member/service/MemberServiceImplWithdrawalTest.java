@@ -12,7 +12,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -46,14 +45,16 @@ class MemberServiceImplWithdrawalTest {
     @DisplayName("비밀번호가 일치하면 탈퇴 시각을 기록한다")
     void recordsDeletedAt() {
         when(memberMapper.findById(USER_ID)).thenReturn(Optional.of(member()));
-        when(memberMapper.recordWithdrawal(eq(USER_ID), any(LocalDateTime.class), any())).thenReturn(1);
+        when(memberMapper.recordWithdrawal(eq(USER_ID), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(1);
 
         memberService.withdraw(USER_ID, RAW_PASSWORD);
 
         ArgumentCaptor<LocalDateTime> deletedAt = ArgumentCaptor.forClass(LocalDateTime.class);
-        verify(memberMapper).recordWithdrawal(eq(USER_ID), deletedAt.capture(),
-                eq(List.of("활성", "ACTIVE", "NORMAL")));
+        ArgumentCaptor<LocalDateTime> now = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(memberMapper).recordWithdrawal(eq(USER_ID), deletedAt.capture(), now.capture());
         assertThat(deletedAt.getValue()).isNotNull();
+        assertThat(now.getValue()).isEqualTo(deletedAt.getValue());
     }
 
     @Test
@@ -92,7 +93,8 @@ class MemberServiceImplWithdrawalTest {
     @DisplayName("이미 탈퇴했거나 정지된 계정은 시각을 기록하지 않는다")
     void rejectsNonWithdrawableMember() {
         when(memberMapper.findById(USER_ID)).thenReturn(Optional.of(member()));
-        when(memberMapper.recordWithdrawal(eq(USER_ID), any(LocalDateTime.class), any())).thenReturn(0);
+        when(memberMapper.recordWithdrawal(eq(USER_ID), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(0);
 
         assertThatThrownBy(() -> memberService.withdraw(USER_ID, RAW_PASSWORD))
                 .isInstanceOf(IllegalStateException.class);
@@ -106,7 +108,6 @@ class MemberServiceImplWithdrawalTest {
         member.setNickname("플레이어");
         member.setPhone("010-1234-5678");
         member.setRole("일반 회원");
-        member.setStatus("활성");
         return member;
     }
 }

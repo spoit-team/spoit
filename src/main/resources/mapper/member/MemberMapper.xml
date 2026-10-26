@@ -4,35 +4,34 @@
 <mapper namespace="co.kr.spoit.member.mapper.MemberMapper">
 
     <select id="findByEmail" resultType="co.kr.spoit.member.domain.Member">
-        SELECT user_id, email, password_hash, nickname, phone, role, status, created_at, deleted_at, penalty_time
+        SELECT user_id, email, password_hash, nickname, phone, role, created_at, deleted_at, penalty_time
         FROM app_user
         WHERE email = #{email}
     </select>
 
     <!-- 탈퇴 시 비밀번호 재확인용 조회. -->
     <select id="findById" resultType="co.kr.spoit.member.domain.Member">
-        SELECT user_id, email, password_hash, nickname, phone, role, status, created_at, deleted_at, penalty_time
+        SELECT user_id, email, password_hash, nickname, phone, role, created_at, deleted_at, penalty_time
         FROM app_user
         WHERE user_id = #{userId}
     </select>
 
     <!--
       회원 탈퇴는 deleted_at 기록으로 판단하는 소프트 삭제다.
-      deleted_at IS NULL 조건으로 중복 탈퇴를 막고, 기존 정지 상태는 허용 상태 조건에서 걸러진다.
+      deleted_at IS NULL 조건으로 중복 탈퇴를 막고, 이용정지 종료 시각이 현재보다 뒤면 거부한다.
     -->
     <update id="recordWithdrawal">
         UPDATE app_user
         SET deleted_at = #{deletedAt}
         WHERE user_id = #{userId}
           AND deleted_at IS NULL
-          AND status IN
-        <foreach collection="expectedStatuses" item="expectedStatus" open="(" separator="," close=")">#{expectedStatus}</foreach>
+          AND (penalty_time IS NULL OR penalty_time &lt;= #{now})
     </update>
 
     <insert id="insert" parameterType="co.kr.spoit.member.domain.Member"
             useGeneratedKeys="true" keyProperty="userId">
-        INSERT INTO app_user (email, password_hash, nickname, phone, role, status)
-        VALUES (#{email}, #{passwordHash}, #{nickname}, #{phone}, #{role}, #{status})
+        INSERT INTO app_user (email, password_hash, nickname, phone, role)
+        VALUES (#{email}, #{passwordHash}, #{nickname}, #{phone}, #{role})
     </insert>
 
     <!-- 화면의 'districts'와 같은 의미로 하위 자치구만 선택지로 노출한다. -->

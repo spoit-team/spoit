@@ -3,7 +3,6 @@ package co.kr.spoit.member.mapper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.DisplayName;
@@ -88,25 +87,37 @@ class MemberMapperIntegrationTest {
         LocalDateTime second = first.plusMinutes(1);
         Member before = memberMapper.findById(1L).orElseThrow();
 
-        int updated = memberMapper.recordWithdrawal(1L, first, List.of("활성", "ACTIVE", "NORMAL"));
-        int duplicated = memberMapper.recordWithdrawal(1L, second, List.of("활성", "ACTIVE", "NORMAL"));
+        int updated = memberMapper.recordWithdrawal(1L, first, first);
+        int duplicated = memberMapper.recordWithdrawal(1L, second, second);
 
         assertThat(updated).isEqualTo(1);
         assertThat(duplicated).isZero();
         Member after = memberMapper.findById(1L).orElseThrow();
         assertThat(after.getDeletedAt()).isEqualTo(first);
-        assertThat(after.getStatus()).isEqualTo(before.getStatus());
         assertThat(after.getPenaltyTime()).isEqualTo(before.getPenaltyTime());
     }
 
     @Test
-    @DisplayName("정지 상태 등 허용되지 않은 상태는 탈퇴 시각을 기록하지 않는다")
-    void doesNotRecordWithdrawalForDisallowedStatus() {
-        int updated = memberMapper.recordWithdrawal(2L, LocalDateTime.of(2026, 10, 26, 12, 0),
-                List.of("활성", "ACTIVE", "NORMAL"));
+    @DisplayName("이용정지 기간이 남은 회원은 탈퇴 시각을 기록하지 않는다")
+    void doesNotRecordWithdrawalDuringPenalty() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 26, 12, 0);
+
+        int updated = memberMapper.recordWithdrawal(2L, now, now);
 
         assertThat(updated).isZero();
         assertThat(memberMapper.findById(2L).orElseThrow().getDeletedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("이용정지 종료 시각과 같은 시각에는 탈퇴할 수 있다")
+    void allowsWithdrawalAtPenaltyBoundary() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 26, 12, 0);
+        jdbcTemplate.update("UPDATE app_user SET penalty_time = ? WHERE user_id = 2", now);
+
+        int updated = memberMapper.recordWithdrawal(2L, now, now);
+
+        assertThat(updated).isEqualTo(1);
+        assertThat(memberMapper.findById(2L).orElseThrow().getDeletedAt()).isEqualTo(now);
     }
 
     @Test
@@ -118,7 +129,6 @@ class MemberMapperIntegrationTest {
         member.setNickname("신규 회원");
         member.setPhone("010-0000-0004");
         member.setRole("일반 회원");
-        member.setStatus("활성");
 
         memberMapper.insert(member);
 
