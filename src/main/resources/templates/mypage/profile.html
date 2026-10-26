@@ -83,10 +83,10 @@
   <section class="mypage-section profile-edit-withdrawal" aria-labelledby="withdrawal-heading">
     <div class="mypage-section-heading">
       <span class="mypage-section-index" aria-hidden="true">04</span>
-      <div><h2 id="withdrawal-heading">회원 탈퇴</h2><p>현재 닉네임을 확인한 뒤 탈퇴를 요청합니다.</p></div>
+      <div><h2 id="withdrawal-heading">회원 탈퇴</h2><p>현재 비밀번호를 확인한 뒤 탈퇴를 처리합니다.</p></div>
     </div>
     <div class="profile-edit-withdrawal-content">
-      <p>탈퇴 요청은 서버 확인 후 처리됩니다. 진행 중인 신청과 정산 상태를 먼저 확인해 주세요.</p>
+      <p>탈퇴하면 즉시 로그아웃되고 같은 계정으로 다시 로그인할 수 없습니다. 진행 중인 신청과 정산 상태를 먼저 확인해 주세요.</p>
       <button id="open-withdrawal-dialog" type="button" class="profile-withdrawal-open">회원 탈퇴 확인</button>
     </div>
   </section>
@@ -95,18 +95,17 @@
     <form id="profile-withdrawal-form" class="profile-withdrawal-dialog-content" method="post" th:action="@{/mypage/withdrawal-requests}">
       <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
       <div class="profile-withdrawal-dialog-heading">
-        <div><h2 id="withdrawal-dialog-title">회원 탈퇴를 확인할까요?</h2><p id="withdrawal-dialog-description">본인 확인을 위해 현재 닉네임을 입력해 주세요.</p></div>
+        <div><h2 id="withdrawal-dialog-title">회원 탈퇴를 확인할까요?</h2><p id="withdrawal-dialog-description">본인 확인을 위해 현재 비밀번호를 입력해 주세요.</p></div>
         <button class="profile-withdrawal-close" type="button" data-close-withdrawal aria-label="닫기">×</button>
       </div>
-      <p class="profile-withdrawal-note">탈퇴 요청은 서버에서 처리됩니다. 처리 결과는 등록된 이메일로 안내됩니다.</p>
-      <label class="profile-withdrawal-label" for="withdrawal-nickname">현재 닉네임 입력</label>
-      <p class="profile-withdrawal-current">입력할 닉네임: <strong id="withdrawal-current-nickname" th:text="${profile != null ? profile.nickname : ''}">닉네임</strong></p>
-      <input id="withdrawal-nickname" name="nicknameConfirmation" class="auth-input" type="text" autocomplete="off" required aria-describedby="withdrawal-nickname-help withdrawal-error" />
-      <p id="withdrawal-nickname-help" class="profile-withdrawal-help">위 닉네임과 일치하면 확인 버튼이 활성화됩니다.</p>
-      <p id="withdrawal-error" class="profile-withdrawal-error" role="alert" hidden>현재 닉네임을 정확히 입력해 주세요.</p>
+      <p class="profile-withdrawal-note">탈퇴는 즉시 처리되며 되돌릴 수 없습니다.</p>
+      <label class="profile-withdrawal-label" for="withdrawal-password">현재 비밀번호 입력</label>
+      <input id="withdrawal-password" name="password" class="auth-input" type="password" autocomplete="current-password" required aria-describedby="withdrawal-password-help withdrawal-error" />
+      <p id="withdrawal-password-help" class="profile-withdrawal-help">비밀번호를 입력하면 확인 버튼이 활성화됩니다.</p>
+      <p id="withdrawal-error" class="profile-withdrawal-error" role="alert" hidden>비밀번호를 입력해 주세요.</p>
       <div class="profile-withdrawal-actions">
         <button class="profile-withdrawal-cancel" type="button" data-close-withdrawal>취소</button>
-        <button id="confirm-withdrawal" class="profile-withdrawal-confirm" type="submit" disabled>탈퇴 요청</button>
+        <button id="confirm-withdrawal" class="profile-withdrawal-confirm" type="submit" disabled>탈퇴하기</button>
       </div>
     </form>
   </dialog>

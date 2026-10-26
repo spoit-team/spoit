@@ -1218,7 +1218,6 @@
 }
 
 .profile-withdrawal-dialog-heading p,
-.profile-withdrawal-current,
 .profile-withdrawal-help,
 .profile-withdrawal-error,
 .profile-withdrawal-note {
@@ -1228,7 +1227,6 @@
 }
 
 .profile-withdrawal-dialog-heading p,
-.profile-withdrawal-current,
 .profile-withdrawal-help {
   color: var(--color-muted);
 }
@@ -1258,10 +1256,6 @@
   color: var(--color-ink-2);
   font-size: 12px;
   font-weight: 750;
-}
-
-.profile-withdrawal-current strong {
-  color: var(--color-ink);
 }
 
 .profile-withdrawal-help,

@@ -20,6 +20,13 @@ public interface MemberMapper {
     /** {@code email}은 유니크 키라 최대 한 건이 반환된다. */
     Optional<Member> findByEmail(@Param("email") String email);
 
+    /** 탈퇴 시 비밀번호 재확인을 위해 식별자로 조회한다. */
+    Optional<Member> findById(@Param("userId") Long userId);
+
+    /** 현재 상태가 {@code expectedStatuses}에 속할 때만 상태를 바꾼다. 변경 행 수로 동시 탈퇴를 판별한다. */
+    int updateStatus(@Param("userId") Long userId, @Param("status") String status,
+            @Param("expectedStatuses") List<String> expectedStatuses);
+
     /** 회원을 저장하고 {@code useGeneratedKeys}로 {@code userId}를 돌려준다. */
     int insert(Member member);
 
