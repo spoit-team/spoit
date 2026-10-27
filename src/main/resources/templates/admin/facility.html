@@ -83,8 +83,13 @@
             <td th:text="${facility.sportsLabel}">종목</td>
             <td th:text="${facility.concurrentMatchLimit + '구역'}">0구역</td>
             <td><span class="status-badge" th:classappend="${facility.statusTone}" th:text="${facility.statusLabel}">상태</span></td>
-            <td><button class="table-link" type="button" data-edit-facility th:attr="data-facility-id=${facility.facilityId},data-facility-name=${facility.name},data-facility-address=${facility.address},data-facility-sports=${facility.sportsLabel},data-facility-zones=${facility.concurrentMatchLimit},data-facility-status=${facility.statusLabel}">수정</button></td>
-          </tr>
+            <td class="facility-row-actions">
+              <button class="table-link" type="button" data-edit-facility th:attr="data-facility-id=${facility.facilityId},data-facility-name=${facility.name},data-facility-address=${facility.address},data-facility-sports=${facility.sportsLabel},data-facility-zones=${facility.concurrentMatchLimit},data-facility-status=${facility.statusLabel}">수정</button>
+              <form class="facility-delete-form" method="post" th:action="@{/admin/facilities/{facilityId}/delete(facilityId=${facility.facilityId})}">
+                <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                <button class="table-link danger-link" type="submit" data-delete-facility th:attr="data-facility-name=${facility.name}">삭제</button>
+              </form>
+            </td>          </tr>
           <tr th:if="${#lists.isEmpty(facilities)}"><td class="table-empty" colspan="6">등록된 시설이 없습니다.</td></tr>
         </tbody></table></div></div>
       </section>
