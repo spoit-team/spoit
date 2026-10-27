@@ -16,6 +16,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import co.kr.spoit.club.controller.ClubController;
+import co.kr.spoit.club.service.ClubService;
 import co.kr.spoit.global.config.SecurityConfig;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.domain.MemberPrincipal;
@@ -25,10 +27,10 @@ import co.kr.spoit.member.service.MemberUserDetailsService;
 
 /**
  * 공통 헤더가 로그인 회원의 역할에 따라 관리자 메뉴를 실제로 렌더링하는지 검증한다.
- * DB 조회가 없는 {@code /teams/manage} 화면과 실제 템플릿·{@code GlobalModelAdvice}·
+ * ClubService를 mock으로 바꾼 {@code /teams/manage} 화면과 실제 템플릿·{@code GlobalModelAdvice}·
  * 보안 필터 체인을 사용한다.
  */
-@WebMvcTest(controllers = CorePageController.class)
+@WebMvcTest(controllers = ClubController.class)
 @Import(SecurityConfig.class)
 class HeaderNavigationRenderTest {
 
@@ -46,6 +48,9 @@ class HeaderNavigationRenderTest {
 
     @MockitoBean
     private MemberUserDetailsService memberUserDetailsService;
+
+    @MockitoBean
+    private ClubService clubService;
 
     @Test
     @DisplayName("비로그인 사용자 헤더에는 로그인 링크만 있고 관리자 메뉴는 없다")
