@@ -1,5 +1,8 @@
 package co.kr.spoit.web;
 
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.admin;
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.facilityManager;
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.member;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -14,13 +17,10 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import co.kr.spoit.club.controller.ClubController;
 import co.kr.spoit.club.service.ClubService;
 import co.kr.spoit.global.config.SecurityConfig;
-import co.kr.spoit.member.domain.Member;
-import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.member.security.MemberLoginFailureHandler;
 import co.kr.spoit.member.security.MemberLoginSuccessHandler;
 import co.kr.spoit.member.service.MemberUserDetailsService;
@@ -67,7 +67,7 @@ class HeaderNavigationRenderTest {
     @Test
     @DisplayName("일반 회원 헤더에는 로그아웃만 있고 관리자 메뉴는 없다")
     void memberHeaderHasNoAdminLinks() throws Exception {
-        mockMvc.perform(get("/teams/manage").with(principal("일반 회원")))
+        mockMvc.perform(get("/teams/manage").with(user(member())))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("data-auth-member")))
                 .andExpect(content().string(containsString("action=\"/logout\"")))
@@ -79,7 +79,7 @@ class HeaderNavigationRenderTest {
     @Test
     @DisplayName("시설 관리자 헤더에는 시설 관리 링크만 있고 시스템 관리 링크는 없다")
     void facilityManagerHeaderHasOnlyFacilityLink() throws Exception {
-        mockMvc.perform(get("/teams/manage").with(principal("시설 관리자")))
+        mockMvc.perform(get("/teams/manage").with(user(facilityManager())))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("data-auth-member")))
                 .andExpect(content().string(containsString(FACILITY_LINK)))
@@ -90,25 +90,11 @@ class HeaderNavigationRenderTest {
     @Test
     @DisplayName("시스템 관리자 헤더에는 시스템 관리 링크만 있고 시설 관리 링크는 없다")
     void systemAdminHeaderHasOnlySystemLink() throws Exception {
-        mockMvc.perform(get("/teams/manage").with(principal("시스템 관리자")))
+        mockMvc.perform(get("/teams/manage").with(user(admin())))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("data-auth-member")))
                 .andExpect(content().string(containsString(SYSTEM_LINK)))
                 .andExpect(content().string(containsString("시스템 관리")))
                 .andExpect(content().string(not(containsString(FACILITY_LINK))));
-    }
-
-    private static RequestPostProcessor principal(String role) {
-        return user(memberPrincipal(role));
-    }
-
-    private static MemberPrincipal memberPrincipal(String role) {
-        Member member = new Member();
-        member.setUserId(7L);
-        member.setEmail("user@example.com");
-        member.setNickname("회원");
-        member.setPhone("010-1234-5678");
-        member.setRole(role);
-        return MemberPrincipal.from(member);
     }
 }

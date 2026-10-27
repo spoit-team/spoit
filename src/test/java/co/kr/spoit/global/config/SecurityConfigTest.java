@@ -1,5 +1,9 @@
 package co.kr.spoit.global.config;
 
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.admin;
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.facilityManager;
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.member;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -9,21 +13,26 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.web.servlet.function.RequestPredicates.GET;
 import static org.springframework.web.servlet.function.RouterFunctions.route;
 
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.servlet.function.RouterFunction;
 import org.springframework.web.servlet.function.ServerResponse;
 
-import co.kr.spoit.member.domain.Member;
-import co.kr.spoit.member.domain.MemberPrincipal;
+import co.kr.spoit.facility.service.FacilityService;
 import co.kr.spoit.member.security.MemberLoginFailureHandler;
 import co.kr.spoit.member.security.MemberLoginSuccessHandler;
 import co.kr.spoit.member.service.MemberUserDetailsService;
@@ -46,6 +55,9 @@ class SecurityConfigTest {
     @MockitoBean
     private MemberUserDetailsService memberUserDetailsService;
 
+    @MockitoBean
+    private FacilityService facilityService;
+
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {
             "/mypage",
@@ -64,10 +76,10 @@ class SecurityConfigTest {
     @Test
     @DisplayName("로그인 회원의 마이페이지 요청은 통과시킨다")
     void authenticatedMyPageIsAllowed() throws Exception {
-        mockMvc.perform(get("/mypage").with(user(memberPrincipal())))
+        mockMvc.perform(get("/mypage").with(user(member())))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/mypage/profile/details").with(user(memberPrincipal())))
+        mockMvc.perform(get("/mypage/profile/details").with(user(member())))
                 .andExpect(status().isOk());
     }
 
@@ -82,7 +94,7 @@ class SecurityConfigTest {
     @Test
     @DisplayName("마이페이지 POST에서 CSRF 토큰이 없으면 거부한다")
     void myPagePostRequiresCsrf() throws Exception {
-        mockMvc.perform(post("/mypage/profile").with(user(memberPrincipal())))
+        mockMvc.perform(post("/mypage/profile").with(user(member())))
                 .andExpect(status().isForbidden());
     }
 
@@ -122,7 +134,7 @@ class SecurityConfigTest {
     })
     @DisplayName("일반 회원은 관리자 화면에 직접 접근할 수 없다")
     void memberCannotAccessAdminPages(String path) throws Exception {
-        mockMvc.perform(get(path).with(user(memberPrincipal())))
+        mockMvc.perform(get(path).with(user(member())))
                 .andExpect(status().isForbidden());
     }
 
@@ -135,7 +147,7 @@ class SecurityConfigTest {
     })
     @DisplayName("시설 관리자는 시설·운영 화면에 접근할 수 있다")
     void facilityManagerCanAccessFacilityPages(String path) throws Exception {
-        mockMvc.perform(get(path).with(user(facilityManagerPrincipal())))
+        mockMvc.perform(get(path).with(user(facilityManager())))
                 .andExpect(status().isOk());
     }
 
@@ -147,7 +159,7 @@ class SecurityConfigTest {
     })
     @DisplayName("시설 관리자는 시스템 관리 화면에 접근할 수 없다")
     void facilityManagerCannotAccessSystemPages(String path) throws Exception {
-        mockMvc.perform(get(path).with(user(facilityManagerPrincipal())))
+        mockMvc.perform(get(path).with(user(facilityManager())))
                 .andExpect(status().isForbidden());
     }
 
@@ -159,7 +171,7 @@ class SecurityConfigTest {
     })
     @DisplayName("시스템 관리자는 시스템 관리 화면에 접근할 수 있다")
     void adminCanAccessSystemPages(String path) throws Exception {
-        mockMvc.perform(get(path).with(user(adminPrincipal())))
+        mockMvc.perform(get(path).with(user(admin())))
                 .andExpect(status().isOk());
     }
 
@@ -172,30 +184,33 @@ class SecurityConfigTest {
     })
     @DisplayName("시스템 관리자는 시설·운영 화면에 접근할 수 없다")
     void adminCannotAccessFacilityPages(String path) throws Exception {
-        mockMvc.perform(get(path).with(user(adminPrincipal())))
+        mockMvc.perform(get(path).with(user(admin())))
                 .andExpect(status().isForbidden());
     }
 
-    private static MemberPrincipal memberPrincipal() {
-        return principal("일반 회원");
-    }
+    /**
+     * 테스트 클래스가 런타임 클래스패스에 포함된 상태에서도 애플리케이션의 일반 컴포넌트 스캔이
+     * 보안 테스트 전용 중첩 구성({@code SecurityConfigTest.StubRoutes})을 후보로 잡지 않는지 검증한다.
+     *
+     * <p>테스트 슬라이스의 타입 제외 필터에 의존하지 않고, {@code @ComponentScan}이 사용하는
+     * 기본 필터로 직접 스캔한다.</p>
+     */
+    @Test
+    @DisplayName("애플리케이션 컴포넌트 스캔은 보안 테스트 전용 중첩 구성을 등록하지 않는다")
+    void testOnlyConfigurationIsNotPartOfApplicationComponentScan() {
+        ClassPathScanningCandidateComponentProvider scanner =
+                new ClassPathScanningCandidateComponentProvider(true);
+        scanner.setResourceLoader(new DefaultResourceLoader(getClass().getClassLoader()));
 
-    private static MemberPrincipal facilityManagerPrincipal() {
-        return principal("시설 관리자");
-    }
+        Set<String> scannedClassNames = scanner.findCandidateComponents("co.kr.spoit").stream()
+                .map(BeanDefinition::getBeanClassName)
+                .collect(Collectors.toSet());
 
-    private static MemberPrincipal adminPrincipal() {
-        return principal("시스템 관리자");
-    }
-
-    private static MemberPrincipal principal(String role) {
-        Member member = new Member();
-        member.setUserId(7L);
-        member.setEmail("player@example.com");
-        member.setNickname("플레이어");
-        member.setPhone("010-1234-5678");
-        member.setRole(role);
-        return MemberPrincipal.from(member);
+        // 스캔 자체가 동작하는지 확인하는 양성 대조군이다.
+        assertThat(scannedClassNames).contains(CorePageController.class.getName());
+        // 테스트 클래스패스에 테스트 전용 구성이 존재해도 애플리케이션 스캔 후보에는 없어야 한다.
+        assertThat(scannedClassNames)
+                .noneMatch(name -> name.startsWith(SecurityConfigTest.class.getName()));
     }
 
     /**
