@@ -33,8 +33,13 @@
          th:classappend="${active == 'mypage'} ? 'text-ink' : 'text-ink-2'"
          th:href="@{/mypage}">마이페이지</a>
       <a class="primary-nav-link flex h-[68px] items-center gap-1.5 rounded-lg px-3.5 hover:bg-paper-soft hover:text-ink"
+         th:if="${currentMember != null and currentMember.roleLabel == '시설 관리자'}"
          th:classappend="${active == 'admin'} ? 'text-ink' : 'text-ink-2'"
          th:href="@{/admin/facility}">시설 관리 <span class="rounded bg-book-soft px-1.5 py-0.5 text-[10px] font-bold text-book-ink">관리자</span></a>
+      <a class="primary-nav-link flex h-[68px] items-center gap-1.5 rounded-lg px-3.5 hover:bg-paper-soft hover:text-ink"
+         th:if="${currentMember != null and currentMember.roleLabel == '시스템 관리자'}"
+         th:classappend="${active == 'admin'} ? 'text-ink' : 'text-ink-2'"
+         th:href="@{/admin/system}">시스템 관리 <span class="rounded bg-book-soft px-1.5 py-0.5 text-[10px] font-bold text-book-ink">관리자</span></a>
     </nav>
     <div class="ml-auto flex items-center gap-2">
       <a th:href="@{/mypage#notifications}" class="relative grid size-[38px] place-items-center rounded-[10px] border border-line bg-paper text-ink-2 hover:bg-paper-soft hover:text-ink" aria-label="알림 확인" title="알림">
