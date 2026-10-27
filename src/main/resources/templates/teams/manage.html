@@ -150,9 +150,7 @@
       <label class="team-form-field"><span>팀 이름</span><input name="clubName" maxlength="30" required autocomplete="organization" /></label>
       <div class="team-form-grid">
         <label class="team-form-field"><span>종목</span><select name="sportId" required><option th:each="sport : ${sports}" th:value="${sport.sportId}" th:text="${sport.name}">종목</option></select></label>
-        <label class="team-form-field"><span>팀 실력 단계</span><select name="level" required><option th:each="level : ${#numbers.sequence(1, 5)}" th:value="${level}" th:text="${level + '단계'}">1단계</option></select></label>
         <label class="team-form-field"><span>최대 팀원 수</span><input name="maxMembers" type="number" min="2" max="30" required /></label>
-        <label class="team-form-field"><span>모집 상태</span><select name="recruitStatus" required><option value="" selected disabled>모집 상태 선택</option><option value="recruiting">모집 중</option><option value="closed">모집 마감</option></select></label>
       </div>
       <label class="team-form-field"><span>활동 지역</span><select name="regionId" required><option value="">지역 선택</option><option th:each="district : ${districts}" th:value="${district.regionId}" th:text="${district.name}">지역</option></select></label>
       <fieldset class="team-form-field team-activity-days"><legend>정기 활동 요일</legend><div class="team-activity-day-options" role="group" aria-label="정기 활동 요일 선택">

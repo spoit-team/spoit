@@ -24,7 +24,10 @@ class ClubFormat {
         for (int i = 0; i < numbers.length; i++) {
             names[i] = DAYS[Integer.parseInt(numbers[i])];
         }
-        return String.join(", ", names) + " " + club.getActivityStartTime() + " - " + club.getActivityEndTime();
+        String endText = club.getActivityEndTime().isBefore(club.getActivityStartTime())
+                ? "익일 " + club.getActivityEndTime()
+                : String.valueOf(club.getActivityEndTime());
+        return String.join(", ", names) + " " + club.getActivityStartTime() + " - " + endText;
     }
     
     static String footerNote(boolean recruiting, ClubSummary club) {

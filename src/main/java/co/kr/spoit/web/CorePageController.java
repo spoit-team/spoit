@@ -34,22 +34,6 @@ public class CorePageController {
      * ------------------------------------------------------------------ */
 
     /* ------------------------------------------------------------------
-     * 팀/클럽 화면: 목록·상세·관리 탭을 렌더링하며 클럽 데이터는 아직 조회하지 않는다.
-     * ------------------------------------------------------------------ */
-
-
-    /** 팀 관리 화면을 렌더링한다. 기본 탭은 team이며 권한 확인·소유 클럽 조회는 아직 없다. */
-    @GetMapping("/teams/manage")
-    public String teamManage(Model model) {
-        model.addAttribute("tab", "team");
-        model.addAttribute("managedClubs", EMPTY_LIST);
-        model.addAttribute("managedClub", null);
-        model.addAttribute("sports", EMPTY_LIST);
-        model.addAttribute("districts", EMPTY_LIST);
-        return "teams/manage";
-    }
-
-    /* ------------------------------------------------------------------
      * 관리자 화면: 공통 셸(addAdminShell) 위에 화면별 빈 모델을 얹는다. 관리자 인증은 아직 없다.
      * ------------------------------------------------------------------ */
 

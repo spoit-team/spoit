@@ -81,4 +81,44 @@
         ORDER BY (m.role = '동호회장') DESC, m.joined_at ASC
     </select>
 
+    <select id="selectClubSportOptions" resultType="co.kr.spoit.club.domain.ClubSportOption">
+        SELECT sport_id AS sportId, name AS name FROM sport ORDER BY sport_id
+    </select>
+
+    <select id="selectClubRegionOptions" resultType="co.kr.spoit.club.domain.ClubRegionOption">
+        SELECT region_id AS regionId, name AS name
+        FROM region
+        WHERE parent_region_id IS NOT NULL
+        ORDER BY name
+    </select>
+
+    <select id="existsActiveClubName" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM club
+        WHERE club_name = #{clubName} AND deleted_at IS NULL
+    </select>
+
+    <select id="existsSport" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM sport WHERE sport_id = #{sportId}
+    </select>
+
+    <select id="existsRegion" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM region
+        WHERE region_id = #{regionId} AND parent_region_id IS NOT NULL
+    </select>
+
+    <insert id="insertClub" useGeneratedKeys="true" keyProperty="clubId">
+        INSERT INTO club (sport_id, club_name, intro, max_members, 
+                            activity_days, activity_start_time, activity_end_time)
+        VALUES (#{sportId}, #{clubName}, #{intro}, #{maxMembers},
+                #{activityDays}, #{activityStartTime}, #{activityEndTime})
+    </insert>
+
+    <insert id="insertClubRegion">
+        INSERT INTO club_region (club_id, region_id) VALUES (#{clubId}, #{regionId})
+    </insert>
+
+    <insert id="insertClubMember">
+        INSERT INTO club_member (club_id, user_id, role) VALUES (#{clubId}, #{userId}, '동호회장')
+    </insert>
+
     </mapper>
