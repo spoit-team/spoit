@@ -10,6 +10,8 @@ import java.util.Optional;
 
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.web.authentication.logout.CookieClearingLogoutHandler;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -27,7 +29,10 @@ import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.member.dto.ProfileUpdateForm;
 import co.kr.spoit.member.dto.SportOption;
 import co.kr.spoit.member.dto.SignupRegion;
+import co.kr.spoit.member.dto.WithdrawalRequestForm;
 import co.kr.spoit.member.service.MemberService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -55,6 +60,12 @@ public class MyPageController {
     @InitBinder("profileUpdateForm")
     void initProfileUpdateFormBinder(WebDataBinder binder) {
         binder.setAllowedFields(new String[]{"nickname", "phone", "representativeSportId", "regionId"});
+    }
+
+    /** 탈퇴 폼은 비밀번호만 받는다. */
+    @InitBinder("withdrawalRequestForm")
+    void initWithdrawalRequestFormBinder(WebDataBinder binder) {
+        binder.setAllowedFields("password");
     }
 
     /** 마이페이지 요약 화면. 비로그인 상태는 세션 주체가 없어 빈 값으로 렌더링된다. */
@@ -161,6 +172,30 @@ public class MyPageController {
                     message == null || message.isBlank() ? "입력 정보를 확인해 주세요." : message);
         }
         return "redirect:/mypage/profile?message=" + URLEncoder.encode("프로필을 저장했습니다.", StandardCharsets.UTF_8);
+    }
+
+    /**
+     * 회원 탈퇴. 비밀번호를 재확인한 뒤 탈퇴 시각만 기록하는 소프트 삭제이므로
+     * 세션과 remember-me 쿠키를 지워 재로그인 경로를 끊는다.
+     */
+    @PostMapping("/mypage/withdrawal-requests")
+    public String withdraw(@ModelAttribute("withdrawalRequestForm") WithdrawalRequestForm form,
+            Authentication authentication, HttpServletRequest request, HttpServletResponse response) {
+        MemberPrincipal principal = principalOf(authentication);
+        if (principal == null) {
+            return "redirect:/login";
+        }
+        try {
+            memberService.withdraw(principal.getUserId(), form.getPassword());
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            String message = exception.getMessage();
+            return "redirect:/mypage/profile?error=" + URLEncoder.encode(
+                    message == null || message.isBlank() ? "탈퇴를 처리하지 못했습니다." : message,
+                    StandardCharsets.UTF_8);
+        }
+        new CookieClearingLogoutHandler("JSESSIONID", "remember-me").logout(request, response, authentication);
+        new SecurityContextLogoutHandler().logout(request, response, authentication);
+        return "redirect:/login?message=" + URLEncoder.encode("탈퇴가 완료되었습니다.", StandardCharsets.UTF_8);
     }
 
     /** 저장 실패 시 제출 값을 유지해 사용자가 수정 내용을 잃지 않게 한다. */
