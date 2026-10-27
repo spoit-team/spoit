@@ -142,7 +142,7 @@ CREATE TABLE schedule_change (
 CREATE TABLE club (
     club_id              BIGINT       NOT NULL AUTO_INCREMENT COMMENT '동호회 식별자',
     sport_id             BIGINT       NOT NULL COMMENT '주 종목',
-    club_name            VARCHAR(50)  NOT NULL COMMENT '동호회명, 활성 동호회끼리 중복 불가 (서비스 로직)',
+    club_name            VARCHAR(50)  NOT NULL COMMENT '동호회명, 활성 동호회끼리 중복 불가 (active_club_name UK)',
     intro                VARCHAR(500) NOT NULL COMMENT '동호회 소개, 최대 500자',
     max_members          INT          NOT NULL COMMENT '최대 인원 2~30',
     recruit_status       VARCHAR(10)  NOT NULL DEFAULT '모집중' COMMENT '모집중 또는 마감',
@@ -152,7 +152,9 @@ CREATE TABLE club (
     activity_end_time    TIME         NOT NULL COMMENT '대표 활동 종료 시각',
     deleted_at           DATETIME     NULL COMMENT '해체 시각, 값이 있으면 해체된 동호회',
     created_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시각 = 창단일',
+    active_club_name     VARCHAR(50)  AS (CASE WHEN deleted_at IS NULL THEN club_name END) STORED COMMENT '활성 동호회 이름 중복 방지용 값 (생성 컬럼)',
     PRIMARY KEY (club_id),
+    UNIQUE KEY uk_club_active_name (active_club_name),
     CONSTRAINT fk_club_sport FOREIGN KEY (sport_id) REFERENCES sport (sport_id),
     CONSTRAINT ck_club_max_members    CHECK (max_members BETWEEN 2 AND 30),
     CONSTRAINT ck_club_recruit_status CHECK (recruit_status IN ('모집중', '마감')),
@@ -192,7 +194,7 @@ CREATE TABLE club_member (
     role            VARCHAR(10)  NOT NULL COMMENT '동호회장 또는 동호회원',
     joined_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '가입 시각',
     left_at         DATETIME     NULL COMMENT '탈퇴 또는 내보내기 시각, 값이 있으면 이탈',
-    leave_type      VARCHAR(10)  NULL COMMENT '탈퇴 또는 내보내기',
+    leave_type      VARCHAR(10)  NULL COMMENT '탈퇴 또는 내보내기 또는 해체',
     kick_reason     VARCHAR(255) NULL COMMENT '내보내기 사유',
     PRIMARY KEY (club_member_id),
     KEY idx_club_member_club_active (club_id, left_at),
@@ -203,6 +205,7 @@ CREATE TABLE club_member (
         (left_at IS NULL AND leave_type IS NULL AND kick_reason IS NULL)
         OR (left_at IS NOT NULL AND leave_type = '탈퇴' AND kick_reason IS NULL)
         OR (left_at IS NOT NULL AND leave_type = '내보내기')
+        OR (left_at IS NOT NULL AND leave_type = '해체' AND kick_reason IS NULL)
     )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='동호회 소속 및 이탈 이력';
 
@@ -210,7 +213,7 @@ CREATE TABLE club_join_request (
     request_id    BIGINT      NOT NULL AUTO_INCREMENT COMMENT '가입 신청 식별자',
     club_id       BIGINT      NOT NULL COMMENT '동호회',
     user_id       BIGINT      NOT NULL COMMENT '신청 회원',
-    message       TEXT        NULL COMMENT '가입 신청 자기소개, 최대 500자, 처리 시 NULL',
+    message       TEXT        NULL COMMENT '가입 신청 자기소개, 최대 500자',
     status        VARCHAR(10) NOT NULL DEFAULT '대기중' COMMENT '대기중, 승인, 거절, 취소',
     requested_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '신청 시각',
     processed_at  DATETIME    NULL COMMENT '처리 시각, 대기중이면 NULL',
