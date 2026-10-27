@@ -78,11 +78,6 @@ button { color: inherit; }
 .nav-count { min-width: 20px; margin-left: auto; padding: 1px 6px; border-radius: 99px; background: var(--admin-amber-soft); color: #754b0d; font-size: 10px; font-weight: 800; text-align: center; }
 .sidebar-spacer { flex: 1; min-height: 24px; }
 .sidebar-bottom { border-top: 1px solid var(--admin-line); padding: 14px 4px 0; }
-.role-switch-label { padding: 0 7px 7px; color: var(--admin-faint); font-size: 10px; font-weight: 700; }
-.role-switch { display: flex; gap: 0; padding: 0; border: 0; border-bottom: 1px solid var(--admin-line); border-radius: 0; background: transparent; }
-.role-switch a { flex: 1; padding: 7px 4px; border-bottom: 2px solid transparent; color: var(--admin-muted); font-size: 10.5px; font-weight: 600; text-align: center; }
-.role-switch a[aria-current="page"] { border-bottom-color: var(--admin-ink); background: transparent; color: var(--admin-ink); font-weight: 700; }
-.role-switch-short { display: none; }
 .sidebar-home { display: flex; align-items: center; gap: 8px; padding: 12px 8px 1px; color: var(--admin-muted); font-size: 12px; font-weight: 600; }
 .sidebar-home:hover { color: var(--admin-blue-ink); }
 
@@ -405,19 +400,13 @@ button { color: inherit; }
 .admin-layout.is-sidebar-collapsed .admin-brand { justify-content: center; padding: 0; }
 .admin-layout.is-sidebar-collapsed .admin-brand-copy,
 .admin-layout.is-sidebar-collapsed .admin-role-copy,
-.admin-layout.is-sidebar-collapsed .admin-nav-label,
-.admin-layout.is-sidebar-collapsed .role-switch-label,
-.admin-layout.is-sidebar-collapsed .role-switch-full { display: none; }
+.admin-layout.is-sidebar-collapsed .admin-nav-label { display: none; }
 .admin-layout.is-sidebar-collapsed .admin-sidebar-toggle { width: 36px; height: 32px; }
 .admin-layout.is-sidebar-collapsed .admin-role { justify-content: center; margin: 0 0 15px; padding: 5px 0; }
 .admin-layout.is-sidebar-collapsed .admin-nav { gap: 12px; }
 .admin-layout.is-sidebar-collapsed .admin-nav-link { justify-content: center; gap: 0; padding: 0; font-size: 0; }
 .admin-layout.is-sidebar-collapsed .nav-count { position: absolute; top: 0; right: 0; min-width: 16px; margin: 0; padding: 1px 4px; font-size: 9px; }
 .admin-layout.is-sidebar-collapsed .sidebar-bottom { padding: 12px 0 0; }
-.admin-layout.is-sidebar-collapsed .role-switch { display: grid; grid-template-columns: 1fr; gap: 2px; border-bottom: 0; }
-.admin-layout.is-sidebar-collapsed .role-switch a { padding: 5px 0; border-bottom: 0; font-size: 0; }
-.admin-layout.is-sidebar-collapsed .role-switch-short { display: inline; font-size: 10px; }
-.admin-layout.is-sidebar-collapsed .role-switch a[aria-current="page"] { border-radius: 5px; background: var(--admin-soft); }
 .admin-layout.is-sidebar-collapsed .sidebar-home { justify-content: center; gap: 0; padding: 12px 0 1px; font-size: 0; }
 .admin-layout.is-sidebar-collapsed .sidebar-home span { font-size: 17px; }
 
@@ -451,12 +440,6 @@ button { color: inherit; }
   .admin-layout.is-sidebar-expanded .admin-nav-link { min-height: 40px; gap: 8px; padding: 0 8px; font-size: 12px; white-space: normal; }
   .admin-layout.is-sidebar-expanded .admin-nav-link::before { top: 10px; right: auto; bottom: 10px; left: 0; width: 2px; height: auto; }
   .admin-layout.is-sidebar-expanded .sidebar-bottom { padding-right: 0; padding-left: 0; }
-  .admin-layout.is-sidebar-expanded .role-switch-label { display: block; }
-  .admin-layout.is-sidebar-expanded .role-switch { display: flex; gap: 0; border-bottom: 1px solid var(--admin-line); }
-  .admin-layout.is-sidebar-expanded .role-switch a { padding: 7px 2px; border-bottom: 2px solid transparent; font-size: 9px; }
-  .admin-layout.is-sidebar-expanded .role-switch a[aria-current="page"] { border-radius: 0; border-bottom-color: var(--admin-ink); background: transparent; }
-  .admin-layout.is-sidebar-expanded .role-switch-full { display: inline; }
-  .admin-layout.is-sidebar-expanded .role-switch-short { display: none; }
   .admin-layout.is-sidebar-expanded .sidebar-home { justify-content: flex-start; gap: 8px; padding: 12px 4px 1px; font-size: 11px; }
   .admin-layout.is-sidebar-expanded .sidebar-home span { font-size: 14px; }
   .nav-symbol { width: 19px; height: 19px; flex-basis: 19px; }

@@ -160,6 +160,68 @@ for (const file of scripts) {
   }
 }
 
+// 관리자 진입 버튼은 역할별로만 노출하고, 관리자 화면끼리는 서로 이동 링크를 두지 않는다.
+function fragmentSlice(source, openMarker, closeMarker) {
+  const start = source.indexOf(openMarker);
+  if (start < 0) return null;
+  const end = source.indexOf(closeMarker, start);
+  return end < 0 ? null : source.slice(start, end);
+}
+
+function anchorsOf(source) {
+  return Array.from(source.matchAll(/<a\b[^>]*>/g), match => match[0]);
+}
+
+const layoutSource = await readFile(path.join(resources, 'templates/fragments/layout.html'), 'utf8');
+const adminSource = await readFile(path.join(resources, 'templates/fragments/admin.html'), 'utf8');
+
+const siteHeader = fragmentSlice(layoutSource, '<header th:fragment="siteHeader(active)"', '</header>');
+check(Boolean(siteHeader), 'layout.html: siteHeader fragment missing');
+const headerAdminLinks = anchorsOf(siteHeader ?? '').filter(tag => tag.includes('/admin/'));
+check(headerAdminLinks.length === 2, `layout.html: expected 2 admin entry links, found ${headerAdminLinks.length}`);
+const facilityEntry = headerAdminLinks.find(tag => tag.includes('@{/admin/facility}'));
+const systemEntry = headerAdminLinks.find(tag => tag.includes('@{/admin/system}'));
+check(Boolean(facilityEntry), 'layout.html: missing facility admin entry link');
+check(Boolean(systemEntry), 'layout.html: missing system admin entry link');
+check(/th:if="\$\{[^"]*currentMember != null[^"]*roleLabel == '시설 관리자'[^"]*\}"/.test(facilityEntry ?? ''),
+  'layout.html: facility admin entry must be gated to 시설 관리자');
+check(/th:if="\$\{[^"]*currentMember != null[^"]*roleLabel == '시스템 관리자'[^"]*\}"/.test(systemEntry ?? ''),
+  'layout.html: system admin entry must be gated to 시스템 관리자');
+check(headerAdminLinks.every(tag => tag.includes('th:if=')),
+  'layout.html: admin entry links must not render for general members');
+
+// 템플릿의 역할 라벨은 MemberRole이 만드는 라벨과 같아야 한다(라벨이 바뀌면 버튼이 사라진다).
+const memberRoleSource = await readFile(
+  path.resolve('src/main/java/co/kr/spoit/member/domain/MemberRole.java'), 'utf8');
+const currentMemberSource = await readFile(
+  path.resolve('src/main/java/co/kr/spoit/member/dto/CurrentMemberDto.java'), 'utf8');
+check(currentMemberSource.includes('private final String roleLabel;'),
+  'CurrentMemberDto: roleLabel property used by the header gating must exist');
+for (const [role, expected] of [
+  ['FACILITY_MANAGER', '시설 관리자'],
+  ['ADMIN', '시스템 관리자']
+]) {
+  check(memberRoleSource.includes(`${role}("ROLE_${role}", "${expected}")`),
+    `MemberRole.${role} label must stay "${expected}"`);
+  check(layoutSource.includes(`roleLabel == '${expected}'`),
+    `layout.html: admin entry gating must use MemberRole label "${expected}"`);
+}
+
+const facilitySidebar = fragmentSlice(adminSource, '<aside th:fragment="facilitySidebar(active)"', '</aside>');
+const systemSidebar = fragmentSlice(adminSource, '<aside th:fragment="systemSidebar(active)"', '</aside>');
+check(Boolean(facilitySidebar), 'admin.html: facilitySidebar fragment missing');
+check(Boolean(systemSidebar), 'admin.html: systemSidebar fragment missing');
+check(!/th:href="@\{\/admin\/system/.test(facilitySidebar ?? ''),
+  'admin.html: facility sidebar must not link to the system admin page');
+check(!/th:href="@\{\/admin\/facility/.test(systemSidebar ?? ''),
+  'admin.html: system sidebar must not link to the facility admin page');
+check(!(facilitySidebar ?? '').includes('role-switch') && !(systemSidebar ?? '').includes('role-switch'),
+  'admin.html: cross-admin role switch must stay removed');
+check(/th:href="@\{\/admin\/facility/.test(facilitySidebar ?? ''),
+  'admin.html: facility sidebar must keep its own menu links');
+check(/th:href="@\{\/admin\/system/.test(systemSidebar ?? ''),
+  'admin.html: system sidebar must keep its own menu links');
+
 if (failures.length) {
   console.error(failures.join('\n'));
   process.exitCode = 1;
