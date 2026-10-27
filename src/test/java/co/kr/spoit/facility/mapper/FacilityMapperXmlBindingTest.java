@@ -23,5 +23,21 @@ class FacilityMapperXmlBindingTest {
         assertThat(configuration.hasMapper(FacilityMapper.class)).isTrue();
         assertThat(configuration.hasStatement(
                 "co.kr.spoit.facility.mapper.FacilityMapper.selectManagedFacilities")).isTrue();
+        assertThat(configuration.hasStatement(
+                "co.kr.spoit.facility.mapper.FacilityMapper.existsFacilityManager")).isTrue();
+        assertThat(configuration.hasStatement(
+                "co.kr.spoit.facility.mapper.FacilityMapper.findSportIdsByNames")).isTrue();
+        assertThat(configuration.hasStatement(
+                "co.kr.spoit.facility.mapper.FacilityMapper.insertFacility")).isTrue();
+        assertThat(configuration.hasStatement(
+                "co.kr.spoit.facility.mapper.FacilityMapper.insertFacilityManager")).isTrue();
+        assertThat(configuration.hasStatement(
+                "co.kr.spoit.facility.mapper.FacilityMapper.insertFacilitySports")).isTrue();
+        assertThat(configuration.hasStatement(
+                "co.kr.spoit.facility.mapper.FacilityMapper.updateFacility")).isTrue();
+        assertThat(configuration.hasStatement(
+                "co.kr.spoit.facility.mapper.FacilityMapper.deleteFacilitySports")).isTrue();
+        assertThat(configuration.hasStatement(
+                "co.kr.spoit.facility.mapper.FacilityMapper.deleteFacility")).isTrue();
     }
 }

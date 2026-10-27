@@ -19,6 +19,9 @@ import org.springframework.test.context.jdbc.SqlConfig;
 import org.springframework.test.context.transaction.BeforeTransaction;
 
 import co.kr.spoit.facility.domain.FacilitySummary;
+import co.kr.spoit.facility.dto.FacilityForm;
+
+import java.util.List;
 
 /**
  * 명시적으로 지정한 전용 MySQL DB에서만 담당 시설 조회 SQL을 검증한다.
@@ -94,6 +97,81 @@ class FacilityMapperIntegrationTest {
     @DisplayName("담당 시설이 없는 회원은 빈 목록을 받는다")
     void returnsEmptyListWhenUserHasNoFacility() {
         assertThat(facilityMapper.selectManagedFacilities(9999L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("시설을 등록하면 생성 ID가 채워지고 담당자 조회에 나타난다")
+    void insertsFacilityAndMapsManager() {
+        FacilityForm form = new FacilityForm();
+        form.setName("등록 테스트 체육관");
+        form.setAddress("테스트 등록 주소");
+        form.setConcurrentMatchLimit(4);
+        form.setStatus("운영 중");
+
+        facilityMapper.insertFacility(form);
+        long facilityId = form.getFacilityId();
+
+        assertThat(facilityId).isPositive();
+        assertThat(facilityMapper.existsFacilityManager(facilityId, 9001L)).isFalse();
+
+        facilityMapper.insertFacilityManager(facilityId, 9001L);
+        assertThat(facilityMapper.existsFacilityManager(facilityId, 9001L)).isTrue();
+        assertThat(facilityMapper.existsFacilityManager(facilityId, 9002L)).isFalse();
+
+        var managed = facilityMapper.selectManagedFacilities(9001L);
+        assertThat(managed).extracting(FacilitySummary::getFacilityId).contains(facilityId);
+        var inserted = managed.stream()
+                .filter(facility -> facility.getFacilityId() == facilityId)
+                .findFirst().orElseThrow();
+        assertThat(inserted.getName()).isEqualTo("등록 테스트 체육관");
+        assertThat(inserted.getConcurrentMatchLimit()).isEqualTo(4);
+        assertThat(inserted.getStatus()).isEqualTo("운영 중");
+    }
+
+    @Test
+    @DisplayName("종목 이름으로 ID를 조회하고 시설 종목 매핑을 저장·교체·삭제한다")
+    void managesFacilitySports() {
+        var sportIds = facilityMapper.findSportIdsByNames(List.of("시설 테스트 농구", "시설 테스트 축구"));
+        assertThat(sportIds).containsExactlyInAnyOrder(9001L, 9002L);
+
+        assertThat(facilityMapper.findSportIdsByNames(List.of("존재하지 않는 종목"))).isEmpty();
+
+        facilityMapper.insertFacilitySports(9102L, sportIds);
+        facilityMapper.deleteFacilitySports(9102L);
+        facilityMapper.insertFacilitySports(9102L, List.of(sportIds.get(0)));
+
+        var managed = facilityMapper.selectManagedFacilities(9001L);
+        var reloaded = managed.stream()
+                .filter(facility -> facility.getFacilityId() == 9102L)
+                .findFirst().orElseThrow();
+        assertThat(reloaded.getSportsLabel()).isEqualTo("시설 테스트 농구");
+    }
+
+    @Test
+    @DisplayName("시설 정보를 수정해도 지역·좌표는 유지되고 논리 삭제하면 목록에서 사라진다")
+    void updatesKeepsLocationAndDeleteHidesFacility() {
+        FacilityForm form = new FacilityForm();
+        form.setName("수정된 시설명");
+        form.setAddress("수정된 주소");
+        form.setConcurrentMatchLimit(9);
+        form.setStatus("점검 중");
+
+        assertThat(facilityMapper.updateFacility(9101L, form)).isEqualTo(1);
+
+        var managed = facilityMapper.selectManagedFacilities(9001L);
+        var updated = managed.stream()
+                .filter(facility -> facility.getFacilityId() == 9101L)
+                .findFirst().orElseThrow();
+        assertThat(updated.getName()).isEqualTo("수정된 시설명");
+        assertThat(updated.getConcurrentMatchLimit()).isEqualTo(9);
+        assertThat(updated.getStatus()).isEqualTo("점검 중");
+
+        assertThat(facilityMapper.deleteFacility(9101L)).isEqualTo(1);
+        assertThat(facilityMapper.selectManagedFacilities(9001L))
+                .extracting(FacilitySummary::getFacilityId)
+                .doesNotContain(9101L);
+        assertThat(facilityMapper.deleteFacility(9101L)).isZero();
+        assertThat(facilityMapper.updateFacility(9101L, form)).isZero();
     }
 
     static String validateUrl(String url) {

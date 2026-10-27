@@ -12,6 +12,7 @@ INSERT INTO app_user (
      '시설 관리자 C', '010-9000-0003', '시설 관리자', '2026-10-20 09:00:00');
 
 INSERT INTO region (region_id, parent_region_id, name) VALUES
+    (1, NULL, '서울특별시'),
     (9001, NULL, '시설 테스트 지역');
 
 INSERT INTO sport (sport_id, name) VALUES

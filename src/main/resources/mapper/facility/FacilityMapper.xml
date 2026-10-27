@@ -19,4 +19,68 @@
         ORDER BY f.facility_id ASC
     </select>
 
+    <select id="existsFacilityManager" resultType="boolean">
+        SELECT COUNT(*) > 0
+          FROM facility_manager
+         WHERE facility_id = #{facilityId}
+           AND user_id = #{userId}
+    </select>
+
+    <select id="findSportIdsByNames" resultType="long">
+        SELECT sport_id
+          FROM sport
+         WHERE name IN
+        <foreach collection="names" item="name" open="(" separator="," close=")">
+            #{name}
+        </foreach>
+         ORDER BY sport_id ASC
+    </select>
+
+    <!-- 지역·좌표 입력란은 아직 화면에 없다. 서울(1) 기본 지역과 0 좌표로 저장하고
+         지도 API 연동 시 교체한다. 생성된 ID는 파라미터의 facilityId로 채워진다. -->
+    <insert id="insertFacility" useGeneratedKeys="true" keyProperty="form.facilityId">
+        INSERT INTO facility (
+            region_id, name, address, latitude, longitude,
+            concurrent_match_limit, status, deleted_at
+        ) VALUES (
+            1, #{form.name}, #{form.address}, 0, 0,
+            #{form.concurrentMatchLimit}, #{form.status}, NULL
+        )
+    </insert>
+
+    <insert id="insertFacilityManager">
+        INSERT INTO facility_manager (facility_id, user_id, assigned_at)
+        VALUES (#{facilityId}, #{userId}, CURRENT_TIMESTAMP)
+    </insert>
+
+    <insert id="insertFacilitySports">
+        INSERT INTO facility_sport (facility_id, sport_id, default_min, default_max, default_fee, default_skill)
+        VALUES
+        <foreach collection="sportIds" item="sportId" separator=", ">
+            (#{facilityId}, #{sportId}, 1, 10, 0, '무관')
+        </foreach>
+    </insert>
+
+    <update id="updateFacility">
+        UPDATE facility
+           SET name = #{form.name},
+               address = #{form.address},
+               concurrent_match_limit = #{form.concurrentMatchLimit},
+               status = #{form.status}
+         WHERE facility_id = #{facilityId}
+           AND deleted_at IS NULL
+    </update>
+
+    <delete id="deleteFacilitySports">
+        DELETE FROM facility_sport
+         WHERE facility_id = #{facilityId}
+    </delete>
+
+    <update id="deleteFacility">
+        UPDATE facility
+           SET deleted_at = CURRENT_TIMESTAMP
+         WHERE facility_id = #{facilityId}
+           AND deleted_at IS NULL
+    </update>
+
 </mapper>

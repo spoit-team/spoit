@@ -208,6 +208,15 @@
     const form = event.target;
     if (!(form instanceof HTMLFormElement)) return;
 
+    if (form.matches('.facility-delete-form')) {
+      const button = form.querySelector('[data-delete-facility]');
+      const name = button?.dataset.facilityName || '시설';
+      if (!global.confirm('"' + name + '" 시설을 삭제할까요? 삭제한 시설은 목록에서 사라집니다.')) {
+        event.preventDefault();
+      }
+      return;
+    }
+
     if (form === facilityForm) {
       const selectedSports = facilitySportOptions.filter(function (input) { return input.checked; });
       if (!selectedSports.length) {
