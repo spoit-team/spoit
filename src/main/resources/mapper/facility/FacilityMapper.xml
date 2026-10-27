@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="co.kr.spoit.facility.mapper.FacilityMapper">
+
+    <select id="selectManagedFacilities" resultType="co.kr.spoit.facility.domain.FacilitySummary">
+        SELECT f.facility_id AS facilityId
+              ,f.name AS name
+              ,f.address AS address
+              ,f.concurrent_match_limit AS concurrentMatchLimit
+              ,f.status AS status
+              ,(SELECT GROUP_CONCAT(s.name ORDER BY fs.sport_id SEPARATOR ', ')
+                FROM facility_sport fs
+                JOIN sport s ON fs.sport_id = s.sport_id
+                WHERE fs.facility_id = f.facility_id) AS sportsLabel
+        FROM facility f
+        JOIN facility_manager fm ON fm.facility_id = f.facility_id
+        WHERE fm.user_id = #{userId}
+          AND f.deleted_at IS NULL
+        ORDER BY f.facility_id ASC
+    </select>
+
+</mapper>

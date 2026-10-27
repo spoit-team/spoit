@@ -1,6 +1,9 @@
 package co.kr.spoit.web;
 
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.admin;
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.facilityManager;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -21,8 +24,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.servlet.MockMvc;
 
-import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.domain.MemberPrincipal;
+import co.kr.spoit.member.domain.MemberPrincipalFixture;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -43,12 +46,13 @@ class CorePageRouteTest {
 
     @ParameterizedTest(name = "{0} renders {1} for {3}")
     @MethodSource("adminPageRoutes")
-    void adminPageTemplateRendersForAllowedRole(String path, String viewName, String visibleContent, String role)
-            throws Exception {
-        mockMvc.perform(get(path).with(user(principal(role))))
+    void adminPageTemplateRendersForAllowedRole(String path, String viewName, String visibleContent,
+            MemberPrincipal principal, String hiddenContent) throws Exception {
+        mockMvc.perform(get(path).with(user(principal)))
                 .andExpect(status().isOk())
                 .andExpect(view().name(viewName))
-                .andExpect(content().string(containsString(visibleContent)));
+                .andExpect(content().string(containsString(visibleContent)))
+                .andExpect(content().string(not(containsString(hiddenContent))));
     }
 
     @Test
@@ -60,7 +64,7 @@ class CorePageRouteTest {
 
     @Test
     void matchApplyRendersForMember() throws Exception {
-        mockMvc.perform(get("/matches/1/apply").with(user(principal("일반 회원"))))
+        mockMvc.perform(get("/matches/1/apply").with(user(MemberPrincipalFixture.member())))
                 .andExpect(status().isOk())
                 .andExpect(view().name("matches/join"))
                 .andExpect(content().string(containsString("매치 참가 신청")));
@@ -79,18 +83,10 @@ class CorePageRouteTest {
 
     private static Stream<Arguments> adminPageRoutes() {
         return Stream.of(
-                Arguments.of("/admin/facility", "admin/facility", "시설 대시보드", "시설 관리자"),
-                Arguments.of("/admin/operations", "admin/operations", "매치 운영", "시설 관리자"),
-                Arguments.of("/admin/system", "admin/system", "시스템 모니터링", "시스템 관리자"));
-    }
-
-    private static MemberPrincipal principal(String role) {
-        Member member = new Member();
-        member.setUserId(7L);
-        member.setEmail("admin@example.com");
-        member.setNickname("관리자");
-        member.setPhone("010-1234-5678");
-        member.setRole(role);
-        return MemberPrincipal.from(member);
+                // /admin/facility 렌더링은 AdminFacilityPageTest가 담당한다.
+                Arguments.of("/admin/operations", "admin/operations", "매치 운영", facilityManager(),
+                        "/admin/system"),
+                Arguments.of("/admin/system", "admin/system", "시스템 모니터링", admin(),
+                        "/admin/facility"));
     }
 }
