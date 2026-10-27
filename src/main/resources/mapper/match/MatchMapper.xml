@@ -105,6 +105,27 @@
          ORDER BY mp.match_id, mp.joined_at, mp.participant_id
     </select>
 
+    <!-- RES-03: 대기 신청은 match_participant에 없으므로 화면 정원 계산용으로 따로 가져온다 -->
+    <select id="findPendingApplicants" resultType="co.kr.spoit.match.dto.ParticipantRow">
+        SELECT NULL                   AS participant_id,
+               ma.match_id,
+               ma.applicant_user_id   AS user_id,
+               u.nickname,
+               #{participationStatus} AS participation_status,
+               NULL                   AS match_side,
+               NULL                   AS entry_mmr,
+               ma.created_at          AS joined_at
+          FROM match_application ma
+          JOIN app_user u ON u.user_id = ma.applicant_user_id
+         WHERE ma.match_id IN
+               <foreach collection="matchIds" item="id" open="(" separator="," close=")">
+                   #{id}
+               </foreach>
+           AND ma.status = #{waitingStatus}
+           AND ma.application_type = #{individualType}
+         ORDER BY ma.match_id, ma.created_at, ma.application_id
+    </select>
+
     <!-- RES-02 상세: 상태와 관계없이 조회 (삭제된 시설만 제외) -->
     <select id="findMatchDetail" resultType="co.kr.spoit.match.dto.MatchDetailRow">
         SELECT sm.match_id,

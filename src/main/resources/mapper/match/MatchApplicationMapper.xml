@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="co.kr.spoit.match.mapper.MatchApplicationMapper">
+
+    <!-- OF sm: 시설 행까지 잠그지 않도록 매칭방 행만 잠근다 -->
+    <select id="lockMatch" resultType="co.kr.spoit.match.dto.MatchRow">
+        SELECT sm.match_id,
+               sm.title,
+               sm.sport_id,
+               sm.start_at,
+               sm.end_at,
+               sm.max_participants,
+               sm.status
+          FROM social_match sm
+          JOIN facility f ON f.facility_id = sm.facility_id
+                         AND f.deleted_at IS NULL
+         WHERE sm.match_id = #{matchId}
+           FOR UPDATE OF sm
+    </select>
+
+    <!-- 참가자 쪽은 uk_match_participant_active (match_id, active_match_user) 인덱스 사용 -->
+    <select id="existsActiveEntry" resultType="boolean">
+        SELECT EXISTS (SELECT 1
+                         FROM match_application
+                        WHERE match_id = #{matchId}
+                          AND applicant_user_id = #{userId}
+                          AND status IN
+                              <foreach collection="applicationStatuses" item="st" open="(" separator="," close=")">
+                                  #{st}
+                              </foreach>)
+            OR EXISTS (SELECT 1
+                         FROM match_participant
+                        WHERE match_id = #{matchId}
+                          AND active_match_user = #{userId})
+    </select>
+
+    <select id="countOccupiedSeats" resultType="int">
+        SELECT (SELECT COUNT(*)
+                  FROM match_participant
+                 WHERE match_id = #{matchId}
+                   AND participation_status IN
+                       <foreach collection="participantStatuses" item="st" open="(" separator="," close=")">
+                           #{st}
+                       </foreach>)
+             + (SELECT COUNT(*)
+                  FROM match_application
+                 WHERE match_id = #{matchId}
+                   AND status = #{waitingStatus}
+                   AND application_type = #{individualType})
+    </select>
+
+    <insert id="insert" parameterType="co.kr.spoit.match.domain.MatchApplication"
+            useGeneratedKeys="true" keyProperty="applicationId">
+        INSERT INTO match_application (match_id, applicant_user_id, club_id, application_type,
+                                       status, receipt_no, created_at)
+        VALUES (#{matchId}, #{applicantUserId}, #{clubId}, #{applicationType},
+                #{status}, #{receiptNo}, #{createdAt})
+    </insert>
+
+    <sql id="applicationColumns">
+        application_id, match_id, applicant_user_id, club_id, application_type,
+        status, receipt_no, created_at, confirmed_at
+    </sql>
+
+    <select id="findById" resultType="co.kr.spoit.match.domain.MatchApplication">
+        SELECT <include refid="applicationColumns"/>
+          FROM match_application
+         WHERE application_id = #{applicationId}
+    </select>
+
+    <select id="findByReceiptNo" resultType="co.kr.spoit.match.domain.MatchApplication">
+        SELECT <include refid="applicationColumns"/>
+          FROM match_application
+         WHERE receipt_no = #{receiptNo}
+    </select>
+
+    <update id="markConfirmed">
+        UPDATE match_application
+           SET status = #{confirmedStatus},
+               confirmed_at = #{now}
+         WHERE application_id = #{applicationId}
+           AND status = #{waitingStatus}
+    </update>
+
+    <insert id="insertParticipant">
+        INSERT INTO match_participant (application_id, match_id, user_id,
+                                       participation_status, entry_mmr, joined_at)
+        VALUES (#{applicationId}, #{matchId}, #{userId},
+                #{status}, #{entryMmr}, #{joinedAt})
+    </insert>
+
+</mapper>

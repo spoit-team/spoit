@@ -1,0 +1,225 @@
+package co.kr.spoit.match.service;
+
+import java.math.BigDecimal;
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import co.kr.spoit.mat.domain.SportRating;
+import co.kr.spoit.mat.mapper.SportRatingMapper;
+import co.kr.spoit.match.domain.ApplicationStatus;
+import co.kr.spoit.match.domain.ApplicationType;
+import co.kr.spoit.match.domain.MatchApplication;
+import co.kr.spoit.match.domain.MatchStatus;
+import co.kr.spoit.match.domain.ParticipationStatus;
+import co.kr.spoit.match.dto.JoinPage;
+import co.kr.spoit.match.dto.JoinPage.Completion;
+import co.kr.spoit.match.dto.JoinPage.JoinMatch;
+import co.kr.spoit.match.dto.JoinPage.Person;
+import co.kr.spoit.match.dto.JoinPage.Selection;
+import co.kr.spoit.match.dto.MatchDetailPage;
+import co.kr.spoit.match.dto.MatchRow;
+import co.kr.spoit.match.mapper.MatchApplicationMapper;
+import co.kr.spoit.member.domain.Member;
+import co.kr.spoit.member.mapper.MemberMapper;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * RES-03 개인 참가 신청.
+ *
+ * <p>신청은 match_application(대기)에만 쌓고, match_participant 행은 확정 시점에
+ * application_id로 연결해 만든다. 화면에 보이는 참가자는 확정된 행이다.</p>
+ */
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class MatchApplicationService {
+
+    private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
+
+    /** sport_rating이 없는 회원의 시작 MMR (match_participant.entry_mmr 기본값과 같다) */
+    private static final BigDecimal DEFAULT_MMR = new BigDecimal("1000.00");
+
+    /** 결제 연동 전까지 모든 매치를 무료로 접수한다. 유료 결제를 붙일 때 이 값과 문구를 바꾼다. */
+    private static final String FREE_TOTAL_TEXT = "0원";
+
+    private static final DateTimeFormatter RECEIPT_DATE = DateTimeFormatter.BASIC_ISO_DATE;
+    private static final String RECEIPT_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    private static final String INDIVIDUAL = "individual";
+
+    private final MatchApplicationMapper applicationMapper;
+    private final MemberMapper memberMapper;
+    private final SportRatingMapper sportRatingMapper;
+    private final MatchService matchService;
+
+    /** 신청 내용 화면. 신청할 수 없는 상태여도 화면은 보여 주고 사유를 안내한다. */
+    public Optional<JoinPage> prepareIndividual(long matchId, long userId) {
+        Optional<Member> member = memberMapper.findById(userId);
+        if (member.isEmpty()) {
+            return Optional.empty();
+        }
+        return matchService.findDetail(matchId, userId).map(detail -> JoinPage.builder()
+                .match(toJoinMatch(detail))
+                .selection(individualSelection(member.get()))
+                .canReserve(detail.isCanApply())
+                .capacityNotice(detail.isCanApply() ? "" : detail.getApplyMessage())
+                .feeTotalText(FREE_TOTAL_TEXT)
+                .feeSummaryNote("현재는 결제 없이 무료로 신청이 접수됩니다.")
+                .build());
+    }
+
+    /**
+     * 개인 신청 접수. 같은 매칭방 신청은 social_match 행 잠금으로 한 줄로 세운다.
+     *
+     * @return 접수 번호
+     */
+    @Transactional
+    public String applyIndividual(long matchId, long userId) {
+        LocalDateTime now = LocalDateTime.now(ZONE);
+
+        // 세션의 principal은 로그인 시점 값이라 탈퇴·정지는 DB로 다시 확인한다.
+        Member member = memberMapper.findById(userId)
+                .orElseThrow(() -> new MatchApplyException("회원 정보를 확인할 수 없습니다."));
+        if (member.getDeletedAt() != null) {
+            throw new MatchApplyException("탈퇴한 회원은 신청할 수 없습니다.");
+        }
+        if (member.getPenaltyTime() != null && member.getPenaltyTime().isAfter(now)) {
+            throw new MatchApplyException("이용 정지 기간에는 신청할 수 없습니다.");
+        }
+
+        MatchRow match = applicationMapper.lockMatch(matchId);
+        if (match == null) {
+            throw new MatchApplyException("매칭방 정보를 찾을 수 없습니다.");
+        }
+        if (!MatchStatus.RECRUITING.dbValue().equals(match.getStatus())) {
+            throw new MatchApplyException("모집 중인 매칭방이 아닙니다.");
+        }
+        if (!match.getStartAt().isAfter(now)) {
+            throw new MatchApplyException("이미 시작한 매칭방입니다.");
+        }
+        if (applicationMapper.existsActiveEntry(matchId, userId, ApplicationStatus.activeValues())) {
+            throw new MatchApplyException("이미 참가 신청한 매칭방입니다.");
+        }
+        int occupied = applicationMapper.countOccupiedSeats(matchId,
+                ParticipationStatus.occupyingValues(),
+                ApplicationStatus.WAITING.dbValue(),
+                ApplicationType.INDIVIDUAL.dbValue());
+        if (occupied + 1 > match.getMaxParticipants()) {
+            throw new MatchApplyException("정원이 모두 찼습니다.");
+        }
+
+        MatchApplication application = MatchApplication.individual(matchId, userId, newReceiptNo(now), now);
+        applicationMapper.insert(application);
+        return application.getReceiptNo();
+    }
+
+    /**
+     * 신청 확정: match_application → match_participant 연동.
+     * 참가자 행은 여기서만 만들며 application_id는 항상 채운다. 호출처(시설 관리자 승인 등)는 별도 구현.
+     */
+    @Transactional
+    public void confirm(long applicationId) {
+        LocalDateTime now = LocalDateTime.now(ZONE);
+        MatchApplication application = applicationMapper.findById(applicationId);
+        if (application == null) {
+            throw new MatchApplyException("신청 정보를 찾을 수 없습니다.");
+        }
+        if (!ApplicationType.INDIVIDUAL.dbValue().equals(application.getApplicationType())) {
+            throw new MatchApplyException("동호회 신청 확정은 아직 지원하지 않습니다.");
+        }
+        // 신청 접수와 같은 순서(매칭방 → 신청)로 잠가 교착을 피한다.
+        MatchRow match = applicationMapper.lockMatch(application.getMatchId());
+        if (match == null) {
+            throw new MatchApplyException("매칭방 정보를 찾을 수 없습니다.");
+        }
+        int updated = applicationMapper.markConfirmed(applicationId,
+                ApplicationStatus.WAITING.dbValue(), ApplicationStatus.CONFIRMED.dbValue(), now);
+        if (updated == 0) {
+            throw new MatchApplyException("이미 처리된 신청입니다.");
+        }
+        BigDecimal entryMmr = sportRatingMapper
+                .findByUserIdAndSportId(application.getApplicantUserId(), match.getSportId())
+                .map(SportRating::getCurrentMmr)
+                .orElse(DEFAULT_MMR);
+        applicationMapper.insertParticipant(applicationId, application.getMatchId(),
+                application.getApplicantUserId(), ParticipationStatus.CONFIRMED.dbValue(), entryMmr, now);
+    }
+
+    /** 완료 화면. 본인 신청이 아니거나 다른 매칭방 접수 번호면 empty */
+    public Optional<JoinPage> findCompletion(long matchId, String receiptNo, long userId) {
+        MatchApplication application = applicationMapper.findByReceiptNo(receiptNo);
+        if (application == null
+                || application.getMatchId() != matchId
+                || application.getApplicantUserId() != userId) {
+            return Optional.empty();
+        }
+        Optional<Member> member = memberMapper.findById(userId);
+        if (member.isEmpty()) {
+            return Optional.empty();
+        }
+        boolean confirmed = ApplicationStatus.CONFIRMED.dbValue().equals(application.getStatus());
+        String nickname = member.get().getNickname();
+        return matchService.findDetail(matchId, userId).map(detail -> JoinPage.builder()
+                .match(toJoinMatch(detail))
+                .selection(individualSelection(member.get()))
+                // 완료 화면 요약 영역이 "예약 불가"로 보이지 않게 한다. 폼은 그리지 않는다.
+                .canReserve(true)
+                .completion(Completion.builder()
+                        .title("매치 참가 신청이 접수되었습니다")
+                        .message(confirmed
+                                ? "참가가 확정되었습니다. 팀 배정 결과는 매치 상세에서 확인할 수 있습니다."
+                                : "시설 관리자가 신청을 확인하면 참가가 확정됩니다.")
+                        .roomTitle(detail.getTitle())
+                        .applicantText(nickname + " · 1명 신청")
+                        .participantText(nickname)
+                        .receiptNo(application.getReceiptNo())
+                        .stateLabel(confirmed ? "참가 확정" : "확정 대기")
+                        .paymentGuidance("무료 신청 · 별도 결제 없음")
+                        .totalText(FREE_TOTAL_TEXT)
+                        .teamAssigned(false)
+                        .build())
+                .build());
+    }
+
+    private JoinMatch toJoinMatch(MatchDetailPage d) {
+        return JoinMatch.builder()
+                .matchId(d.getMatchId())
+                .title(d.getTitle())
+                .sportName(d.getSportName())
+                .statusLabel(d.getStatusLabel())
+                .facilityName(d.getPlace())
+                .dateLabel(d.getDateLabel())
+                .time(d.getTime())
+                .place(d.getFacility().getCaption())
+                .levelLabel(d.getLevelLabel())
+                .feeText(d.getFeeText())
+                .capacityLabel(d.getOccupancyLabel())
+                .maxParticipants(d.getMaxParticipants())
+                .occupiedSeats(d.getOccupiedSeats())
+                .occupancyPercent(d.getOccupancyPercent())
+                .remainingLabel(d.getAvailableSeats() > 0 ? "남은 자리 " + d.getAvailableSeats() + "명" : "정원 마감")
+                .build();
+    }
+
+    private Selection individualSelection(Member member) {
+        return new Selection("개인 신청", member.getNickname(), member.getPhone(), INDIVIDUAL, 1,
+                List.of(new Person(member.getNickname(), "신청자")));
+    }
+
+    /** RCPT-20261027-XXXXXXXX (헷갈리는 0·O·1·I 제외). uk_match_application_receipt로 중복은 DB가 막는다. */
+    private String newReceiptNo(LocalDateTime now) {
+        StringBuilder sb = new StringBuilder("RCPT-").append(now.format(RECEIPT_DATE)).append('-');
+        for (int i = 0; i < 8; i++) {
+            sb.append(RECEIPT_CHARS.charAt(RANDOM.nextInt(RECEIPT_CHARS.length())));
+        }
+        return sb.toString();
+    }
+}
