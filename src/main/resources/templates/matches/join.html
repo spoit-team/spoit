@@ -17,8 +17,9 @@
 
   <ol class="match-join-stepper" aria-label="신청 진행 단계">
     <li data-step-indicator="1" th:classappend="${completed} ? 'is-done' : 'is-current'" th:aria-current="${completed ? null : 'step'}"><span class="step-number" th:text="${completed} ? '✓' : '1'">1</span><span><b>신청 내용</b><small>참가자 확인</small></span></li>
-    <li data-step-indicator="2" th:classappend="${completed} ? 'is-done' : ''"><span class="step-number" th:text="${completed} ? '✓' : '2'">2</span><span><b>결제 안내</b><small>비용 확인</small></span></li>
-    <li data-step-indicator="3" th:classappend="${completed} ? 'is-current' : ''" th:aria-current="${completed ? 'step' : null}"><span class="step-number" th:text="${completed} ? '✓' : '3'">3</span><span><b>신청 완료</b><small>접수 결과</small></span></li>
+    <!-- 결제 안내 단계: 무료 결제만 지원하는 동안 숨긴다. 결제 연동 시 hidden을 지우고 신청 완료 번호를 3으로 되돌린다. -->
+    <li data-step-indicator="2" hidden th:classappend="${completed} ? 'is-done' : ''"><span class="step-number" th:text="${completed} ? '✓' : '2'">2</span><span><b>결제 안내</b><small>비용 확인</small></span></li>
+    <li data-step-indicator="3" th:classappend="${completed} ? 'is-current' : ''" th:aria-current="${completed ? 'step' : null}"><span class="step-number" th:text="${completed} ? '✓' : '2'">2</span><span><b>신청 완료</b><small>접수 결과</small></span></li>
   </ol>
 
   <div th:if="${unavailableMessage != null}" class="join-unavailable">
@@ -33,7 +34,7 @@
       <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
       <div class="join-workflow-topline">
         <div><span class="join-workflow-kicker">MATCH APPLICATION</span><h2 id="stage-heading" tabindex="-1">신청 내용을 확인해 주세요</h2></div>
-        <span id="stage-index" class="join-stage-index">STEP 01 / 03</span>
+        <span id="stage-index" class="join-stage-index">STEP 01 / 02</span>
       </div>
 
       <section class="join-stage" data-step-panel="1" aria-labelledby="apply-heading">
@@ -59,7 +60,7 @@
         <p id="join-error" class="join-error" role="alert" hidden></p>
         <div class="join-stage-actions">
           <a th:href="@{/matches/{matchId}(matchId=${match.matchId})}" class="join-button join-button-quiet">참가 인원 다시 선택</a>
-          <button id="continue-button" type="button" class="join-button join-button-primary" th:disabled="${!canReserve}">결제 안내로 <span aria-hidden="true">→</span></button>
+          <button id="continue-button" type="submit" class="join-button join-button-primary" th:disabled="${!canReserve}">참가 신청하기</button>
         </div>
       </section>
 

@@ -30,6 +30,12 @@ public interface MatchMapper {
     List<ParticipantRow> findParticipants(@Param("matchIds") List<Long> matchIds,
                                           @Param("statuses") List<String> statuses);
 
+    /** 확정 대기 중인 개인 신청자를 참가자 행 모양으로 조회 (participantId·matchSide·entryMmr는 null) */
+    List<ParticipantRow> findPendingApplicants(@Param("matchIds") List<Long> matchIds,
+                                               @Param("waitingStatus") String waitingStatus,
+                                               @Param("individualType") String individualType,
+                                               @Param("participationStatus") String participationStatus);
+
     /** 매칭방 한 건 (없거나 시설이 삭제됐으면 null) */
     MatchDetailRow findMatchDetail(@Param("matchId") long matchId);
 
