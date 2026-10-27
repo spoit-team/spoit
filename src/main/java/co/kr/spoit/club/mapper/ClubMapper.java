@@ -6,6 +6,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import co.kr.spoit.club.domain.ClubMember;
+import co.kr.spoit.club.domain.ClubRegionOption;
+import co.kr.spoit.club.domain.ClubSportOption;
 import co.kr.spoit.club.domain.ClubSummary;
 
 @Mapper 
@@ -21,4 +23,9 @@ public interface ClubMapper {
     ClubSummary selectClubDetail(@Param("clubId") Long clubId);
 
     List<ClubMember> selectClubMembers(@Param("clubId") Long clubId);
+
+    List<ClubRegionOption> selectClubRegionOptions();
+
+    List<ClubSportOption> selectClubSportOptions();
+
 }

@@ -7,6 +7,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import co.kr.spoit.club.domain.ClubMember;
+import co.kr.spoit.club.domain.ClubRegionOption;
+import co.kr.spoit.club.domain.ClubSportOption;
 import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubDetailResponse;
@@ -42,5 +44,15 @@ public class ClubServiceImpl implements ClubService {
         List<ClubMember> members = clubMapper.selectClubMembers(clubId);
         return ClubDetailResponse.from(club, members);
     }
+
+    @Override 
+    public List<ClubSportOption> findSportOptions(){
+        return clubMapper.selectClubSportOptions();
     }
+
+    @Override 
+    public List<ClubRegionOption> findRegionOptions(){
+        return clubMapper.selectClubRegionOptions();
+    }
+}
 

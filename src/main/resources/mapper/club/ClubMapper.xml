@@ -81,4 +81,14 @@
         ORDER BY (m.role = '동호회장') DESC, m.joined_at ASC
     </select>
 
+    <select id="selectClubSportOptions" resultType="co.kr.spoit.club.domain.ClubSportOption">
+        SELECT sport_id AS sportId, name AS name FROM sport ORDER BY sport_id
+    </select>
+
+    <select id="selectClubRegionOptions" resultType="co.kr.spoit.club.domain.ClubRegionOption">
+        SELECT region_id AS regionId, name AS name
+        FROM region
+        WHERE parent_region_id IS NOT NULL
+        ORDER BY name
+    </select>
     </mapper>

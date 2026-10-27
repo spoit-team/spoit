@@ -10,7 +10,6 @@ import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
-import co.kr.spoit.club.service.ClubService;
 import co.kr.spoit.club.service.ClubServiceImpl;
 
 import java.time.LocalDateTime;

@@ -37,4 +37,14 @@ public class ClubController {
         model.addAttribute("club", clubService.findClubDetail(clubId));
         return "teams/detail";
     }
+
+    @GetMapping("/teams/manage")
+    public String teamManage(Model model) {
+        model.addAttribute("tab", "team");
+        model.addAttribute("managedClubs", List.of());
+        model.addAttribute("managedClub", null);
+        model.addAttribute("sports", clubService.findSportOptions());
+        model.addAttribute("districts", clubService.findRegionOptions());
+        return "teams/manage";
+    }
 }
