@@ -83,11 +83,26 @@ class MyReservationServiceTest {
         assertThat(entry.getSeatLine()).isEqualTo("참가 4명");
     }
 
+    @Test
+    @DisplayName("취소 버튼은 본인 신청 + 모집 중 + 경기 전일 때만 보인다")
+    void cancelOnlyForOwnRecruitingApplications() {
+        MyApplicationRow mine = row(1L, "대기", "모집 중", NOW.plusDays(1), null);
+        MyApplicationRow assigned = row(2L, "확정", "매칭 완료", NOW.plusDays(1), "A");
+        MyApplicationRow clubMember = row(3L, "확정", "모집 중", NOW.plusDays(1), null);
+        clubMember.setApplicantUserId(99L);
+        given(mapper.findMyApplications(eq(USER_ID), anyList())).willReturn(List.of(mine, assigned, clubMember));
+
+        List<Entry> current = service.find(USER_ID, NOW).getCurrent();
+
+        assertThat(current).extracting(Entry::isCanCancel).containsExactly(true, false, false);
+    }
+
     private static MyApplicationRow row(long applicationId, String status, String matchStatus,
                                         LocalDateTime startAt, String side) {
         MyApplicationRow r = new MyApplicationRow();
         r.setApplicationId(applicationId);
         r.setMatchId(100L + applicationId);
+        r.setApplicantUserId(USER_ID);
         r.setApplicationType("개인");
         r.setStatus(status);
         r.setTitle("매칭방 " + applicationId);

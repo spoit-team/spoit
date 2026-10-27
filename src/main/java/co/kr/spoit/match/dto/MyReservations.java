@@ -35,7 +35,7 @@ public class MyReservations {
         private final String metaLine;
         private final String seatLine;
         private final String statusNote;
-        /** 신청 취소는 별도 구현 전까지 false */
+        /** 신청자 본인 + 모집 중 + 경기 시작 전일 때만 true */
         private final boolean canCancel;
         private final String cancelLabel;
         /** 무료 결제만 지원하므로 false */

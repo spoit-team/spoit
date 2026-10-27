@@ -83,6 +83,30 @@
            AND status = #{waitingStatus}
     </update>
 
+    <update id="markCancelled">
+        UPDATE match_application
+           SET status = #{cancelledStatus},
+               cancelled_at = #{now},
+               cancelled_by = #{cancelledBy}
+         WHERE application_id = #{applicationId}
+           AND status IN
+               <foreach collection="activeStatuses" item="st" open="(" separator="," close=")">
+                   #{st}
+               </foreach>
+    </update>
+
+    <!-- 상태가 바뀌면 active_match_user가 NULL이 되어 같은 매치에 다시 신청할 수 있다 -->
+    <update id="cancelParticipants">
+        UPDATE match_participant
+           SET participation_status = #{cancelledStatus},
+               cancelled_at = #{now}
+         WHERE application_id = #{applicationId}
+           AND participation_status IN
+               <foreach collection="occupyingStatuses" item="st" open="(" separator="," close=")">
+                   #{st}
+               </foreach>
+    </update>
+
     <!--
       RES-06 내 신청 내역. 동호회 신청이면 신청자는 동호회장이므로, 참가자로 포함된 신청도 함께 가져온다.
       지난 기록이라 삭제된 시설의 매칭도 포함한다.
@@ -90,6 +114,7 @@
     <select id="findMyApplications" resultType="co.kr.spoit.match.dto.MyApplicationRow">
         SELECT ma.application_id,
                ma.match_id,
+               ma.applicant_user_id,
                ma.application_type,
                ma.status,
                ma.created_at,

@@ -31,7 +31,7 @@ import co.kr.spoit.member.mapper.MemberMapper;
 import lombok.RequiredArgsConstructor;
 
 /**
- * RES-03 개인 참가 신청.
+ * RES-03 개인 참가 신청, RES-05 신청 취소.
  *
  * <p>신청은 match_application(대기)에만 쌓고, match_participant 행은 확정 시점에
  * application_id로 연결해 만든다. 화면에 보이는 참가자는 확정된 행이다.</p>
@@ -151,6 +151,40 @@ public class MatchApplicationService {
                 .orElse(DEFAULT_MMR);
         applicationMapper.insertParticipant(applicationId, application.getMatchId(),
                 application.getApplicantUserId(), ParticipationStatus.CONFIRMED.dbValue(), entryMmr, now);
+    }
+
+    /**
+     * RES-05 신청 취소 (신청자 본인). 확정된 신청이면 연결된 참가자 행도 함께 취소해 정원을 돌려준다.
+     * 팀 배정이 끝난 매치는 팀 구성·팀장이 깨지므로 받지 않는다.
+     */
+    @Transactional
+    public void cancel(long applicationId, long userId) {
+        LocalDateTime now = LocalDateTime.now(ZONE);
+        MatchApplication application = applicationMapper.findById(applicationId);
+        if (application == null || application.getApplicantUserId() != userId) {
+            throw new MatchApplyException("취소할 수 있는 신청이 아닙니다.");
+        }
+        // 신청 접수·확정과 같은 순서(매칭방 → 신청)로 잠근다.
+        MatchRow match = applicationMapper.lockMatch(application.getMatchId());
+        if (match == null) {
+            throw new MatchApplyException("매칭방 정보를 찾을 수 없습니다.");
+        }
+        if (MatchStatus.MATCHED.dbValue().equals(match.getStatus())) {
+            throw new MatchApplyException("팀 배정이 끝난 매치는 취소할 수 없습니다. 시설에 문의해 주세요.");
+        }
+        if (!MatchStatus.RECRUITING.dbValue().equals(match.getStatus())) {
+            throw new MatchApplyException("취소할 수 없는 매칭방입니다.");
+        }
+        if (!match.getStartAt().isAfter(now)) {
+            throw new MatchApplyException("이미 시작한 경기는 취소할 수 없습니다.");
+        }
+        int updated = applicationMapper.markCancelled(applicationId, ApplicationStatus.activeValues(),
+                ApplicationStatus.CANCELLED.dbValue(), userId, now);
+        if (updated == 0) {
+            throw new MatchApplyException("이미 취소되었거나 처리된 신청입니다.");
+        }
+        applicationMapper.cancelParticipants(applicationId, ParticipationStatus.occupyingValues(),
+                ParticipationStatus.CANCELLED.dbValue(), now);
     }
 
     /** 완료 화면. 본인 신청이 아니거나 다른 매칭방 접수 번호면 empty */

@@ -61,7 +61,7 @@ public class MyReservationService {
 
         for (MyApplicationRow row : rows) {
             State state = classify(row, now);
-            Entry entry = toEntry(row, state, today);
+            Entry entry = toEntry(row, state, canCancel(row, state, userId, now), today);
             if (state.current) {
                 current.add(entry);
             } else {
@@ -102,7 +102,18 @@ public class MyReservationService {
         return ended || closed ? State.COMPLETED : State.CONFIRMED;
     }
 
-    private Entry toEntry(MyApplicationRow row, State state, LocalDate today) {
+    /**
+     * 취소 버튼 노출 조건. 실제 판단은 MatchApplicationService.cancel이 잠금 후 다시 한다.
+     * 동호회 신청에 참가자로만 들어간 회원은 신청 전체를 취소할 수 없다.
+     */
+    private boolean canCancel(MyApplicationRow row, State state, long userId, LocalDateTime now) {
+        return state.current
+                && Long.valueOf(userId).equals(row.getApplicantUserId())
+                && MatchStatus.RECRUITING.dbValue().equals(row.getMatchStatus())
+                && row.getStartAt().isAfter(now);
+    }
+
+    private Entry toEntry(MyApplicationRow row, State state, boolean canCancel, LocalDate today) {
         boolean individual = ApplicationType.INDIVIDUAL.dbValue().equals(row.getApplicationType());
         String metaLine = MatchCardAssembler.dateLabel(row.getStartAt().toLocalDate(), today)
                 + " " + row.getStartAt().format(TIME) + "~" + row.getEndAt().format(TIME)
@@ -124,7 +135,7 @@ public class MyReservationService {
                 metaLine,
                 seatLine,
                 statusNote(row, state),
-                false,
+                canCancel,
                 "신청 취소",
                 false,
                 null);

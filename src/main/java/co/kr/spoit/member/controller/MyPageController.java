@@ -12,6 +12,7 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.logout.CookieClearingLogoutHandler;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -19,12 +20,15 @@ import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import co.kr.spoit.mat.dto.SportRatingResponse;
 import co.kr.spoit.mat.service.SportRatingService;
 import co.kr.spoit.match.dto.MyReservations;
+import co.kr.spoit.match.service.MatchApplicationService;
+import co.kr.spoit.match.service.MatchApplyException;
 import co.kr.spoit.match.service.MyReservationService;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.domain.MemberPrincipal;
@@ -59,6 +63,7 @@ public class MyPageController {
     private final MemberService memberService;
     private final SportRatingService sportRatingService;
     private final MyReservationService reservationService;
+    private final MatchApplicationService applicationService;
 
     /** 폼 바인딩 대상 필드를 제한해 의도하지 않은 값 주입을 막는다. */
     @InitBinder("profileUpdateForm")
@@ -74,7 +79,13 @@ public class MyPageController {
 
     /** 마이페이지 요약 화면. 비로그인 상태는 세션 주체가 없어 빈 값으로 렌더링된다. */
     @GetMapping("/mypage")
-    public String myPage(Authentication authentication, Model model) {
+    public String myPage(Authentication authentication, HttpServletRequest request, Model model,
+            @RequestParam(name = "message", required = false) String message) {
+        // 신청 취소 폼이 있으므로 지연 생성되는 CSRF 토큰을 렌더링 전에 확정한다.
+        // standalone MockMvc에서는 시큐리티 필터가 없어 속성이 비어 있을 수 있다.
+        if (request.getAttribute(CsrfToken.class.getName()) instanceof CsrfToken csrfToken) {
+            csrfToken.getToken();
+        }
         MemberPrincipal principal = principalOf(authentication);
         Long userId = principal == null ? null : principal.getUserId();
         MyReservations reservations = (userId == null || userId <= 0)
@@ -93,8 +104,25 @@ public class MyPageController {
         model.addAttribute("currentReservations", reservations.getCurrent());
         model.addAttribute("pastReservations", reservations.getPast());
         model.addAttribute("notifications", EMPTY_LIST);
-        model.addAttribute("message", null);
+        model.addAttribute("message", blankToNull(message));
         return "mypage/index";
+    }
+
+    /** RES-05 신청 취소. 결과는 성공·실패 모두 마이페이지 상단 안내 영역에 보여 준다. */
+    @PostMapping("/mypage/applications/{applicationId}/cancel")
+    public String cancelApplication(@PathVariable long applicationId, Authentication authentication) {
+        MemberPrincipal principal = principalOf(authentication);
+        if (principal == null) {
+            return "redirect:/login";
+        }
+        String message;
+        try {
+            applicationService.cancel(applicationId, principal.getUserId());
+            message = "신청을 취소했습니다.";
+        } catch (MatchApplyException exception) {
+            message = exception.getMessage();
+        }
+        return "redirect:/mypage?message=" + URLEncoder.encode(message, StandardCharsets.UTF_8) + "#reservations";
     }
 
     /** 템플릿이 참조하는 회원 표시값만 담는다. */

@@ -14,6 +14,8 @@ public class MyApplicationRow {
 
     private Long applicationId;
     private Long matchId;
+    /** 신청자 본인만 취소할 수 있다 (동호회 신청이면 동호회장) */
+    private Long applicantUserId;
     private String applicationType;
     /** match_application.status */
     private String status;
