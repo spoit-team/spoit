@@ -3,12 +3,12 @@
 -- Decimal boundary values test DECIMAL(8,2) mapping, not an approved rating policy.
 
 INSERT INTO app_user (
-    user_id, email, password_hash, nickname, phone, role, status, created_at
+    user_id, email, password_hash, nickname, phone, role, created_at
 ) VALUES
     (1, 'mat-user-1@example.invalid', 'TEST_ONLY_NOT_A_PASSWORD_HASH',
-     'MAT 테스트 회원 1', '010-0000-0001', 'USER', 'ACTIVE', '2026-10-20 09:00:00'),
+     'MAT 테스트 회원 1', '010-0000-0001', 'USER', '2026-10-20 09:00:00'),
     (2, 'mat-user-2@example.invalid', 'TEST_ONLY_NOT_A_PASSWORD_HASH',
-     'MAT 테스트 회원 2', '010-0000-0002', 'USER', 'ACTIVE', '2026-10-20 09:00:00');
+     'MAT 테스트 회원 2', '010-0000-0002', 'USER', '2026-10-20 09:00:00');
 
 INSERT INTO sport (sport_id, name) VALUES
     (1, 'MAT 테스트 종목 1'),
