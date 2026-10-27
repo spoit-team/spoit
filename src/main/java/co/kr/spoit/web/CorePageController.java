@@ -5,21 +5,31 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
+import co.kr.spoit.facility.service.FacilityService;
+import co.kr.spoit.member.domain.MemberPrincipal;
+
 /**
  * 주요 화면 템플릿을 렌더링하는 GET 전용 페이지 컨트롤러이다.
  *
- * <p>서비스/DB 연동 전이라 각 화면이 요구하는 모델 속성을 빈 값·기본값으로 채워
- * "데이터가 없는 현재 상태"를 표현한다. 실제 조회와 상태 변경(POST)은 이후 서비스 계층에서 담당한다.</p>
+ * <p>서비스/DB 연동 전인 화면은 모델 속성을 빈 값·기본값으로 채워 "데이터가 없는 현재 상태"를
+ * 표현한다. 시설 관리 화면의 담당 시설 목록은 로그인한 시설 관리자의 ID로 서비스에서 조회한다.</p>
  */
 @Controller
 public class CorePageController {
 
     /** 여러 화면이 공유하는 불변 빈 목록이다. */
     private static final List<Object> EMPTY_LIST = Collections.emptyList();
+
+    private final FacilityService facilityService;
+
+    public CorePageController(FacilityService facilityService) {
+        this.facilityService = facilityService;
+    }
 
     /* ------------------------------------------------------------------
      * 인증 화면: 로그인은 MemberAuthController, 회원가입은 MemberSignupController가 담당한다.
@@ -37,9 +47,12 @@ public class CorePageController {
      * 관리자 화면: 공통 셸(addAdminShell) 위에 화면별 빈 모델을 얹는다. 관리자 인증은 아직 없다.
      * ------------------------------------------------------------------ */
 
-    /** 시설 관리 화면을 렌더링한다. 여러 탭이 쓰는 속성을 빈 값으로 초기화하며 기본 보기는 dashboard이다. */
+    /**
+     * 시설 관리 화면을 렌더링한다. 담당 시설은 인증 주체의 회원 ID로만 조회하며,
+     * 나머지 탭 속성은 아직 빈 값으로 초기화한다. 기본 보기는 dashboard이다.
+     */
     @GetMapping("/admin/facility")
-    public String adminFacility(Model model) {
+    public String adminFacility(@AuthenticationPrincipal MemberPrincipal principal, Model model) {
         addAdminShell(model);
         // view는 서버 상태가 아니라 뷰의 기본 선택값이다.
         model.addAttribute("view", "dashboard");
@@ -47,7 +60,8 @@ public class CorePageController {
         model.addAttribute("todayLabel", null);
         model.addAttribute("chartCollectedAt", null);
         model.addAttribute("dashboard", null);
-        model.addAttribute("facilities", EMPTY_LIST);
+        model.addAttribute("facilities", facilityService.findManagedFacilities(
+                principal == null ? null : principal.getUserId()));
         model.addAttribute("selectedFacility", null);
         model.addAttribute("weeklyHours", EMPTY_LIST);
         model.addAttribute("hourOptions", EMPTY_LIST);

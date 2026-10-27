@@ -123,29 +123,21 @@ class MemberSignupControllerTest {
     }
 
     @Test
-    @DisplayName("회원가입 화면은 지역 선택지를 모델에 담아 렌더링한다")
-    void signupPageRendersRegions() throws Exception {
+    @DisplayName("회원가입 화면은 지역·종목 선택지를 모델에 담아 렌더링한다")
+    void signupPageRendersOptions() throws Exception {
         SignupRegion region = new SignupRegion();
         region.setRegionId(7L);
         region.setName("강남구");
-        given(memberMapper.findSignupRegions()).willReturn(List.of(region));
-
-        mockMvc.perform(get("/signup"))
-                .andExpect(status().isOk())
-                .andExpect(view().name("auth/signup"))
-                .andExpect(model().attribute("districts", List.of(region)));
-    }
-
-    @Test
-    @DisplayName("가입 화면은 종목 선택지를 모델에 담아 렌더링한다")
-    void signupPageRendersSports() throws Exception {
         SportOption sport = new SportOption();
         sport.setSportId(2L);
         sport.setName("풋살");
+        given(memberMapper.findSignupRegions()).willReturn(List.of(region));
         given(memberMapper.findSports()).willReturn(List.of(sport));
 
         mockMvc.perform(get("/signup"))
                 .andExpect(status().isOk())
+                .andExpect(view().name("auth/signup"))
+                .andExpect(model().attribute("districts", List.of(region)))
                 .andExpect(model().attribute("sports", List.of(sport)));
     }
 

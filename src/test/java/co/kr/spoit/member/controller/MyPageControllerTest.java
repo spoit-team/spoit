@@ -82,7 +82,6 @@ class MyPageControllerTest {
     @DisplayName("로그인 회원은 마이페이지에서 본인 닉네임과 이메일을 본다")
     void myPageShowsOwnIdentity() throws Exception {
         given(memberService.findRegions(USER_ID)).willReturn(List.of());
-        given(memberService.findSports()).willReturn(List.of(sportOption(2L, "농구")));
         given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.empty());
 
         mockMvc.perform(get("/mypage").with(principal()))
@@ -169,11 +168,12 @@ class MyPageControllerTest {
     }
 
     @Test
-    @DisplayName("로그인 회원은 프로필 수정 화면에서 본인 정보를 본다")
+    @DisplayName("로그인 회원은 프로필 수정 화면에서 본인 정보와 지역 선택지를 본다")
     void profileShowsOwnIdentity() throws Exception {
         given(memberService.findRegions(USER_ID))
                 .willReturn(List.of(region(11L, "강남구"), region(12L, "송파구")));
-        given(memberService.findSignupRegions()).willReturn(List.of(region(11L, "강남구")));
+        given(memberService.findSignupRegions())
+                .willReturn(List.of(region(11L, "강남구"), region(12L, "송파구")));
         given(memberService.findSports()).willReturn(List.of(sportOption(2L, "농구")));
         given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.of(sportOption(2L, "농구")));
 
@@ -183,19 +183,7 @@ class MyPageControllerTest {
                 .andExpect(model().attribute("profile", hasEntry("email", EMAIL)))
                 .andExpect(model().attribute("profile", hasEntry("phone", PHONE)))
                 .andExpect(model().attribute("profile", hasEntry("regionId", 11L)))
-                .andExpect(model().attribute("profile", hasEntry("representativeSportId", 2L)));
-    }
-
-    @Test
-    @DisplayName("프로필 화면은 저장된 지역을 선택할 수 있도록 자치구 선택지를 채운다")
-    void profileFillsRegionOptions() throws Exception {
-        given(memberService.findRegions(USER_ID)).willReturn(List.of(region(11L, "강남구")));
-        given(memberService.findSignupRegions()).willReturn(List.of(region(11L, "강남구"), region(12L, "송파구")));
-        given(memberService.findSports()).willReturn(List.of(sportOption(2L, "농구")));
-        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.empty());
-
-        mockMvc.perform(get("/mypage/profile").with(principal()))
-                .andExpect(status().isOk())
+                .andExpect(model().attribute("profile", hasEntry("representativeSportId", 2L)))
                 .andExpect(model().attribute("districts", hasSize(2)));
     }
 
@@ -231,8 +219,6 @@ class MyPageControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("mypage/profile"))
                 .andExpect(model().attributeExists("error"));
-
-        // 서비스가 예외로 저장을 거부했으므로 저장 성공 경로는 실행되지 않는다.
     }
 
     @Test
