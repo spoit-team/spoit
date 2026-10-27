@@ -9,6 +9,7 @@ import org.apache.ibatis.annotations.Param;
 
 import co.kr.spoit.match.domain.MatchApplication;
 import co.kr.spoit.match.dto.MatchRow;
+import co.kr.spoit.match.dto.MyApplicationRow;
 
 @Mapper
 public interface MatchApplicationMapper {
@@ -38,6 +39,10 @@ public interface MatchApplicationMapper {
                       @Param("waitingStatus") String waitingStatus,
                       @Param("confirmedStatus") String confirmedStatus,
                       @Param("now") LocalDateTime now);
+
+    /** RES-06 내 신청 내역: 내가 낸 신청 + 내가 참가자로 들어간 신청 (경기 시작 순) */
+    List<MyApplicationRow> findMyApplications(@Param("userId") long userId,
+                                              @Param("participantStatuses") List<String> participantStatuses);
 
     /** 확정 시점에만 호출: application_id로 신청과 연결된 참가자 행 */
     int insertParticipant(@Param("applicationId") long applicationId,

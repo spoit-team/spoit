@@ -83,6 +83,42 @@
            AND status = #{waitingStatus}
     </update>
 
+    <!--
+      RES-06 내 신청 내역. 동호회 신청이면 신청자는 동호회장이므로, 참가자로 포함된 신청도 함께 가져온다.
+      지난 기록이라 삭제된 시설의 매칭도 포함한다.
+    -->
+    <select id="findMyApplications" resultType="co.kr.spoit.match.dto.MyApplicationRow">
+        SELECT ma.application_id,
+               ma.match_id,
+               ma.application_type,
+               ma.status,
+               ma.created_at,
+               sm.title,
+               s.name    AS sport_name,
+               f.name    AS facility_name,
+               sm.start_at,
+               sm.end_at,
+               sm.status AS match_status,
+               mine.match_side,
+               (SELECT COUNT(*)
+                  FROM match_participant p
+                 WHERE p.application_id = ma.application_id
+                   AND p.participation_status IN
+                       <foreach collection="participantStatuses" item="st" open="(" separator="," close=")">
+                           #{st}
+                       </foreach>) AS participant_count
+          FROM match_application ma
+          JOIN social_match sm ON sm.match_id = ma.match_id
+          JOIN facility f      ON f.facility_id = sm.facility_id
+          JOIN sport s         ON s.sport_id = sm.sport_id
+          LEFT JOIN match_participant mine
+                 ON mine.application_id = ma.application_id
+                AND mine.user_id = #{userId}
+         WHERE ma.applicant_user_id = #{userId}
+            OR mine.participant_id IS NOT NULL
+         ORDER BY sm.start_at, ma.application_id
+    </select>
+
     <insert id="insertParticipant">
         INSERT INTO match_participant (application_id, match_id, user_id,
                                        participation_status, entry_mmr, joined_at)
