@@ -91,6 +91,20 @@ class MemberServiceImplUpdateProfileTest {
     }
 
     @Test
+    @DisplayName("종목과 지역이 모두 잘못되면 종목을 먼저 검증하고 지역은 조회하지 않는다")
+    void validatesSportBeforeRegion() {
+        stubExists(false, false);
+
+        assertThatThrownBy(() -> memberService.updateProfile(USER_ID, form(NICKNAME, PHONE, 9999L, 9999L)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("선택한 종목을 찾을 수 없습니다.");
+
+        verify(memberMapper).sportExists(9999L);
+        verify(memberMapper, never()).regionExists(anyLong());
+        verify(memberMapper, never()).updateProfileBasics(anyLong(), anyString(), anyString());
+    }
+
+    @Test
     @DisplayName("닉네임 형식 위반이면 어떤 쓰기도 수행하지 않는다")
     void rejectsInvalidNickname() {
         assertThatThrownBy(() -> memberService.updateProfile(USER_ID, form("!", PHONE, SPORT_ID, REGION_ID)))

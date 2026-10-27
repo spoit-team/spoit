@@ -180,14 +180,10 @@
     if (notificationModal && target === notificationModal) closeNotificationModal();
   });
 
-  document.addEventListener('keydown', function (event) {
-    if (!notificationModal || notificationModal.hidden) return;
-    if (event.key === 'Escape') {
-      closeNotificationModal();
-      return;
-    }
-    if (event.key !== 'Tab') return;
-    const focusable = Array.from(notificationModal.querySelectorAll('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled)'));
+  /* 모달 내부 포커스 트랩: Escape는 호출부에서 먼저 처리하고, Tab/Shift+Tab만 순환시킵니다. */
+  function trapModalFocus(modal, event) {
+    if (!modal || modal.hidden || event.key !== 'Tab') return;
+    const focusable = Array.from(modal.querySelectorAll('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled)'));
     if (!focusable.length) return;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
@@ -198,6 +194,15 @@
       event.preventDefault();
       first.focus();
     }
+  }
+
+  document.addEventListener('keydown', function (event) {
+    if (!notificationModal || notificationModal.hidden) return;
+    if (event.key === 'Escape') {
+      closeNotificationModal();
+      return;
+    }
+    trapModalFocus(notificationModal, event);
   });
 
   /* 파괴적 작업 확인: 서버 폼 제출 전에 한 번 더 확인합니다. */
@@ -226,21 +231,10 @@
       modalOpener = null;
     },
     trapFocus: function (modal, event) {
-      if (!modal || modal.hidden || event.key !== 'Tab') return;
-      const focusable = Array.from(modal.querySelectorAll('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled)'));
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
+      trapModalFocus(modal, event);
     }
   };
 
   syncSidebarForViewport();
   showView(viewFromLocation(), Boolean(document.body.dataset.view));
-})();
+})(window);
