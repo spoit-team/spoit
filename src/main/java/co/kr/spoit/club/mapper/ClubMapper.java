@@ -36,4 +36,8 @@ public interface ClubMapper {
     int insertClub(Club club);
     int insertClubRegion(@Param ("clubId") Long clubId, @Param ("regionId") Long regionId);
     int insertClubMember(@Param ("clubId") Long clubId, @Param ("userId") Long userId);
+
+    List<ClubSummary> selectMyClubs(@Param ("userId") Long userId);
+
+    boolean existsActiveMember(@Param ("clubId") Long clubId, @Param ("userId") Long userId);
 }
