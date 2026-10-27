@@ -19,9 +19,13 @@ import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@RequiredArgsConstructor
 @Transactional(readOnly = true)
+@Slf4j
 public class ClubServiceImpl implements ClubService {
 
     private final ClubMapper clubMapper;
@@ -29,13 +33,9 @@ public class ClubServiceImpl implements ClubService {
     private static final int INTRO_MAX_LENGTH = 240;
     private static final int MIN_MEMBERS = 2;
     private static final int MAX_MEMBERS = 30;
-    private static final String DUPLICATE_NAME_MESSAGE = "이미 사용 중인 팀이름입니다.";
-
-    public ClubServiceImpl(ClubMapper clubMapper) {
-        this.clubMapper = clubMapper;
-    }
 
     @Override
+    // 최신순 전체 조회(검색 미구현)
     public List<ClubCardResponse> findClubCards() {
         List<ClubSummary> clubs = clubMapper.selectClubSummaryList(null, null, null, false, "recent");
 
@@ -50,6 +50,7 @@ public class ClubServiceImpl implements ClubService {
     public ClubDetailResponse findClubDetail(Long clubId) {
         ClubSummary club = clubMapper.selectClubDetail(clubId);
         if (club == null) {
+            log.info("없는 동호회 조회: clubId={}", clubId);
             return null;
         }
         List<ClubMember> members = clubMapper.selectClubMembers(clubId);
@@ -68,7 +69,7 @@ public class ClubServiceImpl implements ClubService {
 
     @Override
     @Transactional
-    public Long createClub(Long userId, ClubCreateForm form) {
+    public Long createClub(Long userId, ClubCreateForm form) throws ClubNameExistException {
         if (userId == null) {
             throw new IllegalArgumentException("로그인이 필요합니다.");
         }
@@ -76,6 +77,7 @@ public class ClubServiceImpl implements ClubService {
             throw new IllegalArgumentException("입력 정보를 확인해 주세요.");
         }
 
+        // 1. 브라우저 입력 정리, 검사
         String clubName = trim(form.getClubName());
         if (clubName.isEmpty() || clubName.length() > NAME_MAX_LENGTH) {
             throw new IllegalArgumentException("팀 이름은 1~30자로 입력해 주세요.");
@@ -94,10 +96,12 @@ public class ClubServiceImpl implements ClubService {
         if (start == null || end == null) {
             throw new IllegalArgumentException("활동 시작 시간과 종료 시간을 입력해주세요.");
         }
+        // 익일로 넘김, 같은 시각만 거부
         if (start.equals(end)) {
             throw new IllegalArgumentException("활동 시작 시간과 종료시간이 같을 수 없습니다.");
         }
 
+        // 2. 종목,지역 조회 및 활성 동호회 이름 중복 검사
         if (form.getSportId() == null || !clubMapper.existsSport(form.getSportId())) {
             throw new IllegalArgumentException("선택한 종목을 찾을 수 없습니다.");
         }
@@ -105,28 +109,35 @@ public class ClubServiceImpl implements ClubService {
             throw new IllegalArgumentException("선택한 지역을 찾을 수 없습니다.");
         }
         if (clubMapper.existsActiveClubName(clubName)) {
-            throw new IllegalArgumentException(DUPLICATE_NAME_MESSAGE);
+            throw new ClubNameExistException();
         }
 
-        Club club = new Club();
-        club.setSportId(form.getSportId());
-        club.setClubName(clubName);
-        club.setIntro(intro);
-        club.setMaxMembers(maxMembers);
-        club.setActivityDays(activityDays);
-        club.setActivityStartTime(start);
-        club.setActivityEndTime(end);
+        // 3. 저장(동호회,지역,동호회장 순서, 모두 성공해야 함)
+        Club club = Club.builder()
+                .sportId(form.getSportId())
+                .clubName(clubName)
+                .intro(intro)
+                .maxMembers(maxMembers)
+                .activityDays(activityDays)
+                .activityStartTime(start)
+                .activityEndTime(end)
+                .build();
+        log.info("동호회 저장 직전: {}", club);
 
         try {
             clubMapper.insertClub(club);
         } catch (DuplicateKeyException exception) {
-            throw new IllegalArgumentException(DUPLICATE_NAME_MESSAGE, exception);
+            // 동시에 같은 이름을 만들면 UK로 막음
+            log.warn("동호회 이름 동시 저장 충돌: {}", clubName);
+            throw new ClubNameExistException();
         }
         clubMapper.insertClubRegion(club.getClubId(), form.getRegionId());
         clubMapper.insertClubMember(club.getClubId(), userId);
+        log.info("동호회 저장 완료: clubId={}, userId={}", club.getClubId(), userId);
         return club.getClubId();
     }
 
+    // 요일 번호(1~7)를 "1,3" 형태로 만듬
     private static String normalizeDays(List<Integer> days) {
         if (days == null || days.isEmpty()) {
             throw new IllegalArgumentException("정기 활동 요일을 하나 이상 선택해 주세요.");
@@ -146,6 +157,7 @@ public class ClubServiceImpl implements ClubService {
 
     }
 
+    // null도 빈 문자열로 바꿔서 빈 값 검사함
     private static String trim(String value) {
         return value == null ? "" : value.trim();
     }

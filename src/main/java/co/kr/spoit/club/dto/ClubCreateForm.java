@@ -5,11 +5,9 @@ import java.util.List;
 
 import org.springframework.format.annotation.DateTimeFormat;
 
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Data;
 
-@Getter 
-@Setter 
+@Data
 public class ClubCreateForm {
 
     private String clubName;
@@ -20,11 +18,10 @@ public class ClubCreateForm {
 
     private List<Integer> activityDays;
 
-    @DateTimeFormat (pattern = "HH:mm")
+    @DateTimeFormat(pattern = "HH:mm")
     private LocalTime activityStartTime;
 
-    @DateTimeFormat (pattern = "HH:mm")
+    @DateTimeFormat(pattern = "HH:mm")
     private LocalTime activityEndTime;
 
-   
 }

@@ -4,6 +4,7 @@ import co.kr.spoit.club.domain.ClubSummary;
 
 class ClubFormat {
 
+    // 요일 번호 1=월 ~ 7=일 (0은 비워둠)
     private static final String[] DAYS = {"", "월", "화", "수", "목", "금", "토", "일"};
 
     static boolean isRecruiting(String recruitStatus) {
@@ -18,6 +19,7 @@ class ClubFormat {
         return name.length() <= 2? name : name.substring(0, 2);
     }
 
+    // 종료가 시작보다 빠르면 "익일"
     static String time(ClubSummary club) {
         String[] numbers = club.getActivityDays().split(",");
         String[] names = new String[numbers.length];

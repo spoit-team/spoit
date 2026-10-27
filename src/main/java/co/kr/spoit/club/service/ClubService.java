@@ -10,13 +10,23 @@ import co.kr.spoit.club.dto.ClubDetailResponse;
 
 public interface ClubService {
 
+    // 활성화 동호회 이름 중복 확인
+    static class ClubNameExistException extends Exception {
+    }
+
+    // 동호회 목록 카드 조회
     List<ClubCardResponse> findClubCards();
 
+    // 동호회 상세 조회(없으면 null)
     ClubDetailResponse findClubDetail(Long clubId);
 
+    // 동호회 만들기 종목 선택
     List<ClubSportOption> findSportOptions();
 
+    // 동호회 만들기 지역 선택
     List<ClubRegionOption> findRegionOptions();
 
-    Long createClub(Long userId, ClubCreateForm form);
+    // 동호회 만들기: 동호회,지역,동호회장 한 번에 저장
+    Long createClub(Long userId, ClubCreateForm form) throws ClubNameExistException;
+
 }
