@@ -140,7 +140,6 @@
       document.getElementById('facility-name').value = dataset.facilityName || '';
       document.getElementById('facility-address').value = dataset.facilityAddress || '';
       setFacilitySports(dataset.facilitySports || '');
-      document.getElementById('facility-capacity').value = dataset.facilityCapacity || '';
       document.getElementById('facility-zone-count').value = dataset.facilityZones || '';
       document.getElementById('facility-operating-status').value = dataset.facilityStatus || '운영 중';
       if (facilityForm) facilityForm.action = (facilityForm.dataset.facilityBase || '') + '/' + (dataset.facilityId || '');
@@ -239,4 +238,4 @@
   });
 
   updateRoomEditorCapacity();
-})();
+})(window);

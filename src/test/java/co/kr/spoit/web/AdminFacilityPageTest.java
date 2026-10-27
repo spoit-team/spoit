@@ -67,6 +67,8 @@ class AdminFacilityPageTest {
                 .andExpect(content().string(containsString("미설정")))
                 .andExpect(content().string(containsString("특별 운영")))
                 .andExpect(content().string(containsString("2구역")))
+                .andExpect(content().string(not(containsString("수용 인원"))))
+                .andExpect(content().string(not(containsString("facility-capacity"))))
                 .andExpect(content().string(not(containsString("등록된 시설이 없습니다"))))
                 .andExpect(content().string(not(containsString("/admin/system"))));
 

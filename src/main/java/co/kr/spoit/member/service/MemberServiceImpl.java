@@ -85,13 +85,9 @@ public class MemberServiceImpl implements MemberService {
         validatePassword(form.getPassword(), form.getPasswordConfirm());
 
         Long regionId = form.getRegionId();
-        if (regionId != null && !memberMapper.regionExists(regionId)) {
-            throw new IllegalArgumentException("선택한 지역을 찾을 수 없습니다.");
-        }
+        validateRegionExists(regionId);
         Long sportId = form.getRepresentativeSportId();
-        if (sportId != null && !memberMapper.sportExists(sportId)) {
-            throw new IllegalArgumentException("선택한 종목을 찾을 수 없습니다.");
-        }
+        validateSportExists(sportId);
         if (memberMapper.findByEmail(email).isPresent()) {
             throw new IllegalArgumentException("이미 가입된 이메일입니다.");
         }
@@ -159,13 +155,9 @@ public class MemberServiceImpl implements MemberService {
         validatePhone(phone);
 
         Long sportId = form.getRepresentativeSportId();
-        if (sportId != null && !memberMapper.sportExists(sportId)) {
-            throw new IllegalArgumentException("선택한 종목을 찾을 수 없습니다.");
-        }
+        validateSportExists(sportId);
         Long regionId = form.getRegionId();
-        if (regionId != null && !memberMapper.regionExists(regionId)) {
-            throw new IllegalArgumentException("선택한 지역을 찾을 수 없습니다.");
-        }
+        validateRegionExists(regionId);
 
         memberMapper.updateProfileBasics(userId, nickname, phone);
         if (sportId != null) {
@@ -197,6 +189,18 @@ public class MemberServiceImpl implements MemberService {
         int updated = memberMapper.recordWithdrawal(userId, now, now);
         if (updated != 1) {
             throw new IllegalStateException("이미 탈퇴했거나 탈퇴할 수 없는 계정입니다.");
+        }
+    }
+
+    private void validateRegionExists(Long regionId) {
+        if (regionId != null && !memberMapper.regionExists(regionId)) {
+            throw new IllegalArgumentException("선택한 지역을 찾을 수 없습니다.");
+        }
+    }
+
+    private void validateSportExists(Long sportId) {
+        if (sportId != null && !memberMapper.sportExists(sportId)) {
+            throw new IllegalArgumentException("선택한 종목을 찾을 수 없습니다.");
         }
     }
 
