@@ -135,6 +135,9 @@ class SecurityConfigTest {
     @ValueSource(strings = {
             "/admin/facility",
             "/admin/facility/settings",
+            "/admin/facilities",
+            "/admin/facilities/10",
+            "/admin/facilities/10/delete",
             "/admin/operations",
             "/admin/operations/1"
     })
@@ -172,6 +175,9 @@ class SecurityConfigTest {
     @ValueSource(strings = {
             "/admin/facility",
             "/admin/facility/settings",
+            "/admin/facilities",
+            "/admin/facilities/10",
+            "/admin/facilities/10/delete",
             "/admin/operations",
             "/admin/operations/1"
     })
@@ -198,6 +204,9 @@ class SecurityConfigTest {
                     .andRoute(GET("/matches"), request -> ServerResponse.ok().build())
                     .andRoute(GET("/admin/facility"), request -> ServerResponse.ok().build())
                     .andRoute(GET("/admin/facility/settings"), request -> ServerResponse.ok().build())
+                    .andRoute(GET("/admin/facilities"), request -> ServerResponse.ok().build())
+                    .andRoute(GET("/admin/facilities/10"), request -> ServerResponse.ok().build())
+                    .andRoute(GET("/admin/facilities/10/delete"), request -> ServerResponse.ok().build())
                     .andRoute(GET("/admin/operations"), request -> ServerResponse.ok().build())
                     .andRoute(GET("/admin/operations/1"), request -> ServerResponse.ok().build())
                     .andRoute(GET("/admin/system"), request -> ServerResponse.ok().build())

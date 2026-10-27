@@ -1,0 +1,173 @@
+package co.kr.spoit.web;
+
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.facilityManager;
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.member;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import co.kr.spoit.facility.dto.FacilityForm;
+import co.kr.spoit.facility.service.FacilityAccessDeniedException;
+import co.kr.spoit.facility.service.FacilityService;
+import co.kr.spoit.global.config.SecurityConfig;
+import co.kr.spoit.member.security.MemberLoginFailureHandler;
+import co.kr.spoit.member.security.MemberLoginSuccessHandler;
+import co.kr.spoit.member.service.MemberUserDetailsService;
+
+/** 시설 등록·수정·삭제 요청이 서비스 계약으로 전달되고 결과 안내를 돌려주는지 검증한다. */
+@WebMvcTest(controllers = CorePageController.class)
+@Import(SecurityConfig.class)
+class FacilityManageRouteTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockitoBean
+    private FacilityService facilityService;
+
+    @MockitoBean
+    private MemberLoginSuccessHandler loginSuccessHandler;
+
+    @MockitoBean
+    private MemberLoginFailureHandler loginFailureHandler;
+
+    @MockitoBean
+    private MemberUserDetailsService memberUserDetailsService;
+
+    @Test
+    @DisplayName("시설 관리자가 등록 폼을 제출하면 서비스에 저장을 위임한다")
+    void facilityManagerCanRegister() throws Exception {
+        when(facilityService.registerFacility(eq(7L), any(FacilityForm.class))).thenReturn(21L);
+
+        mockMvc.perform(post("/admin/facilities").with(user(facilityManager())).with(csrf())
+                        .param("name", "송파 체육관")
+                        .param("address", "서울특별시 송파구 올림픽로 25")
+                        .param("sports", "농구", "축구")
+                        .param("concurrentMatchLimit", "3")
+                        .param("status", "운영 중"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/facility?message="
+                        + java.net.URLEncoder.encode("시설을 등록했습니다.", java.nio.charset.StandardCharsets.UTF_8)));
+
+        verify(facilityService).registerFacility(eq(7L), any(FacilityForm.class));
+    }
+
+    @Test
+    @DisplayName("시설 관리자가 수정 폼을 제출하면 대상 시설 ID와 함께 위임한다")
+    void facilityManagerCanUpdate() throws Exception {
+        mockMvc.perform(post("/admin/facilities/10").with(user(facilityManager())).with(csrf())
+                        .param("name", "수정 체육관")
+                        .param("address", "서울특별시 송파구 올림픽로 25")
+                        .param("sports", "농구")
+                        .param("concurrentMatchLimit", "5")
+                        .param("status", "점검 중"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/facility?message="
+                        + java.net.URLEncoder.encode("시설 정보를 수정했습니다.", java.nio.charset.StandardCharsets.UTF_8)));
+
+        verify(facilityService).updateFacility(eq(7L), eq(10L), any(FacilityForm.class));
+    }
+
+    @Test
+    @DisplayName("시설 관리자가 삭제를 요청하면 논리 삭제를 위임한다")
+    void facilityManagerCanDelete() throws Exception {
+        mockMvc.perform(post("/admin/facilities/10/delete").with(user(facilityManager())).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/facility?message="
+                        + java.net.URLEncoder.encode("시설을 삭제했습니다.", java.nio.charset.StandardCharsets.UTF_8)));
+
+        verify(facilityService).deleteFacility(7L, 10L);
+    }
+
+    @Test
+    @DisplayName("서비스가 권한 예외를 던지면 오류 안내와 함께 되돌아온다")
+    void accessDeniedShowsError() throws Exception {
+        doThrow(new FacilityAccessDeniedException("담당 시설만 관리할 수 있습니다."))
+                .when(facilityService).deleteFacility(7L, 10L);
+
+        mockMvc.perform(post("/admin/facilities/10/delete").with(user(facilityManager())).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/facility?error="
+                        + java.net.URLEncoder.encode("담당 시설만 관리할 수 있습니다.", java.nio.charset.StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    @DisplayName("일반 회원의 시설 저장·삭제 요청은 서비스를 호출하지 않는다")
+    void memberCannotWriteFacilities() throws Exception {
+        mockMvc.perform(post("/admin/facilities").with(user(member())).with(csrf())
+                        .param("name", "체육관")
+                        .param("address", "주소")
+                        .param("sports", "농구")
+                        .param("concurrentMatchLimit", "3")
+                        .param("status", "운영 중"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/admin/facilities/10/delete").with(user(member())).with(csrf()))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(facilityService);
+    }
+
+    @Test
+    @DisplayName("시스템 관리자의 시설 저장 요청도 거부한다")
+    void adminCannotWriteFacilities() throws Exception {
+        mockMvc.perform(post("/admin/facilities").with(user(co.kr.spoit.member.domain.MemberPrincipalFixture.admin())).with(csrf()))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(facilityService);
+    }
+
+    @Test
+    @DisplayName("비로그인 시설 저장 요청은 CSRF 토큰이 있어도 로그인 화면으로 보낸다")
+    void anonymousWriteRedirectsToLogin() throws Exception {
+        mockMvc.perform(post("/admin/facilities").with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrlPattern("**/login"));
+
+        verifyNoInteractions(facilityService);
+    }
+
+    @Test
+    @DisplayName("시설 저장 요청에는 CSRF 토큰이 필요하다")
+    void writeRequiresCsrf() throws Exception {
+        mockMvc.perform(post("/admin/facilities").with(user(facilityManager())))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(facilityService);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 시설 수정은 오류 안내로 되돌아온다")
+    void unknownFacilityShowsError() throws Exception {
+        doThrow(new co.kr.spoit.facility.service.FacilityNotFoundException("수정할 시설을 찾을 수 없습니다."))
+                .when(facilityService).updateFacility(anyLong(), eq(9999L), any(FacilityForm.class));
+
+        mockMvc.perform(post("/admin/facilities/9999").with(user(facilityManager())).with(csrf())
+                        .param("name", "체육관")
+                        .param("address", "주소")
+                        .param("sports", "농구")
+                        .param("concurrentMatchLimit", "3")
+                        .param("status", "운영 중"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/facility?error="
+                        + java.net.URLEncoder.encode("수정할 시설을 찾을 수 없습니다.", java.nio.charset.StandardCharsets.UTF_8)));
+    }
+}

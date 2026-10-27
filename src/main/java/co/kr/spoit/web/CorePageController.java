@@ -8,8 +8,15 @@ import java.util.Map;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import co.kr.spoit.facility.dto.FacilityForm;
+import co.kr.spoit.facility.service.FacilityAccessDeniedException;
+import co.kr.spoit.facility.service.FacilityNotFoundException;
 import co.kr.spoit.facility.service.FacilityService;
 import co.kr.spoit.member.domain.MemberPrincipal;
 
@@ -82,6 +89,63 @@ public class CorePageController {
         model.addAttribute("rules", EMPTY_LIST);
         model.addAttribute("roomEditorHourSlots", EMPTY_LIST);
         return "admin/facility";
+    }
+
+    /** 시설을 등록하고 시설 관리 화면으로 되돌아간다. 오류는 화면 안내로 전달한다. */
+    @PostMapping("/admin/facilities")
+    public String registerFacility(@AuthenticationPrincipal MemberPrincipal principal,
+            FacilityForm form, BindingResult bindingResult, RedirectAttributes redirect) {
+        if (principal == null) {
+            return "redirect:/login";
+        }
+        if (bindingResult.hasErrors()) {
+            redirect.addAttribute("error", "입력 정보를 확인해 주세요.");
+            return "redirect:/admin/facility";
+        }
+        try {
+            facilityService.registerFacility(principal.getUserId(), form);
+            redirect.addAttribute("message", "시설을 등록했습니다.");
+        } catch (IllegalArgumentException | FacilityAccessDeniedException | FacilityNotFoundException exception) {
+            redirect.addAttribute("error", exception.getMessage());
+        }
+        return "redirect:/admin/facility";
+    }
+
+    /** 담당 시설을 수정하고 시설 관리 화면으로 되돌아간다. 위치·지역 값은 유지된다. */
+    @PostMapping("/admin/facilities/{facilityId}")
+    public String updateFacility(@PathVariable long facilityId,
+            @AuthenticationPrincipal MemberPrincipal principal,
+            FacilityForm form, BindingResult bindingResult, RedirectAttributes redirect) {
+        if (principal == null) {
+            return "redirect:/login";
+        }
+        if (bindingResult.hasErrors()) {
+            redirect.addAttribute("error", "입력 정보를 확인해 주세요.");
+            return "redirect:/admin/facility";
+        }
+        try {
+            facilityService.updateFacility(principal.getUserId(), facilityId, form);
+            redirect.addAttribute("message", "시설 정보를 수정했습니다.");
+        } catch (IllegalArgumentException | FacilityAccessDeniedException | FacilityNotFoundException exception) {
+            redirect.addAttribute("error", exception.getMessage());
+        }
+        return "redirect:/admin/facility";
+    }
+
+    /** 담당 시설을 삭제(논리 삭제)하고 시설 관리 화면으로 되돌아간다. */
+    @PostMapping("/admin/facilities/{facilityId}/delete")
+    public String deleteFacility(@PathVariable long facilityId,
+            @AuthenticationPrincipal MemberPrincipal principal, RedirectAttributes redirect) {
+        if (principal == null) {
+            return "redirect:/login";
+        }
+        try {
+            facilityService.deleteFacility(principal.getUserId(), facilityId);
+            redirect.addAttribute("message", "시설을 삭제했습니다.");
+        } catch (IllegalArgumentException | FacilityAccessDeniedException | FacilityNotFoundException exception) {
+            redirect.addAttribute("error", exception.getMessage());
+        }
+        return "redirect:/admin/facility";
     }
 
     /** 운영 관리 화면을 렌더링한다. 관리자 셸과 match=null만 전달한다. */
