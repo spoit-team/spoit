@@ -1,5 +1,7 @@
 package co.kr.spoit.member.domain;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Collection;
 import java.util.List;
 
@@ -17,9 +19,8 @@ public class MemberPrincipal implements UserDetails, CredentialsContainer {
 
     private static final long serialVersionUID = 1L;
 
-    /** 로그인을 허용하는 계정 상태 코드 목록이다. */
-    private static final List<String> ALLOWED_STATUS_CODES = List.of(
-            "활성", "ACTIVE", "NORMAL");
+    /** 서버가 UTC여도 한국 시간 기준으로 정지 종료 시각을 비교한다. */
+    private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
 
     private final Long userId;
     private final String email;
@@ -43,26 +44,30 @@ public class MemberPrincipal implements UserDetails, CredentialsContainer {
     }
 
     public static MemberPrincipal from(Member member) {
+        return from(member, LocalDateTime.now(ZONE));
+    }
+
+    /** 테스트에서 기준 시각을 고정할 수 있도록 분리한 변환 메서드다. */
+    static MemberPrincipal from(Member member, LocalDateTime now) {
         return new MemberPrincipal(
                 member.getUserId(),
                 member.getEmail(),
                 member.getNickname(),
                 member.getPhone(),
                 MemberRole.from(member.getRole()),
-                isUsable(member.getStatus()),
+                isUsable(member.getDeletedAt(), member.getPenaltyTime(), now),
                 member.getPasswordHash());
     }
 
     /**
-     * 계정 상태가 로그인 가능한지 판정한다. 상태 코드가 확정되지 않았으므로
-     * 허용 목록과 정확히 일치할 때만 통과시키고, 값이 없으면 거부한다(fail-closed).
+     * 계정이 로그인 가능한지 판정한다. 탈퇴 시각이 있으면 다른 값과 관계없이 거부하고,
+     * 이용정지 종료 시각이 아직 지나지 않았으면 정지 상태로 본다.
      */
-    private static boolean isUsable(String status) {
-        if (status == null || status.isBlank()) {
+    static boolean isUsable(LocalDateTime deletedAt, LocalDateTime penaltyTime, LocalDateTime now) {
+        if (deletedAt != null) {
             return false;
         }
-        String value = status.strip().toUpperCase(java.util.Locale.ROOT);
-        return ALLOWED_STATUS_CODES.contains(value);
+        return penaltyTime == null || !penaltyTime.isAfter(now);
     }
 
     public Long getUserId() {

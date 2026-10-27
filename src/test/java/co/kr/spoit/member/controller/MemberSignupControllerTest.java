@@ -195,7 +195,6 @@ class MemberSignupControllerTest {
         assertThat(member.getPhone()).isEqualTo("010-1234-5678");
         assertThat(member.getNickname()).isEqualTo("플레이어");
         assertThat(member.getRole()).isEqualTo("일반 회원");
-        assertThat(member.getStatus()).isEqualTo("활성");
         assertThat(passwordEncoder.matches(PASSWORD, member.getPasswordHash())).isTrue();
 
         mockMvc.perform(post("/login").with(csrf())
