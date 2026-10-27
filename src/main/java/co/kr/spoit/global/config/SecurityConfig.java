@@ -19,7 +19,11 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 폼 로그인 기반 인증 설정으로, member 패키지의 인증·핸들러를 필터 체인에 연결한다.
  * 마이페이지 계열({@code /mypage}, {@code /mypage/**})은 로그인을 요구하고,
- * 나머지 화면 라우트는 공개 상태를 유지한다. 보호가 필요한 경로는 {@code authorizeHttpRequests}에 추가한다.
+ * 관리자 화면은 역할별로 분리한다. 시설 관리 화면({@code /admin/facility},
+ * {@code /admin/operations})은 {@code ROLE_FACILITY_MANAGER}, 시스템 관리 화면
+ * ({@code /admin/system})은 {@code ROLE_ADMIN}만 접근할 수 있으며 서로 교차 접근은
+ * 허용하지 않는다. 나머지 화면 라우트는 공개 상태를 유지한다. 보호가 필요한 경로는
+ * {@code authorizeHttpRequests}에 추가한다.
  * 로그아웃은 CSRF 보호를 위해 {@code POST /logout}만 허용한다.
  */
 @Slf4j
@@ -65,6 +69,14 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(authorize -> authorize
+                        // 시설 관리자 전용 화면: 시스템 관리자도 접근하지 못한다.
+                        .requestMatchers("/admin/facility", "/admin/facility/**",
+                                "/admin/operations", "/admin/operations/**")
+                        .hasRole("FACILITY_MANAGER")
+                        // 시스템 관리자 전용 화면: 시설 관리자도 접근하지 못한다.
+                        .requestMatchers("/admin/system", "/admin/system/**").hasRole("ADMIN")
+                        // 위에서 명시하지 않은 관리자 경로는 시스템 관리자에게만 허용한다.
+                        .requestMatchers("/admin", "/admin/**").hasRole("ADMIN")
                         .requestMatchers("/mypage", "/mypage/**").authenticated()
                         .anyRequest().permitAll())
                 .formLogin(form -> form
