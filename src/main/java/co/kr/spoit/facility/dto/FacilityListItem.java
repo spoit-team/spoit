@@ -11,8 +11,7 @@ import lombok.Getter;
  * 관리자 시설 목록 화면에 전달하는 읽기 전용 항목이다.
  *
  * <p>DB 값이 비어 있거나 매핑되지 않아도 화면이 깨지지 않도록 표시용 기본값을 만든다.
- * 시설 상태는 자유 문자열이므로 알려지지 않은 값도 원문을 유지한 채 중립 배지로 표시한다.
- * 수용 인원 컬럼은 스키마에 없으므로 값을 만들지 않고 미설정으로 전달한다.</p>
+ * 시설 상태는 자유 문자열이므로 알려지지 않은 값도 원문을 유지한 채 중립 배지로 표시한다.</p>
  */
 @Getter
 public class FacilityListItem {
@@ -24,7 +23,6 @@ public class FacilityListItem {
     private final String address;
     private final List<String> sports;
     private final String sportsLabel;
-    private final String capacityLabel;
     private final Integer concurrentMatchLimit;
     private final String statusLabel;
     private final String statusTone;
@@ -36,7 +34,6 @@ public class FacilityListItem {
         this.address = isBlank(address) ? "주소 미설정" : address.strip();
         this.sports = List.copyOf(sports);
         this.sportsLabel = sports.isEmpty() ? UNSET : String.join(", ", sports);
-        this.capacityLabel = UNSET;
         this.concurrentMatchLimit = concurrentMatchLimit == null ? 0 : concurrentMatchLimit;
         this.statusLabel = isBlank(status) ? "상태 미설정" : status.strip();
         this.statusTone = statusTone(status);

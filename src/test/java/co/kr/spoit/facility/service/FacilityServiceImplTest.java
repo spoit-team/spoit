@@ -75,7 +75,6 @@ class FacilityServiceImplTest {
         assertThat(item.getAddress()).isEqualTo("주소 10");
         assertThat(item.getSports()).containsExactly("농구", "축구");
         assertThat(item.getSportsLabel()).isEqualTo("농구, 축구");
-        assertThat(item.getCapacityLabel()).isEqualTo("미설정");
         assertThat(item.getConcurrentMatchLimit()).isEqualTo(3);
         assertThat(item.getStatusLabel()).isEqualTo("운영 중");
         assertThat(item.getStatusTone()).isEqualTo("good");
@@ -95,7 +94,6 @@ class FacilityServiceImplTest {
         assertThat(item.getConcurrentMatchLimit()).isZero();
         assertThat(item.getStatusLabel()).isEqualTo("특별 운영");
         assertThat(item.getStatusTone()).isEqualTo("neutral");
-        assertThat(item.getCapacityLabel()).isEqualTo("미설정");
     }
 
     @Test

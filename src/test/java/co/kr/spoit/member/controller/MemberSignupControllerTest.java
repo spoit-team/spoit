@@ -224,6 +224,21 @@ class MemberSignupControllerTest {
     }
 
     @Test
+    @DisplayName("지역과 종목이 모두 잘못되면 지역을 먼저 검증하고 종목은 조회하지 않는다")
+    void validatesRegionBeforeSport() throws Exception {
+        given(memberMapper.regionExists(7L)).willReturn(false);
+
+        mockMvc.perform(signup(Map.of("regionId", "7", "representativeSportId", "5")))
+                .andExpect(status().isOk())
+                .andExpect(view().name("auth/signup"))
+                .andExpect(model().attribute("error", "선택한 지역을 찾을 수 없습니다."));
+
+        verify(memberMapper).regionExists(7L);
+        verify(memberMapper, never()).sportExists(5L);
+        verify(memberMapper, never()).insert(any(Member.class));
+    }
+
+    @Test
     @DisplayName("선택한 지역은 생성된 회원 ID로 저장한다")
     void selectedRegionUsesGeneratedMemberId() throws Exception {
         given(memberMapper.regionExists(7L)).willReturn(true);

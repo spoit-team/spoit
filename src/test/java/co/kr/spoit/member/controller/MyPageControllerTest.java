@@ -138,8 +138,7 @@ class MyPageControllerTest {
     }
 
     @Test
-    @DisplayName("신청 취소는 본인 userId로 처리하고 결과를 마이페이지 안내로 돌려준다")
-    void cancelApplicationRedirectsWithMessage() throws Exception {
+    @DisplayName("신청 취소는 본인 userId로 처리하고 결과를 마이페이지 안내로 돌려준다")    void cancelApplicationRedirectsWithMessage() throws Exception {
         mockMvc.perform(post("/mypage/applications/11/cancel").with(principal()))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/mypage?message="
@@ -165,6 +164,40 @@ class MyPageControllerTest {
         mockMvc.perform(post("/mypage/applications/11/cancel"))
                 .andExpect(redirectedUrl("/login"));
         verify(applicationService, never()).cancel(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("레이팅이 없거나 확정 경기가 0건이거나 MMR이 null이면 기록 없음으로 표시한다")
+    void summaryShowsNoRatingTextWhenRatingMissing() throws Exception {
+        given(memberService.findRegions(USER_ID)).willReturn(List.of());
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.of(sportOption(2L, "농구")));
+        given(sportRatingService.findByUserIdAndSportId(USER_ID, 2L))
+                .willReturn(Optional.empty(),
+                        Optional.of(new SportRatingResponse(USER_ID, 2L, new BigDecimal("1015.66"), 0, null)),
+                        Optional.of(new SportRatingResponse(USER_ID, 2L, null, 4, null)));
+
+        mockMvc.perform(get("/mypage").with(principal()))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("summary", hasEntry("representativeRatingText", "기록 없음")));
+        mockMvc.perform(get("/mypage").with(principal()))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("summary", hasEntry("representativeRatingText", "기록 없음")));
+        mockMvc.perform(get("/mypage").with(principal()))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("summary", hasEntry("representativeRatingText", "기록 없음")));
+    }
+
+    @Test
+    @DisplayName("프로필 화면의 오류·안내 파라미터는 빈 값을 null로 바꿔 모델에 담는다")
+    void profileRendersErrorAndMessageQueryParams() throws Exception {
+        given(memberService.findRegions(USER_ID)).willReturn(List.of());
+        given(memberService.findSports()).willReturn(List.of());
+        given(memberService.findSignupRegions()).willReturn(List.of());
+
+        mockMvc.perform(get("/mypage/profile").with(principal()).param("error", " ").param("message", "저장"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("error", nullValue()))
+                .andExpect(model().attribute("message", "저장"));
     }
 
     @Test
