@@ -42,6 +42,10 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import co.kr.spoit.mat.dto.SportRatingResponse;
 import co.kr.spoit.mat.service.SportRatingService;
+import co.kr.spoit.match.dto.MyReservations;
+import co.kr.spoit.match.service.MatchApplicationService;
+import co.kr.spoit.match.service.MatchApplyException;
+import co.kr.spoit.match.service.MyReservationService;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.member.dto.SignupRegion;
@@ -59,13 +63,19 @@ class MyPageControllerTest {
 
     private MemberService memberService;
     private SportRatingService sportRatingService;
+    private MyReservationService reservationService;
+    private MatchApplicationService applicationService;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         memberService = mock(MemberService.class);
         sportRatingService = mock(SportRatingService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new MyPageController(memberService, sportRatingService)).build();
+        reservationService = mock(MyReservationService.class);
+        given(reservationService.find(anyLong())).willReturn(MyReservations.empty());
+        applicationService = mock(MatchApplicationService.class);
+        mockMvc = MockMvcBuilders.standaloneSetup(new MyPageController(
+                memberService, sportRatingService, reservationService, applicationService)).build();
     }
 
     @Test
@@ -107,6 +117,55 @@ class MyPageControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("summary", hasEntry("representativeSportName", "농구")))
                 .andExpect(model().attribute("summary", hasEntry("representativeRatingText", "1015.66")));
+    }
+
+    @Test
+    @DisplayName("신청 내역과 요약 집계는 본인 userId로 조회한 결과를 쓴다")
+    void reservationsComeFromOwnApplications() throws Exception {
+        given(memberService.findRegions(USER_ID)).willReturn(List.of());
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.empty());
+        MyReservations.Entry entry = new MyReservations.Entry(1L, 3L, "풋살", "개인 신청", "확정 대기",
+                "text-book-ink", "매칭방", "내일 19:00~21:00 · 시설", "참가 1명", null, false, "신청 취소", false, null);
+        given(reservationService.find(USER_ID)).willReturn(new MyReservations(List.of(entry), List.of(), 2, 1, 1));
+
+        mockMvc.perform(get("/mypage").with(principal()))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("currentReservations", hasSize(1)))
+                .andExpect(model().attribute("pastReservations", hasSize(0)))
+                .andExpect(model().attribute("summary", hasEntry("confirmedCount", 2)))
+                .andExpect(model().attribute("summary", hasEntry("completedCount", 1)))
+                .andExpect(model().attribute("summary", hasEntry("waitingCount", 1)));
+        verify(reservationService).find(USER_ID);
+    }
+
+    @Test
+    @DisplayName("신청 취소는 본인 userId로 처리하고 결과를 마이페이지 안내로 돌려준다")
+    void cancelApplicationRedirectsWithMessage() throws Exception {
+        mockMvc.perform(post("/mypage/applications/11/cancel").with(principal()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/mypage?message="
+                        + URLEncoder.encode("신청을 취소했습니다.", StandardCharsets.UTF_8) + "#reservations"));
+        verify(applicationService).cancel(11L, USER_ID);
+    }
+
+    @Test
+    @DisplayName("취소할 수 없는 신청이면 사유를 안내한다")
+    void cancelApplicationShowsReason() throws Exception {
+        willThrow(new MatchApplyException("이미 취소되었거나 처리된 신청입니다."))
+                .given(applicationService).cancel(11L, USER_ID);
+
+        mockMvc.perform(post("/mypage/applications/11/cancel").with(principal()))
+                .andExpect(redirectedUrl("/mypage?message="
+                        + URLEncoder.encode("이미 취소되었거나 처리된 신청입니다.", StandardCharsets.UTF_8)
+                        + "#reservations"));
+    }
+
+    @Test
+    @DisplayName("비로그인 취소 요청은 로그인으로 보낸다")
+    void cancelApplicationRequiresLogin() throws Exception {
+        mockMvc.perform(post("/mypage/applications/11/cancel"))
+                .andExpect(redirectedUrl("/login"));
+        verify(applicationService, never()).cancel(anyLong(), anyLong());
     }
 
     @Test

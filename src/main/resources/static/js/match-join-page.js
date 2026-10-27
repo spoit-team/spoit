@@ -56,33 +56,21 @@
     });
   });
 
-  continueButton?.addEventListener('click', function () {
-    if (continueButton.disabled) return;
+  backButton?.addEventListener('click', function () {
+    setStep(1);
+  });
+
+  // 무료 결제만 지원: 신청 내용(1단계)에서 바로 접수한다. 결제 안내(2단계)는 유료 결제 도입 시 다시 연결한다.
+  form.addEventListener('submit', function (event) {
     if (!rulesAgree?.checked) {
+      event.preventDefault();
       setError(joinError, '매치 운영 규칙과 취소·노쇼 안내에 동의해 주세요.');
       rulesAgree?.focus();
       return;
     }
     setError(joinError, '');
-    setError(paymentError, '');
-    setStep(2);
-  });
-
-  backButton?.addEventListener('click', function () {
-    setStep(1);
-  });
-
-  form.addEventListener('submit', function (event) {
-    if (currentStep !== 2) {
-      event.preventDefault();
-      return;
-    }
-    if (!paymentAgree?.checked) {
-      event.preventDefault();
-      setError(paymentError, '참가비 안내와 취소 안내를 확인해 주세요.');
-      paymentAgree?.focus();
-      return;
-    }
     document.querySelectorAll('[data-payment-method]').forEach(function (input) { input.disabled = true; });
+    // 두 번 누르면 두 번째 요청이 "이미 신청" 오류로 끝나 완료 화면 대신 오류가 보이므로 막는다.
+    if (continueButton) continueButton.disabled = true;
   });
 })();
