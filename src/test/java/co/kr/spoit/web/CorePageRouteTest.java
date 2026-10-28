@@ -82,11 +82,11 @@ class CorePageRouteTest {
 
     @Test
     void clubPagesRenderForMember() throws Exception {
-        mockMvc.perform(get("/teams/1").with(user(principal("일반 회원"))))
+        mockMvc.perform(get("/teams/1").with(user(MemberPrincipalFixture.member())))
                 .andExpect(status().isOk())
                 .andExpect(view().name("teams/detail"))
                 .andExpect(content().string(containsString("팀 목록으로 돌아가기")));
-        mockMvc.perform(get("/teams/manage").with(user(principal("일반 회원"))))
+        mockMvc.perform(get("/teams/manage").with(user(MemberPrincipalFixture.member())))
                 .andExpect(status().isOk())
                 .andExpect(view().name("teams/manage"))
                 .andExpect(content().string(containsString("팀 관리")));
