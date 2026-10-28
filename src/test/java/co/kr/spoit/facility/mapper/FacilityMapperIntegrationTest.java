@@ -129,7 +129,7 @@ class FacilityMapperIntegrationTest {
     }
 
     @Test
-    @DisplayName("종목 이름으로 ID를 조회하고 시설 종목 매핑을 저장·교체·삭제한다")
+    @DisplayName("종목 이름으로 ID를 조회하고 시설 종목 매핑을 저장한 뒤 지정 종목만 삭제한다")
     void managesFacilitySports() {
         var sportIds = facilityMapper.findSportIdsByNames(List.of("시설 테스트 농구", "시설 테스트 축구"));
         assertThat(sportIds).containsExactlyInAnyOrder(9001L, 9002L);
@@ -137,8 +137,7 @@ class FacilityMapperIntegrationTest {
         assertThat(facilityMapper.findSportIdsByNames(List.of("존재하지 않는 종목"))).isEmpty();
 
         facilityMapper.insertFacilitySports(9102L, sportIds);
-        facilityMapper.deleteFacilitySports(9102L);
-        facilityMapper.insertFacilitySports(9102L, List.of(sportIds.get(0)));
+        facilityMapper.deleteFacilitySportsByIds(9102L, List.of(sportIds.get(1)));
 
         var managed = facilityMapper.selectManagedFacilities(9001L);
         var reloaded = managed.stream()

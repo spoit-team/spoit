@@ -2,6 +2,8 @@ package co.kr.spoit.facility.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -169,17 +171,121 @@ class FacilityServiceImplTest {
     }
 
     @Test
-    @DisplayName("담당 시설을 수정하면 기본 정보와 종목 매핑을 갱신한다")
+    @DisplayName("담당 시설을 수정하면 기본 정보를 갱신하고 유지 종목 매핑은 건드리지 않는다")
     void updatesOwnedFacility() {
         when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(true);
+        when(facilityMapper.selectActiveFacilityIdForUpdate(10L)).thenReturn(10L);
         when(facilityMapper.findSportIdsByNames(List.of("테니스"))).thenReturn(List.of(1L));
+        when(facilityMapper.selectFacilitySportIds(10L)).thenReturn(List.of(1L));
         when(facilityMapper.updateFacility(eq(10L), anyForm())).thenReturn(1);
 
         service.updateFacility(7L, 10L, form("수정 체육관", "새 주소", 5, "점검 중", "테니스"));
 
+        verify(facilityMapper).selectActiveFacilityIdForUpdate(10L);
         verify(facilityMapper).updateFacility(eq(10L), anyForm());
-        verify(facilityMapper).deleteFacilitySports(10L);
-        verify(facilityMapper).insertFacilitySports(10L, List.of(1L));
+        verify(facilityMapper, never()).deleteFacilitySportsByIds(eq(10L), anyList());
+        verify(facilityMapper, never()).insertFacilitySports(eq(10L), anyList());
+    }
+
+    @Test
+    @DisplayName("수정에서 새로 선택한 종목만 추가하고 기존 종목의 기본값은 유지한다")
+    void addsOnlyNewSportsOnUpdate() {
+        when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(true);
+        when(facilityMapper.selectActiveFacilityIdForUpdate(10L)).thenReturn(10L);
+        when(facilityMapper.findSportIdsByNames(List.of("농구", "테니스"))).thenReturn(List.of(1L, 2L));
+        when(facilityMapper.selectFacilitySportIds(10L)).thenReturn(List.of(1L));
+        when(facilityMapper.updateFacility(eq(10L), anyForm())).thenReturn(1);
+
+        service.updateFacility(7L, 10L, form("체육관", "주소", 5, "운영 중", "농구", "테니스"));
+
+        verify(facilityMapper).insertFacilitySports(10L, List.of(2L));
+        verify(facilityMapper, never()).deleteFacilitySportsByIds(eq(10L), anyList());
+    }
+
+    @Test
+    @DisplayName("매칭방이 참조하지 않는 종목은 해제하고 유지 종목은 남긴다")
+    void removesUnreferencedSportsOnUpdate() {
+        when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(true);
+        when(facilityMapper.selectActiveFacilityIdForUpdate(10L)).thenReturn(10L);
+        when(facilityMapper.findSportIdsByNames(List.of("농구"))).thenReturn(List.of(1L));
+        when(facilityMapper.selectFacilitySportIds(10L)).thenReturn(List.of(1L, 2L));
+        when(facilityMapper.selectMatchIdForSportsForUpdate(10L, List.of(2L))).thenReturn(null);
+        when(facilityMapper.updateFacility(eq(10L), anyForm())).thenReturn(1);
+
+        service.updateFacility(7L, 10L, form("체육관", "주소", 5, "운영 중", "농구"));
+
+        verify(facilityMapper).deleteFacilitySportsByIds(10L, List.of(2L));
+        verify(facilityMapper, never()).insertFacilitySports(eq(10L), anyList());
+    }
+
+    @Test
+    @DisplayName("매칭방이 참조하는 종목을 해제하려 하면 안내 문구와 함께 거부한다")
+    void rejectsRemovingSportReferencedByMatch() {
+        when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(true);
+        when(facilityMapper.selectActiveFacilityIdForUpdate(10L)).thenReturn(10L);
+        when(facilityMapper.findSportIdsByNames(List.of("농구"))).thenReturn(List.of(1L));
+        when(facilityMapper.selectFacilitySportIds(10L)).thenReturn(List.of(1L, 2L));
+        when(facilityMapper.selectMatchIdForSportsForUpdate(10L, List.of(2L))).thenReturn(500L);
+
+        assertThatThrownBy(() -> service.updateFacility(7L, 10L, form("체육관", "주소", 5, "운영 중", "농구")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("매칭방이 참조하는 종목은 해제할 수 없습니다");
+
+        verify(facilityMapper, never()).updateFacility(eq(10L), anyForm());
+        verify(facilityMapper, never()).deleteFacilitySportsByIds(eq(10L), anyList());
+    }
+
+    @Test
+    @DisplayName("사전 검사 후 외래 키 충돌이 나면 원인을 연결한 안내 예외로 바꾼다")
+    void translatesMatchSportForeignKeyViolation() {
+        java.sql.SQLException cause = new java.sql.SQLException(
+                "Cannot delete or update a parent row: a foreign key constraint fails "
+                        + "(`spoit`.`social_match`, CONSTRAINT `fk_social_match_facility_sport` "
+                        + "FOREIGN KEY (`facility_id`, `sport_id`) REFERENCES `facility_sport` "
+                        + "(`facility_id`, `sport_id`))",
+                "23000", 1451);
+        when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(true);
+        when(facilityMapper.selectActiveFacilityIdForUpdate(10L)).thenReturn(10L);
+        when(facilityMapper.findSportIdsByNames(List.of("농구"))).thenReturn(List.of(1L));
+        when(facilityMapper.selectFacilitySportIds(10L)).thenReturn(List.of(1L, 2L));
+        when(facilityMapper.selectMatchIdForSportsForUpdate(10L, List.of(2L))).thenReturn(null);
+        when(facilityMapper.updateFacility(eq(10L), anyForm())).thenReturn(1);
+        when(facilityMapper.deleteFacilitySportsByIds(10L, List.of(2L)))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("FK", cause));
+
+        assertThatThrownBy(() -> service.updateFacility(7L, 10L, form("체육관", "주소", 5, "운영 중", "농구")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("매칭방이 참조하는 종목은 해제할 수 없습니다")
+                .hasRootCause(cause);
+    }
+
+    @Test
+    @DisplayName("매칭방 외래 키가 아닌 무결성 오류는 그대로 전파한다")
+    void doesNotTranslateOtherIntegrityViolations() {
+        java.sql.SQLException otherFk = new java.sql.SQLException(
+                "Cannot delete or update a parent row: a foreign key constraint fails "
+                        + "(`spoit`.`other_child`, CONSTRAINT `fk_other_child_facility_sport` "
+                        + "FOREIGN KEY (`facility_id`, `sport_id`) REFERENCES `facility_sport` "
+                        + "(`facility_id`, `sport_id`))",
+                "23000", 1451);
+        java.sql.SQLException notFk = new java.sql.SQLException("lock wait timeout exceeded", "HY000", 1205);
+        var otherFkException = new org.springframework.dao.DataIntegrityViolationException("FK", otherFk);
+        var notFkException = new org.springframework.dao.DataIntegrityViolationException("timeout", notFk);
+
+        when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(true);
+        when(facilityMapper.selectActiveFacilityIdForUpdate(10L)).thenReturn(10L);
+        when(facilityMapper.findSportIdsByNames(List.of("농구"))).thenReturn(List.of(1L));
+        when(facilityMapper.selectFacilitySportIds(10L)).thenReturn(List.of(1L, 2L));
+        when(facilityMapper.selectMatchIdForSportsForUpdate(10L, List.of(2L))).thenReturn(null);
+        when(facilityMapper.updateFacility(eq(10L), anyForm())).thenReturn(1);
+        when(facilityMapper.deleteFacilitySportsByIds(10L, List.of(2L)))
+                .thenThrow(otherFkException)
+                .thenThrow(notFkException);
+
+        assertThatThrownBy(() -> service.updateFacility(7L, 10L, form("체육관", "주소", 5, "운영 중", "농구")))
+                .isSameAs(otherFkException);
+        assertThatThrownBy(() -> service.updateFacility(7L, 10L, form("체육관", "주소", 5, "운영 중", "농구")))
+                .isSameAs(notFkException);
     }
 
     @Test
@@ -190,6 +296,8 @@ class FacilityServiceImplTest {
         assertThatThrownBy(() -> service.updateFacility(7L, 10L, form("수정 체육관", "새 주소", 5, "점검 중", "테니스")))
                 .isInstanceOf(FacilityAccessDeniedException.class);
 
+        // 권한 없는 요청은 시설 행을 잠그지 않아 시설 존재 여부를 추가로 노출하지 않는다.
+        verify(facilityMapper, never()).selectActiveFacilityIdForUpdate(anyLong());
         verify(facilityMapper, never()).updateFacility(eq(10L), anyForm());
     }
 
@@ -197,7 +305,21 @@ class FacilityServiceImplTest {
     @DisplayName("이미 삭제된 시설을 수정하려 하면 예외를 던진다")
     void rejectsUpdateOfDeletedFacility() {
         when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(true);
+        when(facilityMapper.selectActiveFacilityIdForUpdate(10L)).thenReturn(null);
+
+        assertThatThrownBy(() -> service.updateFacility(7L, 10L, form("수정 체육관", "새 주소", 5, "점검 중", "테니스")))
+                .isInstanceOf(FacilityNotFoundException.class);
+
+        verify(facilityMapper, never()).updateFacility(eq(10L), anyForm());
+    }
+
+    @Test
+    @DisplayName("수정 중 시설 행이 사라졌으면 예외를 던진다")
+    void rejectsUpdateWhenFacilityRowDisappears() {
+        when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(true);
+        when(facilityMapper.selectActiveFacilityIdForUpdate(10L)).thenReturn(10L);
         when(facilityMapper.findSportIdsByNames(List.of("테니스"))).thenReturn(List.of(1L));
+        when(facilityMapper.selectFacilitySportIds(10L)).thenReturn(List.of(1L));
         when(facilityMapper.updateFacility(eq(10L), anyForm())).thenReturn(0);
 
         assertThatThrownBy(() -> service.updateFacility(7L, 10L, form("수정 체육관", "새 주소", 5, "점검 중", "테니스")))
@@ -205,14 +327,46 @@ class FacilityServiceImplTest {
     }
 
     @Test
+    @DisplayName("모집 중이거나 매칭 완료된 매칭방이 남아 있으면 시설을 삭제하지 않는다")
+    void rejectsDeleteWhenBlockingMatchRemains() {
+        when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(true);
+        when(facilityMapper.selectActiveFacilityIdForUpdate(10L)).thenReturn(10L);
+        when(facilityMapper.selectMatchIdInStatusesForUpdate(10L, List.of("모집 중", "매칭 완료")))
+                .thenReturn(500L);
+
+        assertThatThrownBy(() -> service.deleteFacility(7L, 10L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("시설을 삭제할 수 없습니다");
+
+        verify(facilityMapper, never()).deleteFacility(10L);
+    }
+
+    @Test
     @DisplayName("담당 시설을 논리 삭제한다")
     void deletesOwnedFacility() {
         when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(true);
+        when(facilityMapper.selectActiveFacilityIdForUpdate(10L)).thenReturn(10L);
+        when(facilityMapper.selectMatchIdInStatusesForUpdate(10L, List.of("모집 중", "매칭 완료")))
+                .thenReturn(null);
         when(facilityMapper.deleteFacility(10L)).thenReturn(1);
 
         service.deleteFacility(7L, 10L);
 
         verify(facilityMapper).deleteFacility(10L);
+    }
+
+    @Test
+    @DisplayName("삭제 요청도 시설 행을 잠근 뒤에만 매칭방을 확인한다")
+    void locksFacilityRowBeforeDeleteCheck() {
+        when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(true);
+        when(facilityMapper.selectActiveFacilityIdForUpdate(10L)).thenReturn(null);
+
+        assertThatThrownBy(() -> service.deleteFacility(7L, 10L))
+                .isInstanceOf(FacilityNotFoundException.class);
+
+        verify(facilityMapper).selectActiveFacilityIdForUpdate(10L);
+        verify(facilityMapper, never()).selectMatchIdInStatusesForUpdate(anyLong(), anyList());
+        verify(facilityMapper, never()).deleteFacility(10L);
     }
 
     @Test
@@ -223,6 +377,8 @@ class FacilityServiceImplTest {
         assertThatThrownBy(() -> service.deleteFacility(7L, 10L))
                 .isInstanceOf(FacilityAccessDeniedException.class);
 
+        // 권한 없는 요청은 시설 행을 잠그지 않아 시설 존재 여부를 추가로 노출하지 않는다.
+        verify(facilityMapper, never()).selectActiveFacilityIdForUpdate(anyLong());
         verify(facilityMapper, never()).deleteFacility(10L);
     }
 

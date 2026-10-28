@@ -132,6 +132,17 @@ class FacilityManageRouteTest {
     }
 
     @Test
+    @DisplayName("매칭방이 남아 삭제가 거부되면 그 안내 문구를 오류로 보여준다")
+    void deleteBlockedByRemainingMatchShowsError() throws Exception {
+        String blocked = "모집 중이거나 매칭 완료된 매칭방이 있어 시설을 삭제할 수 없습니다.";
+        doThrow(new IllegalArgumentException(blocked)).when(facilityService).deleteFacility(7L, 10L);
+
+        mockMvc.perform(post("/admin/facilities/10/delete").with(user(facilityManager())).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl(ASSETS_REDIRECT + "?error=" + encoded(blocked) + ASSETS_FRAGMENT));
+    }
+
+    @Test
     @DisplayName("일반 회원의 시설 저장·삭제 요청은 서비스를 호출하지 않는다")
     void memberCannotWriteFacilities() throws Exception {
         mockMvc.perform(post("/admin/facilities").with(user(member())).with(csrf())

@@ -71,9 +71,58 @@
            AND deleted_at IS NULL
     </update>
 
-    <delete id="deleteFacilitySports">
+    <select id="selectFacilitySportIds" resultType="long">
+        SELECT sport_id
+          FROM facility_sport
+         WHERE facility_id = #{facilityId}
+         ORDER BY sport_id ASC
+           FOR UPDATE
+    </select>
+
+    <!-- 수정·삭제 대상 활성 시설 행을 잠근다. 관리자 요청끼리 같은 시설에서 직렬화된다. -->
+    <select id="selectActiveFacilityIdForUpdate" resultType="java.lang.Long">
+        SELECT facility_id
+          FROM facility
+         WHERE facility_id = #{facilityId}
+           AND deleted_at IS NULL
+           FOR UPDATE
+    </select>
+
+    <!-- 삭제 차단 판단용: 지정한 상태의 매칭방을 실제 행으로 잠그고 하나만 가져온다. -->
+    <select id="selectMatchIdInStatusesForUpdate" resultType="java.lang.Long">
+        SELECT match_id
+          FROM social_match
+         WHERE facility_id = #{facilityId}
+           AND status IN
+        <foreach collection="statuses" item="status" open="(" separator="," close=")">
+            #{status}
+        </foreach>
+         ORDER BY match_id ASC
+         LIMIT 1
+           FOR UPDATE
+    </select>
+
+    <!-- 종목 해제 보호용: 상태와 무관하게 참조하는 매칭방을 실제 행으로 잠그고 하나만 가져온다. -->
+    <select id="selectMatchIdForSportsForUpdate" resultType="java.lang.Long">
+        SELECT match_id
+          FROM social_match
+         WHERE facility_id = #{facilityId}
+           AND sport_id IN
+        <foreach collection="sportIds" item="sportId" open="(" separator="," close=")">
+            #{sportId}
+        </foreach>
+         ORDER BY match_id ASC
+         LIMIT 1
+           FOR UPDATE
+    </select>
+
+    <delete id="deleteFacilitySportsByIds">
         DELETE FROM facility_sport
          WHERE facility_id = #{facilityId}
+           AND sport_id IN
+        <foreach collection="sportIds" item="sportId" open="(" separator="," close=")">
+            #{sportId}
+        </foreach>
     </delete>
 
     <update id="deleteFacility">
