@@ -16,6 +16,8 @@ import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
+import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.MyClubResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
 import co.kr.spoit.club.service.ClubServiceImpl;
 import co.kr.spoit.club.service.ClubService.ClubNameExistException;
@@ -93,7 +95,7 @@ class ClubServiceTest {
         club.setIntro("주말 농구 모임");
         when(clubMapper.selectClubDetail(1L)).thenReturn(club);
         when(clubMapper.selectClubMembers(1L)).thenReturn(List.of(
-                member("윤드롭", "일반"),
+                member("윤드롭", "동호회원"),
                 member("이슛터", "동호회장")));
 
         ClubDetailResponse detail = service.findClubDetail(1L);
@@ -178,6 +180,56 @@ class ClubServiceTest {
         verify(clubMapper, never()).insertClubMember(any(), any());
     }
 
+    @Test
+    @DisplayName("속한 동호회가 없으면 null을 돌려주고 더 조회하지 않는다")
+    void 관리할_동호회가_없으면_null을_돌려준다() {
+        when(clubMapper.selectMyClubs(7L)).thenReturn(List.of());
+
+        assertThat(service.findManagedClub(7L, null)).isNull();
+        verify(clubMapper, never()).existsActiveMember(any(), any());
+    }
+
+    @Test
+    @DisplayName("번호 없이 들어오면 내 동호회 목록 맨 앞을 보여주고 나와 동호회장을 표시한다")
+    void 번호가_없으면_첫_동호회를_보여준다() {
+        ClubSummary second = club("모집중", "2,4", 19, 21);
+        second.setClubId(2L);
+        when(clubMapper.selectMyClubs(7L)).thenReturn(List.of(club("모집중", "2,4", 19, 21), second));
+        when(clubMapper.existsActiveMember(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectClubDetail(1L)).thenReturn(detailClub());
+        // 로그인한 사람(7)이 동호회장
+        ClubMember me = member("이슛터", "동호회장");
+        me.setUserId(7L);
+        ClubMember other = member("윤드롭", "동호회원");
+        other.setUserId(8L);
+        when(clubMapper.selectClubMembers(1L)).thenReturn(List.of(me, other));
+
+        ClubManageResponse managed = service.findManagedClub(7L, null);
+
+        assertThat(managed.getClubId()).isEqualTo(1L);
+        assertThat(managed.isLeader()).isTrue();
+        assertThat(managed.getLeaderName()).isEqualTo("이슛터");
+        assertThat(managed.getMemberCount()).isEqualTo(3);
+        assertThat(managed.getMaxMembers()).isEqualTo(10);
+        assertThat(managed.getMembers().get(0).isCurrent()).isTrue();
+        assertThat(managed.getMembers().get(1).isCurrent()).isFalse();
+        assertThat(managed.getMembers().get(0).getJoined()).isEqualTo("2026.10.20");
+    }
+
+    @Test
+    @DisplayName("내 동호회 목록에서 선택된 동호회만 강조한다")
+    void 선택된_동호회만_강조한다() {
+        ClubSummary second = club("모집중", "2,4", 19, 21);
+        second.setClubId(2L);
+        when(clubMapper.selectMyClubs(7L)).thenReturn(List.of(club("모집중", "2,4", 19, 21), second));
+
+        List<MyClubResponse> clubs = service.findMyClubs(7L, 2L);
+
+        assertThat(clubs).hasSize(2);
+        assertThat(clubs.get(0).isActive()).isFalse();
+        assertThat(clubs.get(1).isActive()).isTrue();
+    }
+
     private ClubSummary club(String recruitStatus, String activityDays, int startHour, int endHour) {
         ClubSummary club = new ClubSummary();
         club.setClubId(1L);
@@ -204,6 +256,7 @@ class ClubServiceTest {
         ClubMember member = new ClubMember();
         member.setNickname(nickname);
         member.setRole(role);
+        member.setJoinedAt(LocalDateTime.of(2026, 10, 20, 9, 0));
         return member;
     }
 

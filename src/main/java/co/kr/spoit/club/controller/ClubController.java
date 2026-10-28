@@ -10,10 +10,12 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
+import co.kr.spoit.club.dto.ClubManageResponse;
 import co.kr.spoit.club.service.ClubService;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -48,12 +50,36 @@ public class ClubController {
         return "teams/detail";
     }
 
-    // 동호회 관리 화면(종목,지역만 포함)
+    // 동호회 관리 화면: 내 동호회 목록 + 선택한 동호회
     @GetMapping("/manage")
-    public String teamManage(Model model) {
-        model.addAttribute("tab", "team");
-        model.addAttribute("managedClubs", List.of());
-        model.addAttribute("managedClub", null);
+    public String teamManage(@RequestParam(value = "clubId", required = false) Long clubId,
+            @RequestParam(value = "tab", defaultValue = "team") String tab,
+            @AuthenticationPrincipal MemberPrincipal principal,
+            Model model, RedirectAttributes redirectAttributes) {
+        // SecurityConfig 이후 재확인
+        if (principal == null) {
+            return "redirect:/login";
+        }
+        Long userId = principal.getUserId();
+        log.info("동호회 관리 화면 조회: userId={}, clubId={}, tab={}", userId, clubId, tab);
+
+        ClubManageResponse managedClub;
+        try {
+            managedClub = clubService.findManagedClub(userId, clubId);
+        } catch (IllegalArgumentException exception) {
+            // 내 동호회 아니면 번호 없이 돌아감
+            log.warn("동호회 관리 거부: userId={}, clubId={}", userId, clubId);
+            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+            return "redirect:/teams/manage";
+        }
+
+        // 선택 버튼 강조 동호회
+        Long activeClubId = managedClub == null ? null : managedClub.getClubId();
+
+        model.addAttribute("managedClubs", clubService.findMyClubs(userId, activeClubId));
+        model.addAttribute("managedClub", managedClub);
+        // 내 동호회, 동호회원만 허용(가입 신청 미구현)
+        model.addAttribute("tab", "members".equals(tab) ? "members" : "team");
         model.addAttribute("sports", clubService.findSportOptions());
         model.addAttribute("districts", clubService.findRegionOptions());
         return "teams/manage";
@@ -90,7 +116,7 @@ public class ClubController {
 
         log.info("동호회 생성 완료: clubId={}", clubId);
         redirectAttributes.addFlashAttribute("message", "팀을 만들었습니다.");
-        return "redirect:/teams/" + clubId;
+        return "redirect:/teams/manage?clubId=" + clubId;
     }
 
 }

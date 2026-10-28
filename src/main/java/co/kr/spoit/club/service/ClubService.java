@@ -7,6 +7,8 @@ import co.kr.spoit.club.domain.ClubSportOption;
 import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
+import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.MyClubResponse;
 
 public interface ClubService {
 
@@ -28,5 +30,11 @@ public interface ClubService {
 
     // 동호회 만들기: 동호회,지역,동호회장 한 번에 저장
     Long createClub(Long userId, ClubCreateForm form) throws ClubNameExistException;
+
+    // 내 동호회 관리 화면
+    ClubManageResponse findManagedClub(Long userId, Long clubId);
+
+    // 내 동호회 관리 화면 위쪽 선택 버튼 - 내 동호회 목록(activeClubId가 선택된 동호회)
+    List<MyClubResponse> findMyClubs(Long userId, Long activeClubId);
 
 }
