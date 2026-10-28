@@ -119,6 +119,18 @@ button { color: inherit; }
 .admin-button:disabled { cursor: not-allowed; background: var(--admin-line-strong); color: var(--admin-faint); }
 
 .admin-view[hidden], .admin-panel[hidden] { display: none !important; }
+/* 화면 전환 시 admin-shell.js가 .admin-view에 tabindex="-1"을 주고 초점을 옮깁니다.
+   화면 전체를 감싸는 브라우저 기본 초점 테두리(검은 1px)는 보이지 않게 하고,
+   대신 현재 화면의 제목 묶음(.page-heading-copy)에 초점 테두리를 그려 위치를 알립니다.
+   마우스로 전환하면 :focus-visible이 아니므로 표시되지 않고,
+   안쪽 버튼·링크·입력의 키보드 초점 표시는 위 공통 규칙 그대로 유지됩니다. */
+.admin-view:focus,
+.admin-view:focus-visible { outline: none; }
+.admin-view:focus-visible .page-heading-copy {
+  border-radius: 10px;
+  outline: 2px solid var(--admin-blue);
+  outline-offset: 10px;
+}
 .admin-body[data-admin-role="facility"] .admin-content .card { border: 0; border-radius: 0; background: transparent; }
 .admin-body[data-admin-role="facility"] .admin-content .metric-grid { border: 0; border-bottom: 1px solid var(--admin-line-strong); border-radius: 0; background: transparent; }
 .admin-body[data-admin-role="facility"] .admin-content .metric-card + .metric-card { border-left: 0; }
@@ -330,6 +342,10 @@ button { color: inherit; }
 .modal-close { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border: 0; border-radius: 50%; background: var(--admin-soft); color: var(--admin-muted); font-size: 17px; }
 .modal-close:hover { background: var(--admin-line); color: var(--admin-ink); }
 .modal-body { padding: 18px 23px 20px; }
+.facility-confirm-message { margin: 0; color: var(--admin-ink-2); font-size: 12.5px; line-height: 1.75; }
+.facility-confirm-target { display: flex; align-items: baseline; gap: 8px; margin: 13px 0 0; padding: 10px 12px; border-radius: 9px; background: var(--admin-soft); }
+.facility-confirm-target span { flex: 0 0 auto; color: var(--admin-muted); font-size: 10.5px; font-weight: 700; }
+.facility-confirm-target strong { min-width: 0; color: var(--admin-ink); font-size: 12px; font-weight: 800; overflow-wrap: anywhere; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 0 23px 22px; }
 .notification-modal .modal-footer { align-items: center; justify-content: space-between; border-top: 1px solid var(--admin-line); padding-top: 12px; }
 .admin-notification-summary { margin: 0 0 7px; color: var(--admin-muted); font-size: 10px; font-weight: 700; }

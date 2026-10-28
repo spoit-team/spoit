@@ -415,6 +415,25 @@
   </section>
 </div>
 
+<!-- 시설 수정·삭제 확인: 파괴적인 작업을 서버로 보내기 전에 한 번 더 확인합니다. -->
+<div class="modal-backdrop" id="facility-confirm-modal" hidden>
+  <section class="admin-modal" role="alertdialog" aria-modal="true" aria-labelledby="facility-confirm-title"
+           aria-describedby="facility-confirm-message facility-confirm-target">
+    <div class="modal-header">
+      <div><h2 id="facility-confirm-title">시설 정보를 수정할까요?</h2></div>
+      <button class="modal-close" type="button" data-close-facility-confirm aria-label="닫기">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="facility-confirm-message" id="facility-confirm-message">저장하면 담당 시설 목록에 바로 반영됩니다.</p>
+      <p class="facility-confirm-target" id="facility-confirm-target"><span>대상 시설</span><strong data-facility-confirm-name>시설명</strong></p>
+    </div>
+    <div class="modal-footer">
+      <button class="admin-button" type="button" id="facility-confirm-cancel" data-close-facility-confirm>취소</button>
+      <button class="admin-button primary" type="button" id="facility-confirm-submit" data-confirm-facility-action>수정 저장</button>
+    </div>
+  </section>
+</div>
+
 <!-- 점검 일지 등록 -->
 <div class="modal-backdrop" id="maintenance-modal" hidden>
   <section class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="maintenance-modal-title">

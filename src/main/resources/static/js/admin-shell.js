@@ -60,7 +60,7 @@
     return views[0]?.id || '';
   }
 
-  function showView(targetId, updateLocation) {
+  function showView(targetId, updateLocation, skipFocus) {
     const target = views.find(function (view) { return view.id === targetId; });
     if (!target) return;
     views.forEach(function (view) { view.hidden = view !== target; });
@@ -75,6 +75,7 @@
       global.history.replaceState(null, '', '#' + targetId);
       document.title = (title ? title + ' · ' : '') + 'SPO:IT 관리자';
     }
+    if (skipFocus) return;
     target.setAttribute('tabindex', '-1');
     target.focus({ preventScroll: true });
   }
@@ -236,5 +237,8 @@
   };
 
   syncSidebarForViewport();
-  showView(viewFromLocation(), Boolean(document.body.dataset.view));
+  /* 초기 진입(첫 화면 선택)에는 초점을 옮기지 않는다. 페이지를 열자마자 본문에
+     초점 표시가 그려지는 현상을 막기 위해서다. 이후 화면 전환에서만 초점을 옮겨
+     키보드 사용자가 전환된 위치를 알 수 있게 한다. */
+  showView(viewFromLocation(), Boolean(document.body.dataset.view), true);
 })(window);
