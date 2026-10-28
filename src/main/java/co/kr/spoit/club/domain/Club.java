@@ -2,11 +2,17 @@ package co.kr.spoit.club.domain;
 
 import java.time.LocalTime;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
-import lombok.Setter;
+import lombok.NoArgsConstructor;
+import lombok.ToString;
 
-@Getter 
-@Setter 
+@Getter
+@Builder
+@ToString
+@NoArgsConstructor
+@AllArgsConstructor
 public class Club {
 
     private Long clubId;

@@ -2,6 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="co.kr.spoit.club.mapper.ClubMapper">
 
+    <!-- 동호회 목록: 해체되지 않은 동호회만 -->
     <select id="selectClubSummaryList" resultType="co.kr.spoit.club.domain.ClubSummary">
         SELECT club_id AS clubId
               ,club_name AS clubName
@@ -46,6 +47,7 @@
     </choose>
     </select>
 
+    <!-- 동호회 상세: 목록에 intro만 추가 -->
     <select id="selectClubDetail" resultType="co.kr.spoit.club.domain.ClubSummary">
         SELECT c.club_id AS clubId
               ,c.club_name AS clubName
@@ -92,6 +94,7 @@
         ORDER BY name
     </select>
 
+    <!-- 해체되지 않은 동호회끼리만 이름 중복 검사 -->
     <select id="existsActiveClubName" resultType="boolean">
         SELECT COUNT(*) > 0 FROM club
         WHERE club_name = #{clubName} AND deleted_at IS NULL
@@ -106,6 +109,7 @@
         WHERE region_id = #{regionId} AND parent_region_id IS NOT NULL
     </select>
 
+    <!-- DB가 만든 번호를 clubId에 연결-->
     <insert id="insertClub" useGeneratedKeys="true" keyProperty="clubId">
         INSERT INTO club (sport_id, club_name, intro, max_members, 
                             activity_days, activity_start_time, activity_end_time)
