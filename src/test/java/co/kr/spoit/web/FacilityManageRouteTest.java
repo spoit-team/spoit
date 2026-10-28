@@ -12,7 +12,6 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -25,6 +24,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import co.kr.spoit.facility.controller.FacilityAdminController;
 import co.kr.spoit.facility.dto.FacilityForm;
 import co.kr.spoit.facility.service.FacilityAccessDeniedException;
 import co.kr.spoit.facility.service.FacilityService;
@@ -34,9 +34,14 @@ import co.kr.spoit.member.security.MemberLoginSuccessHandler;
 import co.kr.spoit.member.service.MemberUserDetailsService;
 
 /** 시설 등록·수정·삭제 요청이 서비스 계약으로 전달되고 결과 안내를 돌려주는지 검증한다. */
-@WebMvcTest(controllers = CorePageController.class)
+@WebMvcTest(controllers = FacilityAdminController.class)
 @Import(SecurityConfig.class)
 class FacilityManageRouteTest {
+
+    /** 수정·삭제는 시설 목록 섹션으로 복귀해야 한다. */
+    private static final String ASSETS_REDIRECT = "/admin/facility";
+
+    private static final String ASSETS_FRAGMENT = "#facility-assets";
 
     @Autowired
     private MockMvc mockMvc;
@@ -65,14 +70,14 @@ class FacilityManageRouteTest {
                         .param("concurrentMatchLimit", "3")
                         .param("status", "운영 중"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/facility?message="
-                        + java.net.URLEncoder.encode("시설을 등록했습니다.", java.nio.charset.StandardCharsets.UTF_8)));
+                .andExpect(redirectedUrl(ASSETS_REDIRECT + "?message="
+                        + encoded("시설을 등록했습니다.") + ASSETS_FRAGMENT));
 
         verify(facilityService).registerFacility(eq(7L), any(FacilityForm.class));
     }
 
     @Test
-    @DisplayName("시설 관리자가 수정 폼을 제출하면 대상 시설 ID와 함께 위임한다")
+    @DisplayName("시설 관리자가 수정하면 시설 목록 섹션으로 성공 안내와 함께 돌아간다")
     void facilityManagerCanUpdate() throws Exception {
         mockMvc.perform(post("/admin/facilities/10").with(user(facilityManager())).with(csrf())
                         .param("name", "수정 체육관")
@@ -81,33 +86,49 @@ class FacilityManageRouteTest {
                         .param("concurrentMatchLimit", "5")
                         .param("status", "점검 중"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/facility?message="
-                        + java.net.URLEncoder.encode("시설 정보를 수정했습니다.", java.nio.charset.StandardCharsets.UTF_8)));
+                .andExpect(redirectedUrl(ASSETS_REDIRECT + "?message="
+                        + encoded("시설 정보를 수정했습니다.") + ASSETS_FRAGMENT));
 
         verify(facilityService).updateFacility(eq(7L), eq(10L), any(FacilityForm.class));
     }
 
     @Test
-    @DisplayName("시설 관리자가 삭제를 요청하면 논리 삭제를 위임한다")
+    @DisplayName("시설 관리자가 삭제하면 시설 목록 섹션으로 성공 안내와 함께 돌아간다")
     void facilityManagerCanDelete() throws Exception {
         mockMvc.perform(post("/admin/facilities/10/delete").with(user(facilityManager())).with(csrf()))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/facility?message="
-                        + java.net.URLEncoder.encode("시설을 삭제했습니다.", java.nio.charset.StandardCharsets.UTF_8)));
+                .andExpect(redirectedUrl(ASSETS_REDIRECT + "?message="
+                        + encoded("시설을 삭제했습니다.") + ASSETS_FRAGMENT));
 
         verify(facilityService).deleteFacility(7L, 10L);
     }
 
     @Test
-    @DisplayName("서비스가 권한 예외를 던지면 오류 안내와 함께 되돌아온다")
+    @DisplayName("수정 폼 바인딩에 실패하면 시설 목록 섹션의 오류 안내로 되돌아온다")
+    void invalidUpdateFormShowsError() throws Exception {
+        mockMvc.perform(post("/admin/facilities/10").with(user(facilityManager())).with(csrf())
+                        .param("name", "수정 체육관")
+                        .param("address", "주소")
+                        .param("sports", "농구")
+                        .param("concurrentMatchLimit", "구역수아님")
+                        .param("status", "운영 중"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl(ASSETS_REDIRECT + "?error="
+                        + encoded("입력 정보를 확인해 주세요.") + ASSETS_FRAGMENT));
+
+        verifyNoInteractions(facilityService);
+    }
+
+    @Test
+    @DisplayName("서비스가 권한 예외를 던지면 시설 목록 섹션의 오류 안내와 함께 되돌아온다")
     void accessDeniedShowsError() throws Exception {
         doThrow(new FacilityAccessDeniedException("담당 시설만 관리할 수 있습니다."))
                 .when(facilityService).deleteFacility(7L, 10L);
 
         mockMvc.perform(post("/admin/facilities/10/delete").with(user(facilityManager())).with(csrf()))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/facility?error="
-                        + java.net.URLEncoder.encode("담당 시설만 관리할 수 있습니다.", java.nio.charset.StandardCharsets.UTF_8)));
+                .andExpect(redirectedUrl(ASSETS_REDIRECT + "?error="
+                        + encoded("담당 시설만 관리할 수 있습니다.") + ASSETS_FRAGMENT));
     }
 
     @Test
@@ -167,7 +188,11 @@ class FacilityManageRouteTest {
                         .param("concurrentMatchLimit", "3")
                         .param("status", "운영 중"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/facility?error="
-                        + java.net.URLEncoder.encode("수정할 시설을 찾을 수 없습니다.", java.nio.charset.StandardCharsets.UTF_8)));
+                .andExpect(redirectedUrl(ASSETS_REDIRECT + "?error="
+                        + encoded("수정할 시설을 찾을 수 없습니다.") + ASSETS_FRAGMENT));
+    }
+
+    private static String encoded(String value) {
+        return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
     }
 }

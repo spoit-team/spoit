@@ -23,6 +23,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import co.kr.spoit.facility.controller.FacilityAdminController;
 import co.kr.spoit.facility.domain.FacilitySummary;
 import co.kr.spoit.facility.dto.FacilityListItem;
 import co.kr.spoit.facility.service.FacilityService;
@@ -32,7 +33,7 @@ import co.kr.spoit.member.security.MemberLoginSuccessHandler;
 import co.kr.spoit.member.service.MemberUserDetailsService;
 
 /** 시설 관리 화면이 인증 주체의 담당 시설만 실제 서비스 조회로 렌더링하는지 검증한다. */
-@WebMvcTest(controllers = CorePageController.class)
+@WebMvcTest(controllers = FacilityAdminController.class)
 @Import(SecurityConfig.class)
 class AdminFacilityPageTest {
 
@@ -92,6 +93,32 @@ class AdminFacilityPageTest {
                 .andExpect(status().isForbidden());
 
         verifyNoInteractions(facilityService);
+    }
+
+    @Test
+    @DisplayName("변경 성공 메시지를 시설 화면에 렌더링한다")
+    void rendersSuccessMessageFromQuery() throws Exception {
+        when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/facility").param("message", "시설 정보를 수정했습니다.")
+                        .with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("시설 정보를 수정했습니다.")))
+                .andExpect(content().string(containsString("admin-flash")))
+                .andExpect(content().string(not(containsString("admin-flash is-error"))));
+    }
+
+    @Test
+    @DisplayName("변경 실패 메시지를 시설 화면에 오류 안내로 렌더링한다")
+    void rendersErrorMessageFromQuery() throws Exception {
+        when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/facility").param("error", "담당 시설만 관리할 수 있습니다.")
+                        .with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("담당 시설만 관리할 수 있습니다.")))
+                .andExpect(content().string(containsString("admin-flash is-error")))
+                .andExpect(content().string(containsString("role=\"alert\"")));
     }
 
     private static FacilityListItem facility(Long id, String name, String sportsLabel,

@@ -86,6 +86,14 @@ const css = await Bun.build({
 });
 check(css.success, `CSS syntax: ${css.logs.join('\n')}`);
 
+// 관리자 화면 전환 시 admin-shell.js가 .admin-view로 초점을 옮긴다.
+// 뷰 전체를 감싸는 기본 초점 테두리는 끄고, 키보드일 때 제목에 표시를 남긴다.
+const adminCss = await readFile(path.join(resources, 'static/css/admin.css'), 'utf8');
+check(/\.admin-view:focus,\s*\.admin-view:focus-visible\s*\{[^}]*outline:\s*none/.test(adminCss),
+  'admin.css: .admin-view must not draw the full-viewport focus ring');
+check(/\.admin-view:focus-visible\s+\.page-heading-copy\s*\{[^}]*outline:\s*(?!none\b|0)\S/.test(adminCss),
+  'admin.css: keyboard focus on .admin-view must mark the page title instead');
+
 const templates = await files('templates/**/*.html');
 for (const file of templates) {
   const source = await readFile(path.join(resources, file), 'utf8');
@@ -221,6 +229,15 @@ check(/th:href="@\{\/admin\/facility/.test(facilitySidebar ?? ''),
   'admin.html: facility sidebar must keep its own menu links');
 check(/th:href="@\{\/admin\/system/.test(systemSidebar ?? ''),
   'admin.html: system sidebar must keep its own menu links');
+
+// 실제 시설·시스템 템플릿의 모든 .admin-view가 대체 포커스 표시 대상(제목)을 가져야 한다.
+for (const file of ['templates/admin/facility.html', 'templates/admin/system.html']) {
+  const source = await readFile(path.join(resources, file), 'utf8');
+  const views = source.split(/<section class="admin-view"/).slice(1);
+  const missing = views.filter(view => !/class="page-heading-copy"[\s\S]*<h1\b/.test(view));
+  check(views.length > 0 && missing.length === 0,
+    `${file}: every .admin-view needs .page-heading-copy with an h1 for the keyboard focus indicator`);
+}
 
 if (failures.length) {
   console.error(failures.join('\n'));
