@@ -71,3 +71,30 @@ INSERT INTO sport_rating (
     (1, 1, 1023.45, 7, '2026-10-21 09:30:00'),
     (1, 2, 999999.99, 0, '2026-10-21 09:30:00'),
     (2, 1, -999999.99, 12, '2026-10-21 09:30:00');
+
+-- MatchAssignmentMapper: user 1 manages facility 1 only, and facility 2 is deleted.
+INSERT INTO facility (
+    facility_id, region_id, name, address, latitude, longitude,
+    concurrent_match_limit, status, deleted_at
+) VALUES
+    (2, 1, 'MAT 삭제된 테스트 시설', '테스트 전용 주소', 37.5000000, 127.0000000,
+     1, '운영중', '2026-10-21 00:00:00');
+
+INSERT INTO facility_sport (
+    facility_id, sport_id, default_min, default_max, default_fee, default_skill
+) VALUES
+    (2, 1, 1, 2, 0.00, '무관');
+
+INSERT INTO facility_manager (facility_id, user_id, assigned_at) VALUES
+    (1, 1, '2026-10-20 09:00:00');
+
+INSERT INTO social_match (
+    match_id, facility_id, sport_id, created_by, title, start_at, end_at,
+    min_participants, max_participants, team_a_capacity, team_b_capacity,
+    fee_per_person, required_skill, status, assignment_method,
+    assigned_by, assignment_confirmed_at, rating_status
+) VALUES
+    (3, 1, 1, 1, 'MAT 배정 테스트 경기', '2026-10-23 10:00:00', '2026-10-23 12:00:00',
+     6, 6, 3, 3, 0.00, '무관', '매칭 완료', 'MANUAL', 1, '2026-10-22 18:00:00', 'WAITING'),
+    (4, 2, 1, 1, 'MAT 삭제 시설 경기', '2026-10-23 10:00:00', '2026-10-23 12:00:00',
+     1, 2, 1, 1, 0.00, '무관', '모집 중', 'MANUAL', NULL, NULL, 'WAITING');
