@@ -34,8 +34,8 @@ public class ClubServiceImpl implements ClubService {
     private static final int MIN_MEMBERS = 2;
     private static final int MAX_MEMBERS = 30;
 
-    @Override
     // 최신순 전체 조회(검색 미구현)
+    @Override
     public List<ClubCardResponse> findClubCards() {
         List<ClubSummary> clubs = clubMapper.selectClubSummaryList(null, null, null, false, "recent");
 
@@ -67,6 +67,7 @@ public class ClubServiceImpl implements ClubService {
         return clubMapper.selectClubRegionOptions();
     }
 
+    // 동호회 만들기 저장
     @Override
     @Transactional
     public Long createClub(Long userId, ClubCreateForm form) throws ClubNameExistException {

@@ -10,7 +10,7 @@ import co.kr.spoit.club.dto.ClubDetailResponse;
 
 public interface ClubService {
 
-    // 활성화 동호회 이름 중복 확인
+    // 활성화 동호회 이름 중복 예외 처리
     static class ClubNameExistException extends Exception {
     }
 

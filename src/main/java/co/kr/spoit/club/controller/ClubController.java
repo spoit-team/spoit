@@ -64,7 +64,7 @@ public class ClubController {
     public String create(ClubCreateForm form, BindingResult bindingResult,
             @AuthenticationPrincipal MemberPrincipal principal, RedirectAttributes redirectAttributes) {
         log.info("동호회 생성 요청: {}", form);
-        // SecurityConfig가 /teams 확인 로그인 여부 확인
+        // SecurityConfig 이후 재확인
         if (principal == null) {
             return "redirect:/login";
         }
