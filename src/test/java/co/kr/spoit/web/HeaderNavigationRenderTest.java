@@ -55,7 +55,7 @@ class HeaderNavigationRenderTest {
     @Test
     @DisplayName("비로그인 사용자 헤더에는 로그인 링크만 있고 관리자 메뉴는 없다")
     void anonymousHeaderHasNoAdminLinks() throws Exception {
-        mockMvc.perform(get("/teams/manage"))
+        mockMvc.perform(get("/teams"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("data-auth-guest")))
                 .andExpect(content().string(containsString("href=\"/login\"")))
