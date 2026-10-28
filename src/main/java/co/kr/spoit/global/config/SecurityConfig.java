@@ -6,6 +6,7 @@ import java.util.Base64;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -78,6 +79,13 @@ public class SecurityConfig {
                         // 위에서 명시하지 않은 관리자 경로는 시스템 관리자에게만 허용한다.
                         .requestMatchers("/admin", "/admin/**").hasRole("ADMIN")
                         .requestMatchers("/mypage", "/mypage/**").authenticated()
+                        // RES-03 참가 신청: 상세(/matches/{id})는 공개, 선택·신청·완료는 로그인 필요
+                        .requestMatchers("/matches/*/selection", "/matches/*/apply", "/matches/*/apply/**")
+                        .authenticated()
+                        // 동호회: 목록(GET /teams)만 공개, 상세·관리·만들기는 로그인 필요
+                        .requestMatchers(HttpMethod.GET, "/teams").permitAll()
+                        .requestMatchers("/teams", "/teams/**").authenticated()
+
                         .anyRequest().permitAll())
                 .formLogin(form -> form
                         .loginPage("/login")

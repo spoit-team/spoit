@@ -125,8 +125,8 @@
     if (backButton) backButton.textContent = isTeam && teamStep === 2 ? '이전' : '취소';
     if (submitButton) {
       submitButton.textContent = isTeam
-        ? teamStep === 1 ? '참가 팀원 선택' : '결제 안내로 이동'
-        : '결제 안내로 이동';
+        ? teamStep === 1 ? '참가 팀원 선택' : '참가 신청하기'
+        : '참가 신청하기';
       submitButton.disabled = isTeam
         ? teamStep === 1 ? !clubId : !hasParticipants() || seatCount() > availableSeats
         : availableSeats < 1;

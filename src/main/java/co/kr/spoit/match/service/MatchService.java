@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import co.kr.spoit.match.domain.ApplicationStatus;
+import co.kr.spoit.match.domain.ApplicationType;
 import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.domain.ParticipationStatus;
 import co.kr.spoit.match.dto.ActiveFilter;
@@ -126,8 +128,7 @@ public class MatchService {
             return Optional.empty();
         }
         LocalDateTime now = LocalDateTime.now(ZONE);
-        List<ParticipantRow> participants =
-                matchMapper.findParticipants(List.of(matchId), ParticipationStatus.occupyingValues());
+        List<ParticipantRow> participants = findOccupants(List.of(matchId));
         return Optional.of(detailAssembler.toPage(row, participants, currentUserId, now, now.toLocalDate()));
     }
 
@@ -138,14 +139,27 @@ public class MatchService {
             return List.of();
         }
         List<Long> ids = rows.stream().map(MatchRow::getMatchId).toList();
-        Map<Long, List<ParticipantRow>> byMatch = matchMapper
-                .findParticipants(ids, ParticipationStatus.occupyingValues())
+        Map<Long, List<ParticipantRow>> byMatch = findOccupants(ids)
                 .stream()
                 .collect(Collectors.groupingBy(ParticipantRow::getMatchId));
 
         return rows.stream()
                 .map(r -> assembler.toCard(r, byMatch.getOrDefault(r.getMatchId(), Collections.emptyList()), now, today))
                 .toList();
+    }
+
+    /**
+     * 정원을 차지하는 사람: 참가자 행(대기·확정) + 확정 대기 중인 개인 신청.
+     * 신청은 확정 전까지 match_participant에 없으므로 여기서 합쳐 기존 Assembler가 그대로 쓰게 한다.
+     */
+    private List<ParticipantRow> findOccupants(List<Long> matchIds) {
+        List<ParticipantRow> rows = new ArrayList<>(
+                matchMapper.findParticipants(matchIds, ParticipationStatus.occupyingValues()));
+        rows.addAll(matchMapper.findPendingApplicants(matchIds,
+                ApplicationStatus.WAITING.dbValue(),
+                ApplicationType.INDIVIDUAL.dbValue(),
+                ParticipationStatus.WAITING.dbValue()));
+        return rows;
     }
 
     private List<SportTab> buildSportTabs(List<SportTab> sports, List<SportCount> counts) {

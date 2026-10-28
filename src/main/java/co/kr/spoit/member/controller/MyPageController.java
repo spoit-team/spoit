@@ -12,6 +12,7 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.logout.CookieClearingLogoutHandler;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -19,11 +20,16 @@ import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import co.kr.spoit.mat.dto.SportRatingResponse;
 import co.kr.spoit.mat.service.SportRatingService;
+import co.kr.spoit.match.dto.MyReservations;
+import co.kr.spoit.match.service.MatchApplicationService;
+import co.kr.spoit.match.service.MatchApplyException;
+import co.kr.spoit.match.service.MyReservationService;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.member.dto.ProfileUpdateForm;
@@ -39,7 +45,8 @@ import lombok.RequiredArgsConstructor;
  * 마이페이지 화면 컨트롤러.
  *
  * <p>로그인 세션의 {@link MemberPrincipal}로 본인 정보를 채운다. 선호 종목·프로필 저장을 지원하고,
- * 레이팅은 저장된 {@code sport_rating} 값을 그대로 보여준다.</p>
+ * 레이팅은 저장된 {@code sport_rating} 값을 그대로 보여준다. 신청 내역(RES-06)은
+ * {@link MyReservationService}가 현재 신청과 지난 참여·취소로 나눠 채운다.</p>
  */
 @Controller
 @RequiredArgsConstructor
@@ -55,6 +62,8 @@ public class MyPageController {
 
     private final MemberService memberService;
     private final SportRatingService sportRatingService;
+    private final MyReservationService reservationService;
+    private final MatchApplicationService applicationService;
 
     /** 폼 바인딩 대상 필드를 제한해 의도하지 않은 값 주입을 막는다. */
     @InitBinder("profileUpdateForm")
@@ -70,12 +79,20 @@ public class MyPageController {
 
     /** 마이페이지 요약 화면. 비로그인 상태는 세션 주체가 없어 빈 값으로 렌더링된다. */
     @GetMapping("/mypage")
-    public String myPage(Authentication authentication, Model model) {
+    public String myPage(Authentication authentication, HttpServletRequest request, Model model,
+            @RequestParam(name = "message", required = false) String message) {
+        // 신청 취소 폼이 있으므로 지연 생성되는 CSRF 토큰을 렌더링 전에 확정한다.
+        // standalone MockMvc에서는 시큐리티 필터가 없어 속성이 비어 있을 수 있다.
+        if (request.getAttribute(CsrfToken.class.getName()) instanceof CsrfToken csrfToken) {
+            csrfToken.getToken();
+        }
         MemberPrincipal principal = principalOf(authentication);
         Long userId = principal == null ? null : principal.getUserId();
+        MyReservations reservations = (userId == null || userId <= 0)
+                ? MyReservations.empty() : reservationService.find(userId);
 
         model.addAttribute("member", memberView(principal));
-        model.addAttribute("summary", summaryView(userId));
+        model.addAttribute("summary", summaryView(userId, reservations));
         model.addAttribute("otherSports", EMPTY_LIST);
         model.addAttribute("sports", EMPTY_LIST);
         model.addAttribute("selectedSport", "all");
@@ -84,11 +101,28 @@ public class MyPageController {
         model.addAttribute("historyCount", 0);
         model.addAttribute("history", EMPTY_LIST);
         model.addAttribute("historyEmptyNote", "확정된 경기 기록이 없습니다.");
-        model.addAttribute("currentReservations", EMPTY_LIST);
-        model.addAttribute("pastReservations", EMPTY_LIST);
+        model.addAttribute("currentReservations", reservations.getCurrent());
+        model.addAttribute("pastReservations", reservations.getPast());
         model.addAttribute("notifications", EMPTY_LIST);
-        model.addAttribute("message", null);
+        model.addAttribute("message", blankToNull(message));
         return "mypage/index";
+    }
+
+    /** RES-05 신청 취소. 결과는 성공·실패 모두 마이페이지 상단 안내 영역에 보여 준다. */
+    @PostMapping("/mypage/applications/{applicationId}/cancel")
+    public String cancelApplication(@PathVariable long applicationId, Authentication authentication) {
+        MemberPrincipal principal = principalOf(authentication);
+        if (principal == null) {
+            return "redirect:/login";
+        }
+        String message;
+        try {
+            applicationService.cancel(applicationId, principal.getUserId());
+            message = "신청을 취소했습니다.";
+        } catch (MatchApplyException exception) {
+            message = exception.getMessage();
+        }
+        return "redirect:/mypage?message=" + URLEncoder.encode(message, StandardCharsets.UTF_8) + "#reservations";
     }
 
     /** 템플릿이 참조하는 회원 표시값만 담는다. */
@@ -110,8 +144,8 @@ public class MyPageController {
         return member;
     }
 
-    /** 대표 종목과 저장된 레이팅만 조회하고, 나머지 집계는 조회 구현 전까지 0건 기본값을 유지한다. */
-    private Map<String, Object> summaryView(Long userId) {
+    /** 대표 종목·저장된 레이팅과 신청 내역 집계(참가 확정·완료·확정 대기)를 담는다. */
+    private Map<String, Object> summaryView(Long userId, MyReservations reservations) {
         Optional<SportOption> representative =
                 (userId == null || userId <= 0) ? Optional.empty() : memberService.findRepresentativeSport(userId);
         Map<String, Object> summary = new LinkedHashMap<>();
@@ -121,9 +155,9 @@ public class MyPageController {
         summary.put("representativeSportId", representative.<Object>map(SportOption::getSportId).orElse(""));
         summary.put("representativeSportName", representative.map(SportOption::getName).orElse("종목"));
         summary.put("skillNote", "참가 확정 매치의 개인 레이팅 평균을 표시합니다.");
-        summary.put("confirmedCount", 0);
-        summary.put("completedCount", 0);
-        summary.put("waitingCount", 0);
+        summary.put("confirmedCount", reservations.getConfirmedCount());
+        summary.put("completedCount", reservations.getCompletedCount());
+        summary.put("waitingCount", reservations.getWaitingCount());
         summary.put("otherSportsNote", "매칭 참가 기록이 생기면 종목별 레이팅을 표시합니다.");
         return summary;
     }
