@@ -99,10 +99,16 @@
         <div class="page-heading">
           <div class="page-heading-copy"><div class="page-eyebrow">시설 운영 · 예약 조건</div><h1>예약 운영 일정</h1><p>예약 가능 시간, 최대 참가 인원과 휴관·점검에 따른 변경 일정을 설정합니다.</p></div>
           <div class="heading-actions">
-            <form method="get" th:action="@{/admin/facility}" class="schedule-facility-form">
+            <form method="post" th:action="@{/admin/facility/schedule/facility}" class="schedule-facility-form">
+              <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
               <input type="hidden" name="view" value="schedule" />
+              <!-- 보고 있던 탭을 시설을 바꾼 뒤에도 유지한다. 값은 admin-facility.js가 채운다. -->
+              <input type="hidden" name="tab" value="" data-schedule-tab-input />
+              <input type="hidden" name="date" th:value="${calendar?.date}" />
+              <input type="hidden" name="sportId" th:value="${conditions?.sportId}" />
               <label class="sr-only" for="schedule-facility-select">운영 시설 선택</label>
-              <select class="field-control" id="schedule-facility-select" name="facilityId" onchange="this.form.submit()">
+              <select class="field-control" id="schedule-facility-select" name="facilityId">
+                <option value="" th:selected="${selectedFacility?.facilityId == null}" disabled>-시설선택-</option>
                 <option th:each="facility : ${facilities}" th:value="${facility.facilityId}" th:text="${facility.name}" th:selected="${selectedFacility?.facilityId == facility.facilityId}">시설</option>
               </select>
               <noscript><button class="admin-button small" type="submit">적용</button></noscript>
@@ -110,101 +116,7 @@
           </div>
         </div>
 
-        <div class="schedule-card">
-          <div class="toolbar"><div class="tabs" role="tablist" aria-label="예약 운영 설정"><button type="button" role="tab" data-schedule-tab="schedule-hours" aria-selected="true">예약 시간</button><button type="button" role="tab" data-schedule-tab="schedule-conditions" aria-selected="false">모집 조건</button><button type="button" role="tab" data-schedule-tab="schedule-changes" aria-selected="false">운영 변경 일정</button></div></div>
-
-          <section class="admin-panel schedule-panel" id="schedule-hours" data-schedule-panel>
-            <div class="schedule-panel-heading"><div><h2>요일별 예약 가능 시간</h2><p>운영하지 않는 요일은 체크를 해제하세요.</p></div><span class="schedule-duration">예약 단위 <strong>1시간</strong></span></div>
-            <form id="weekly-hours-form" method="post" th:action="@{/admin/facility/schedule/weekly}">
-              <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-              <input type="hidden" name="facilityId" th:value="${selectedFacility?.facilityId}" />
-              <div class="table-scroll"><table class="admin-table schedule-table"><thead><tr><th>운영 요일</th><th>시작 시간</th><th>종료 시간</th><th>상태</th></tr></thead><tbody>
-                <tr th:each="row : ${weeklyHours}">
-                  <td><label class="day-checkbox"><input type="checkbox" name="openDays" th:value="${row.day}" th:checked="${row.open}" /><span th:text="${row.dayLabel}">월요일</span></label></td>
-                  <td><select class="schedule-hour-select" th:name="${'start-' + row.day}" th:attr="aria-label=${row.dayLabel + ' 시작 시간'}" th:disabled="${!row.open}"><option th:each="hour : ${hourOptions}" th:value="${hour}" th:text="${hour}" th:selected="${row.start == hour}">06:00</option></select></td>
-                  <td><select class="schedule-hour-select" th:name="${'end-' + row.day}" th:attr="aria-label=${row.dayLabel + ' 종료 시간'}" th:disabled="${!row.open}"><option th:each="hour : ${hourOptions}" th:value="${hour}" th:text="${hour}" th:selected="${row.end == hour}">22:00</option></select></td>
-                  <td><span class="status-badge" data-weekly-hours-status th:classappend="${row.open} ? 'good' : 'neutral'" th:text="${row.open ? '예약 가능' : '휴무'}">상태</span></td>
-                </tr>
-              </tbody></table></div>
-              <div class="schedule-actions"><span class="inline-state">저장 시 예약 가능 시간에 반영됩니다.</span><button class="admin-button primary" type="submit">운영 시간 저장</button></div>
-            </form>
-
-            <div class="date-schedule-section">
-              <div class="schedule-panel-heading date-schedule-heading"><div><h2>날짜별 예약 시간</h2><p>예약 가능 시간을 1시간 단위로 선택하세요. 각 칸을 여러 개 선택하거나 해제할 수 있습니다.</p></div><div class="calendar-month-nav"><a class="admin-button small" th:href="@{${calendar?.prevUrl}}" aria-label="이전 달">‹</a><strong id="date-calendar-month" th:text="${calendar?.monthLabel}">월</strong><a class="admin-button small" th:href="@{${calendar?.nextUrl}}" aria-label="다음 달">›</a></div></div>
-              <div class="date-schedule-layout">
-                <div class="date-calendar-panel">
-                  <div class="date-calendar-weekdays" aria-hidden="true"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
-                  <div class="date-calendar" id="date-schedule-calendar" role="group" aria-label="날짜 선택">
-                    <a th:each="day : ${calendar?.days}" class="date-calendar-day" th:classappend="${(day.outsideMonth ? 'outside-month ' : '') + (day.selected ? 'is-current ' : '') + (day.blocked ? 'has-closure' : '')}" th:href="@{${day.url}}" th:aria-label="${day.ariaLabel}" th:aria-current="${day.selected ? 'date' : null}">
-                      <span th:text="${day.day}">1</span>
-                      <span th:if="${day.customLabel != null}" class="calendar-day-badge" th:text="${day.customLabel}">시간 지정</span>
-                      <span th:if="${day.closedLabel != null}" class="calendar-day-badge" th:text="${day.closedLabel}">휴관</span>
-                    </a>
-                  </div>
-                  <div class="date-calendar-legend"><span><i class="calendar-legend-dot selected"></i>날짜별 시간 지정</span><span><i class="calendar-legend-dot blocked"></i>운영 변경 차단</span></div>
-                </div>
-
-                <form class="date-schedule-editor" method="post" th:action="@{/admin/facility/schedule/date}">
-                  <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-                  <input type="hidden" name="facilityId" th:value="${selectedFacility?.facilityId}" />
-                  <input type="hidden" name="date" th:value="${calendar?.date}" />
-                  <div class="date-editor-heading"><div><h3 id="date-schedule-selected-label" th:text="${calendar?.dateLabel != null ? calendar.dateLabel : '날짜를 선택해 주세요'}">날짜 선택</h3><p id="date-schedule-source" th:text="${calendar?.sourceLabel != null ? calendar.sourceLabel : '주간 운영 시간을 기준으로 표시합니다.'}">주간 운영 시간 기준</p></div><span class="status-badge neutral" id="date-schedule-count" th:text="${(calendar?.selectedCount ?: 0) + '시간 선택'}">0시간 선택</span></div>
-                  <div class="date-hour-grid" id="date-schedule-hour-grid" role="group" aria-label="1시간 단위 예약 가능 시간">
-                    <label th:each="slot : ${calendar?.hourSlots}" class="hour-slot" th:classappend="${(slot.selected ? 'is-selected ' : '') + (slot.blocked ? 'is-blocked' : '')}" th:attr="title=${slot.title}">
-                      <input type="checkbox" name="hours" th:value="${slot.time}" th:checked="${slot.selected}" th:disabled="${slot.disabled}" />
-                      <span th:text="${slot.time}">06:00</span>
-                      <small th:if="${slot.blockedLabel != null}" th:text="${slot.blockedLabel}">차단</small>
-                    </label>
-                  </div>
-                  <div class="date-schedule-ranges"><b>선택 시간대</b><span id="date-schedule-ranges" th:text="${calendar?.rangesText != null ? calendar.rangesText : '선택된 시간이 없습니다.'}">선택된 시간이 없습니다.</span></div>
-                  <div class="form-field date-schedule-note"><label for="date-schedule-note">날짜별 안내</label><input id="date-schedule-note" name="note" type="text" placeholder="특정 날짜에만 표시할 안내 (선택)" th:value="${calendar?.note}" /></div>
-                  <div class="date-schedule-actions"><span class="inline-state">변경은 서버에 저장됩니다.</span><button class="admin-button primary small" type="submit">선택 시간 저장</button></div>
-                  <div class="date-availability-preview" id="date-schedule-availability" aria-live="polite" th:text="${calendar?.availabilityText}"></div>
-                </form>
-              </div>
-            </div>
-          </section>
-
-          <section class="admin-panel schedule-panel" id="schedule-conditions" data-schedule-panel hidden>
-            <div class="schedule-panel-heading"><div><h2>모집·예약 조건</h2><p>종목별 최대 참가 인원과 신청 마감 조건을 설정합니다.</p></div></div>
-            <form id="conditions-form" class="condition-form" method="post" th:action="@{/admin/facility/schedule/conditions}">
-              <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-              <input type="hidden" name="facilityId" th:value="${selectedFacility?.facilityId}" />
-              <div class="form-grid">
-                <div class="form-field"><label for="condition-sport">이용 종목</label><select id="condition-sport" name="sportId"><option th:each="sport : ${sports}" th:value="${sport.sportId}" th:text="${sport.name}" th:selected="${conditions?.sportId == sport.sportId}">종목</option></select></div>
-                <div class="form-field"><label for="condition-capacity">최대 참가 인원</label><input id="condition-capacity" name="capacity" type="number" min="2" max="200" required th:value="${conditions?.capacity}" /></div>
-                <div class="form-field"><label for="condition-deadline">모집 마감</label><select id="condition-deadline" name="deadline"><option value="1" th:selected="${conditions?.deadline == 1}">이용 1시간 전</option><option value="3" th:selected="${conditions?.deadline == 3}">이용 3시간 전</option><option value="6" th:selected="${conditions?.deadline == 6}">이용 6시간 전</option><option value="24" th:selected="${conditions?.deadline == 24}">이용 하루 전</option></select></div>
-                <div class="form-field full"><label for="condition-note">참가 안내</label><textarea id="condition-note" name="note" placeholder="참가자에게 표시할 준비물이나 이용 안내를 입력하세요." th:text="${conditions?.note}">참가 안내</textarea></div>
-              </div>
-              <div class="schedule-actions"><span class="inline-state">조건은 선택한 시설의 신규 예약에 적용됩니다.</span><button class="admin-button primary" type="submit">모집 조건 저장</button></div>
-            </form>
-          </section>
-
-          <section class="admin-panel schedule-panel" id="schedule-changes" data-schedule-panel hidden>
-            <div class="schedule-panel-heading"><div><h2>휴관·운영 변경 일정</h2><p>점검 또는 행사로 예약이 불가능한 날짜와 시간대를 등록합니다.</p></div></div>
-            <form id="closure-form" class="closure-form" method="post" th:action="@{/admin/facility/schedule/closures}">
-              <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-              <input type="hidden" name="facilityId" th:value="${selectedFacility?.facilityId}" />
-              <div class="form-field"><label for="closure-date">날짜</label><input id="closure-date" name="date" type="date" required /></div>
-                <div class="form-field"><label for="closure-start">시작 시간</label><select id="closure-start" class="field-control schedule-hour-select" name="start" required><option value="" selected disabled>시작 시간 선택</option><option th:each="hour : ${hourOptions}" th:value="${hour}" th:text="${hour}">시간</option></select></div>
-                <div class="form-field"><label for="closure-end">종료 시간</label><select id="closure-end" class="field-control schedule-hour-select" name="end" required><option value="" selected disabled>종료 시간 선택</option><option th:each="hour : ${hourOptions}" th:value="${hour}" th:text="${hour}">시간</option></select></div>
-              <div class="form-field"><label for="closure-reason">변경 사유</label><input id="closure-reason" name="reason" placeholder="변경 사유를 입력하세요." required /></div>
-              <button class="admin-button primary" type="submit">일정 등록</button>
-            </form>
-            <div class="notice-strip"><strong>예약 반영</strong><p>점검·휴관 일정은 날짜와 시작·종료 시각으로 등록합니다. 해당 구간과 겹치는 예약 가능 블록만 차단하고, 겹치는 예약에는 운영 변경 안내를 표시합니다.</p></div>
-            <div class="table-scroll"><table class="admin-table"><thead><tr><th>일자</th><th>시설</th><th>변경 시간</th><th>사유</th><th>상태</th><th>관리</th></tr></thead><tbody>
-              <tr th:each="closure : ${closures}">
-                <td th:text="${closure.dateLabel}">일자</td>
-                <td th:text="${closure.facilityName}">시설</td>
-                <td th:text="${closure.timeRange}">시간</td>
-                <td th:text="${closure.reason}">사유</td>
-                <td><span class="status-badge" th:classappend="${closure.statusTone}" th:text="${closure.statusLabel}">상태</span></td>
-                <td><form method="post" th:action="@{/admin/facility/schedule/closures/{scheduleChangeId}/cancel(scheduleChangeId=${closure.scheduleChangeId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button class="table-link" type="submit">취소</button></form></td>
-              </tr>
-              <tr th:if="${#lists.isEmpty(closures)}"><td class="table-empty" colspan="6">등록된 운영 변경 일정이 없습니다.</td></tr>
-            </tbody></table></div>
-          </section>
-        </div>
+        <div th:replace="~{fragments/schedule-card :: schedule-card}"></div>
       </section>
 
       <!-- 매칭방 관리 -->
@@ -430,6 +342,52 @@
     <div class="modal-footer">
       <button class="admin-button" type="button" id="facility-confirm-cancel" data-close-facility-confirm>취소</button>
       <button class="admin-button primary" type="button" id="facility-confirm-submit" data-confirm-facility-action>수정 저장</button>
+    </div>
+  </section>
+</div>
+
+<!-- 운영 일정 충돌 안내: 서버가 저장을 막았을 때 어떤 매칭방·휴관과 겹치는지 보여 줍니다.
+     저장을 우회하거나 예약을 자동 취소하는 선택지는 두지 않습니다.
+     충돌이 없으면 목록이 비어 있고, admin-facility.js가 자동으로 열지 않습니다. -->
+<div class="modal-backdrop" id="schedule-conflict-modal" hidden
+     th:attr="data-auto-open=${scheduleConflicts != null and !#lists.isEmpty(scheduleConflicts) ? 'true' : null}">
+  <section class="admin-modal schedule-conflict-modal" role="alertdialog" aria-modal="true"
+           aria-labelledby="schedule-conflict-title" aria-describedby="schedule-conflict-summary">
+    <div class="modal-header">
+      <div>
+        <h2 id="schedule-conflict-title">일정을 저장하지 못했습니다</h2>
+        <p id="schedule-conflict-summary" th:text="${scheduleConflictSummary != null and !#strings.isEmpty(scheduleConflictSummary) ? '겹치는 매칭방: ' + scheduleConflictSummary + ' · 요청한 운영 일정을 저장하지 않았습니다.' : '아래 매칭방과 겹쳐 요청한 운영 일정을 저장하지 않았습니다. 등록된 일정은 바뀌지 않았습니다.'}">아래 매칭방과 겹쳐 요청한 운영 일정을 저장하지 않았습니다.</p>
+      </div>
+      <button class="modal-close" type="button" data-close-schedule-conflict aria-label="닫기">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="schedule-conflict-range" th:if="${scheduleConflictRange != null and !#strings.isEmpty(scheduleConflictRange)}">
+        <span>요청한 일정</span><strong th:text="${scheduleConflictRange}">2026-11-03 10:00–12:00</strong>
+      </p>
+      <ul class="schedule-conflict-list" th:if="${scheduleConflicts != null}">
+        <li th:each="conflict : ${scheduleConflicts}">
+          <div class="schedule-conflict-ident">
+            <span class="schedule-conflict-id" th:text="'방 ' + ${conflict.matchId}">방 12</span>
+            <span class="schedule-conflict-match" th:text="${conflict.title != null and !#strings.isEmpty(conflict.title) ? conflict.title : '제목 없는 매칭방'}">매칭방 제목</span>
+          </div>
+          <div class="schedule-conflict-time">
+            <span class="schedule-conflict-label">이용 시간</span>
+            <span class="schedule-conflict-clock">
+              <b th:if="${conflict.startAt != null}" th:text="${conflict.startAt.toLocalDate()}">2026-11-03</b>
+              <b th:if="${conflict.startAt != null}" class="schedule-conflict-hour" th:text="${conflict.startAt.toLocalTime()}">10:00</b>
+            </span>
+            <span class="schedule-conflict-dash" aria-hidden="true">–</span>
+            <span class="schedule-conflict-clock">
+              <b th:if="${conflict.endAt != null}" th:text="${conflict.endAt.toLocalDate()}">2026-11-03</b>
+              <b th:if="${conflict.endAt != null}" class="schedule-conflict-hour" th:text="${conflict.endAt.toLocalTime()}">12:00</b>
+            </span>
+          </div>
+        </li>
+      </ul>
+      <p class="schedule-conflict-guide">겹치는 매칭방은 자동으로 취소되지 않습니다. 매칭방 이용 일시를 확인한 뒤 운영 일정을 다시 설정해 주세요.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="admin-button primary" type="button" id="schedule-conflict-close" data-close-schedule-conflict>확인</button>
     </div>
   </section>
 </div>

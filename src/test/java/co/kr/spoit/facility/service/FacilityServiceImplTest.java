@@ -30,6 +30,9 @@ class FacilityServiceImplTest {
     @Mock
     private FacilityMapper facilityMapper;
 
+    @Mock
+    private co.kr.spoit.facility.mapper.FacilityScheduleMapper scheduleMapper;
+
     @InjectMocks
     private FacilityServiceImpl service;
 
@@ -289,6 +292,42 @@ class FacilityServiceImplTest {
     }
 
     @Test
+    @DisplayName("구역 수를 줄여 기존 동시 점유가 새 한도를 넘으면 시설 수정 전체를 거부한다")
+    void rejectsLimitReductionBelowOccupiedPeak() {
+        when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(true);
+        when(facilityMapper.selectActiveFacilityIdForUpdate(10L)).thenReturn(10L);
+        when(facilityMapper.findSportIdsByNames(List.of("농구"))).thenReturn(List.of(1L));
+        when(facilityMapper.selectFacilitySportIds(10L)).thenReturn(List.of(1L));
+        when(scheduleMapper.selectConcurrentLimitForUpdate(10L)).thenReturn(4);
+        when(scheduleMapper.selectMatchPeriodsForUpdate(eq(10L), anyList())).thenReturn(List.of(
+                period(500L, 10, 12), period(501L, 11, 13), period(502L, 11, 12)));
+
+        assertThatThrownBy(() -> service.updateFacility(7L, 10L, form("체육관", "주소", 2, "운영 중", "농구")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("대관 가능 구역 수를 2개로 줄일 수 없습니다");
+
+        verify(facilityMapper, never()).updateFacility(eq(10L), anyForm());
+        verify(facilityMapper, never()).insertFacilitySports(eq(10L), anyList());
+        verify(facilityMapper, never()).deleteFacilitySportsByIds(eq(10L), anyList());
+    }
+
+    @Test
+    @DisplayName("구역 수를 유지하거나 늘리면 동시 점유를 검사하지 않고 저장한다")
+    void allowsSameOrLargerLimit() {
+        when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(true);
+        when(facilityMapper.selectActiveFacilityIdForUpdate(10L)).thenReturn(10L);
+        when(facilityMapper.findSportIdsByNames(List.of("농구"))).thenReturn(List.of(1L));
+        when(facilityMapper.selectFacilitySportIds(10L)).thenReturn(List.of(1L));
+        when(scheduleMapper.selectConcurrentLimitForUpdate(10L)).thenReturn(2);
+        when(facilityMapper.updateFacility(eq(10L), anyForm())).thenReturn(1);
+
+        service.updateFacility(7L, 10L, form("체육관", "주소", 2, "운영 중", "농구"));
+
+        verify(scheduleMapper, never()).selectMatchPeriodsForUpdate(eq(10L), anyList());
+        verify(facilityMapper).updateFacility(eq(10L), anyForm());
+    }
+
+    @Test
     @DisplayName("담당하지 않는 시설은 수정할 수 없다")
     void rejectsUpdateByNonManager() {
         when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(false);
@@ -390,6 +429,14 @@ class FacilityServiceImplTest {
         form.setConcurrentMatchLimit(zones);
         form.setStatus(status);
         return form;
+    }
+
+    private static co.kr.spoit.facility.domain.MatchPeriod period(Long matchId, int startHour, int endHour) {
+        co.kr.spoit.facility.domain.MatchPeriod period = new co.kr.spoit.facility.domain.MatchPeriod();
+        period.setMatchId(matchId);
+        period.setStartAt(java.time.LocalDateTime.of(2026, 11, 2, startHour, 0));
+        period.setEndAt(java.time.LocalDateTime.of(2026, 11, 2, endHour, 0));
+        return period;
     }
 
     private static FacilityForm anyForm() {

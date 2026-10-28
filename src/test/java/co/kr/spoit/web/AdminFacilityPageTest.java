@@ -44,6 +44,9 @@ class AdminFacilityPageTest {
     private FacilityService facilityService;
 
     @MockitoBean
+    private co.kr.spoit.facility.service.FacilityScheduleService facilityScheduleService;
+
+    @MockitoBean
     private MemberLoginSuccessHandler loginSuccessHandler;
 
     @MockitoBean

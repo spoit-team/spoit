@@ -8,10 +8,13 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import co.kr.spoit.facility.domain.FacilityOccupancy;
 import co.kr.spoit.facility.domain.FacilitySummary;
+import co.kr.spoit.facility.domain.MatchPeriod;
 import co.kr.spoit.facility.dto.FacilityForm;
 import co.kr.spoit.facility.dto.FacilityListItem;
 import co.kr.spoit.facility.mapper.FacilityMapper;
+import co.kr.spoit.facility.mapper.FacilityScheduleMapper;
 import co.kr.spoit.match.domain.MatchStatus;
 
 @Service
@@ -22,6 +25,10 @@ public class FacilityServiceImpl implements FacilityService {
      * 상태 문자열은 {@link MatchStatus}에서만 가져와 중복 정의하지 않는다.
      */
     private static final List<String> BLOCKING_DELETE_STATUSES = List.of(
+            MatchStatus.RECRUITING.dbValue(), MatchStatus.MATCHED.dbValue());
+
+    /** 동시 대관 점유로 인정하는 상태다. 구역 수 축소 검증에도 같은 기준을 쓴다. */
+    private static final List<String> OCCUPYING_STATUSES = List.of(
             MatchStatus.RECRUITING.dbValue(), MatchStatus.MATCHED.dbValue());
 
     /** 종목 해제가 매칭방 참조로 막혔을 때의 안내 문구다. 사전 검사와 FK 충돌 변환이 함께 쓴다. */
@@ -38,9 +45,11 @@ public class FacilityServiceImpl implements FacilityService {
     private static final int MYSQL_FK_VIOLATION = 1451;
 
     private final FacilityMapper facilityMapper;
+    private final FacilityScheduleMapper scheduleMapper;
 
-    public FacilityServiceImpl(FacilityMapper facilityMapper) {
+    public FacilityServiceImpl(FacilityMapper facilityMapper, FacilityScheduleMapper scheduleMapper) {
         this.facilityMapper = facilityMapper;
+        this.scheduleMapper = scheduleMapper;
     }
 
     @Override
@@ -109,6 +118,9 @@ public class FacilityServiceImpl implements FacilityService {
                 .filter(sportId -> !retainedSportIds.contains(sportId))
                 .toList();
 
+        // 구역 수를 줄여 기존 동시 점유 peak가 새 한도를 넘으면 시설 수정 전체(필드·종목)를 거부한다.
+        requireCapacityAllowsNewLimit(facilityId, form.getConcurrentMatchLimit());
+
         int updated = facilityMapper.updateFacility(facilityId, form);
         if (updated == 0) {
             throw new FacilityNotFoundException("수정할 시설을 찾을 수 없습니다.");
@@ -173,6 +185,30 @@ public class FacilityServiceImpl implements FacilityService {
             current = current.getCause();
         }
         return false;
+    }
+
+    /**
+     * 구역 수 축소가 기존 동시 점유와 충돌하지 않는지 확인한다.
+     *
+     * <p>한도는 종목과 무관하게 시설 전체에 적용하고, 각 시간 구간의 동시 점유 최대값으로
+     * 판단한다. 새 한도가 지금보다 크거나 같으면 검사할 필요가 없다. 초과하면 예외를 던져
+     * 호출 트랜잭션 전체(모든 시설 필드·종목 변경)를 롤백시킨다.</p>
+     */
+    private void requireCapacityAllowsNewLimit(long facilityId, Integer newLimit) {
+        if (newLimit == null) {
+            return;
+        }
+        Integer currentLimit = scheduleMapper.selectConcurrentLimitForUpdate(facilityId);
+        if (currentLimit != null && newLimit >= currentLimit) {
+            return;
+        }
+        List<MatchPeriod> occupying = scheduleMapper.selectMatchPeriodsForUpdate(facilityId, OCCUPYING_STATUSES);
+        int peak = FacilityOccupancy.peak(occupying);
+        if (peak > newLimit) {
+            throw new IllegalArgumentException(
+                    "현재 같은 시간에 " + peak + "개 구역이 사용 중이라 대관 가능 구역 수를 "
+                            + newLimit + "개로 줄일 수 없습니다. 기존 매칭방을 정리한 뒤 다시 시도해 주세요.");
+        }
     }
 
     /** 화면 폼 계약을 검증한다. 오류 메시지는 그대로 안내 문구로 쓴다. */

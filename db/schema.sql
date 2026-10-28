@@ -13,7 +13,8 @@ DROP TABLE IF EXISTS audit_log, penalty, report_evidence, admin_request, notific
     sport_rating_history, sport_rating, match_evaluation_score, match_evaluation,
     sport_evaluation_item, match_result_submission, match_participant, match_application,
     social_match, club_join_request, club_member, club_hashtag, hashtag, club_region, club,
-    schedule_change, operating_rule, facility_sport, facility_manager, facility,
+    schedule_change, facility_date_override_slot, facility_date_override,
+    operating_rule, facility_sport, facility_manager, facility,
     user_preferred_sport, user_region, region, sport, app_user;
 
 SET FOREIGN_KEY_CHECKS = 1;
@@ -102,24 +103,48 @@ CREATE TABLE facility_sport (
     default_max    INT           NOT NULL COMMENT '매칭방 생성 시 기본 최대 참가 인원',
     default_fee    DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '참가자 1인당 기본 이용료',
     default_skill  VARCHAR(30)   NOT NULL COMMENT '매칭방 생성 시 기본 실력 조건',
+    deadline_hours INT           NOT NULL DEFAULT 1 COMMENT '신규 예약 모집 마감 시간(이용 N시간 전), 1·3·6·24',
+    note           VARCHAR(500)  NULL COMMENT '참가자에게 표시할 신규 예약 참가 안내',
     PRIMARY KEY (facility_id, sport_id),
     CONSTRAINT fk_facility_sport_facility FOREIGN KEY (facility_id) REFERENCES facility (facility_id),
     CONSTRAINT fk_facility_sport_sport    FOREIGN KEY (sport_id)    REFERENCES sport (sport_id),
     CONSTRAINT ck_facility_sport_minmax CHECK (default_min >= 1 AND default_max >= default_min),
-    CONSTRAINT ck_facility_sport_fee    CHECK (default_fee >= 0)
+    CONSTRAINT ck_facility_sport_fee    CHECK (default_fee >= 0),
+    CONSTRAINT ck_facility_sport_deadline CHECK (deadline_hours IN (1, 3, 6, 24))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='시설별 종목·기본 모집 조건';
 
 CREATE TABLE operating_rule (
     operating_rule_id  BIGINT   NOT NULL AUTO_INCREMENT COMMENT '운영 시간 규칙 ID',
     facility_id        BIGINT   NOT NULL COMMENT '규칙이 적용되는 시설',
     weekday            TINYINT  NOT NULL COMMENT '요일, 1=월 ~ 7=일 (java.time.DayOfWeek)',
-    open_time          TIME     NOT NULL COMMENT '운영 시작 시각',
-    close_time         TIME     NOT NULL COMMENT '운영 종료 시각',
+    open_time          TIME     NOT NULL COMMENT '운영 시작 시각(휴무 행은 00:00 보관)',
+    close_time         TIME     NOT NULL COMMENT '운영 종료 시각(휴무 행은 00:00 보관)',
+    end_next_day       BOOLEAN  NOT NULL DEFAULT FALSE COMMENT '종료 시각이 다음 날인지, 22:00~익일 06:00이면 true',
     is_open            BOOLEAN  NOT NULL DEFAULT TRUE COMMENT '운영 여부, 휴무면 false',
     PRIMARY KEY (operating_rule_id),
+    UNIQUE KEY uk_operating_rule_facility_weekday (facility_id, weekday),
     CONSTRAINT fk_operating_rule_facility FOREIGN KEY (facility_id) REFERENCES facility (facility_id),
     CONSTRAINT ck_operating_rule_weekday CHECK (weekday BETWEEN 1 AND 7)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='요일별 운영 시간';
+
+CREATE TABLE facility_date_override (
+    facility_date_override_id  BIGINT       NOT NULL AUTO_INCREMENT COMMENT '날짜별 예외 ID',
+    facility_id                BIGINT       NOT NULL COMMENT '예외가 적용되는 시설',
+    override_date              DATE         NOT NULL COMMENT '예외가 적용되는 날짜',
+    note                       VARCHAR(500) NULL COMMENT '날짜별 안내문',
+    PRIMARY KEY (facility_date_override_id),
+    UNIQUE KEY uk_facility_date_override (facility_id, override_date),
+    CONSTRAINT fk_facility_date_override_facility FOREIGN KEY (facility_id) REFERENCES facility (facility_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='날짜별 예외 헤더(슬롯 0개면 그날 휴무)';
+
+CREATE TABLE facility_date_override_slot (
+    facility_date_override_id  BIGINT  NOT NULL COMMENT '슬롯이 속한 날짜별 예외',
+    slot_hour                  TINYINT NOT NULL COMMENT '0~23시 1시간 슬롯',
+    PRIMARY KEY (facility_date_override_id, slot_hour),
+    CONSTRAINT fk_facility_date_override_slot_header FOREIGN KEY (facility_date_override_id)
+        REFERENCES facility_date_override (facility_date_override_id),
+    CONSTRAINT ck_facility_date_override_slot_hour CHECK (slot_hour BETWEEN 0 AND 23)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='날짜별 예외의 1시간 이용 가능 슬롯';
 
 CREATE TABLE schedule_change (
     schedule_change_id  BIGINT       NOT NULL AUTO_INCREMENT COMMENT '운영 변경 건 ID',
@@ -127,10 +152,11 @@ CREATE TABLE schedule_change (
     created_by          BIGINT       NOT NULL COMMENT '변경을 등록한 회원',
     start_at            DATETIME     NOT NULL COMMENT '변경 시작 일시',
     end_at              DATETIME     NOT NULL COMMENT '변경 종료 일시',
-    change_type         VARCHAR(30)  NOT NULL COMMENT '변경 종류 (임시 개방·폐쇄 등)',
+    change_type         VARCHAR(30)  NOT NULL COMMENT '변경 종류. 휴관 등록은 FACILITY_CLOSURE만 사용한다',
     reason              VARCHAR(255) NOT NULL COMMENT '변경 사유',
-    status              VARCHAR(30)  NOT NULL COMMENT '적용·취소 등 처리 상태',
+    status              VARCHAR(30)  NOT NULL COMMENT '처리 상태. 휴관은 ACTIVE·CANCELLED만 유효하다',
     PRIMARY KEY (schedule_change_id),
+    KEY idx_schedule_change_facility_period (facility_id, start_at, end_at),
     CONSTRAINT fk_schedule_change_facility FOREIGN KEY (facility_id) REFERENCES facility (facility_id),
     CONSTRAINT fk_schedule_change_user     FOREIGN KEY (created_by)  REFERENCES app_user (user_id),
     CONSTRAINT ck_schedule_change_period CHECK (end_at > start_at)

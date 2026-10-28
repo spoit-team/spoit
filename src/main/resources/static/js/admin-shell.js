@@ -96,41 +96,68 @@
 
   global.addEventListener('hashchange', function () { showView(viewFromLocation(), false); });
 
-  /* 탭: 예약 설정, 시설 콘텐츠, 시스템 CMS */
+  /* 탭: 예약 설정, 시설 콘텐츠, 시스템 CMS.
+     일정 카드는 시설 선택 시 조각으로 교체되므로 요소별 바인딩 대신 document 위임으로 처리합니다. */
   const tabGroups = [
-    { attribute: 'scheduleTab', panelSelector: '[data-schedule-panel]' },
-    { attribute: 'contentTab', panelSelector: '.admin-panel' },
-    { attribute: 'cmsTab', panelSelector: '.admin-panel' }
+    { attr: 'scheduleTab', panelSelector: '[data-schedule-panel]' },
+    { attr: 'contentTab', panelSelector: '.admin-panel' },
+    { attr: 'cmsTab', panelSelector: '.admin-panel' }
   ];
 
-  tabGroups.forEach(function (group) {
-    const tabs = Array.from(document.querySelectorAll('[data-' + group.attribute.replace(/[A-Z]/g, function (m) { return '-' + m.toLowerCase(); }) + ']'));
-    if (!tabs.length) return;
-    const panelRoot = tabs[0].closest('.admin-view') || document;
-    tabs.forEach(function (tab, index) {
-      tab.addEventListener('click', function () {
-        const panelId = tab.dataset[group.attribute];
-        tabs.forEach(function (item) {
-          const active = item === tab;
-          item.setAttribute('aria-selected', String(active));
-          item.tabIndex = active ? 0 : -1;
-        });
-        panelRoot.querySelectorAll(group.panelSelector).forEach(function (panel) {
-          panel.hidden = panel.id !== panelId;
-        });
-      });
-      tab.addEventListener('keydown', function (event) {
-        let next = null;
-        if (event.key === 'ArrowRight') next = tabs[(index + 1) % tabs.length];
-        else if (event.key === 'ArrowLeft') next = tabs[(index - 1 + tabs.length) % tabs.length];
-        else if (event.key === 'Home') next = tabs[0];
-        else if (event.key === 'End') next = tabs[tabs.length - 1];
-        if (!next) return;
-        event.preventDefault();
-        next.focus();
-        next.click();
-      });
+  function tabSelector(attr) {
+    return '[data-' + attr.replace(/[A-Z]/g, function (m) { return '-' + m.toLowerCase(); }) + ']';
+  }
+
+  function tabGroupFor(tab) {
+    return tabGroups.find(function (group) { return tab.dataset[group.attr] !== undefined; }) || null;
+  }
+
+  /* 탭 배열과 패널 범위는 누를 때마다 다시 찾는다. 조각이 교체되면 예전 요소는 문서에 없다. */
+  function activateTab(tab) {
+    const group = tabGroupFor(tab);
+    if (!group) return;
+    const panelRoot = tab.closest('.admin-view') || document;
+    const tabs = Array.from(panelRoot.querySelectorAll(tabSelector(group.attr)));
+    const panelId = tab.dataset[group.attr];
+    tabs.forEach(function (item) {
+      const active = item === tab;
+      item.setAttribute('aria-selected', String(active));
+      item.tabIndex = active ? 0 : -1;
     });
+    panelRoot.querySelectorAll(group.panelSelector).forEach(function (panel) {
+      panel.hidden = panel.id !== panelId;
+    });
+  }
+
+  function tabFromEvent(event) {
+    return event.target instanceof Element
+      ? event.target.closest('[data-schedule-tab],[data-content-tab],[data-cms-tab]')
+      : null;
+  }
+
+  document.addEventListener('click', function (event) {
+    const tab = tabFromEvent(event);
+    if (tab) activateTab(tab);
+  });
+
+  document.addEventListener('keydown', function (event) {
+    const tab = tabFromEvent(event);
+    if (!tab) return;
+    const group = tabGroupFor(tab);
+    if (!group) return;
+    const panelRoot = tab.closest('.admin-view') || document;
+    const tabs = Array.from(panelRoot.querySelectorAll(tabSelector(group.attr)));
+    const index = tabs.indexOf(tab);
+    if (index < 0 || !tabs.length) return;
+    let next = null;
+    if (event.key === 'ArrowRight') next = tabs[(index + 1) % tabs.length];
+    else if (event.key === 'ArrowLeft') next = tabs[(index - 1 + tabs.length) % tabs.length];
+    else if (event.key === 'Home') next = tabs[0];
+    else if (event.key === 'End') next = tabs[tabs.length - 1];
+    if (!next) return;
+    event.preventDefault();
+    next.focus();
+    next.click();
   });
 
   /* 스위치: 화면 내부 상태만 변경합니다. 서버 저장은 폼 제출로 처리합니다. */
