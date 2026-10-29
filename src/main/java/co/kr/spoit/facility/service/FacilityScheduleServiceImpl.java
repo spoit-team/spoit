@@ -54,7 +54,6 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
     private static final int MAX_NOTE_LENGTH = 500;
     private static final int MIN_CAPACITY = 2;
     private static final int MAX_CAPACITY = 200;
-    private static final List<Integer> DEADLINE_OPTIONS = List.of(1, 3, 6, 24);
 
     /** 정렬된 상태 목록으로 점유·충돌 대상을 고정한다. */
     private static final List<String> OCCUPYING_STATUSES = FacilityCapacityServiceImpl.OCCUPYING_STATUSES;
@@ -192,10 +191,6 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
                 || form.getCapacity() > MAX_CAPACITY) {
             throw new IllegalArgumentException("최대 참가 인원은 2~200명 사이로 입력해 주세요.");
         }
-        int deadline = form.getDeadline() == null ? 1 : form.getDeadline();
-        if (!DEADLINE_OPTIONS.contains(deadline)) {
-            throw new IllegalArgumentException("모집 마감은 1·3·6·24시간 전 중 하나를 선택해 주세요.");
-        }
         String note = validNote(form.getNote());
 
         requireFacilityForUpdate(facilityId);
@@ -203,7 +198,7 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
         if (existingCapacity == null) {
             throw new IllegalArgumentException("선택한 시설에서 운영하지 않는 종목입니다.");
         }
-        scheduleMapper.updateSportConditions(facilityId, sportId, form.getCapacity(), deadline, note);
+        scheduleMapper.updateSportConditions(facilityId, sportId, form.getCapacity(), note);
     }
 
     @Override
@@ -430,8 +425,7 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
                 }
             }
         }
-        return new ConditionsView(selected.getSportId(), selected.getCapacity(),
-                selected.getDeadlineHours() == null ? 1 : selected.getDeadlineHours(), selected.getNote());
+        return new ConditionsView(selected.getSportId(), selected.getCapacity(), selected.getNote());
     }
 
     private List<ClosureRow> closureRows(long facilityId) {

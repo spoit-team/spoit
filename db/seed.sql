@@ -300,12 +300,12 @@ INSERT INTO facility_date_override_slot (facility_date_override_id, slot_hour) V
   -- 5번(시설 15, 01-04): 08:00~12:00 운영
   (5, 8), (5, 9), (5, 10), (5, 11);
 
--- 종목별 모집 조건. deadline_hours는 1·3·6·24 중 하나다. note는 참가자에게 보이는 안내다.
-UPDATE facility_sport SET deadline_hours = 1,  note = NULL WHERE facility_id IN (1, 2, 3, 4, 5);
-UPDATE facility_sport SET deadline_hours = 3,  note = '이용 3시간 전까지 신청해 주세요.' WHERE facility_id IN (6, 7, 8, 9, 10);
-UPDATE facility_sport SET deadline_hours = 6,  note = '이용 6시간 전까지 신청해 주세요.' WHERE facility_id IN (11, 12, 13, 14, 15);
-UPDATE facility_sport SET deadline_hours = 24, note = '이용 하루 전 24시까지 신청해 주세요.' WHERE facility_id IN (16, 17, 18, 19, 20);
-UPDATE facility_sport SET deadline_hours = 1,  note = NULL WHERE facility_id IN (21, 22, 23, 24, 25);
+-- 종목별 모집 조건. note는 참가자에게 보이는 안내다.
+UPDATE facility_sport SET note = NULL WHERE facility_id IN (1, 2, 3, 4, 5);
+UPDATE facility_sport SET note = '이용 3시간 전까지 신청해 주세요.' WHERE facility_id IN (6, 7, 8, 9, 10);
+UPDATE facility_sport SET note = '이용 6시간 전까지 신청해 주세요.' WHERE facility_id IN (11, 12, 13, 14, 15);
+UPDATE facility_sport SET note = '이용 하루 전 24시까지 신청해 주세요.' WHERE facility_id IN (16, 17, 18, 19, 20);
+UPDATE facility_sport SET note = NULL WHERE facility_id IN (21, 22, 23, 24, 25);
 
 INSERT INTO facility_sport (facility_id, sport_id, default_min, default_max, default_fee, default_skill) VALUES
   (1, 2, 6, 12, 9000.00, '중급'),

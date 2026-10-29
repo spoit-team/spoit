@@ -257,16 +257,14 @@ class FacilityScheduleRouteTest {
                         .with(user(facilityManager())).with(csrf())
                         .param("facilityId", "10")
                         .param("sportId", "3")
-                        .param("capacity", "1")
-                        .param("deadline", "1"))
+                        .param("capacity", "1"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attribute("error", "최대 참가 인원은 2~200명 사이로 입력해 주세요."));
 
         verify(scheduleService).saveConditions(eq(7L), org.mockito.ArgumentMatchers.argThat(form ->
                 form.getFacilityId().equals(10L)
                         && form.getSportId().equals(3L)
-                        && form.getCapacity() == 1
-                        && form.getDeadline() == 1));
+                        && form.getCapacity() == 1));
     }
 
     @Test

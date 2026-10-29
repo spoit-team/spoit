@@ -101,7 +101,6 @@
       <input type="hidden" name="date" th:value="${calendar?.date}" />
       <div class="form-grid">
         <div class="form-field"><label for="condition-capacity">최대 참가 인원</label><input id="condition-capacity" name="capacity" type="number" min="2" max="200" required th:value="${conditions?.capacity}" aria-describedby="condition-capacity-help" /><small id="condition-capacity-help">2명 이상 200명 이하로 입력하세요.</small></div>
-        <div class="form-field"><label for="condition-deadline">모집 마감</label><select id="condition-deadline" name="deadline"><option value="1" th:selected="${conditions?.deadline == 1}">이용 1시간 전</option><option value="3" th:selected="${conditions?.deadline == 3}">이용 3시간 전</option><option value="6" th:selected="${conditions?.deadline == 6}">이용 6시간 전</option><option value="24" th:selected="${conditions?.deadline == 24}">이용 하루 전</option></select></div>
         <div class="form-field full"><label for="condition-note">참가 안내</label><textarea id="condition-note" name="note" placeholder="참가자에게 표시할 준비물이나 이용 안내를 입력하세요." th:text="${conditions?.note}">참가 안내</textarea></div>
       </div>
       <div class="schedule-actions"><span class="inline-state" id="condition-save-state">신규 예약에는 매칭방 생성 기능 연결 후 적용됩니다.</span><button class="admin-button primary" type="submit">모집 조건 저장</button></div>

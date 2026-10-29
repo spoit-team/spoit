@@ -197,7 +197,6 @@ const closureForm = new Form('closure-form');
 const sportTrigger = control('condition-sport', { name: 'sportId', value: '1' }, Select);
 const sportForm = control('condition-sport-form', { submitCount: 0, submit() { this.submitCount += 1; } });
 control('condition-capacity', { name: 'capacity', value: '10' });
-control('condition-deadline', { name: 'deadline', value: '3' });
 control('condition-note', { name: 'note', value: '' });
 const conditionSportValue = control('condition-sport-value', { name: 'sportId', value: '1' }, Control);
 control('condition-save-state', { textContent: '저장하면 이 종목의 새 예약에 적용됩니다.' });

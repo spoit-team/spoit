@@ -103,14 +103,12 @@ CREATE TABLE facility_sport (
     default_max    INT           NOT NULL COMMENT '매칭방 생성 시 기본 최대 참가 인원',
     default_fee    DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '참가자 1인당 기본 이용료',
     default_skill  VARCHAR(30)   NOT NULL COMMENT '매칭방 생성 시 기본 실력 조건',
-    deadline_hours INT           NOT NULL DEFAULT 1 COMMENT '신규 예약 모집 마감 시간(이용 N시간 전), 1·3·6·24',
     note           VARCHAR(500)  NULL COMMENT '참가자에게 표시할 신규 예약 참가 안내',
     PRIMARY KEY (facility_id, sport_id),
     CONSTRAINT fk_facility_sport_facility FOREIGN KEY (facility_id) REFERENCES facility (facility_id),
     CONSTRAINT fk_facility_sport_sport    FOREIGN KEY (sport_id)    REFERENCES sport (sport_id),
     CONSTRAINT ck_facility_sport_minmax CHECK (default_min >= 1 AND default_max >= default_min),
-    CONSTRAINT ck_facility_sport_fee    CHECK (default_fee >= 0),
-    CONSTRAINT ck_facility_sport_deadline CHECK (deadline_hours IN (1, 3, 6, 24))
+    CONSTRAINT ck_facility_sport_fee    CHECK (default_fee >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='시설별 종목·기본 모집 조건';
 
 CREATE TABLE operating_rule (

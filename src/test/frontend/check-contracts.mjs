@@ -161,7 +161,7 @@ const requiredBindings = {
   'date-schedule-form': ['facilityId', 'date', 'hours', 'note'],
   'date-schedule-reset-form': ['facilityId', 'date'],
   'condition-sport-form': ['facilityId', 'sportId'],
-  'conditions-form': ['facilityId', 'sportId', 'capacity', 'deadline', 'note'],
+  'conditions-form': ['facilityId', 'sportId', 'capacity', 'note'],
   'closure-form': ['facilityId', 'date', 'start', 'end', 'reason']
 };
 for (const [id, names] of Object.entries(requiredBindings)) {

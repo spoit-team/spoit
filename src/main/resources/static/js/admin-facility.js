@@ -552,9 +552,8 @@
     function conditionSignature() {
       if (!conditionsForm) return '';
       const capacity = document.getElementById('condition-capacity')?.value || '';
-      const deadline = document.getElementById('condition-deadline')?.value || '';
       const note = document.getElementById('condition-note')?.value || '';
-      return [capacity, deadline, note].join('\u0001');
+      return [capacity, note].join('\u0001');
     }
 
     conditionSnapshot = conditionSignature();

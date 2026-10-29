@@ -276,19 +276,14 @@ class FacilityScheduleServiceImplTest {
     }
 
     @Test
-    @DisplayName("모집 조건은 2~200명과 1·3·6·24시간 마감만 저장한다")
+    @DisplayName("모집 조건은 2~200명만 저장한다")
     void validatesConditionRanges() {
         givenManagedFacility();
 
-        ConditionsForm tooSmall = conditions(1, 1);
+        ConditionsForm tooSmall = conditions(1);
         assertThatThrownBy(() -> service.saveConditions(USER_ID, tooSmall))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("2~200");
-
-        ConditionsForm badDeadline = conditions(10, 2);
-        assertThatThrownBy(() -> service.saveConditions(USER_ID, badDeadline))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("1·3·6·24");
 
         verifyNoInteractions(scheduleMapper);
     }
@@ -300,12 +295,12 @@ class FacilityScheduleServiceImplTest {
         givenFacilityLocked();
         when(scheduleMapper.selectSportCapacityForUpdate(FACILITY_ID, 3L)).thenReturn(null);
 
-        assertThatThrownBy(() -> service.saveConditions(USER_ID, conditions(10, 1)))
+        assertThatThrownBy(() -> service.saveConditions(USER_ID, conditions(10)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("운영하지 않는 종목");
 
         verify(scheduleMapper, never()).updateSportConditions(anyLong(), anyLong(),
-                org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.any());
     }
 
@@ -469,12 +464,11 @@ class FacilityScheduleServiceImplTest {
         return form;
     }
 
-    private static ConditionsForm conditions(int capacity, int deadline) {
+    private static ConditionsForm conditions(int capacity) {
         ConditionsForm form = new ConditionsForm();
         form.setFacilityId(FACILITY_ID);
         form.setSportId(3L);
         form.setCapacity(capacity);
-        form.setDeadline(deadline);
         return form;
     }
 

@@ -240,7 +240,6 @@
     <update id="updateSportConditions">
         UPDATE facility_sport
            SET default_max = #{capacity},
-               deadline_hours = #{deadlineHours},
                note = #{note}
          WHERE facility_id = #{facilityId}
            AND sport_id = #{sportId}
@@ -250,7 +249,6 @@
         SELECT fs.sport_id        AS sportId
               ,s.name             AS sportName
               ,fs.default_max     AS capacity
-              ,fs.deadline_hours  AS deadlineHours
               ,fs.note            AS note
           FROM facility_sport fs
           JOIN sport s ON s.sport_id = fs.sport_id

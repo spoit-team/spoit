@@ -109,7 +109,6 @@ public class FacilityScheduleController {
             @RequestParam(name = "facilityId", required = false) Long facilityId,
             @RequestParam(name = "sportId", required = false) Long sportId,
             @RequestParam(name = "capacity", required = false) Integer capacity,
-            @RequestParam(name = "deadline", required = false) Integer deadline,
             @RequestParam(name = "note", required = false) String note,
             @RequestParam(name = "date", required = false) String date,
             RedirectAttributes redirect) {
@@ -120,7 +119,6 @@ public class FacilityScheduleController {
         form.setFacilityId(facilityId);
         form.setSportId(sportId);
         form.setCapacity(capacity);
-        form.setDeadline(deadline);
         form.setNote(note);
         return write(principal, facilityId, "schedule-conditions", date, sportId, redirect,
                 () -> scheduleService.saveConditions(principal.getUserId(), form),

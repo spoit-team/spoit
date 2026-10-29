@@ -87,24 +87,14 @@ CREATE TABLE facility_date_override_slot (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='날짜별 예외의 1시간 이용 가능 슬롯';
 
 -- ---------------------------------------------------------------------
--- 4. 종목별 모집 조건 (신규 예약에만 적용, 기존 매칭방 소급 없음)
+-- 4. 종목별 참가 안내 (facility_sport.note)
 --
--- 최대 인원은 기존 facility_sport.default_max 를 그대로 쓴다(2~200 검증은
--- 서버가 담당). 마감 시간과 참가 안내만 새로 추가한다.
--- 기존 행은 deadline_hours=1, note=NULL 로 시작하며 어떤 매칭방에도
+-- 참가 안내만 새로 추가한다. 신규 예약에만 적용하며 기존 매칭방에
 -- 소급 적용하지 않는다.
--- ---------------------------------------------------------------------
 ALTER TABLE facility_sport
-    ADD COLUMN deadline_hours INT NOT NULL DEFAULT 1
-        COMMENT '신규 예약 모집 마감 시간(이용 N시간 전), 1·3·6·24'
-        AFTER default_skill,
     ADD COLUMN note VARCHAR(500) NULL
         COMMENT '참가자에게 표시할 신규 예약 참가 안내'
-        AFTER deadline_hours;
-
-ALTER TABLE facility_sport
-    ADD CONSTRAINT ck_facility_sport_deadline CHECK (deadline_hours IN (1, 3, 6, 24));
-
+        AFTER default_skill;
 -- ---------------------------------------------------------------------
 -- 5. 휴관 일정 조회 인덱스
 --

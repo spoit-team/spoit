@@ -98,8 +98,7 @@ public interface FacilityScheduleMapper {
 
     /** 시설 종목의 모집 조건을 저장한다. */
     int updateSportConditions(@Param("facilityId") long facilityId, @Param("sportId") long sportId,
-            @Param("capacity") int capacity, @Param("deadlineHours") int deadlineHours,
-            @Param("note") String note);
+            @Param("capacity") int capacity, @Param("note") String note);
 
     /** 시설 종목별 모집 조건을 종목 순서로 조회한다. */
     List<FacilitySportCondition> selectSportConditions(@Param("facilityId") long facilityId);
