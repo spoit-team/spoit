@@ -23,15 +23,18 @@ import co.kr.spoit.facility.service.FacilityAccessDeniedException;
 import co.kr.spoit.facility.service.FacilityNotFoundException;
 import co.kr.spoit.facility.service.FacilityScheduleService;
 import co.kr.spoit.facility.service.FacilityService;
+import co.kr.spoit.match.dto.RoomManagementPage;
+import co.kr.spoit.match.service.RoomManagementService;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.web.AdminShellModel;
 
 /**
- * 시설 관리자 화면의 담당 시설 조회·등록·수정·삭제 요청과 예약 운영 일정 화면을 처리한다.
+ * 시설 관리자 화면의 담당 시설 조회·등록·수정·삭제 요청과 예약 운영 일정·매칭방 목록 화면을 처리한다.
  *
  * <p>화면 탭 속성 중 예약 운영 일정({@code view=schedule})은
- * {@link FacilityScheduleService}가 선택 시설·날짜·탭에 맞춰 구성한다. 나머지 탭은 아직
- * 빈 값이며, 담당 시설 목록만 로그인한 시설 관리자의 ID로 조회한다.</p>
+ * {@link FacilityScheduleService}가 선택 시설·날짜·탭에 맞춰 구성하고, 매칭방 관리
+ * ({@code view=bookings})의 목록·필터·종목 선택지는 {@link RoomManagementService}가 인증 주체의
+ * 담당 시설 범위로 구성한다. 나머지 탭은 아직 빈 값이다.</p>
  */
 @Controller
 public class FacilityAdminController {
@@ -47,17 +50,24 @@ public class FacilityAdminController {
 
     private final FacilityService facilityService;
     private final FacilityScheduleService scheduleService;
+    private final RoomManagementService roomManagementService;
 
-    public FacilityAdminController(FacilityService facilityService, FacilityScheduleService scheduleService) {
+    public FacilityAdminController(FacilityService facilityService, FacilityScheduleService scheduleService,
+            RoomManagementService roomManagementService) {
         this.facilityService = facilityService;
         this.scheduleService = scheduleService;
+        this.roomManagementService = roomManagementService;
     }
 
     /**
-     * 시설 관리 화면을 렌더링한다. 담당 시설은 인증 주체의 회원 ID로만 조회한다.
+     * 시설 관리 화면을 렌더링한다. 담당 시설과 매칭방 목록은 인증 주체의 회원 ID로만 조회한다.
      *
      * <p>{@code view=schedule}이면 예약 운영 일정 화면의 선택 시설·날짜·종목·탭을 복원하고,
-     * 그 밖의 경우 기본 보기는 dashboard이다.</p>
+     * {@code view=bookings}이면 매칭방 관리 섹션을 기본으로 보여 준다. 그 밖의 경우 기본 보기는
+     * dashboard이다.</p>
+     *
+     * <p>매칭방 목록은 화면 해시로 섹션을 바꾸는 클라이언트 동작 때문에 모든 GET에서 실제 값으로
+     * 채운다. 검색어·상태는 매칭방 필터이며, 종목({@code sportId})은 매칭방 화면일 때만 필터로 쓴다.</p>
      */
     @GetMapping("/admin/facility")
     public String adminFacility(@AuthenticationPrincipal MemberPrincipal principal,
@@ -67,6 +77,8 @@ public class FacilityAdminController {
             @RequestParam(name = "sportId", required = false) Long sportId,
             @RequestParam(name = "tab", required = false) String tab,
             @RequestParam(name = "month", required = false) String month,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "status", required = false) String status,
             @RequestParam(name = "message", required = false) String message,
             @RequestParam(name = "error", required = false) String error,
             Model model) {
@@ -81,7 +93,8 @@ public class FacilityAdminController {
         }
         // view는 서버 상태가 아니라 뷰의 기본 선택값이다.
         boolean scheduleView = "schedule".equals(view);
-        model.addAttribute("view", scheduleView ? "schedule" : "dashboard");
+        boolean bookingsView = "bookings".equals(view);
+        model.addAttribute("view", scheduleView ? "schedule" : bookingsView ? "bookings" : "dashboard");
         model.addAttribute("scopeName", null);
         model.addAttribute("todayLabel", null);
         model.addAttribute("chartCollectedAt", null);
@@ -94,8 +107,14 @@ public class FacilityAdminController {
                         parseMonth(month))
                 : SchedulePage.empty());
 
-        model.addAttribute("matches", EMPTY_LIST);
-        model.addAttribute("bookingFilters", null);
+        // 매칭방 목록은 담당 시설 범위로만 조회하며, 클라이언트 섹션 전환 때문에 항상 실제 값을 채운다.
+        // 종목 필터는 매칭방 화면에서만 적용해 일정 화면의 sportId를 매칭방 조건으로 쓰지 않는다.
+        RoomManagementPage bookings = roomManagementService.findRooms(userId, q, status,
+                bookingsView ? sportId : null);
+        model.addAttribute("matches", bookings.getMatches());
+        model.addAttribute("bookingFilters", bookings.getFilters());
+        // 일정 화면의 종목 선택지(sports)를 덮어쓰지 않도록 매칭방 종목은 별도 모델 이름을 쓴다.
+        model.addAttribute("bookingSports", bookings.getSports());
         model.addAttribute("stats", null);
         model.addAttribute("requestMetrics", null);
         model.addAttribute("requestFilters", null);

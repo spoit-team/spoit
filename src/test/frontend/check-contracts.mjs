@@ -306,6 +306,84 @@ check(facilityScript.includes("closest('a.date-calendar-day, .calendar-month-nav
 check(facilityScript.includes("target?.closest('#date-schedule-hour-grid')"),
   'admin-facility.js: date slot summary must be delegated so fragment swaps keep it working');
 
+/* ── 매칭방 조회·상세 화면 계약 ────────────────────────────────────────────
+   시설 관리자는 담당 시설의 매칭방을 조회하고, 상세 화면에서 신청·참가자만 읽습니다.
+   필터 값이 어긋나면 Spring Long 바인딩이 실패하고, 상세 화면에 없는 변경 조작이
+   다시 생기면 서버에 없는 동작을 사용자에게 약속하게 되므로 여기서 고정한다. */
+const bookingsSource = fragmentSlice(facilitySource, 'id="facility-bookings"', 'id="facility-stats"');
+check(Boolean(bookingsSource), 'facility.html: bookings view missing');
+check(bookingsSource?.includes('name="view" value="bookings"'),
+  'facility.html: bookings filter must post view=bookings to stay on the matching list');
+for (const field of ['name="q"', 'name="status"', 'name="sportId"']) {
+  check(Boolean(bookingsSource?.includes(field)),
+    `facility.html: bookings filter must keep the ${field} input`);
+}
+check(bookingsSource?.includes('${bookingFilters?.q}'),
+  'facility.html: the search term must be restored from bookingFilters');
+check(bookingsSource?.includes('${bookingFilters?.status =='),
+  'facility.html: the status filter must restore the selected option');
+// 'matched'는 DB 값이 '매칭 완료'일 뿐 A/B 팀 배정을 뜻하지 않는다. 표시 문구가 그보다 앞서면 안 된다.
+check(bookingsSource?.includes('>매칭 완료</option>'),
+  'facility.html: the matched status must be labelled 매칭 완료');
+check(!/팀 배정 완료/.test(bookingsSource ?? ''),
+  'facility.html: the matched status must not claim team assignment');
+// 종목 목록은 담당 시설의 예약 종목(bookingSports)에서 온다. 'all' 문자열은 Long 바인딩을 깨뜨린다.
+check(bookingsSource?.includes('th:each="sport : ${bookingSports}"'),
+  'facility.html: the sport filter must list bookingSports');
+check(bookingsSource?.includes('<option value=""'),
+  'facility.html: "all sports" must submit an empty value so Spring can bind sportId as Long');
+const sportFilterMarkup = bookingsSource?.slice(
+  bookingsSource.indexOf('id="booking-sport-filter"'),
+  bookingsSource.indexOf('</select>', bookingsSource.indexOf('id="booking-sport-filter"')) + '</select>'.length) ?? '';
+check(sportFilterMarkup.length > 0 && !sportFilterMarkup.includes('value="all"'),
+  'facility.html: the sport filter must not send a non-numeric value');
+check(bookingsSource?.includes('${bookingFilters?.sportId == sport.sportId}'),
+  'facility.html: the sport filter must restore the selected sport');
+check(bookingsSource?.includes('view=\'bookings\''),
+  'facility.html: the reset link must keep view=bookings');
+check(bookingsSource?.includes('#facility-bookings'),
+  'facility.html: the reset link must restore the bookings anchor');
+for (const field of ['match.matchId', 'match.title', 'match.facilityName', 'match.sportName',
+  'match.participation', 'match.dateLabel', 'match.statusLabel', 'match.statusTone']) {
+  check(bookingsSource?.includes(field), `facility.html: bookings table must render ${field}`);
+}
+check(bookingsSource?.includes('@{/admin/operations(matchId=${match.matchId})}'),
+  'facility.html: each booking must deep-link to its read-only detail');
+
+const operationsSource = await readFile(path.join(resources, 'templates/admin/operations.html'), 'utf8');
+check(operationsSource.includes('th:if="${match == null}"'),
+  'operations.html: a missing match must render an honest empty state');
+check(operationsSource.includes('id="ops-content" th:if="${match != null}"'),
+  'operations.html: the detail body must render only for a real match');
+for (const field of ['match.matchId', 'match.title', 'match.facilityName', 'match.sportName',
+  'match.dateLabel', 'match.participation', 'match.statusLabel', 'match.statusTone']) {
+  check(operationsSource.includes(field), `operations.html: room summary must render ${field}`);
+}
+check(operationsSource.includes('th:each="roomApplication : ${match.applications}"')
+  && operationsSource.includes('th:each="participant : ${match.participants}"'),
+  'operations.html: applications and participants must be listed from the model');
+// 'application'은 Thymeleaf 예약어라 th:each 지역 변수 이름으로 쓸 수 없다. 예약어로 되돌아가면
+// 렌더링이 실패하므로 여기서 이름을 고정한다.
+check(!/th:each="application\s*:/.test(operationsSource),
+  'operations.html: the application loop variable must not use the reserved name "application"');
+for (const field of ['roomApplication.applicantName', 'roomApplication.kindLabel',
+  'roomApplication.statusLabel', 'roomApplication.receiptNo', 'roomApplication.createdAtLabel',
+  'participant.name', 'participant.teamLabel', 'participant.statusLabel']) {
+  check(operationsSource.includes(field), `operations.html: ${field} must be rendered`);
+}
+check(operationsSource.includes('#lists.isEmpty(match.applications)')
+  && operationsSource.includes('#lists.isEmpty(match.participants)'),
+  'operations.html: both lists need an empty state');
+// 조회 전용: 쓰기 폼·제출 버튼·없는 getter(seats/members 등)를 참조하지 않는다.
+check(!/<form\b/.test(operationsSource) && !/th:action=/.test(operationsSource),
+  'operations.html: the read-only detail must not contain write forms');
+check(!/type="submit"/.test(operationsSource),
+  'operations.html: the read-only detail must not offer submit actions');
+check(!/opsApplication|match\.pendingGroups|match\.teamA|match\.canAssign|match\.status ==/.test(operationsSource),
+  'operations.html: unimplemented confirm/reject/assign/complete controls must stay out of the page');
+check(operationsSource.includes('@{/admin/facility(view=\'bookings\')}'),
+  'operations.html: the detail must link back to the booking list');
+
 // 관리자 진입 버튼은 역할별로만 노출하고, 관리자 화면끼리는 서로 이동 링크를 두지 않는다.
 function fragmentSlice(source, openMarker, closeMarker) {
   const start = source.indexOf(openMarker);

@@ -63,6 +63,9 @@ class FacilityScheduleRouteTest {
     private FacilityScheduleService scheduleService;
 
     @MockitoBean
+    private co.kr.spoit.match.service.RoomManagementService roomManagementService;
+
+    @MockitoBean
     private MemberLoginSuccessHandler loginSuccessHandler;
 
     @MockitoBean
@@ -75,6 +78,7 @@ class FacilityScheduleRouteTest {
     @DisplayName("view=schedule 요청은 선택 시설·날짜·탭을 일정 화면 모델로 채운다")
     void rendersScheduleViewWithSelectedFacilityAndTab() throws Exception {
         when(facilityService.findManagedFacilities(7L)).thenReturn(List.of(facility()));
+        when(roomManagementService.findRooms(7L, null, null, null)).thenReturn(rooms());
         when(scheduleService.findSchedulePage(eq(7L), eq(10L), eq(LocalDate.of(2026, 11, 3)),
                 eq(3L), eq("schedule-changes"), any()))
                 .thenReturn(page());
@@ -331,6 +335,10 @@ class FacilityScheduleRouteTest {
                 .andExpect(status().isForbidden());
 
         verifyNoInteractions(scheduleService);
+    }
+
+    private static co.kr.spoit.match.dto.RoomManagementPage rooms() {
+        return co.kr.spoit.match.dto.RoomManagementPage.empty();
     }
 
     private static SchedulePage page() {

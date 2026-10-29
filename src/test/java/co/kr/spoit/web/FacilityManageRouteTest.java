@@ -53,6 +53,9 @@ class FacilityManageRouteTest {
     private co.kr.spoit.facility.service.FacilityScheduleService facilityScheduleService;
 
     @MockitoBean
+    private co.kr.spoit.match.service.RoomManagementService roomManagementService;
+
+    @MockitoBean
     private MemberLoginSuccessHandler loginSuccessHandler;
 
     @MockitoBean
