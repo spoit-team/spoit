@@ -150,7 +150,6 @@ for (const file of templates) {
 const requiredBindings = {
   'selection-form': ['applicationType', 'clubId', 'clubMemberIds'],
   'team-create-form': ['clubName', 'sportId', 'regionId'],
-  'team-edit-form': ['clubName', 'sportId', 'regionId'],
   'team-transfer-form': ['clubMemberId'],
   'team-remove-form': ['clubMemberId'],
   'team-disband-form': ['clubNameConfirmation'],
@@ -166,6 +165,10 @@ const requiredBindings = {
   'conditions-form': ['facilityId', 'sportId', 'capacity', 'note'],
   'closure-form': ['facilityId', 'date', 'start', 'end', 'reason']
 };
+// 팀 수정 폼은 현재 비활성화되어 있으며, 다시 표시되면 필수 필드를 검사한다.
+if (namedForms.has('team-edit-form')) {
+  requiredBindings['team-edit-form'] = ['clubName', 'sportId', 'regionId'];
+}
 for (const [id, names] of Object.entries(requiredBindings)) {
   const form = namedForms.get(id);
   check(Boolean(form), `Missing form ${id}`);
