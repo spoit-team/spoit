@@ -17,9 +17,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import co.kr.spoit.facility.domain.MatchPeriod;
 import co.kr.spoit.facility.dto.FacilityForm;
 import co.kr.spoit.facility.dto.SchedulePage;
 import co.kr.spoit.facility.service.FacilityAccessDeniedException;
+import co.kr.spoit.facility.service.FacilityDeleteBlockedException;
 import co.kr.spoit.facility.service.FacilityNotFoundException;
 import co.kr.spoit.facility.service.FacilityScheduleService;
 import co.kr.spoit.facility.service.FacilityService;
@@ -67,7 +69,9 @@ public class FacilityAdminController {
      * dashboard이다.</p>
      *
      * <p>매칭방 목록은 화면 해시로 섹션을 바꾸는 클라이언트 동작 때문에 모든 GET에서 실제 값으로
-     * 채운다. 검색어·상태는 매칭방 필터이며, 종목({@code sportId})은 매칭방 화면일 때만 필터로 쓴다.</p>
+     * 채운다. 검색어·상태는 매칭방 필터이며, 종목({@code sportId})과 시설({@code facilityId})은
+     * 매칭방 화면일 때만 필터로 쓴다. {@code facilityId}는 일정 화면의 시설 선택과 같은 파라미터라
+     * 다른 화면에서 그대로 넘기면 숨은 매칭방 목록이 좁아지므로 매칭방 화면에서만 전달한다.</p>
      */
     @GetMapping("/admin/facility")
     public String adminFacility(@AuthenticationPrincipal MemberPrincipal principal,
@@ -108,9 +112,10 @@ public class FacilityAdminController {
                 : SchedulePage.empty());
 
         // 매칭방 목록은 담당 시설 범위로만 조회하며, 클라이언트 섹션 전환 때문에 항상 실제 값을 채운다.
-        // 종목 필터는 매칭방 화면에서만 적용해 일정 화면의 sportId를 매칭방 조건으로 쓰지 않는다.
+        // 종목·시설 필터는 매칭방 화면에서만 적용해 일정 화면의 선택이 숨은 매칭방 목록을 좁히지 않게 한다.
+        // facilityId는 일정 화면의 시설 선택과 같은 파라미터이므로, 매칭방 화면이 아니면 반드시 null로 넘긴다.
         RoomManagementPage bookings = roomManagementService.findRooms(userId, q, status,
-                bookingsView ? sportId : null);
+                bookingsView ? sportId : null, bookingsView ? facilityId : null);
         model.addAttribute("matches", bookings.getMatches());
         model.addAttribute("bookingFilters", bookings.getFilters());
         // 일정 화면의 종목 선택지(sports)를 덮어쓰지 않도록 매칭방 종목은 별도 모델 이름을 쓴다.
@@ -216,10 +221,28 @@ public class FacilityAdminController {
         try {
             facilityService.deleteFacility(principal.getUserId(), facilityId);
             redirect.addAttribute("message", "시설을 삭제했습니다.");
+        } catch (FacilityDeleteBlockedException exception) {
+            // 삭제를 막는 매칭방 전체를 경고창에 넘겨 어떤 방을 정리해야 하는지 보여 준다.
+            // 안내 문구는 모달 안에만 표시하도록 별도 속성으로 전달한다.
+            redirect.addFlashAttribute("deleteBlockMessage", exception.getMessage());
+            redirect.addFlashAttribute("deleteBlockConflicts", exception.getConflicts());
+            redirect.addFlashAttribute("deleteBlockSummary", summarize(exception.getConflicts()));
         } catch (IllegalArgumentException | FacilityAccessDeniedException | FacilityNotFoundException exception) {
             redirect.addAttribute("error", exception.getMessage());
         }
         return FACILITY_ASSETS_REDIRECT;
+    }
+
+    /** 경고 요약은 일정 충돌 경고와 같은 형식(제목, 없으면 "매칭방 N")을 쓴다. */
+    private static String summarize(List<MatchPeriod> conflicts) {
+        StringBuilder summary = new StringBuilder();
+        for (MatchPeriod conflict : conflicts) {
+            if (summary.length() > 0) {
+                summary.append(", ");
+            }
+            summary.append(conflict.getTitle() == null ? "매칭방 " + conflict.getMatchId() : conflict.getTitle());
+        }
+        return summary.toString();
     }
 
     /** 예약 운영 일정 화면 변수를 템플릿 계약 이름 그대로 모델에 옮긴다. */

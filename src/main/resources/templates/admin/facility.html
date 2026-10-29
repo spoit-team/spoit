@@ -132,6 +132,8 @@
             <select class="field-control" id="booking-status-filter" name="status" aria-label="방 상태 필터"><option value="all" th:selected="${bookingFilters?.status == null or bookingFilters?.status == 'all'}">전체 방 상태</option><option value="recruiting" th:selected="${bookingFilters?.status == 'recruiting'}">모집 중</option><option value="matched" th:selected="${bookingFilters?.status == 'matched'}">매칭 완료</option><option value="completed" th:selected="${bookingFilters?.status == 'completed'}">이용 완료</option><option value="cancelled" th:selected="${bookingFilters?.status == 'cancelled'}">취소</option></select>
             <!-- 전체 종목은 빈 값으로 보낸다. sportId는 Long으로 바인딩되므로 'all' 같은 문자열은 받을 수 없다. -->
             <select class="field-control" id="booking-sport-filter" name="sportId" aria-label="종목 필터"><option value="" th:selected="${bookingFilters?.sportId == null}">전체 종목</option><option th:each="sport : ${bookingSports}" th:value="${sport.sportId}" th:text="${sport.name}" th:selected="${bookingFilters?.sportId == sport.sportId}">종목</option></select>
+            <!-- 전체 시설도 같은 이유로 빈 값이고, 목록은 담당 시설만 노출한다. -->
+            <select class="field-control" id="booking-facility-filter" name="facilityId" aria-label="시설 필터"><option value="" th:selected="${bookingFilters?.facilityId == null}">전체 시설</option><option th:each="facility : ${facilities}" th:value="${facility.facilityId}" th:text="${facility.name}" th:selected="${bookingFilters?.facilityId == facility.facilityId}">시설</option></select>
             <span class="toolbar-spacer"></span>
             <button class="admin-button small" type="submit">검색</button>
             <a class="admin-button small" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">초기화</a>
@@ -389,6 +391,57 @@
     </div>
     <div class="modal-footer">
       <button class="admin-button primary" type="button" id="schedule-conflict-close" data-close-schedule-conflict>확인</button>
+    </div>
+  </section>
+</div>
+
+<!-- 시설 삭제 차단 안내: 서버가 삭제를 거부했을 때 어떤 매칭방이 막는지 보여 줍니다.
+     매칭방을 자동 취소하거나 삭제를 우회하는 선택지는 두지 않습니다.
+     차단 목록이 없으면 admin-facility.js가 자동으로 열지 않습니다. -->
+<div class="modal-backdrop" id="facility-delete-blocked-modal" hidden
+     th:attr="data-auto-open=${deleteBlockConflicts != null and !#lists.isEmpty(deleteBlockConflicts) ? 'true' : null}">
+  <section class="admin-modal schedule-conflict-modal" role="alertdialog" aria-modal="true"
+           aria-labelledby="facility-delete-blocked-title" aria-describedby="facility-delete-blocked-message">
+    <div class="modal-header">
+      <div>
+        <h2 id="facility-delete-blocked-title">시설을 삭제하지 못했습니다</h2>
+      </div>
+      <button class="modal-close" type="button" data-close-facility-delete-blocked aria-label="닫기">×</button>
+    </div>
+    <!-- 삭제 거부는 되돌릴 수 없는 결과라, 안내 문구를 붉은 띠로 감싸 경고로 읽히게 한다.
+         띠는 헤더 바깥에 두어 x버튼 아래까지 모달 폭 전체를 채운다. -->
+    <div class="delete-block-guidance">
+      <svg class="delete-block-guidance-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6 21 20H3l9-16.4Z"/><path d="M12 9.6v4.6M12 17.4h.01"/></svg>
+      <div class="delete-block-guidance-copy">
+        <p id="facility-delete-blocked-message" th:text="${deleteBlockMessage != null and !#strings.isEmpty(deleteBlockMessage) ? deleteBlockMessage : '모집 중이거나 매칭 완료된 매칭방이 있어 시설을 삭제할 수 없습니다.'}">모집 중이거나 매칭 완료된 매칭방이 있어 시설을 삭제할 수 없습니다.</p>
+        <p id="facility-delete-blocked-summary" th:if="${deleteBlockSummary != null and !#strings.isEmpty(deleteBlockSummary)}" th:text="'삭제를 막는 매칭방: ' + deleteBlockSummary">삭제를 막는 매칭방</p>
+      </div>
+    </div>
+    <div class="modal-body">
+      <ul class="schedule-conflict-list" th:if="${deleteBlockConflicts != null}">
+        <li th:each="conflict : ${deleteBlockConflicts}">
+          <div class="schedule-conflict-ident">
+            <span class="schedule-conflict-id" th:text="'방 ' + ${conflict.matchId}">방 12</span>
+            <span class="schedule-conflict-match" th:text="${conflict.title != null and !#strings.isEmpty(conflict.title) ? conflict.title : '제목 없는 매칭방'}">매칭방 제목</span>
+          </div>
+          <div class="schedule-conflict-time">
+            <span class="schedule-conflict-label">이용 시간</span>
+            <span class="schedule-conflict-clock">
+              <b th:if="${conflict.startAt != null}" th:text="${conflict.startAt.toLocalDate()}">2026-11-03</b>
+              <b th:if="${conflict.startAt != null}" class="schedule-conflict-hour" th:text="${conflict.startAt.toLocalTime()}">10:00</b>
+            </span>
+            <span class="schedule-conflict-dash" aria-hidden="true">–</span>
+            <span class="schedule-conflict-clock">
+              <b th:if="${conflict.endAt != null}" th:text="${conflict.endAt.toLocalDate()}">2026-11-03</b>
+              <b th:if="${conflict.endAt != null}" class="schedule-conflict-hour" th:text="${conflict.endAt.toLocalTime()}">12:00</b>
+            </span>
+          </div>
+        </li>
+      </ul>
+      <p class="schedule-conflict-guide">모집 중이거나 매칭 완료된 매칭방이 있는 시설은 삭제할 수 없습니다. 해당 매칭방을 종료하거나 취소한 뒤 다시 시도해 주세요.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="admin-button danger-solid" type="button" id="facility-delete-blocked-close" data-close-facility-delete-blocked>확인</button>
     </div>
   </section>
 </div>

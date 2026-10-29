@@ -366,16 +366,20 @@ class FacilityServiceImplTest {
     }
 
     @Test
-    @DisplayName("모집 중이거나 매칭 완료된 매칭방이 남아 있으면 시설을 삭제하지 않는다")
+    @DisplayName("모집 중이거나 매칭 완료된 매칭방이 남아 있으면 삭제를 막는 방 목록과 함께 시설을 삭제하지 않는다")
     void rejectsDeleteWhenBlockingMatchRemains() {
         when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(true);
         when(facilityMapper.selectActiveFacilityIdForUpdate(10L)).thenReturn(10L);
-        when(facilityMapper.selectMatchIdInStatusesForUpdate(10L, List.of("모집 중", "매칭 완료")))
-                .thenReturn(500L);
+        when(scheduleMapper.selectMatchPeriodsForUpdate(10L, List.of("모집 중", "매칭 완료")))
+                .thenReturn(List.of(period(500L, 10, 12), period(501L, 14, 16)));
 
         assertThatThrownBy(() -> service.deleteFacility(7L, 10L))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("시설을 삭제할 수 없습니다");
+                .isInstanceOfSatisfying(FacilityDeleteBlockedException.class, exception -> {
+                    assertThat(exception).hasMessageContaining("시설을 삭제할 수 없습니다");
+                    assertThat(exception.getConflicts())
+                            .extracting(co.kr.spoit.facility.domain.MatchPeriod::getMatchId)
+                            .containsExactly(500L, 501L);
+                });
 
         verify(facilityMapper, never()).deleteFacility(10L);
     }
@@ -385,8 +389,8 @@ class FacilityServiceImplTest {
     void deletesOwnedFacility() {
         when(facilityMapper.existsFacilityManager(10L, 7L)).thenReturn(true);
         when(facilityMapper.selectActiveFacilityIdForUpdate(10L)).thenReturn(10L);
-        when(facilityMapper.selectMatchIdInStatusesForUpdate(10L, List.of("모집 중", "매칭 완료")))
-                .thenReturn(null);
+        when(scheduleMapper.selectMatchPeriodsForUpdate(10L, List.of("모집 중", "매칭 완료")))
+                .thenReturn(List.of());
         when(facilityMapper.deleteFacility(10L)).thenReturn(1);
 
         service.deleteFacility(7L, 10L);
@@ -404,7 +408,7 @@ class FacilityServiceImplTest {
                 .isInstanceOf(FacilityNotFoundException.class);
 
         verify(facilityMapper).selectActiveFacilityIdForUpdate(10L);
-        verify(facilityMapper, never()).selectMatchIdInStatusesForUpdate(anyLong(), anyList());
+        verify(scheduleMapper, never()).selectMatchPeriodsForUpdate(anyLong(), anyList());
         verify(facilityMapper, never()).deleteFacility(10L);
     }
 

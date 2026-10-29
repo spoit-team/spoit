@@ -78,7 +78,7 @@ class FacilityScheduleRouteTest {
     @DisplayName("view=schedule 요청은 선택 시설·날짜·탭을 일정 화면 모델로 채운다")
     void rendersScheduleViewWithSelectedFacilityAndTab() throws Exception {
         when(facilityService.findManagedFacilities(7L)).thenReturn(List.of(facility()));
-        when(roomManagementService.findRooms(7L, null, null, null)).thenReturn(rooms());
+        when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(rooms());
         when(scheduleService.findSchedulePage(eq(7L), eq(10L), eq(LocalDate.of(2026, 11, 3)),
                 eq(3L), eq("schedule-changes"), any()))
                 .thenReturn(page());

@@ -12,9 +12,13 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,8 +29,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import co.kr.spoit.facility.controller.FacilityAdminController;
+import co.kr.spoit.facility.domain.MatchPeriod;
 import co.kr.spoit.facility.dto.FacilityForm;
 import co.kr.spoit.facility.service.FacilityAccessDeniedException;
+import co.kr.spoit.facility.service.FacilityDeleteBlockedException;
 import co.kr.spoit.facility.service.FacilityService;
 import co.kr.spoit.global.config.SecurityConfig;
 import co.kr.spoit.member.security.MemberLoginFailureHandler;
@@ -138,14 +144,19 @@ class FacilityManageRouteTest {
     }
 
     @Test
-    @DisplayName("매칭방이 남아 삭제가 거부되면 그 안내 문구를 오류로 보여준다")
+    @DisplayName("매칭방이 남아 삭제가 거부되면 삭제를 막는 방 목록을 flash로 넘겨 경고창을 띄운다")
     void deleteBlockedByRemainingMatchShowsError() throws Exception {
         String blocked = "모집 중이거나 매칭 완료된 매칭방이 있어 시설을 삭제할 수 없습니다.";
-        doThrow(new IllegalArgumentException(blocked)).when(facilityService).deleteFacility(7L, 10L);
+        List<MatchPeriod> conflicts = List.of(match(500L, "첫 방"), match(501L, "둘째 방"));
+        doThrow(new FacilityDeleteBlockedException(blocked, conflicts))
+                .when(facilityService).deleteFacility(7L, 10L);
 
         mockMvc.perform(post("/admin/facilities/10/delete").with(user(facilityManager())).with(csrf()))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl(ASSETS_REDIRECT + "?error=" + encoded(blocked) + ASSETS_FRAGMENT));
+                .andExpect(redirectedUrl(ASSETS_REDIRECT + ASSETS_FRAGMENT))
+                .andExpect(flash().attribute("deleteBlockMessage", blocked))
+                .andExpect(flash().attribute("deleteBlockConflicts", conflicts))
+                .andExpect(flash().attribute("deleteBlockSummary", "첫 방, 둘째 방"));
     }
 
     @Test
@@ -211,5 +222,14 @@ class FacilityManageRouteTest {
 
     private static String encoded(String value) {
         return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private static MatchPeriod match(long matchId, String title) {
+        MatchPeriod period = new MatchPeriod();
+        period.setMatchId(matchId);
+        period.setTitle(title);
+        period.setStartAt(LocalDateTime.of(2026, 11, 3, 10, 0));
+        period.setEndAt(LocalDateTime.of(2026, 11, 3, 11, 0));
+        return period;
     }
 }

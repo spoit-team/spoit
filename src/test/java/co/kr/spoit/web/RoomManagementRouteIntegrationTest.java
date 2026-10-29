@@ -60,6 +60,16 @@ class RoomManagementRouteIntegrationTest {
     private static final long OWNED_MATCH_ID = 9401L;
     /** 관리자 B의 시설(9303) 매칭방: 관리자 A에게는 보이지 않아야 한다. */
     private static final long FOREIGN_MATCH_ID = 9406L;
+    /** 관리자 A의 담당 시설 두 곳: 9301(방 2건)과 9304(방 1건). */
+    private static final long FACILITY_A = 9301L;
+    private static final long FACILITY_B = 9304L;
+    /** 9304의 유일한 매칭방(종료 상태). */
+    private static final long FACILITY_B_MATCH_ID = 9403L;
+    /** 관리자 A가 담당하지만 논리 삭제된 시설과 그 방. */
+    private static final long DELETED_FACILITY = 9302L;
+    private static final long DELETED_FACILITY_MATCH_ID = 9405L;
+    /** 관리자 B만 담당하는 시설. */
+    private static final long FOREIGN_FACILITY = 9303L;
 
     private static final Pattern TEST_DATABASE_URL = Pattern.compile(
             "jdbc:mysql://(?:localhost|127\\.0\\.0\\.1):([0-9]{1,5})/spoit_mat_test");
@@ -148,6 +158,104 @@ class RoomManagementRouteIntegrationTest {
                         .with(user(manager(MANAGER_B))))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("match", hasProperty("matchId", is(FOREIGN_MATCH_ID))));
+    }
+
+    @Test
+    @DisplayName("담당 시설 필터는 그 시설의 매칭방만 남기고 선택 상태를 되돌려준다")
+    void facilityFilterNarrowsToOwnedFacilityOnly() throws Exception {
+        // 관리자 A는 9301과 9304를 담당한다. 9304에는 종료된 9403 한 건만 있다.
+        mockMvc.perform(get("/admin/facility")
+                        .param("view", "bookings")
+                        .param("facilityId", "9304")
+                        .with(user(manager(MANAGER_A))))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("matches", org.hamcrest.Matchers.hasSize(1)))
+                .andExpect(model().attribute("matches", hasItem(
+                        hasProperty("matchId", is(FACILITY_B_MATCH_ID)))))
+                .andExpect(model().attribute("bookingFilters",
+                        hasProperty("facilityId", is(FACILITY_B))))
+                .andExpect(content().string(containsString("일요 축구 종료")))
+                // 다른 담당 시설(9301)의 방은 필터로 빠진다.
+                .andExpect(model().attribute("matches", org.hamcrest.Matchers.not(hasItem(
+                        hasProperty("matchId", is(OWNED_MATCH_ID))))));
+    }
+
+    @Test
+    @DisplayName("없거나 삭제됐거나 남의 시설 ID는 전체로 정규화되고 다른 시설 데이터가 새지 않는다")
+    void unknownOrForeignFacilityFilterFallsBackToAllOwnedRooms() throws Exception {
+        // 존재하지 않는 시설: 전체로 되돌아가되 담당 범위(9301·9304)만 남는다.
+        mockMvc.perform(get("/admin/facility")
+                        .param("view", "bookings")
+                        .param("facilityId", "999999")
+                        .with(user(manager(MANAGER_A))))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("bookingFilters",
+                        hasProperty("facilityId", org.hamcrest.Matchers.nullValue())))
+                .andExpect(model().attribute("matches", hasItem(
+                        hasProperty("matchId", is(OWNED_MATCH_ID)))))
+                .andExpect(model().attribute("matches", org.hamcrest.Matchers.not(hasItem(
+                        hasProperty("matchId", is(FOREIGN_MATCH_ID))))));
+
+        // 삭제된 시설(9302): 담당이지만 삭제됐으므로 전체로 정규화되고 그 방(9405)은 나오지 않는다.
+        mockMvc.perform(get("/admin/facility")
+                        .param("view", "bookings")
+                        .param("facilityId", "9302")
+                        .with(user(manager(MANAGER_A))))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("bookingFilters",
+                        hasProperty("facilityId", org.hamcrest.Matchers.nullValue())))
+                .andExpect(model().attribute("matches", org.hamcrest.Matchers.not(hasItem(
+                        hasProperty("matchId", is(DELETED_FACILITY_MATCH_ID))))));
+
+        // 남의 시설(9303, 관리자 B 소유): 전체로 정규화되고 9406은 여전히 보이지 않는다.
+        mockMvc.perform(get("/admin/facility")
+                        .param("view", "bookings")
+                        .param("facilityId", String.valueOf(FOREIGN_FACILITY))
+                        .with(user(manager(MANAGER_A))))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("bookingFilters",
+                        hasProperty("facilityId", org.hamcrest.Matchers.nullValue())))
+                .andExpect(model().attribute("matches", org.hamcrest.Matchers.not(hasItem(
+                        hasProperty("matchId", is(FOREIGN_MATCH_ID))))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("다른 관리자 방"))));
+    }
+
+    @Test
+    @DisplayName("시설 선택지는 담당 시설만 노출하고 남의 시설·삭제 시설은 넣지 않는다")
+    void facilityOptionsExposeManagedFacilitiesOnly() throws Exception {
+        mockMvc.perform(get("/admin/facility")
+                        .param("view", "bookings")
+                        .with(user(manager(MANAGER_A))))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("facilities", org.hamcrest.Matchers.hasSize(2)))
+                .andExpect(model().attribute("facilities", hasItem(
+                        hasProperty("facilityId", is(FACILITY_A)))))
+                .andExpect(model().attribute("facilities", hasItem(
+                        hasProperty("facilityId", is(FACILITY_B)))))
+                // 삭제된 9302와 관리자 B 소유 9303은 선택지에 없다.
+                .andExpect(model().attribute("facilities", org.hamcrest.Matchers.not(hasItem(
+                        hasProperty("facilityId", is(DELETED_FACILITY))))))
+                .andExpect(model().attribute("facilities", org.hamcrest.Matchers.not(hasItem(
+                        hasProperty("facilityId", is(FOREIGN_FACILITY))))));
+    }
+
+    @Test
+    @DisplayName("일정 화면의 facilityId·sportId는 숨은 매칭방 목록을 좁히지 않는다")
+    void scheduleViewSelectionDoesNotFilterBookings() throws Exception {
+        mockMvc.perform(get("/admin/facility")
+                        .param("view", "schedule")
+                        .param("facilityId", String.valueOf(FACILITY_B))
+                        .param("sportId", "9201")
+                        .with(user(manager(MANAGER_A))))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("view", "schedule"))
+                .andExpect(model().attribute("bookingFilters",
+                        org.hamcrest.Matchers.allOf(
+                                hasProperty("facilityId", org.hamcrest.Matchers.nullValue()),
+                                hasProperty("sportId", org.hamcrest.Matchers.nullValue()))))
+                // 9301의 방까지 그대로 남아 있어야 한다.
+                .andExpect(model().attribute("matches", hasItem(
+                        hasProperty("matchId", is(OWNED_MATCH_ID)))));
     }
 
     /** DB 역할 값과 같은 표기를 써서 실제 인증 주체와 동일한 권한을 갖게 한다. */

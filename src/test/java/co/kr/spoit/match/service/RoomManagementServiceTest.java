@@ -40,11 +40,12 @@ class RoomManagementServiceTest {
     @Test
     @DisplayName("관리자 식별자가 없으면 조회 없이 빈 페이지를 돌려준다")
     void returnsEmptyPageWithoutManager() {
-        RoomManagementPage page = service.findRooms(null, "농구", "recruiting", 9201L);
+        RoomManagementPage page = service.findRooms(null, "농구", "recruiting", 9201L, 9301L);
 
         assertThat(page.getMatches()).isEmpty();
         assertThat(page.getSports()).isEmpty();
         assertThat(page.getFilters().getStatus()).isEqualTo("all");
+        assertThat(page.getFilters().getFacilityId()).isNull();
         verifyNoInteractions(mapper);
     }
 
@@ -56,7 +57,7 @@ class RoomManagementServiceTest {
                 new RoomManagementSport(9202L, "축구")));
         given(mapper.findRooms(any())).willReturn(List.of(row(9401L, "모집 중", 2, 8)));
 
-        RoomManagementPage page = service.findRooms(MANAGER_ID, "  금요  ", "unknown", 9299L);
+        RoomManagementPage page = service.findRooms(MANAGER_ID, "  금요  ", "unknown", 9299L, null);
 
         assertThat(page.getFilters().getQ()).isEqualTo("금요");
         assertThat(page.getFilters().getStatus()).isEqualTo("all");
@@ -72,12 +73,71 @@ class RoomManagementServiceTest {
     }
 
     @Test
+    @DisplayName("담당 활성 시설 필터는 그대로 유지하고 조회 조건에 넘긴다")
+    void keepsManagedFacilityFilter() {
+        given(mapper.findSports(MANAGER_ID)).willReturn(List.of());
+        given(mapper.findManagedFacilityId(MANAGER_ID, 9301L)).willReturn(9301L);
+        given(mapper.findRooms(any())).willReturn(List.of());
+
+        RoomManagementPage page = service.findRooms(MANAGER_ID, null, "all", null, 9301L);
+
+        assertThat(page.getFilters().getFacilityId()).isEqualTo(9301L);
+        assertThat(capturedQuery().getFacilityId()).isEqualTo(9301L);
+    }
+
+    @Test
+    @DisplayName("담당 밖·삭제·없는·양수 아님 시설 ID는 전체로 되돌리고 조회 조건에 넣지 않는다")
+    void normalizesUnusableFacilityFilter() {
+        given(mapper.findSports(MANAGER_ID)).willReturn(List.of());
+        given(mapper.findRooms(any())).willReturn(List.of());
+        // 담당이 아니거나 삭제된 시설은 매퍼가 null을 돌려준다.
+        given(mapper.findManagedFacilityId(MANAGER_ID, 9303L)).willReturn(null);
+        given(mapper.findManagedFacilityId(MANAGER_ID, 9302L)).willReturn(null);
+        given(mapper.findManagedFacilityId(MANAGER_ID, 9999L)).willReturn(null);
+
+        assertThat(service.findRooms(MANAGER_ID, null, "all", null, 9303L).getFilters().getFacilityId())
+                .isNull();
+        assertThat(capturedQuery().getFacilityId()).isNull();
+        assertThat(service.findRooms(MANAGER_ID, null, "all", null, 9302L).getFilters().getFacilityId())
+                .isNull();
+        assertThat(service.findRooms(MANAGER_ID, null, "all", null, 9999L).getFilters().getFacilityId())
+                .isNull();
+
+        // 양수가 아닌 ID는 검증 쿼리조차 호출하지 않는다.
+        assertThat(service.findRooms(MANAGER_ID, null, "all", null, 0L).getFilters().getFacilityId())
+                .isNull();
+        assertThat(service.findRooms(MANAGER_ID, null, "all", null, -5L).getFilters().getFacilityId())
+                .isNull();
+        org.mockito.Mockito.verify(mapper, org.mockito.Mockito.never())
+                .findManagedFacilityId(MANAGER_ID, 0L);
+        org.mockito.Mockito.verify(mapper, org.mockito.Mockito.never())
+                .findManagedFacilityId(MANAGER_ID, -5L);
+    }
+
+    @Test
+    @DisplayName("시설 필터는 검색어·상태·종목과 함께 조회 조건에 조합된다")
+    void combinesFacilityWithOtherFilters() {
+        given(mapper.findSports(MANAGER_ID)).willReturn(List.of(new RoomManagementSport(9201L, "농구")));
+        given(mapper.findManagedFacilityId(MANAGER_ID, 9304L)).willReturn(9304L);
+        given(mapper.findRooms(any())).willReturn(List.of());
+
+        service.findRooms(MANAGER_ID, "축구", "completed", 9201L, 9304L);
+
+        RoomManagementQuery query = capturedQuery();
+        assertThat(query.getQ()).isEqualTo("축구");
+        assertThat(query.getStatusValue()).isEqualTo("종료");
+        assertThat(query.getSportId()).isEqualTo(9201L);
+        assertThat(query.getFacilityId()).isEqualTo(9304L);
+        assertThat(query.getManagerUserId()).isEqualTo(MANAGER_ID);
+    }
+
+    @Test
     @DisplayName("상태 필터는 DB 값으로 변환하고 '이용 완료'는 종료 상태를 조회한다")
     void mapsStatusFilterToDatabaseValue() {
         given(mapper.findSports(MANAGER_ID)).willReturn(List.of());
         given(mapper.findRooms(any())).willReturn(List.of());
 
-        service.findRooms(MANAGER_ID, null, "completed", null);
+        service.findRooms(MANAGER_ID, null, "completed", null, null);
 
         assertThat(capturedQuery().getStatusValue()).isEqualTo("종료");
     }
@@ -103,7 +163,7 @@ class RoomManagementServiceTest {
         given(mapper.findSports(MANAGER_ID)).willReturn(List.of());
         given(mapper.findRooms(any())).willReturn(List.of());
 
-        RoomManagementPage page = service.findRooms(MANAGER_ID, " 50% _ ", "all", null);
+        RoomManagementPage page = service.findRooms(MANAGER_ID, " 50% _ ", "all", null, null);
 
         assertThat(page.getFilters().getQ()).isEqualTo("50% _");
         assertThat(capturedQuery().getQ()).isEqualTo("50!% !_");
@@ -118,7 +178,7 @@ class RoomManagementServiceTest {
         overnight.setEndAt(LocalDateTime.of(2026, 11, 8, 0, 30));
         given(mapper.findRooms(any())).willReturn(List.of(overnight));
 
-        RoomManagementPage.Match match = service.findRooms(MANAGER_ID, null, "all", null)
+        RoomManagementPage.Match match = service.findRooms(MANAGER_ID, null, "all", null, null)
                 .getMatches().get(0);
 
         assertThat(match.getParticipation()).isEqualTo("2 / 10명");
@@ -138,7 +198,7 @@ class RoomManagementServiceTest {
         yearEnd.setEndAt(LocalDateTime.of(2027, 1, 1, 1, 0));
         given(mapper.findRooms(any())).willReturn(List.of(yearEnd));
 
-        RoomManagementPage.Match match = service.findRooms(MANAGER_ID, null, "all", null)
+        RoomManagementPage.Match match = service.findRooms(MANAGER_ID, null, "all", null, null)
                 .getMatches().get(0);
 
         assertThat(match.getDateLabel()).isEqualTo("2026-12-31(목) 23:00~2027-01-01(금) 01:00");

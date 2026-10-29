@@ -61,10 +61,13 @@ public class RoomManagementService {
     /**
      * 담당 시설의 매칭방 목록을 검색 조건과 함께 조회한다.
      *
-     * <p>관리자 식별자가 없으면 빈 페이지를 돌려준다. 상태·종목·검색어는 알 수 없는 값을
+     * <p>관리자 식별자가 없으면 빈 페이지를 돌려준다. 상태·종목·시설·검색어는 알 수 없는 값을
      * '전체'로 되돌리고, 되돌린 값을 필터 상태로 그대로 노출한다.</p>
+     *
+     * @param facilityId 담당 시설 필터. null·양수 아님·담당 밖 시설·삭제된 시설이면 '전체'
      */
-    public RoomManagementPage findRooms(Long managerUserId, String q, String status, Long sportId) {
+    public RoomManagementPage findRooms(Long managerUserId, String q, String status, Long sportId,
+            Long facilityId) {
         RoomStatusFilter statusFilter = RoomStatusFilter.from(status);
         if (!hasManager(managerUserId)) {
             return RoomManagementPage.empty();
@@ -74,11 +77,12 @@ public class RoomManagementService {
                 .filter(sport -> sport != null && sport.getSportId() != null)
                 .toList();
         Long normalizedSportId = normalizeSportId(sportId, sports);
+        Long normalizedFacilityId = normalizeFacilityId(managerUserId, facilityId);
         String normalizedQ = normalizeQuery(q);
 
         List<RoomManagementPage.Match> matches = new ArrayList<>();
         RoomManagementQuery query = buildQuery(managerUserId, null, escapeLikePattern(normalizedQ),
-                statusFilter.dbValue(), normalizedSportId);
+                statusFilter.dbValue(), normalizedSportId, normalizedFacilityId);
         for (RoomManagementRow row : nullSafe(roomManagementMapper.findRooms(query))) {
             if (row != null) {
                 matches.add(toListMatch(row));
@@ -90,7 +94,8 @@ public class RoomManagementService {
                 .toList();
 
         return RoomManagementPage.of(matches, sportItems,
-                new RoomManagementPage.Filters(normalizedQ, statusFilter.value(), normalizedSportId));
+                new RoomManagementPage.Filters(normalizedQ, statusFilter.value(), normalizedSportId,
+                        normalizedFacilityId));
     }
 
     /**
@@ -104,7 +109,7 @@ public class RoomManagementService {
             return null;
         }
 
-        RoomManagementQuery query = buildQuery(managerUserId, matchId, null, null, null);
+        RoomManagementQuery query = buildQuery(managerUserId, matchId, null, null, null, null);
         RoomManagementRow row = roomManagementMapper.findRoom(query);
         if (row == null) {
             return null;
@@ -144,13 +149,14 @@ public class RoomManagementService {
     }
 
     private RoomManagementQuery buildQuery(Long managerUserId, Long matchId, String q,
-            String statusValue, Long sportId) {
+            String statusValue, Long sportId, Long facilityId) {
         return RoomManagementQuery.builder()
                 .managerUserId(managerUserId)
                 .matchId(matchId)
                 .q(q)
                 .statusValue(statusValue)
                 .sportId(sportId)
+                .facilityId(facilityId)
                 .waitingApplicationStatus(ApplicationStatus.WAITING.dbValue())
                 .individualType(ApplicationType.INDIVIDUAL.dbValue())
                 .participationStatuses(ParticipationStatus.occupyingValues())
@@ -197,6 +203,20 @@ public class RoomManagementService {
                 .filter(sportId::equals)
                 .findFirst()
                 .orElse(null);
+    }
+
+    /**
+     * 담당자가 관리하는 활성 시설만 필터로 인정한다.
+     *
+     * <p>양수가 아닌 ID, 담당이 아닌 시설, 삭제된 시설, 없는 시설은 모두 '전체'(null)로
+     * 되돌린다. 위조된 시설 ID가 목록 조건으로 흘러가지 않게 하는 지점이다.</p>
+     */
+    private Long normalizeFacilityId(Long managerUserId, Long facilityId) {
+        if (facilityId == null || facilityId <= 0) {
+            return null;
+        }
+        Long managed = roomManagementMapper.findManagedFacilityId(managerUserId, facilityId);
+        return facilityId.equals(managed) ? facilityId : null;
     }
 
     /* ---------------- 화면 문구 ---------------- */

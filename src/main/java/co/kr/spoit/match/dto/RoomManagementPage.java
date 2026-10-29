@@ -81,15 +81,18 @@ public class RoomManagementPage {
         private final String q;
         private final String status;
         private final Long sportId;
+        /** 담당 시설 필터. '전체'면 null */
+        private final Long facilityId;
 
-        public Filters(String q, String status, Long sportId) {
+        public Filters(String q, String status, Long sportId, Long facilityId) {
             this.q = q;
             this.status = status;
             this.sportId = sportId;
+            this.facilityId = facilityId;
         }
 
         public static Filters none() {
-            return new Filters(null, "all", null);
+            return new Filters(null, "all", null, null);
         }
     }
 }

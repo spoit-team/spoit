@@ -190,7 +190,7 @@ class RoomManagementMapperIntegrationTest {
     @DisplayName("서비스 목록은 정규화된 필터와 연도·자정 넘김 일시·점유 문구를 담당 범위로 만든다")
     void serviceBuildsPageFromManagedRows() {
         // 9204는 삭제된 시설에만 매핑돼 있어 담당 종목이 아니므로 '전체'로 정규화된다.
-        var page = roomManagementService.findRooms(MANAGER_A, "축구", "all", 9204L);
+        var page = roomManagementService.findRooms(MANAGER_A, "축구", "all", 9204L, null);
 
         assertThat(page.getFilters().getQ()).isEqualTo("축구");
         assertThat(page.getFilters().getStatus()).isEqualTo("all");
@@ -208,12 +208,12 @@ class RoomManagementMapperIntegrationTest {
                 .isEqualTo("2026-11-07(토) 22:00~2026-11-08(일) 00:30");
         assertThat(target.getParticipation()).isEqualTo("2 / 10명");
 
-        assertThat(roomManagementService.findRooms(null, null, null, null).getMatches()).isEmpty();
-        assertThat(roomManagementService.findRooms(MANAGER_B, null, "cancelled", null).getMatches())
+        assertThat(roomManagementService.findRooms(null, null, null, null, null).getMatches()).isEmpty();
+        assertThat(roomManagementService.findRooms(MANAGER_B, null, "cancelled", null, null).getMatches())
                 .isEmpty();
         // 매칭방이 없는 담당자도 종목 선택지는 받는다.
-        assertThat(roomManagementService.findRooms(MANAGER_EMPTY, null, null, null).getMatches()).isEmpty();
-        assertThat(roomManagementService.findRooms(MANAGER_EMPTY, null, null, null).getSports()).hasSize(1);
+        assertThat(roomManagementService.findRooms(MANAGER_EMPTY, null, null, null, null).getMatches()).isEmpty();
+        assertThat(roomManagementService.findRooms(MANAGER_EMPTY, null, null, null, null).getSports()).hasSize(1);
     }
 
     @Test

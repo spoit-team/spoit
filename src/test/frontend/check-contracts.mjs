@@ -117,9 +117,11 @@ for (const file of templates) {
       ids.add(attributes.id);
     }
     for (const name of ['th:href', 'th:src']) {
-      const reference = attributes[name]?.match(/^@\{\/(css|js|images)\/([^{}]+)\}$/);
+      // 캐시 버스팅 파라미터(v=...)가 붙은 참조도 자산 존재 검사 대상에 포함한다.
+      // 괄호 안에 ${...} 같은 표현식이 와도 URL 경로 부분만 뽑아낸다.
+      const reference = attributes[name]?.match(/^@\{\/(css|js|images)\/([^{}()]+?)(?:\(.+\))?\}$/);
       if (reference) {
-        const asset = path.join(resources, 'static', reference[1], reference[2]);
+        const asset = path.join(resources, 'static', reference[1], reference[2].split('(')[0]);
         check(await Bun.file(asset).exists(), `${file}: missing asset ${asset}`);
       }
     }
@@ -283,6 +285,38 @@ check(conflictModal.includes('${scheduleConflictRange}'),
 check(!/type="submit"/.test(conflictModal) && !/data-force/.test(conflictModal),
   'schedule-conflict-modal: no bypass or auto-cancel action is allowed');
 
+// 6-1) 시설 삭제 차단 경고: 일정 충돌 경고와 같은 alertdialog로 막는 매칭방 전체를 보여 준다.
+const deleteBlockModal = facilitySource.slice(
+  facilitySource.indexOf('id="facility-delete-blocked-modal"'),
+  facilitySource.indexOf('id="maintenance-modal"'));
+check(deleteBlockModal.length > 0, 'facility.html: facility delete blocked modal missing');
+check(deleteBlockModal.includes('role="alertdialog"'),
+  'facility-delete-blocked-modal: must stay an alertdialog');
+check(deleteBlockModal.includes(
+  'th:attr="data-auto-open=${deleteBlockConflicts != null and !#lists.isEmpty(deleteBlockConflicts)'),
+  'facility-delete-blocked-modal: auto-open must depend on a non-empty deleteBlockConflicts list');
+check(deleteBlockModal.includes('th:each="conflict : ${deleteBlockConflicts}"'),
+  'facility-delete-blocked-modal: every blocking match must be rendered');
+check(deleteBlockModal.includes('${conflict.matchId}') && deleteBlockModal.includes('conflict.title'),
+  'facility-delete-blocked-modal: each room ID and title must be rendered');
+check(deleteBlockModal.includes('conflict.startAt') && deleteBlockModal.includes('conflict.endAt'),
+  'facility-delete-blocked-modal: each room start/end must be rendered');
+check(deleteBlockModal.includes('deleteBlockSummary'),
+  'facility-delete-blocked-modal: the blocking room summary must be rendered with th:text');
+check(deleteBlockModal.includes('deleteBlockMessage'),
+  'facility-delete-blocked-modal: the server guidance message must be rendered inside the modal');
+// 삭제 차단 안내는 모달 안에만 표시한다: 컨트롤러가 error가 아니라 deleteBlockMessage로 전달하는지 검사한다.
+const adminControllerSource = await readFile(path.resolve('src/main/java/co/kr/spoit/facility/controller/FacilityAdminController.java'), 'utf8');
+const deleteBlockCatch = adminControllerSource.slice(
+  adminControllerSource.indexOf('catch (FacilityDeleteBlockedException'),
+  adminControllerSource.indexOf('catch (IllegalArgumentException | FacilityAccessDeniedException | FacilityNotFoundException', adminControllerSource.indexOf('catch (FacilityDeleteBlockedException')));
+check(deleteBlockCatch.length > 0 && deleteBlockCatch.includes('deleteBlockMessage') && !deleteBlockCatch.includes('"error"'),
+  'facility delete blocked: guidance must be flash-only via deleteBlockMessage, not the shared error flash');
+check(deleteBlockModal.includes('data-close-facility-delete-blocked'),
+  'facility-delete-blocked-modal: the confirm button must close the dialog');
+check(!/type="submit"/.test(deleteBlockModal) && !/data-force/.test(deleteBlockModal),
+  'facility-delete-blocked-modal: no bypass or auto-cancel action is allowed');
+
 // 7) 탭 복귀: 시설을 바꿔도 보던 탭을 유지한다.
 check(facilitySource.includes('data-schedule-tab-input'),
   'facility.html: facility switch form must carry the current schedule tab');
@@ -298,6 +332,9 @@ check(facilityScript.includes("id === 'schedule-conflict-modal'")
   'admin-facility.js: conflict modal must be wired');
 check(facilityScript.includes('scheduleReturnTarget'),
   'admin-facility.js: closing the auto-opened alert must restore focus inside the screen');
+check(facilityScript.includes("getElementById('facility-delete-blocked-modal')")
+  && facilityScript.includes('deleteBlockedReturnTarget'),
+  'admin-facility.js: facility delete blocked modal must be wired and restore focus');
 // 달력(날짜·월 이동)은 GET 링크지만 JS가 있으면 조각 교체로 처리해 전체 새로고침을 막는다.
 // 시설이 선택되지 않았을 때는 서버가 렌더링한 빈 상태가 유일한 화면이므로 기본 이동에 맡긴다.
 check(facilityScript.includes("closest('a.date-calendar-day, .calendar-month-nav a')")
@@ -339,6 +376,33 @@ check(sportFilterMarkup.length > 0 && !sportFilterMarkup.includes('value="all"')
   'facility.html: the sport filter must not send a non-numeric value');
 check(bookingsSource?.includes('${bookingFilters?.sportId == sport.sportId}'),
   'facility.html: the sport filter must restore the selected sport');
+// 시설 필터는 종목 필터 바로 뒤에 오고, 담당 시설(${facilities})만 나열한다.
+// '전체 시설'도 빈 값이어야 Spring이 facilityId를 Long으로 바인딩할 수 있다.
+const facilityFilterStart = bookingsSource?.indexOf('id="booking-facility-filter"') ?? -1;
+const facilityFilterMarkup = facilityFilterStart < 0 ? '' : bookingsSource.slice(
+  facilityFilterStart,
+  bookingsSource.indexOf('</select>', facilityFilterStart) + '</select>'.length);
+check(facilityFilterMarkup.length > 0,
+  'facility.html: the bookings toolbar needs a facility filter');
+check(facilityFilterStart > (bookingsSource?.indexOf('id="booking-sport-filter"') ?? -1),
+  'facility.html: the facility filter must sit after the sport filter');
+check(facilityFilterMarkup.includes('name="facilityId"'),
+  'facility.html: the facility filter must submit facilityId');
+check(/<option value=""[^>]*>전체 시설<\/option>/.test(facilityFilterMarkup),
+  'facility.html: the facility default option must be 전체 시설 with an empty value');
+check(!facilityFilterMarkup.includes('value="all"'),
+  'facility.html: the facility filter must not send a non-numeric value');
+check(facilityFilterMarkup.includes('th:each="facility : ${facilities}"'),
+  'facility.html: the facility filter must list only the manager\'s facilities');
+check(facilityFilterMarkup.includes('th:value="${facility.facilityId}"')
+  && facilityFilterMarkup.includes('th:text="${facility.name}"'),
+  'facility.html: the facility option must bind facilityId and name');
+check(facilityFilterMarkup.includes('${bookingFilters?.facilityId == null}'),
+  'facility.html: the facility filter must mark 전체 시설 selected when unset');
+check(facilityFilterMarkup.includes('${bookingFilters?.facilityId == facility.facilityId}'),
+  'facility.html: the facility filter must restore the selected facility');
+check(/aria-label="[^"]+"/.test(facilityFilterMarkup),
+  'facility.html: the facility filter needs an accessible label');
 check(bookingsSource?.includes('view=\'bookings\''),
   'facility.html: the reset link must keep view=bookings');
 check(bookingsSource?.includes('#facility-bookings'),

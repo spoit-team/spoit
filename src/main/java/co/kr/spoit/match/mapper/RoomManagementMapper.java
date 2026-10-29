@@ -29,6 +29,14 @@ public interface RoomManagementMapper {
     /** 담당 시설이 제공하는 종목 선택지 (매칭방이 없는 종목도 포함) */
     List<RoomManagementSport> findSports(@Param("managerUserId") Long managerUserId);
 
+    /**
+     * 담당자가 관리하는 활성 시설 ID. 담당이 아니거나 삭제된 시설·없는 시설이면 null.
+     *
+     * <p>시설 필터 값을 '전체'로 되돌릴지 판단하는 단일 조회다.</p>
+     */
+    Long findManagedFacilityId(@Param("managerUserId") Long managerUserId,
+                               @Param("facilityId") Long facilityId);
+
     /** 매칭방 참가 신청 내역 (접수 순) */
     List<RoomManagementApplicationRow> findApplications(RoomManagementQuery query);
 

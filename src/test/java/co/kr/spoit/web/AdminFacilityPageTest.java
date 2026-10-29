@@ -64,7 +64,7 @@ class AdminFacilityPageTest {
     @Test
     @DisplayName("로그인한 시설 관리자의 회원 ID로 담당 시설을 조회해 목록을 렌더링한다")
     void rendersFacilitiesLookedUpByPrincipalUserId() throws Exception {
-        when(roomManagementService.findRooms(7L, null, null, null)).thenReturn(emptyRooms());
+        when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
         when(facilityService.findManagedFacilities(7L)).thenReturn(List.of(
                 facility(10L, "송파 풋살파크", "농구, 축구", 3, "운영 중"),
                 facility(11L, "마포 체육관", null, 2, "특별 운영")));
@@ -89,7 +89,7 @@ class AdminFacilityPageTest {
     @Test
     @DisplayName("담당 시설이 없으면 빈 상태 문구를 렌더링한다")
     void rendersEmptyStateWhenNoManagedFacility() throws Exception {
-        when(roomManagementService.findRooms(7L, null, null, null)).thenReturn(emptyRooms());
+        when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
         when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
 
         mockMvc.perform(get("/admin/facility").with(user(facilityManager())))
@@ -100,7 +100,7 @@ class AdminFacilityPageTest {
     @Test
     @DisplayName("해시로 섹션을 바꾸는 화면이라 view가 없어도 매칭방 목록은 실제 값으로 채운다")
     void fillsBookingListOnEveryGetBecauseSectionsSwitchByHash() throws Exception {
-        when(roomManagementService.findRooms(7L, null, null, null)).thenReturn(emptyRooms());
+        when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
         when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
 
         mockMvc.perform(get("/admin/facility").with(user(facilityManager())))
@@ -109,14 +109,15 @@ class AdminFacilityPageTest {
                 .andExpect(model().attribute("matches", List.of()))
                 .andExpect(model().attribute("bookingSports", List.of()));
 
-        verify(roomManagementService).findRooms(7L, null, null, null);
+        verify(roomManagementService).findRooms(7L, null, null, null, null);
     }
 
     @Test
     @DisplayName("view=bookings 요청은 검색어·상태·종목 필터를 인증 주체 ID로 서비스에 전달한다")
     void passesBookingFiltersWithPrincipalUserId() throws Exception {
-        when(roomManagementService.findRooms(7L, "방 이름", "recruiting", 3L)).thenReturn(
-                RoomManagementPage.of(List.of(), List.of(), new RoomManagementPage.Filters("방 이름", "recruiting", 3L)));
+        when(roomManagementService.findRooms(7L, "방 이름", "recruiting", 3L, null)).thenReturn(
+                RoomManagementPage.of(List.of(), List.of(),
+                        new RoomManagementPage.Filters("방 이름", "recruiting", 3L, null)));
         when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
 
         mockMvc.perform(get("/admin/facility")
@@ -131,7 +132,7 @@ class AdminFacilityPageTest {
                         org.hamcrest.Matchers.hasProperty("q", org.hamcrest.Matchers.is("방 이름"))))
                 .andExpect(content().string(containsString("data-view=\"bookings\"")));
 
-        verify(roomManagementService).findRooms(7L, "방 이름", "recruiting", 3L);
+        verify(roomManagementService).findRooms(7L, "방 이름", "recruiting", 3L, null);
     }
 
     @Test
@@ -141,8 +142,8 @@ class AdminFacilityPageTest {
                 List.of(new RoomManagementPage.Match(501L, "토요 풋살", "테스트 체육관", "풋살",
                         "3 / 8명", "11/1(토) 10:00~12:00", "모집 중", "good")),
                 List.of(new RoomManagementPage.Sport(3L, "풋살")),
-                new RoomManagementPage.Filters("풋살", "recruiting", 3L));
-        when(roomManagementService.findRooms(7L, "풋살", "recruiting", 3L)).thenReturn(page);
+                new RoomManagementPage.Filters("풋살", "recruiting", 3L, null));
+        when(roomManagementService.findRooms(7L, "풋살", "recruiting", 3L, null)).thenReturn(page);
         when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
 
         String html = mockMvc.perform(get("/admin/facility")
@@ -167,13 +168,13 @@ class AdminFacilityPageTest {
         org.assertj.core.api.Assertions.assertThat(optionTagContaining(html, "value=\"3\""))
                 .contains("selected");
 
-        verify(roomManagementService).findRooms(7L, "풋살", "recruiting", 3L);
+        verify(roomManagementService).findRooms(7L, "풋살", "recruiting", 3L, null);
     }
 
     @Test
     @DisplayName("일정 화면의 sportId는 매칭방 필터로 쓰지 않고 종목 선택지도 덮어쓰지 않는다")
     void keepsScheduleSportIdOutOfBookingFilters() throws Exception {
-        when(roomManagementService.findRooms(7L, null, null, null)).thenReturn(emptyRooms());
+        when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
         when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
         when(facilityScheduleService.findSchedulePage(7L, 10L, null, 3L, "schedule-hours", null))
                 .thenReturn(co.kr.spoit.facility.dto.SchedulePage.empty());
@@ -189,7 +190,90 @@ class AdminFacilityPageTest {
                 .andExpect(model().attribute("sports", List.of()))
                 .andExpect(model().attribute("bookingSports", List.of()));
 
-        verify(roomManagementService).findRooms(7L, null, null, null);
+        verify(roomManagementService).findRooms(7L, null, null, null, null);
+    }
+
+    @Test
+    @DisplayName("view=bookings 요청은 시설 필터를 담당 시설 범위 안에서 그대로 전달하고 선택 상태로 되돌려준다")
+    void passesBookingFacilityFilterOnBookingsView() throws Exception {
+        when(roomManagementService.findRooms(7L, null, null, null, 10L)).thenReturn(
+                RoomManagementPage.of(List.of(), List.of(),
+                        new RoomManagementPage.Filters(null, "all", null, 10L)));
+        when(facilityService.findManagedFacilities(7L)).thenReturn(List.of(
+                facility(10L, "송파 풋살파크", "풋살", 3, "운영 중"),
+                facility(11L, "마포 체육관", "농구", 2, "운영 중")));
+
+        mockMvc.perform(get("/admin/facility")
+                        .param("view", "bookings")
+                        .param("facilityId", "10")
+                        .with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("view", "bookings"))
+                .andExpect(model().attribute("bookingFilters",
+                        org.hamcrest.Matchers.hasProperty("facilityId",
+                                org.hamcrest.Matchers.is(10L))))
+                // 선택지 모델은 담당 시설 목록 그대로다. 화면은 이 목록에서 옵션을 만든다.
+                .andExpect(model().attribute("facilities", org.hamcrest.Matchers.hasSize(2)));
+
+        verify(roomManagementService).findRooms(7L, null, null, null, 10L);
+        verify(facilityService).findManagedFacilities(7L);
+    }
+
+    @Test
+    @DisplayName("시설 필터를 지정하지 않은 매칭방 화면은 전체를 뜻하는 null로 조회한다")
+    void defaultsBookingFacilityFilterToAll() throws Exception {
+        when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
+        when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/facility")
+                        .param("view", "bookings")
+                        .with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("bookingFilters",
+                        org.hamcrest.Matchers.hasProperty("facilityId",
+                                org.hamcrest.Matchers.nullValue())));
+
+        verify(roomManagementService).findRooms(7L, null, null, null, null);
+    }
+
+    @Test
+    @DisplayName("일정 화면의 facilityId·sportId는 매칭방 필터로 새지 않는다")
+    void keepsScheduleFacilityAndSportOutOfBookingFilters() throws Exception {
+        when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
+        when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
+        when(facilityScheduleService.findSchedulePage(7L, 10L, null, 3L, "schedule-hours", null))
+                .thenReturn(co.kr.spoit.facility.dto.SchedulePage.empty());
+
+        mockMvc.perform(get("/admin/facility")
+                        .param("view", "schedule")
+                        .param("facilityId", "10")
+                        .param("sportId", "3")
+                        .param("tab", "schedule-hours")
+                        .with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("view", "schedule"))
+                .andExpect(model().attribute("bookingFilters",
+                        org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.hasProperty("facilityId",
+                                        org.hamcrest.Matchers.nullValue()),
+                                org.hamcrest.Matchers.hasProperty("sportId",
+                                        org.hamcrest.Matchers.nullValue()))));
+        verify(roomManagementService).findRooms(7L, null, null, null, null);
+    }
+
+    @Test
+    @DisplayName("view가 없어도 일정 화면용 facilityId는 매칭방 필터로 넘기지 않는다")
+    void keepsFacilityIdOutOfBookingFilterWithoutBookingsView() throws Exception {
+        when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
+        when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/facility")
+                        .param("facilityId", "10")
+                        .with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("view", "dashboard"));
+
+        verify(roomManagementService).findRooms(7L, null, null, null, null);
     }
 
     @Test
@@ -204,7 +288,7 @@ class AdminFacilityPageTest {
     @Test
     @DisplayName("변경 성공 메시지를 시설 화면에 렌더링한다")
     void rendersSuccessMessageFromQuery() throws Exception {
-        when(roomManagementService.findRooms(7L, null, null, null)).thenReturn(emptyRooms());
+        when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
         when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
 
         mockMvc.perform(get("/admin/facility").param("message", "시설 정보를 수정했습니다.")
@@ -218,7 +302,7 @@ class AdminFacilityPageTest {
     @Test
     @DisplayName("변경 실패 메시지를 시설 화면에 오류 안내로 렌더링한다")
     void rendersErrorMessageFromQuery() throws Exception {
-        when(roomManagementService.findRooms(7L, null, null, null)).thenReturn(emptyRooms());
+        when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
         when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
 
         mockMvc.perform(get("/admin/facility").param("error", "담당 시설만 관리할 수 있습니다.")

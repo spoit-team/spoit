@@ -37,7 +37,7 @@
                AND ma.application_type = #{individualType}))
     </sql>
 
-    <!-- 목록 조회 조건: 검색어·상태·종목 -->
+    <!-- 목록 조회 조건: 검색어·상태·종목·시설 -->
     <sql id="roomFilter">
         <!-- 검색어의 %·_·!는 서비스가 '!'로 이스케이프해 넘긴다. -->
         <if test="q != null">
@@ -51,6 +51,10 @@
         </if>
         <if test="sportId != null">
             AND sm.sport_id = #{sportId}
+        </if>
+        <!-- 담당 범위는 managedRoomFrom이 보장한다. 이 조건은 범위를 좁히기만 한다. -->
+        <if test="facilityId != null">
+            AND sm.facility_id = #{facilityId}
         </if>
     </sql>
 
@@ -108,6 +112,19 @@
                                   AND fm.user_id = #{managerUserId}
           JOIN sport s ON s.sport_id = fs.sport_id
          ORDER BY s.sport_id
+    </select>
+
+    <!--
+      시설 필터 검증: 담당자 본인의 활성 시설만 ID를 돌려준다.
+      담당이 아니거나 삭제된 시설·없는 시설이면 null이라 서비스가 '전체'로 되돌린다.
+    -->
+    <select id="findManagedFacilityId" resultType="java.lang.Long">
+        SELECT f.facility_id
+          FROM facility f
+          JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                  AND fm.user_id = #{managerUserId}
+         WHERE f.facility_id = #{facilityId}
+           AND f.deleted_at IS NULL
     </select>
 
     <!-- 참가 신청 내역: 접수 순서 고정 -->

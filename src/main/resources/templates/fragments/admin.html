@@ -7,8 +7,8 @@
   <meta name="description" th:content="${description}" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
-  <link rel="stylesheet" th:href="@{/css/admin.css}" />
-  <link rel="stylesheet" th:each="style : ${styles}" th:href="@{/css/{name}(name=${style})}" />
+  <link rel="stylesheet" th:href="@{/css/admin.css(v=${cssVersion})}" />
+  <link rel="stylesheet" th:each="style : ${styles}" th:href="@{/css/{name}(name=${style}, v=${cssVersion})}" />
 </head>
 <body class="admin-body" th:attr="data-admin-role=${adminUser != null ? adminUser.role : ''}">
 
