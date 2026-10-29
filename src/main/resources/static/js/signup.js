@@ -44,6 +44,10 @@
     nickname: document.getElementById('signup-nickname')
   };
 
+  function allRequiredConsentsChecked() {
+    return requiredConsents.every(function (item) { return item && item.checked; });
+  }
+
   function showStep(step) {
     const isProfileStep = step === 2;
     stepOne.hidden = isProfileStep;
@@ -157,19 +161,19 @@
 
   document.getElementById('agree-all')?.addEventListener('change', function (event) {
     allConsents.forEach(function (checkbox) { if (checkbox) checkbox.checked = event.target.checked; });
-    if (requiredConsents.every(function (item) { return item && item.checked; })) termsError.hidden = true;
+    if (allRequiredConsentsChecked()) termsError.hidden = true;
   });
 
   allConsents.forEach(function (checkbox) {
     checkbox?.addEventListener('change', function () {
       const agreeAll = document.getElementById('agree-all');
       if (agreeAll) agreeAll.checked = allConsents.every(function (item) { return item.checked; });
-      if (requiredConsents.every(function (item) { return item && item.checked; })) termsError.hidden = true;
+      if (allRequiredConsentsChecked()) termsError.hidden = true;
     });
   });
 
   document.getElementById('next-step')?.addEventListener('click', function () {
-    if (!requiredConsents.every(function (item) { return item && item.checked; })) {
+    if (!allRequiredConsentsChecked()) {
       termsError.hidden = false;
       requiredConsents.find(function (item) { return item && !item.checked; })?.focus();
       return;
@@ -197,7 +201,7 @@
 
   form.addEventListener('submit', function (event) {
     form.dataset.submitted = 'true';
-    if (!requiredConsents.every(function (item) { return item && item.checked; })) {
+    if (!allRequiredConsentsChecked()) {
       event.preventDefault();
       showStep(1);
       termsError.hidden = false;

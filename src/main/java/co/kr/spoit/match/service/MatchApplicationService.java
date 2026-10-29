@@ -11,6 +11,8 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import co.kr.spoit.facility.service.FacilityReservationService;
+import co.kr.spoit.facility.service.FacilityScheduleUnavailableException;
 import co.kr.spoit.mat.domain.SportRating;
 import co.kr.spoit.mat.mapper.SportRatingMapper;
 import co.kr.spoit.match.domain.ApplicationStatus;
@@ -59,6 +61,7 @@ public class MatchApplicationService {
     private final MemberMapper memberMapper;
     private final SportRatingMapper sportRatingMapper;
     private final MatchService matchService;
+    private final FacilityReservationService facilityReservationService;
 
     /** 신청 내용 화면. 신청할 수 없는 상태여도 화면은 보여 주고 사유를 안내한다. */
     public Optional<JoinPage> prepareIndividual(long matchId, long userId) {
@@ -79,6 +82,11 @@ public class MatchApplicationService {
     /**
      * 개인 신청 접수. 같은 매칭방 신청은 social_match 행 잠금으로 한 줄로 세운다.
      *
+     * <p>기존 매칭방이라도 신청 시점의 시설 운영 일정·휴관을 다시 확인한다.
+     * 잠금 순서는 시설 → 매칭방으로 고정해 운영시간 변경·휴관 설정과 교착 없이 직렬화한다.
+     * 신청자 개인 조회는 잠금 전에 이미 스냅샷을 만들었을 수 있으므로, 시설 서비스가
+     * 현재 값을 잠금 조회로 다시 읽는다.</p>
+     *
      * @return 접수 번호
      */
     @Transactional
@@ -95,10 +103,38 @@ public class MatchApplicationService {
             throw new MatchApplyException("이용 정지 기간에는 신청할 수 없습니다.");
         }
 
+        // 잠금 순서(시설 → 매칭방)를 지키려고 시설 id만 먼저 읽는다.
+        Long facilityId = applicationMapper.findFacilityId(matchId);
+        if (facilityId == null) {
+            throw new MatchApplyException("매칭방 정보를 찾을 수 없습니다.");
+        }
+
+        try {
+            facilityReservationService.lockActiveFacility(facilityId);
+        } catch (FacilityScheduleUnavailableException e) {
+            throw new MatchApplyException(displayMessage(e, "현재 시설 운영 일정으로는 신청할 수 없습니다."));
+        }
+
         MatchRow match = applicationMapper.lockMatch(matchId);
         if (match == null) {
             throw new MatchApplyException("매칭방 정보를 찾을 수 없습니다.");
         }
+        // 후보 id를 읽은 뒤 시설이 바뀌었으면 잠근 시설과 검증 대상이 어긋난다.
+        if (match.getFacilityId() == null
+                || match.getFacilityId().longValue() != facilityId.longValue()) {
+            throw new MatchApplyException("매칭방 정보가 변경되었습니다. 다시 시도해 주세요.");
+        }
+        if (match.getStartAt() == null || match.getEndAt() == null
+                || !match.getEndAt().isAfter(match.getStartAt())) {
+            throw new MatchApplyException("매칭방 이용 시간을 확인할 수 없습니다.");
+        }
+
+        try {
+            facilityReservationService.requireAvailable(facilityId, match.getStartAt(), match.getEndAt());
+        } catch (FacilityScheduleUnavailableException e) {
+            throw new MatchApplyException(displayMessage(e, "현재 시설 운영 일정으로는 신청할 수 없습니다."));
+        }
+
         if (!MatchStatus.RECRUITING.dbValue().equals(match.getStatus())) {
             throw new MatchApplyException("모집 중인 매칭방이 아닙니다.");
         }
@@ -119,6 +155,12 @@ public class MatchApplicationService {
         MatchApplication application = MatchApplication.individual(matchId, userId, newReceiptNo(now), now);
         applicationMapper.insert(application);
         return application.getReceiptNo();
+    }
+
+    /** 시설 서비스가 넘긴 표시용 메시지를 그대로 쓰되, 비어 있으면 기본 안내로 대체한다. */
+    private static String displayMessage(FacilityScheduleUnavailableException e, String fallback) {
+        String message = e.getMessage();
+        return message == null || message.isBlank() ? fallback : message;
     }
 
     /**

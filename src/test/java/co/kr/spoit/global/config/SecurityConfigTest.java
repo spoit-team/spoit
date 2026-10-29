@@ -1,5 +1,8 @@
 package co.kr.spoit.global.config;
 
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.admin;
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.facilityManager;
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.member;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -22,8 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.servlet.function.RouterFunction;
 import org.springframework.web.servlet.function.ServerResponse;
 
-import co.kr.spoit.member.domain.Member;
-import co.kr.spoit.member.domain.MemberPrincipal;
+import co.kr.spoit.facility.service.FacilityService;
 import co.kr.spoit.member.security.MemberLoginFailureHandler;
 import co.kr.spoit.member.security.MemberLoginSuccessHandler;
 import co.kr.spoit.member.service.MemberUserDetailsService;
@@ -46,6 +48,9 @@ class SecurityConfigTest {
     @MockitoBean
     private MemberUserDetailsService memberUserDetailsService;
 
+    @MockitoBean
+    private FacilityService facilityService;
+
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {
             "/mypage",
@@ -64,10 +69,10 @@ class SecurityConfigTest {
     @Test
     @DisplayName("로그인 회원의 마이페이지 요청은 통과시킨다")
     void authenticatedMyPageIsAllowed() throws Exception {
-        mockMvc.perform(get("/mypage").with(user(memberPrincipal())))
+        mockMvc.perform(get("/mypage").with(user(member())))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/mypage/profile/details").with(user(memberPrincipal())))
+        mockMvc.perform(get("/mypage/profile/details").with(user(member())))
                 .andExpect(status().isOk());
     }
 
@@ -82,7 +87,7 @@ class SecurityConfigTest {
     @Test
     @DisplayName("마이페이지 POST에서 CSRF 토큰이 없으면 거부한다")
     void myPagePostRequiresCsrf() throws Exception {
-        mockMvc.perform(post("/mypage/profile").with(user(memberPrincipal())))
+        mockMvc.perform(post("/mypage/profile").with(user(member())))
                 .andExpect(status().isForbidden());
     }
 
@@ -122,7 +127,7 @@ class SecurityConfigTest {
     })
     @DisplayName("일반 회원은 관리자 화면에 직접 접근할 수 없다")
     void memberCannotAccessAdminPages(String path) throws Exception {
-        mockMvc.perform(get(path).with(user(memberPrincipal())))
+        mockMvc.perform(get(path).with(user(member())))
                 .andExpect(status().isForbidden());
     }
 
@@ -130,12 +135,15 @@ class SecurityConfigTest {
     @ValueSource(strings = {
             "/admin/facility",
             "/admin/facility/settings",
+            "/admin/facilities",
+            "/admin/facilities/10",
+            "/admin/facilities/10/delete",
             "/admin/operations",
             "/admin/operations/1"
     })
     @DisplayName("시설 관리자는 시설·운영 화면에 접근할 수 있다")
     void facilityManagerCanAccessFacilityPages(String path) throws Exception {
-        mockMvc.perform(get(path).with(user(facilityManagerPrincipal())))
+        mockMvc.perform(get(path).with(user(facilityManager())))
                 .andExpect(status().isOk());
     }
 
@@ -147,7 +155,7 @@ class SecurityConfigTest {
     })
     @DisplayName("시설 관리자는 시스템 관리 화면에 접근할 수 없다")
     void facilityManagerCannotAccessSystemPages(String path) throws Exception {
-        mockMvc.perform(get(path).with(user(facilityManagerPrincipal())))
+        mockMvc.perform(get(path).with(user(facilityManager())))
                 .andExpect(status().isForbidden());
     }
 
@@ -159,7 +167,7 @@ class SecurityConfigTest {
     })
     @DisplayName("시스템 관리자는 시스템 관리 화면에 접근할 수 있다")
     void adminCanAccessSystemPages(String path) throws Exception {
-        mockMvc.perform(get(path).with(user(adminPrincipal())))
+        mockMvc.perform(get(path).with(user(admin())))
                 .andExpect(status().isOk());
     }
 
@@ -167,35 +175,16 @@ class SecurityConfigTest {
     @ValueSource(strings = {
             "/admin/facility",
             "/admin/facility/settings",
+            "/admin/facilities",
+            "/admin/facilities/10",
+            "/admin/facilities/10/delete",
             "/admin/operations",
             "/admin/operations/1"
     })
     @DisplayName("시스템 관리자는 시설·운영 화면에 접근할 수 없다")
     void adminCannotAccessFacilityPages(String path) throws Exception {
-        mockMvc.perform(get(path).with(user(adminPrincipal())))
+        mockMvc.perform(get(path).with(user(admin())))
                 .andExpect(status().isForbidden());
-    }
-
-    private static MemberPrincipal memberPrincipal() {
-        return principal("일반 회원");
-    }
-
-    private static MemberPrincipal facilityManagerPrincipal() {
-        return principal("시설 관리자");
-    }
-
-    private static MemberPrincipal adminPrincipal() {
-        return principal("시스템 관리자");
-    }
-
-    private static MemberPrincipal principal(String role) {
-        Member member = new Member();
-        member.setUserId(7L);
-        member.setEmail("player@example.com");
-        member.setNickname("플레이어");
-        member.setPhone("010-1234-5678");
-        member.setRole(role);
-        return MemberPrincipal.from(member);
     }
 
     /**
@@ -215,6 +204,9 @@ class SecurityConfigTest {
                     .andRoute(GET("/matches"), request -> ServerResponse.ok().build())
                     .andRoute(GET("/admin/facility"), request -> ServerResponse.ok().build())
                     .andRoute(GET("/admin/facility/settings"), request -> ServerResponse.ok().build())
+                    .andRoute(GET("/admin/facilities"), request -> ServerResponse.ok().build())
+                    .andRoute(GET("/admin/facilities/10"), request -> ServerResponse.ok().build())
+                    .andRoute(GET("/admin/facilities/10/delete"), request -> ServerResponse.ok().build())
                     .andRoute(GET("/admin/operations"), request -> ServerResponse.ok().build())
                     .andRoute(GET("/admin/operations/1"), request -> ServerResponse.ok().build())
                     .andRoute(GET("/admin/system"), request -> ServerResponse.ok().build())

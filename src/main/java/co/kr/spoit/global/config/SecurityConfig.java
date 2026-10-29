@@ -72,6 +72,7 @@ public class SecurityConfig {
         http.authorizeHttpRequests(authorize -> authorize
                         // 시설 관리자 전용 화면: 시스템 관리자도 접근하지 못한다.
                         .requestMatchers("/admin/facility", "/admin/facility/**",
+                                "/admin/facilities", "/admin/facilities/**",
                                 "/admin/operations", "/admin/operations/**")
                         .hasRole("FACILITY_MANAGER")
                         // 시스템 관리자 전용 화면: 시설 관리자도 접근하지 못한다.

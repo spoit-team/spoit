@@ -126,3 +126,414 @@
   background: #f7f8fa;
   color: #9ca1aa;
 }
+
+/* ── 예약 운영 일정: 안내 문구 ───────────────────────────────── */
+
+/* 폼 아래 보조 설명. 시간 규칙처럼 놓치면 안 되는 내용은 본문 톤을 유지한다. */
+.schedule-hint {
+  display: block;
+  margin: 10px 0 0;
+  padding: 9px 0 9px 11px;
+  border-left: 2px solid #d7e4f3;
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  line-height: 1.65;
+}
+
+.schedule-hint b {
+  color: var(--admin-ink-2);
+  font-weight: 800;
+}
+
+.schedule-hint.is-next-day {
+  border-left-color: var(--admin-blue);
+  color: var(--admin-blue-ink);
+}
+
+.schedule-hint.is-error {
+  border-left-color: var(--admin-red);
+  color: #a62e2c;
+}
+
+/* 주간 표의 '종료 기준' 열: 같은 시각은 잘못된 값, 종료<시작은 다음 날 운영이다. */
+.weekly-hours-note {
+  display: inline-block;
+  color: var(--admin-muted);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.weekly-hours-note.is-next-day {
+  color: var(--admin-blue-ink);
+  font-weight: 700;
+}
+
+.weekly-hours-note.is-error {
+  color: #a62e2c;
+  font-weight: 700;
+}
+
+.schedule-table tbody tr:has(.weekly-hours-note.is-error) {
+  background: #fffaf9;
+}
+
+/* ── 모집 조건: 종목 선택과 안내 ─────────────────────────────── */
+
+/* 종목 조회는 저장이 아니라 서버에서 값을 다시 읽는 동작이므로 폼을 분리해 표시한다. */
+.condition-sport-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  max-width: 840px;
+  margin: 0 0 14px;
+  padding: 0 0 13px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.condition-sport-form label {
+  color: var(--admin-ink-2);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.condition-sport-form .field-control {
+  min-width: 170px;
+  height: 34px;
+  font-size: 11px;
+}
+
+.condition-sport-state {
+  flex: 1 1 240px;
+  margin: 0;
+  color: var(--admin-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.condition-form .form-field small {
+  color: var(--admin-faint);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+/* ── 날짜별 편집: 야간·잠금 안내 ─────────────────────────────── */
+
+.date-schedule-night-help {
+  margin: 10px 0 0;
+  color: var(--admin-muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.hour-grid-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 8px;
+  color: var(--admin-muted);
+  font-size: 9.5px;
+}
+
+.hour-grid-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.hour-legend-swatch {
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 2px;
+  background: #fff;
+}
+
+.hour-legend-swatch.locked {
+  border-color: #e7d9bd;
+  background: #faf6ed;
+}
+
+/* 휴관으로 잠긴 칸은 값이 보존된다는 점을 편집 가능한 칸과 구분해 알린다. */
+.date-schedule-blocked-help {
+  margin: 7px 0 0;
+  padding: 8px 0 8px 11px;
+  border-left: 2px solid var(--admin-amber);
+  color: #754b0d;
+  font-size: 9.5px;
+  line-height: 1.6;
+}
+
+.hour-grid-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 18px 0;
+  border-right: 1px solid var(--admin-line-strong);
+  border-bottom: 1px solid var(--admin-line-strong);
+  color: var(--admin-muted);
+  font-size: 10px;
+  text-align: center;
+}
+
+/* 잠긴 칸 위의 물음표 커서를 막고, 눌러도 바뀌지 않는다는 느낌을 준다. */
+.hour-slot.is-blocked,
+.hour-slot.is-blocked input {
+  cursor: not-allowed;
+}
+
+/* ── 날짜별 설정 초기화(주간 기준 복귀) ─────────────────────── */
+
+.date-schedule-reset-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--admin-line);
+}
+
+.date-schedule-reset-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.date-schedule-reset-copy b {
+  color: var(--admin-ink-2);
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.date-schedule-reset-copy span {
+  color: var(--admin-muted);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+/* ── 일정 충돌 경고 ─────────────────────────────────────────── */
+
+.schedule-conflict-modal {
+  width: min(100%, 620px);
+  max-height: min(88vh, 720px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.schedule-conflict-modal .modal-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-top: 14px;
+}
+
+.schedule-conflict-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 9px;
+  margin: 0 0 12px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: var(--admin-amber-soft);
+  color: #754b0d;
+}
+
+.schedule-conflict-range span {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.schedule-conflict-range strong {
+  min-width: 0;
+  color: #5c3a08;
+  font-size: 11.5px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+/* 충돌이 많을 때 모달 전체가 늘어나지 않도록 목록만 스크롤한다. */
+.schedule-conflict-list {
+  display: grid;
+  max-height: min(46vh, 320px);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--admin-line);
+  list-style: none;
+}
+
+.schedule-conflict-list li {
+  display: grid;
+  gap: 4px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.schedule-conflict-list li:last-child {
+  border-bottom: 0;
+}
+
+.schedule-conflict-ident {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+/* 방 번호는 제목이 있어도 항상 남겨, 같은 제목의 방을 구분할 수 있게 한다. */
+.schedule-conflict-id {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--admin-soft);
+  color: var(--admin-muted);
+  font-family: Archivo, "Pretendard Variable", sans-serif;
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.schedule-conflict-match {
+  min-width: 0;
+  color: var(--admin-ink);
+  font-size: 11.5px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.schedule-conflict-time {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 3px 6px;
+  color: var(--admin-ink-2);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.schedule-conflict-time .schedule-conflict-label {
+  flex: 0 0 auto;
+  color: var(--admin-faint);
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+/* 날짜와 시각을 한 덩어리로 유지해, 좁은 화면에서 날짜와 시각이 따로 떨어지지 않게 한다. */
+.schedule-conflict-clock {
+  display: inline-flex;
+  min-width: 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 5px;
+}
+
+.schedule-conflict-time b {
+  color: var(--admin-ink-2);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.schedule-conflict-time .schedule-conflict-hour {
+  color: var(--admin-ink);
+  font-weight: 800;
+}
+
+.schedule-conflict-dash {
+  color: var(--admin-faint);
+}
+
+.schedule-conflict-guide {
+  margin: 12px 0 0;
+  padding-top: 11px;
+  border-top: 1px solid var(--admin-line);
+  color: var(--admin-muted);
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+/* ── 작은 화면 ─────────────────────────────────────────────── */
+
+@media (max-width: 960px) {
+  .condition-sport-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .condition-sport-form .field-control {
+    width: 100%;
+  }
+
+  .condition-sport-state {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .schedule-hint,
+  .date-schedule-blocked-help {
+    font-size: 10px;
+    line-height: 1.65;
+  }
+
+  .date-schedule-reset-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .date-schedule-reset-form .admin-button {
+    width: 100%;
+  }
+
+  .weekly-hours-note {
+    white-space: normal;
+  }
+
+  /* 좁은 화면에서는 시각을 줄바꿈해 방 번호·제목을 밀어내지 않게 한다. */
+  .schedule-conflict-modal {
+    max-height: min(92vh, 720px);
+  }
+
+  .schedule-conflict-modal .modal-header,
+  .schedule-conflict-modal .modal-body {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .schedule-conflict-modal .modal-footer {
+    padding: 0 16px 16px;
+  }
+
+  .schedule-conflict-range {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+  }
+
+  .schedule-conflict-list {
+    max-height: min(42vh, 300px);
+  }
+
+  .schedule-conflict-list li {
+    padding: 11px 0;
+  }
+
+  .schedule-conflict-time {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .schedule-conflict-dash {
+    display: none;
+  }
+}

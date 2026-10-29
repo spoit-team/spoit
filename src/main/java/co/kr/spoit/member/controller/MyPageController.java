@@ -1,6 +1,5 @@
 package co.kr.spoit.member.controller;
 
-import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
@@ -59,6 +58,9 @@ public class MyPageController {
     private static final String REGION_SEPARATOR = " · ";
 
     private static final List<Object> EMPTY_LIST = List.of();
+
+    /** 확정된 레이팅 기록이 없을 때 화면에 보여줄 문구 */
+    private static final String NO_RATING_TEXT = "기록 없음";
 
     private final MemberService memberService;
     private final SportRatingService sportRatingService;
@@ -151,7 +153,7 @@ public class MyPageController {
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("representativeRatingText", representative
                 .map(sport -> ratingText(userId, sport.getSportId()))
-                .orElse("기록 없음"));
+                .orElse(NO_RATING_TEXT));
         summary.put("representativeSportId", representative.<Object>map(SportOption::getSportId).orElse(""));
         summary.put("representativeSportName", representative.map(SportOption::getName).orElse("종목"));
         summary.put("skillNote", "참가 확정 매치의 개인 레이팅 평균을 표시합니다.");
@@ -164,13 +166,12 @@ public class MyPageController {
 
     /** 저장된 레이팅 행의 MMR을 그대로 표시한다. 행이 없거나 확정 매치가 없으면 기록 없음. */
     private String ratingText(Long userId, Long sportId) {
-        Optional<SportRatingResponse> rating = sportRatingService.findByUserIdAndSportId(userId, sportId);
-        if (rating.isEmpty() || rating.get().ratedMatchCount() == null
-                || rating.get().ratedMatchCount() <= 0) {
-            return "기록 없음";
+        SportRatingResponse rating = sportRatingService.findByUserIdAndSportId(userId, sportId).orElse(null);
+        if (rating == null || rating.ratedMatchCount() == null || rating.ratedMatchCount() <= 0
+                || rating.currentMmr() == null) {
+            return NO_RATING_TEXT;
         }
-        BigDecimal mmr = rating.get().currentMmr();
-        return mmr == null ? "기록 없음" : mmr.toPlainString();
+        return rating.currentMmr().toPlainString();
     }
 
     /** 프로필 수정 화면. 로그인 회원이면 저장된 정보를, 아니면 빈 폼을 보여준다. */
@@ -178,13 +179,8 @@ public class MyPageController {
     public String profile(Authentication authentication, Model model,
             @RequestParam(name = "error", required = false) String error,
             @RequestParam(name = "message", required = false) String message) {
-        model.addAttribute("profile", profileView(principalOf(authentication)));
-        model.addAttribute("sports", memberService.findSports());
-        // 선택지가 없으면 저장된 지역을 표시할 수 없으므로 가입 화면과 같은 자치구 목록을 쓴다.
-        model.addAttribute("districts", memberService.findSignupRegions());
-        model.addAttribute("error", blankToNull(error));
-        model.addAttribute("message", blankToNull(message));
-        return "mypage/profile";
+        return renderProfile(model, profileView(principalOf(authentication)),
+                blankToNull(error), blankToNull(message));
     }
 
     /** 프로필 저장. 검증 실패 시 제출 값을 유지한 채 프로필 화면을 다시 그린다. */
@@ -238,15 +234,20 @@ public class MyPageController {
         profile.put("nickname", form == null ? "" : nullToEmpty(form.getNickname()));
         profile.put("phone", form == null ? "" : nullToEmpty(form.getPhone()));
         profile.put("representativeSportId", form == null ? null : form.getRepresentativeSportId());
-        profile.put("representativeRatingText", "기록 없음");
+        profile.put("representativeRatingText", NO_RATING_TEXT);
         profile.put("representativeRatingNote", "확정 매치 기록이 없으면 기록 없음으로 표시합니다.");
         profile.put("regionId", form == null ? null : form.getRegionId());
         profile.put("email", principal.getEmail());
+        return renderProfile(model, profile, error, null);
+    }
+
+    /** 프로필 화면 모델을 조립한다. 선택지가 없으면 저장된 지역을 표시할 수 없으므로 가입 화면과 같은 자치구 목록을 쓴다. */
+    private String renderProfile(Model model, Map<String, Object> profile, String error, String message) {
         model.addAttribute("profile", profile);
         model.addAttribute("sports", memberService.findSports());
         model.addAttribute("districts", memberService.findSignupRegions());
         model.addAttribute("error", error);
-        model.addAttribute("message", null);
+        model.addAttribute("message", message);
         return "mypage/profile";
     }
 
@@ -264,7 +265,7 @@ public class MyPageController {
         profile.put("email", nullToEmpty(principal.getEmail()));
         profile.put("phone", member == null ? nullToEmpty(principal.getPhone()) : nullToEmpty(member.getPhone()));
         profile.put("representativeSportId", representative.map(SportOption::getSportId).orElse(null));
-        profile.put("representativeRatingText", "기록 없음");
+        profile.put("representativeRatingText", NO_RATING_TEXT);
         profile.put("representativeRatingNote", "확정 매치 기록이 없으면 기록 없음으로 표시합니다.");
         profile.put("regionId", regions.isEmpty() ? null : regions.get(0).getRegionId());
         return profile;

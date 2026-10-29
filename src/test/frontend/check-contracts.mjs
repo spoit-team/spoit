@@ -86,6 +86,17 @@ const css = await Bun.build({
 });
 check(css.success, `CSS syntax: ${css.logs.join('\n')}`);
 
+// 관리자 화면 전환 시 admin-shell.js가 .admin-view로 초점을 옮긴다.
+// 뷰 전체를 감싸는 기본 초점 테두리는 끄고, 키보드일 때 제목에 표시를 남긴다.
+const adminCss = await readFile(path.join(resources, 'static/css/admin.css'), 'utf8');
+check(/\.admin-view:focus,\s*\.admin-view:focus-visible\s*\{[^}]*outline:\s*none/.test(adminCss),
+  'admin.css: .admin-view must not draw the full-viewport focus ring');
+check(/\.admin-view:focus-visible\s+\.page-heading-copy\s*\{[^}]*outline:\s*(?!none\b|0)\S/.test(adminCss),
+  'admin.css: keyboard focus on .admin-view must mark the page title instead');
+// sticky topbar가 앵커 점프 대상의 첫 부분을 가리지 않게 한다(관리자 페이지 진입 시 화면이 살짝 내려가 보이던 문제).
+check(/html\s*\{[^}]*scroll-padding-top:\s*\d+px/.test(adminCss),
+  'admin.css: anchor jumps must account for the sticky topbar via scroll-padding-top');
+
 const templates = await files('templates/**/*.html');
 for (const file of templates) {
   const source = await readFile(path.join(resources, file), 'utf8');
@@ -144,7 +155,14 @@ const requiredBindings = {
   'facility-form': ['concurrentMatchLimit'],
   'room-editor-form': ['facilityId', 'sportId', 'teamACapacity', 'teamBCapacity', 'feePerPerson'],
   'profile-form': ['nickname', 'regionId', 'representativeSportId'],
-  'signup-form': ['nickname', 'regionId']
+  'signup-form': ['nickname', 'regionId'],
+  // 예약 운영 일정: 주간·날짜별·모집 조건·휴관 저장 폼의 필수 바인딩입니다.
+  'weekly-hours-form': ['facilityId'],
+  'date-schedule-form': ['facilityId', 'date', 'hours', 'note'],
+  'date-schedule-reset-form': ['facilityId', 'date'],
+  'condition-sport-form': ['facilityId', 'sportId'],
+  'conditions-form': ['facilityId', 'sportId', 'capacity', 'note'],
+  'closure-form': ['facilityId', 'date', 'start', 'end', 'reason']
 };
 for (const [id, names] of Object.entries(requiredBindings)) {
   const form = namedForms.get(id);
@@ -159,6 +177,134 @@ for (const file of scripts) {
     check(formNames.has(selector[1]), `${file}: selector references missing form field ${selector[1]}`);
   }
 }
+
+/* ── 예약 운영 일정 화면 계약 ──────────────────────────────────────────────
+   시설 관리 일정 화면은 백엔드 lane과 모델 키/폼 필드/경로를 공유한다.
+   마크업이 조용히 어긋나면 저장 요청이 빈 값으로 나가므로 여기서 명시적으로 고정한다. */
+const facilitySource = await readFile(path.join(resources, 'templates/admin/facility.html'), 'utf8');
+// 일정 카드 마크업은 조각으로 분리되어 있고, 시설 선택 폼만 facility.html에 남는다.
+const scheduleCardSource = await readFile(path.join(resources, 'templates/fragments/schedule-card.html'), 'utf8');
+const scheduleMarkup = facilitySource + scheduleCardSource;
+const facilityScheduleForm = namedForms.get('weekly-hours-form');
+const facilityDateForm = namedForms.get('date-schedule-form');
+const facilityClosureForm = namedForms.get('closure-form');
+const facilityConditionsForm = namedForms.get('conditions-form');
+
+// 1) 경로: 시설·날짜·종목·탭을 함께 넘기고, 저장 엔드포인트는 기존 경로를 유지한다.
+check(facilitySource.includes('name="view" value="schedule"'),
+  'facility.html: schedule view must be reachable with view=schedule');
+for (const route of [
+  '@{/admin/facility/schedule/weekly}',
+  '@{/admin/facility/schedule/date}',
+  '@{/admin/facility/schedule/date/reset}',
+  '@{/admin/facility/schedule/conditions}',
+  '@{/admin/facility/schedule/closures}',
+  '@{/admin/facility/schedule/closures/{scheduleChangeId}/cancel(scheduleChangeId=${closure.scheduleChangeId})}'
+]) {
+  check(scheduleMarkup.includes(route), `facility.html: missing schedule route ${route}`);
+}
+
+// 2) 주간 폼: 7일 체크박스와 동적 start-<day>/end-<day> 이름, 24:00 종료 후보.
+check(facilityScheduleForm?.inputs.some(input => input.name === 'openDays'
+  && input['th:value'] === '${row.day}'), 'weekly-hours-form: openDays must post the weekday number');
+check(facilityScheduleForm?.inputs.some(input => input['th:name'] === "${'start-' + row.day}"),
+  'weekly-hours-form: start-<day> select must keep its dynamic name');
+check(facilityScheduleForm?.inputs.some(input => input['th:name'] === "${'end-' + row.day}"),
+  'weekly-hours-form: end-<day> select must keep its dynamic name');
+check(scheduleMarkup.includes('<option value="24:00"'),
+  'facility.html: weekly/closure end must offer an explicit 24:00 option');
+check(scheduleMarkup.includes('#numbers.sequence(0, 23)'),
+  'facility.html: hour options must cover 00:00–23:00 without depending on the server model');
+check(facilityScheduleForm?.inputs.some(input => input['th:disabled'] === '${!row.open}'),
+  'weekly-hours-form: closed weekday selects must be disabled so they are not submitted');
+check(scheduleMarkup.includes('data-weekly-hours-note'),
+  'facility.html: weekly rows must show the end-of-day / next-day note');
+
+// 3) 날짜 폼: ISO date 히든, hours 반복, note. 전체 해제는 휴무라는 안내를 유지한다.
+check(facilityDateForm?.inputs.some(input => input.name === 'date' && input.type !== 'date'),
+  'date-schedule-form: date must be posted as a hidden ISO value');
+check(facilityDateForm?.inputs.some(input => input.name === 'hours' && input.type === 'checkbox'),
+  'date-schedule-form: hours must stay hour checkboxes');
+check(scheduleMarkup.includes('id="date-schedule-night-help"')
+  && scheduleMarkup.includes('id="date-schedule-blocked-help"'),
+  'facility.html: date editor must explain cross-day editing and locked closure slots');
+check(scheduleMarkup.includes('date-schedule-blocked-help'),
+  'facility.html: locked slots must explain that the stored value is restored after cancellation');
+check(facilityDateForm !== undefined && scheduleMarkup.includes('id="date-schedule-save-state"'),
+  'facility.html: date form must surface the empty-selection (closed day) state');
+
+// 4) 모집 조건: 종목 조회 폼과 저장 폼이 분리되고, 저장 폼은 sportId를 히든으로 보낸다.
+check(facilityConditionsForm?.inputs.some(input => input.name === 'sportId' && input.type === 'hidden'),
+  'conditions-form: sportId must be posted as a hidden value chosen by the server model');
+check(namedForms.get('condition-sport-form')?.attributes.method?.toLowerCase() === 'get',
+  'condition-sport-form: switching sports must re-read stored conditions with GET');
+check(facilityConditionsForm?.inputs.some(input => input.name === 'capacity'
+  && input.min === '2' && input.max === '200'),
+  'conditions-form: capacity must stay limited to 2–200');
+
+// 5) 휴관: 시각·사유 입력과 취소 확인을 유지하고 24:00 종료를 제공한다.
+check(facilityClosureForm?.inputs.some(input => input.name === 'end' && input.required !== undefined),
+  'closure-form: end time must stay required');
+check(/data-confirm="[^"]*휴관/.test(scheduleMarkup),
+  'facility.html: cancelling a closure must ask for confirmation');
+
+// 5-1) 새 구조의 POST 폼도 모두 CSRF 숨김 필드를 유지한다(공통 검사와 별도로 명시).
+for (const id of ['weekly-hours-form', 'date-schedule-form', 'date-schedule-reset-form',
+  'conditions-form', 'closure-form']) {
+  const form = namedForms.get(id);
+  check(form?.attributes.method?.toLowerCase() === 'post', `${id}: must stay a POST form`);
+  check(form?.inputs.some(input => input['th:name'] === '${_csrf.parameterName}'
+    && input['th:value'] === '${_csrf.token}'), `${id}: missing CSRF binding`);
+}
+// 날짜 초기화·휴관 취소는 폼 하나에 대상 ID만 다른 독립 요청이어야 한다.
+check(facilityDateForm?.attributes.method?.toLowerCase() === 'post'
+  && namedForms.get('date-schedule-reset-form') !== facilityDateForm,
+  'facility.html: resetting a date must be a separate POST from saving it');
+
+// 6) 충돌 경고: 안전한 alertdialog, 전체 충돌 목록, 저장 우회/자동 취소 선택지 없음.
+const conflictModal = facilitySource.slice(
+  facilitySource.indexOf('id="schedule-conflict-modal"'),
+  facilitySource.indexOf('id="maintenance-modal"'));
+check(conflictModal.length > 0, 'facility.html: schedule conflict modal missing');
+check(conflictModal.includes('role="alertdialog"'),
+  'schedule-conflict-modal: must stay an alertdialog');
+check(conflictModal.includes('th:attr="data-auto-open=${scheduleConflicts != null and !#lists.isEmpty(scheduleConflicts)'),
+  'schedule-conflict-modal: auto-open must depend on a non-empty scheduleConflicts list');
+check(conflictModal.includes('th:each="conflict : ${scheduleConflicts}"'),
+  'schedule-conflict-modal: every conflicting match must be rendered');
+check(conflictModal.includes('${conflict.matchId}'),
+  'schedule-conflict-modal: each room ID must stay visible even when a title exists');
+check(conflictModal.includes('conflict.title'),
+  'schedule-conflict-modal: each room title must be rendered');
+check(conflictModal.includes('conflict.startAt') && conflictModal.includes('conflict.endAt'),
+  'schedule-conflict-modal: each room start/end must be rendered');
+check(conflictModal.includes('${scheduleConflictRange}'),
+  'schedule-conflict-modal: the requested range must be rendered with th:text');
+check(!/type="submit"/.test(conflictModal) && !/data-force/.test(conflictModal),
+  'schedule-conflict-modal: no bypass or auto-cancel action is allowed');
+
+// 7) 탭 복귀: 시설을 바꿔도 보던 탭을 유지한다.
+check(facilitySource.includes('data-schedule-tab-input'),
+  'facility.html: facility switch form must carry the current schedule tab');
+
+// 8) 스크립트: 전체 요일 휴무를 막지 않고, 같은 시각만 막는다.
+const facilityScript = await readFile(path.join(resources, 'static/js/admin-facility.js'), 'utf8');
+check(!facilityScript.includes('운영할 요일을 하나 이상 선택'),
+  'admin-facility.js: all-week closure must not be blocked on the client');
+check(facilityScript.includes('findInvalidWeeklyRow'),
+  'admin-facility.js: identical start/end must be rejected before POST');
+check(facilityScript.includes("id === 'schedule-conflict-modal'")
+  || facilityScript.includes("getElementById('schedule-conflict-modal')"),
+  'admin-facility.js: conflict modal must be wired');
+check(facilityScript.includes('scheduleReturnTarget'),
+  'admin-facility.js: closing the auto-opened alert must restore focus inside the screen');
+// 달력(날짜·월 이동)은 GET 링크지만 JS가 있으면 조각 교체로 처리해 전체 새로고침을 막는다.
+// 시설이 선택되지 않았을 때는 서버가 렌더링한 빈 상태가 유일한 화면이므로 기본 이동에 맡긴다.
+check(facilityScript.includes("closest('a.date-calendar-day, .calendar-month-nav a')")
+  && facilityScript.includes('url.searchParams.get(\'date\')'),
+  'admin-facility.js: calendar day/month links must swap the schedule card without a full reload');
+check(facilityScript.includes("target?.closest('#date-schedule-hour-grid')"),
+  'admin-facility.js: date slot summary must be delegated so fragment swaps keep it working');
 
 // 관리자 진입 버튼은 역할별로만 노출하고, 관리자 화면끼리는 서로 이동 링크를 두지 않는다.
 function fragmentSlice(source, openMarker, closeMarker) {
@@ -221,6 +367,15 @@ check(/th:href="@\{\/admin\/facility/.test(facilitySidebar ?? ''),
   'admin.html: facility sidebar must keep its own menu links');
 check(/th:href="@\{\/admin\/system/.test(systemSidebar ?? ''),
   'admin.html: system sidebar must keep its own menu links');
+
+// 실제 시설·시스템 템플릿의 모든 .admin-view가 대체 포커스 표시 대상(제목)을 가져야 한다.
+for (const file of ['templates/admin/facility.html', 'templates/admin/system.html']) {
+  const source = await readFile(path.join(resources, file), 'utf8');
+  const views = source.split(/<section class="admin-view"/).slice(1);
+  const missing = views.filter(view => !/class="page-heading-copy"[\s\S]*<h1\b/.test(view));
+  check(views.length > 0 && missing.length === 0,
+    `${file}: every .admin-view needs .page-heading-copy with an h1 for the keyboard focus indicator`);
+}
 
 if (failures.length) {
   console.error(failures.join('\n'));

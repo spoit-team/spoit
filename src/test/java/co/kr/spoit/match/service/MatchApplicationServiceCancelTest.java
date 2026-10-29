@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import co.kr.spoit.facility.service.FacilityReservationService;
 import co.kr.spoit.mat.mapper.SportRatingMapper;
 import co.kr.spoit.match.domain.MatchApplication;
 import co.kr.spoit.match.dto.MatchRow;
@@ -40,7 +41,8 @@ class MatchApplicationServiceCancelTest {
     void setUp() {
         mapper = mock(MatchApplicationMapper.class);
         service = new MatchApplicationService(mapper, mock(MemberMapper.class),
-                mock(SportRatingMapper.class), mock(MatchService.class));
+                mock(SportRatingMapper.class), mock(MatchService.class),
+                mock(FacilityReservationService.class));
         given(mapper.findById(APPLICATION_ID)).willReturn(application(USER_ID));
     }
 
