@@ -27,7 +27,7 @@
   <nav class="team-management-tabs" role="tablist" aria-label="팀 관리 메뉴" th:if="${managedClub != null}">
     <a class="team-management-tab" th:classappend="${tab == 'team'} ? 'is-active' : ''" role="tab" id="management-tab-team" aria-controls="management-panel" th:aria-selected="${tab == 'team'}" th:tabindex="${tab == 'team'} ? 0 : -1" th:href="@{/teams/manage(clubId=${managedClub.clubId}, tab='team')}">내 팀</a>
     <a class="team-management-tab" th:classappend="${tab == 'members'} ? 'is-active' : ''" role="tab" id="management-tab-members" aria-controls="management-panel" th:aria-selected="${tab == 'members'}" th:tabindex="${tab == 'members'} ? 0 : -1" th:href="@{/teams/manage(clubId=${managedClub.clubId}, tab='members')}">팀원 <span th:text="${managedClub.memberCount}">0</span></a>
-    <a class="team-management-tab" th:classappend="${tab == 'applications'} ? 'is-active' : ''" role="tab" id="management-tab-applications" aria-controls="management-panel" th:aria-selected="${tab == 'applications'}" th:tabindex="${tab == 'applications'} ? 0 : -1" th:href="@{/teams/manage(clubId=${managedClub.clubId}, tab='applications')}">가입 신청 <span th:text="${managedClub.pendingApplicationCount != null ? managedClub.pendingApplicationCount : 0}">0</span></a>
+    <!-- 가입 신청 미구현: <a class="team-management-tab" th:classappend="${tab == 'applications'} ? 'is-active' : ''" role="tab" id="management-tab-applications" aria-controls="management-panel" th:aria-selected="${tab == 'applications'}" th:tabindex="${tab == 'applications'} ? 0 : -1" th:href="@{/teams/manage(clubId=${managedClub.clubId}, tab='applications')}">가입 신청 <span th:text="${managedClub.pendingApplicationCount != null ? managedClub.pendingApplicationCount : 0}">0</span></a> -->
   </nav>
 
   <section id="management-panel" role="tabpanel" th:attr="aria-labelledby=${'management-tab-' + tab}" tabindex="0">
@@ -51,7 +51,7 @@
             <div><h2 th:text="${managedClub.clubName}">팀 이름</h2><p th:text="${managedClub.sportName + ' · ' + managedClub.areaLabel + ' · ' + (managedClub.leader ? '팀장' : '팀원')}">종목 · 지역 · 팀장</p></div>
           </div>
           <div class="team-row-actions">
-            <button th:if="${managedClub.leader}" class="team-button team-button-quiet" type="button" data-team-edit>팀 정보 수정</button>
+            <!-- 수정 미구현: <button th:if="${managedClub.leader}" class="team-button team-button-quiet" type="button" data-team-edit>팀 정보 수정</button> -->
             <button class="team-button team-button-primary" type="button" data-team-create>팀 만들기</button>
           </div>
         </div>
@@ -62,7 +62,7 @@
           <div class="team-summary-item"><div class="team-summary-label">활동 시간</div><div class="team-summary-value" th:text="${managedClub.time}">활동 시간</div></div>
         </div>
         <div class="team-management-note">팀 정보와 일정은 서버에 저장된 값입니다. 평균 레이팅은 팀원 레이팅을 기준으로 서버가 계산하며 이 화면에서 직접 변경할 수 없습니다.</div>
-        <div class="team-management-overview-block">
+        <!-- 예정 일정 미구현: <div class="team-management-overview-block">
           <div class="team-section-heading"><div><h2>예정 일정</h2><p>팀에서 함께할 다음 활동을 확인하세요.</p></div><span class="team-badge" th:text="${#lists.size(managedClub.schedules) + '건'}">0건</span></div>
           <div class="team-schedule-list">
             <article th:each="schedule : ${managedClub.schedules}" class="team-schedule-row">
@@ -72,14 +72,14 @@
             </article>
             <p th:if="${#lists.isEmpty(managedClub.schedules)}" class="team-management-empty">등록된 예정 일정이 없습니다.</p>
           </div>
-        </div>
+        </div> -->
         <div class="team-management-overview-block">
           <div class="team-section-heading"><div><h2>팀 소개</h2><p th:text="${managedClub.intro}">팀 소개</p></div></div>
-          <div class="team-management-danger">
+          <!-- 해체,탈퇴 미구현: <div class="team-management-danger">
             <div><b th:text="${managedClub.leader ? '팀 해체' : '팀 탈퇴'}">팀 탈퇴</b><span th:text="${managedClub.leader ? (managedClub.otherMembersRemain ? '팀장 외 다른 팀원이 남아 있어 해체할 수 없습니다. 팀원을 먼저 정리해 주세요.' : '팀장만 남아 있어 해체할 수 있습니다. 확인창에 팀 이름을 입력해야 합니다.') : '팀원 목록에서 내 계정이 제외됩니다.'}">안내</span></div>
             <button th:if="${managedClub.leader}" class="team-button team-button-danger" type="button" data-team-disband th:disabled="${managedClub.otherMembersRemain}" th:title="${managedClub.otherMembersRemain} ? '팀장 외 팀원이 남아 있습니다.' : null">팀 해체</button>
             <button th:if="${!managedClub.leader}" class="team-button team-button-danger" type="button" data-team-leave>팀 탈퇴</button>
-          </div>
+          </div> -->
         </div>
       </section>
 
@@ -93,18 +93,19 @@
           <article th:each="member : ${managedClub.members}" class="team-row">
             <div class="team-member-identity">
               <span class="team-roster-avatar" aria-hidden="true" th:text="${member.initials}">팀</span>
-              <div><div class="team-member-name" th:text="${member.nickname + (member.current ? ' · 나' : '')}">팀원</div><div class="team-member-handle" th:text="${'@' + member.handle + ' · 가입 ' + member.joined}">@handle</div></div>
+              <div><div class="team-member-name" th:text="${member.nickname + (member.current ? ' · 나' : '')}">팀원</div><div class="team-member-handle" th:text="${'가입 ' + member.joined}">가입일</div></div>
             </div>
             <div class="team-row-actions">
-              <span th:if="${member.leader or !managedClub.leader}" class="team-member-role" th:text="${member.leader ? '팀장' : '팀원'}">팀원</span>
-              <th:block th:if="${managedClub.leader and !member.leader}">
+              <span class="team-member-role" th:text="${member.leader ? '팀장' : '팀원'}">팀원</span>
+              <!-- 위임, 추방 미구현:<span th:if="${member.leader or !managedClub.leader}" class="team-member-role" th:text="${member.leader ? '팀장' : '팀원'}">팀원</span>
+               <th:block th:if="${managedClub.leader and !member.leader}">
                 <button class="team-button team-button-quiet team-button-compact" type="button" data-team-transfer th:attr="data-member-id=${member.clubMemberId},data-member-name=${member.nickname}">팀장 위임</button>
                 <button class="team-button team-button-danger team-button-compact" type="button" data-team-remove-member th:attr="data-member-id=${member.clubMemberId},data-member-name=${member.nickname}">팀원 추방</button>
-              </th:block>
+              </th:block> -->
             </div>
           </article>
         </div>
-        <p class="team-management-note">팀장 위임과 팀원 추방은 서버에 요청되며, 처리 결과는 감사 기록과 함께 저장됩니다.</p>
+        <!-- 위임, 추방 미구현: <p class="team-management-note">팀장 위임과 팀원 추방은 서버에 요청되며, 처리 결과는 감사 기록과 함께 저장됩니다.</p> -->
       </section>
 
       <!-- 가입 신청 -->
@@ -174,7 +175,7 @@
 </dialog>
 
 <!-- 팀 정보 수정 -->
-<dialog id="team-edit-dialog" class="team-dialog" aria-labelledby="team-edit-title">
+<!-- 수정 미구현: <dialog id="team-edit-dialog" class="team-dialog" aria-labelledby="team-edit-title">
   <form id="team-edit-form" method="post" th:if="${managedClub != null}" th:action="@{/teams/{clubId}(clubId=${managedClub.clubId})}">
     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
     <div class="team-dialog-heading"><div><h2 id="team-edit-title">팀 정보 수정</h2><p>팀 소개와 활동 정보를 수정합니다.</p></div><button class="team-dialog-close" type="button" data-dialog-close aria-label="닫기">×</button></div>
@@ -205,7 +206,7 @@
     </div>
     <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-primary" type="submit">변경 저장</button></div>
   </form>
-</dialog>
+</dialog> -->
 
 <!-- 팀장 위임 -->
 <dialog id="team-transfer-dialog" class="team-dialog" aria-labelledby="team-transfer-title">

@@ -125,4 +125,22 @@
         INSERT INTO club_member (club_id, user_id, role) VALUES (#{clubId}, #{userId}, '동호회장')
     </insert>
 
+    <select id="selectMyClubs" resultType="co.kr.spoit.club.domain.ClubSummary">
+        SELECT c.club_id AS clubId
+                ,c.club_name AS clubName
+                ,(SELECT COUNT(*) FROM club_member cm
+                WHERE cm.club_id = c.club_id AND cm.left_at IS NULL) AS memberCount
+                FROM club c
+                JOIN club_member m ON m.club_id = c.club_id
+                WHERE m.user_id = #{userId}
+                AND m.left_at IS NULL
+                AND c.deleted_at IS NULL
+                ORDER BY (m.role = '동호회장') DESC, m.joined_at DESC
+    </select>
+
+    <select id="existsActiveMember" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM club_member
+        WHERE club_id = #{clubId} AND user_id = #{userId} AND left_at IS NULL
+    </select>
+
     </mapper>

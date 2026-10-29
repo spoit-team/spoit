@@ -18,6 +18,8 @@ import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
+import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.MyClubResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -163,4 +165,43 @@ public class ClubServiceImpl implements ClubService {
         return value == null ? "" : value.trim();
     }
 
+    // 내 동호회 관리 조회
+    @Override
+    public ClubManageResponse findManagedClub(Long userId, Long clubId) {
+        Long targetClubId = clubId;
+        // 선택 없이 내 동호회 조회(동호회장인 곳 먼저, 최근 가입 순)
+        if (targetClubId == null) {
+            List<ClubSummary> myClubs = clubMapper.selectMyClubs(userId);
+            if (myClubs.isEmpty()) {
+                log.info("관리할 동호회 없음: userId={}", userId);
+                return null;
+            }
+            targetClubId = myClubs.get(0).getClubId();
+        }
+
+        // 내 동호회가 아니면 거부
+        if (!clubMapper.existsActiveMember(targetClubId, userId)) {
+            throw new IllegalArgumentException("내가 속한 팀만 관리할 수 있습니다.");
+        }
+
+        ClubSummary club = clubMapper.selectClubDetail(targetClubId);
+        if (club == null) {
+            log.info("없는 동호회 조회: clubId={}", targetClubId);
+            return null;
+        }
+        List<ClubMember> members = clubMapper.selectClubMembers(targetClubId);
+        return ClubManageResponse.from(club, members, userId);
+    }
+
+    // 내 동호회 선택 버튼 응답
+    @Override 
+    public List<MyClubResponse> findMyClubs(Long userId, Long activeClubId){
+        List<ClubSummary> clubs = clubMapper.selectMyClubs(userId);
+
+        List<MyClubResponse> result = new ArrayList<>();
+        for(ClubSummary club : clubs){
+            result.add(MyClubResponse.from(club, activeClubId));
+        }
+        return result;
+    }
 }
