@@ -123,29 +123,21 @@ class MemberSignupControllerTest {
     }
 
     @Test
-    @DisplayName("회원가입 화면은 지역 선택지를 모델에 담아 렌더링한다")
-    void signupPageRendersRegions() throws Exception {
+    @DisplayName("회원가입 화면은 지역·종목 선택지를 모델에 담아 렌더링한다")
+    void signupPageRendersOptions() throws Exception {
         SignupRegion region = new SignupRegion();
         region.setRegionId(7L);
         region.setName("강남구");
-        given(memberMapper.findSignupRegions()).willReturn(List.of(region));
-
-        mockMvc.perform(get("/signup"))
-                .andExpect(status().isOk())
-                .andExpect(view().name("auth/signup"))
-                .andExpect(model().attribute("districts", List.of(region)));
-    }
-
-    @Test
-    @DisplayName("가입 화면은 종목 선택지를 모델에 담아 렌더링한다")
-    void signupPageRendersSports() throws Exception {
         SportOption sport = new SportOption();
         sport.setSportId(2L);
         sport.setName("풋살");
+        given(memberMapper.findSignupRegions()).willReturn(List.of(region));
         given(memberMapper.findSports()).willReturn(List.of(sport));
 
         mockMvc.perform(get("/signup"))
                 .andExpect(status().isOk())
+                .andExpect(view().name("auth/signup"))
+                .andExpect(model().attribute("districts", List.of(region)))
                 .andExpect(model().attribute("sports", List.of(sport)));
     }
 
@@ -229,6 +221,21 @@ class MemberSignupControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("auth/signup"))
                 .andExpect(model().attributeExists("error"));
+    }
+
+    @Test
+    @DisplayName("지역과 종목이 모두 잘못되면 지역을 먼저 검증하고 종목은 조회하지 않는다")
+    void validatesRegionBeforeSport() throws Exception {
+        given(memberMapper.regionExists(7L)).willReturn(false);
+
+        mockMvc.perform(signup(Map.of("regionId", "7", "representativeSportId", "5")))
+                .andExpect(status().isOk())
+                .andExpect(view().name("auth/signup"))
+                .andExpect(model().attribute("error", "선택한 지역을 찾을 수 없습니다."));
+
+        verify(memberMapper).regionExists(7L);
+        verify(memberMapper, never()).sportExists(5L);
+        verify(memberMapper, never()).insert(any(Member.class));
     }
 
     @Test

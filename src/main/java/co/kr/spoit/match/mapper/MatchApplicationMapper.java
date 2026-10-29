@@ -14,6 +14,12 @@ import co.kr.spoit.match.dto.MyApplicationRow;
 @Mapper
 public interface MatchApplicationMapper {
 
+    /**
+     * 신청 전 시설 잠금 대상. 매칭방이 없으면 null.
+     * 시설 행을 잠그기 전에 후보 id만 읽어, 잠금 순서를 시설 → 매칭방으로 맞춘다.
+     */
+    Long findFacilityId(@Param("matchId") long matchId);
+
     /** 매칭방 행 잠금 (없거나 시설이 삭제됐으면 null). 같은 방 신청·확정을 직렬화한다. */
     MatchRow lockMatch(@Param("matchId") long matchId);
 

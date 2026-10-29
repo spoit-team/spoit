@@ -60,7 +60,7 @@
     return views[0]?.id || '';
   }
 
-  function showView(targetId, updateLocation) {
+  function showView(targetId, updateLocation, skipFocus) {
     const target = views.find(function (view) { return view.id === targetId; });
     if (!target) return;
     views.forEach(function (view) { view.hidden = view !== target; });
@@ -75,6 +75,7 @@
       global.history.replaceState(null, '', '#' + targetId);
       document.title = (title ? title + ' · ' : '') + 'SPO:IT 관리자';
     }
+    if (skipFocus) return;
     target.setAttribute('tabindex', '-1');
     target.focus({ preventScroll: true });
   }
@@ -95,41 +96,68 @@
 
   global.addEventListener('hashchange', function () { showView(viewFromLocation(), false); });
 
-  /* 탭: 예약 설정, 시설 콘텐츠, 시스템 CMS */
+  /* 탭: 예약 설정, 시설 콘텐츠, 시스템 CMS.
+     일정 카드는 시설 선택 시 조각으로 교체되므로 요소별 바인딩 대신 document 위임으로 처리합니다. */
   const tabGroups = [
-    { attribute: 'scheduleTab', panelSelector: '[data-schedule-panel]' },
-    { attribute: 'contentTab', panelSelector: '.admin-panel' },
-    { attribute: 'cmsTab', panelSelector: '.admin-panel' }
+    { attr: 'scheduleTab', panelSelector: '[data-schedule-panel]' },
+    { attr: 'contentTab', panelSelector: '.admin-panel' },
+    { attr: 'cmsTab', panelSelector: '.admin-panel' }
   ];
 
-  tabGroups.forEach(function (group) {
-    const tabs = Array.from(document.querySelectorAll('[data-' + group.attribute.replace(/[A-Z]/g, function (m) { return '-' + m.toLowerCase(); }) + ']'));
-    if (!tabs.length) return;
-    const panelRoot = tabs[0].closest('.admin-view') || document;
-    tabs.forEach(function (tab, index) {
-      tab.addEventListener('click', function () {
-        const panelId = tab.dataset[group.attribute];
-        tabs.forEach(function (item) {
-          const active = item === tab;
-          item.setAttribute('aria-selected', String(active));
-          item.tabIndex = active ? 0 : -1;
-        });
-        panelRoot.querySelectorAll(group.panelSelector).forEach(function (panel) {
-          panel.hidden = panel.id !== panelId;
-        });
-      });
-      tab.addEventListener('keydown', function (event) {
-        let next = null;
-        if (event.key === 'ArrowRight') next = tabs[(index + 1) % tabs.length];
-        else if (event.key === 'ArrowLeft') next = tabs[(index - 1 + tabs.length) % tabs.length];
-        else if (event.key === 'Home') next = tabs[0];
-        else if (event.key === 'End') next = tabs[tabs.length - 1];
-        if (!next) return;
-        event.preventDefault();
-        next.focus();
-        next.click();
-      });
+  function tabSelector(attr) {
+    return '[data-' + attr.replace(/[A-Z]/g, function (m) { return '-' + m.toLowerCase(); }) + ']';
+  }
+
+  function tabGroupFor(tab) {
+    return tabGroups.find(function (group) { return tab.dataset[group.attr] !== undefined; }) || null;
+  }
+
+  /* 탭 배열과 패널 범위는 누를 때마다 다시 찾는다. 조각이 교체되면 예전 요소는 문서에 없다. */
+  function activateTab(tab) {
+    const group = tabGroupFor(tab);
+    if (!group) return;
+    const panelRoot = tab.closest('.admin-view') || document;
+    const tabs = Array.from(panelRoot.querySelectorAll(tabSelector(group.attr)));
+    const panelId = tab.dataset[group.attr];
+    tabs.forEach(function (item) {
+      const active = item === tab;
+      item.setAttribute('aria-selected', String(active));
+      item.tabIndex = active ? 0 : -1;
     });
+    panelRoot.querySelectorAll(group.panelSelector).forEach(function (panel) {
+      panel.hidden = panel.id !== panelId;
+    });
+  }
+
+  function tabFromEvent(event) {
+    return event.target instanceof Element
+      ? event.target.closest('[data-schedule-tab],[data-content-tab],[data-cms-tab]')
+      : null;
+  }
+
+  document.addEventListener('click', function (event) {
+    const tab = tabFromEvent(event);
+    if (tab) activateTab(tab);
+  });
+
+  document.addEventListener('keydown', function (event) {
+    const tab = tabFromEvent(event);
+    if (!tab) return;
+    const group = tabGroupFor(tab);
+    if (!group) return;
+    const panelRoot = tab.closest('.admin-view') || document;
+    const tabs = Array.from(panelRoot.querySelectorAll(tabSelector(group.attr)));
+    const index = tabs.indexOf(tab);
+    if (index < 0 || !tabs.length) return;
+    let next = null;
+    if (event.key === 'ArrowRight') next = tabs[(index + 1) % tabs.length];
+    else if (event.key === 'ArrowLeft') next = tabs[(index - 1 + tabs.length) % tabs.length];
+    else if (event.key === 'Home') next = tabs[0];
+    else if (event.key === 'End') next = tabs[tabs.length - 1];
+    if (!next) return;
+    event.preventDefault();
+    next.focus();
+    next.click();
   });
 
   /* 스위치: 화면 내부 상태만 변경합니다. 서버 저장은 폼 제출로 처리합니다. */
@@ -180,14 +208,10 @@
     if (notificationModal && target === notificationModal) closeNotificationModal();
   });
 
-  document.addEventListener('keydown', function (event) {
-    if (!notificationModal || notificationModal.hidden) return;
-    if (event.key === 'Escape') {
-      closeNotificationModal();
-      return;
-    }
-    if (event.key !== 'Tab') return;
-    const focusable = Array.from(notificationModal.querySelectorAll('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled)'));
+  /* 모달 내부 포커스 트랩: Escape는 호출부에서 먼저 처리하고, Tab/Shift+Tab만 순환시킵니다. */
+  function trapModalFocus(modal, event) {
+    if (!modal || modal.hidden || event.key !== 'Tab') return;
+    const focusable = Array.from(modal.querySelectorAll('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled)'));
     if (!focusable.length) return;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
@@ -198,6 +222,15 @@
       event.preventDefault();
       first.focus();
     }
+  }
+
+  document.addEventListener('keydown', function (event) {
+    if (!notificationModal || notificationModal.hidden) return;
+    if (event.key === 'Escape') {
+      closeNotificationModal();
+      return;
+    }
+    trapModalFocus(notificationModal, event);
   });
 
   /* 파괴적 작업 확인: 서버 폼 제출 전에 한 번 더 확인합니다. */
@@ -226,21 +259,13 @@
       modalOpener = null;
     },
     trapFocus: function (modal, event) {
-      if (!modal || modal.hidden || event.key !== 'Tab') return;
-      const focusable = Array.from(modal.querySelectorAll('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled)'));
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
+      trapModalFocus(modal, event);
     }
   };
 
   syncSidebarForViewport();
-  showView(viewFromLocation(), Boolean(document.body.dataset.view));
-})();
+  /* 초기 진입(첫 화면 선택)에는 초점을 옮기지 않는다. 페이지를 열자마자 본문에
+     초점 표시가 그려지는 현상을 막기 위해서다. 이후 화면 전환에서만 초점을 옮겨
+     키보드 사용자가 전환된 위치를 알 수 있게 한다. */
+  showView(viewFromLocation(), Boolean(document.body.dataset.view), true);
+})(window);
