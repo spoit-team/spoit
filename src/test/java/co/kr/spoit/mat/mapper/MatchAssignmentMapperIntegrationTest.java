@@ -54,8 +54,34 @@ class MatchAssignmentMapperIntegrationTest extends AbstractMySqlMapperTest {
         assertThat(match.getMatchId()).isEqualTo(5L);
         assertThat(match.getStatus()).isEqualTo("모집 중");
         assertThat(match.getTeamACapacity()).isEqualTo(1);
+        assertThat(match.getEndAt()).isEqualTo(LocalDateTime.of(2026, 10, 24, 12, 0));
         assertThat(match.getAssignmentConfirmedAt()).isNull();
         assertThat(assignmentMapper.lockAssignmentMatch(4L)).isEmpty();
+    }
+
+    @Test
+    void findsRecruitingMatchesWhoseStartTimeHasCome() {
+        // 3은 매칭 완료, 4는 삭제된 시설이라 제외한다. 5는 시작 시각과 같은 경계값이다.
+        assertThat(assignmentMapper.findStartableMatchIds("모집 중", LocalDateTime.of(2026, 10, 24, 10, 0)))
+                .containsExactly(1L, 2L, 5L);
+        assertThat(assignmentMapper.findStartableMatchIds("모집 중", LocalDateTime.of(2026, 10, 24, 9, 59)))
+                .containsExactly(1L, 2L);
+    }
+
+    @Test
+    void cancelsOnlyRecruitingMatch() {
+        var cancelledAt = LocalDateTime.of(2026, 10, 24, 10, 0);
+
+        assertThat(assignmentMapper.markCancelled(5L, cancelledAt, "취소", "모집 중")).isEqualTo(1);
+        assertThat(assignmentMapper.findAssignmentMatch(5L).orElseThrow().getStatus()).isEqualTo("취소");
+        assertThat(jdbcTemplate.queryForObject("SELECT cancelled_at FROM social_match WHERE match_id = 5",
+                LocalDateTime.class)).isEqualTo(cancelledAt);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM match_participant WHERE match_id = 5 AND participation_status = '확정'",
+                Integer.class)).isEqualTo(2);
+        // 이미 매칭 완료인 경기는 바뀌지 않는다.
+        assertThat(assignmentMapper.markCancelled(3L, cancelledAt, "취소", "모집 중")).isZero();
+        assertThat(assignmentMapper.findAssignmentMatch(3L).orElseThrow().getStatus()).isEqualTo("매칭 완료");
     }
 
     @Test
