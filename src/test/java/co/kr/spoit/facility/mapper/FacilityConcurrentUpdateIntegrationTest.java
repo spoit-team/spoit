@@ -36,7 +36,9 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import co.kr.spoit.facility.domain.MatchPeriod;
 import co.kr.spoit.facility.dto.FacilityForm;
+import co.kr.spoit.facility.service.FacilityDeleteBlockedException;
 import co.kr.spoit.facility.service.FacilityServiceImpl;
 
 /**
@@ -260,7 +262,12 @@ class FacilityConcurrentUpdateIntegrationTest {
 
                 // 스냅샷에는 보이지 않지만 잠금 읽기는 커밋된 최신 행을 봐야 한다.
                 facilityService.deleteFacility(USER_ID, DELETE_FACILITY_ID);
-            })).isInstanceOf(IllegalArgumentException.class);
+            })).isInstanceOfSatisfying(FacilityDeleteBlockedException.class, exception -> {
+                assertThat(exception).hasMessageContaining("시설을 삭제할 수 없습니다");
+                assertThat(exception.getConflicts())
+                        .extracting(MatchPeriod::getMatchId)
+                        .containsExactly(MATCH_ID);
+            });
         } finally {
             shutdown(pool);
         }
