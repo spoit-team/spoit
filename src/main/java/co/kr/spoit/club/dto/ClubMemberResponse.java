@@ -16,12 +16,7 @@ public class ClubMemberResponse {
     private final boolean current;
     private final String joined;
 
-    // 동호회 둘러보기 상세 화면 용
-    public static ClubMemberResponse from(ClubMember member) {
-        return from(member, null);
-    }
-
-    // 내 동호회 관리 화면 용
+    // 동호회 상세정보, 내 동호회 관리 화면 용
     public static ClubMemberResponse from(ClubMember member, Long userId) {
         return ClubMemberResponse.builder()
                 .nickname(member.getNickname())

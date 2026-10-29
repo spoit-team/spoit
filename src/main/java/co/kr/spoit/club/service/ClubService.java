@@ -20,7 +20,7 @@ public interface ClubService {
     List<ClubCardResponse> findClubCards();
 
     // 동호회 상세 조회(없으면 null)
-    ClubDetailResponse findClubDetail(Long clubId);
+    ClubDetailResponse findClubDetail(Long clubId, Long userId);
 
     // 동호회 만들기 종목 선택
     List<ClubSportOption> findSportOptions();
@@ -37,4 +37,6 @@ public interface ClubService {
     // 내 동호회 관리 화면 위쪽 선택 버튼 - 내 동호회 목록(activeClubId가 선택된 동호회)
     List<MyClubResponse> findMyClubs(Long userId, Long activeClubId);
 
+    // 가입 신청
+    void applyJoin(Long userId, Long clubId, String message);
 }

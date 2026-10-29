@@ -42,11 +42,16 @@ public class ClubController {
         return "teams/list";
     }
 
-    // 동호회 상세 화면(없는 동호회면 NULL)
+    // 동호회 상세 화면
     @GetMapping("/{clubId}")
-    public String detail(@PathVariable("clubId") Long clubId, Model model) {
-        log.info("동호회 상세 조회: clubId={}", clubId);
-        model.addAttribute("club", clubService.findClubDetail(clubId));
+    public String detail(@PathVariable("clubId") Long clubId,
+            @AuthenticationPrincipal MemberPrincipal principal, Model model) {
+        if (principal == null) {
+            return "redirect:/login";
+        }
+        Long userId = principal.getUserId();
+        log.info("동호회 상세 조회: clubId={}, userId={}", clubId, userId);
+        model.addAttribute("club", clubService.findClubDetail(clubId, userId));
         return "teams/detail";
     }
 
@@ -117,6 +122,27 @@ public class ClubController {
         log.info("동호회 생성 완료: clubId={}", clubId);
         redirectAttributes.addFlashAttribute("message", "팀을 만들었습니다.");
         return "redirect:/teams/manage?clubId=" + clubId;
+    }
+
+    // 가입 신청: 결과는 상세 화면에서 보여줌
+    @PostMapping("/{clubId}/applications")
+    public String apply(@PathVariable("clubId") Long clubId,
+            @RequestParam(value = "message", required = false) String message,
+            @AuthenticationPrincipal MemberPrincipal principal, RedirectAttributes redirectAttributes) {
+        Long userId = principal.getUserId();
+        log.info("가입 신청 요청: clubId={}, userId={}", clubId, userId);
+
+        try {
+            clubService.applyJoin(userId, clubId, message);
+        } catch (IllegalArgumentException exception) {
+            // 상세 화면이 대화상자를 다시 열어 이유를 보여 줌
+            log.warn("가입 신청 거부: clubId={}, userId={}, {}", clubId, userId, exception.getMessage());
+            redirectAttributes.addFlashAttribute("applicationError", exception.getMessage());
+            return "redirect:/teams/" + clubId;
+        }
+
+        redirectAttributes.addFlashAttribute("message", "가입 신청을 보냈습니다.");
+        return "redirect:/teams/" + clubId;
     }
 
 }

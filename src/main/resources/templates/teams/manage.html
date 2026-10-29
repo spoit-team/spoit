@@ -115,24 +115,24 @@
           <span class="team-badge" th:text="${'가입 신청 대기 ' + (managedClub.pendingApplicationCount != null ? managedClub.pendingApplicationCount : 0) + '건'}">가입 신청 대기 0건</span>
         </div>
         <div class="team-application-list">
-          <article th:each="application : ${managedClub.applications}" class="team-application-row">
+          <article th:each="joinRequest : ${managedClub.applications}" class="team-application-row">
             <div class="team-application-copy">
-              <div class="team-member-name"><span th:text="${application.nickname}">신청자</span> <span class="team-member-handle" th:text="${'@' + application.handle}">@handle</span></div>
-              <p th:text="${'신청 ' + application.date}">신청 날짜</p>
-              <p th:if="${application.message != null}" class="team-application-message" th:text="${application.message}">신청 메시지</p>
+              <div class="team-member-name"><span th:text="${joinRequest.nickname}">신청자</span></div>
+              <p th:text="${'신청 ' + joinRequest.date}">신청 날짜</p>
+              <p th:if="${joinRequest.message != null}" class="team-application-message" th:text="${joinRequest.message}">신청 메시지</p>
             </div>
             <div class="team-application-actions">
-              <th:block th:if="${application.pending and managedClub.leader}">
-                <form method="post" th:action="@{/teams/{clubId}/applications/{joinRequestId}/reject(clubId=${managedClub.clubId}, joinRequestId=${application.joinRequestId})}">
+              <th:block th:if="${joinRequest.pending and managedClub.leader}">
+                <form method="post" th:action="@{/teams/{clubId}/applications/{joinRequestId}/reject(clubId=${managedClub.clubId}, joinRequestId=${joinRequest.joinRequestId})}">
                   <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                   <button class="team-button team-button-quiet team-button-compact" type="submit">거절</button>
                 </form>
-                <form method="post" th:action="@{/teams/{clubId}/applications/{joinRequestId}/approve(clubId=${managedClub.clubId}, joinRequestId=${application.joinRequestId})}">
+                <form method="post" th:action="@{/teams/{clubId}/applications/{joinRequestId}/approve(clubId=${managedClub.clubId}, joinRequestId=${joinRequest.joinRequestId})}">
                   <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                   <button class="team-button team-button-primary team-button-compact" type="submit">승인</button>
                 </form>
               </th:block>
-              <span th:if="${!application.pending or !managedClub.leader}" class="team-badge" th:classappend="${application.approved} ? 'is-recruiting' : ''" th:text="${application.statusLabel}">검토 중</span>
+              <span th:if="${!joinRequest.pending or !managedClub.leader}" class="team-badge" th:classappend="${joinRequest.approved} ? 'is-recruiting' : ''" th:text="${joinRequest.statusLabel}">검토 중</span>
             </div>
           </article>
           <p th:if="${#lists.isEmpty(managedClub.applications)}" class="team-management-empty" th:text="${managedClub.leader ? '이 팀에 도착한 가입 신청이 없습니다.' : '가입 신청 내용은 팀장만 확인하고 관리할 수 있습니다.'}">가입 신청이 없습니다.</p>
