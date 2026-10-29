@@ -1,6 +1,6 @@
 package co.kr.spoit.mat.controller;
 
-import co.kr.spoit.mat.dto.AutoAssignmentResult;
+import co.kr.spoit.mat.dto.AssignmentResult;
 import co.kr.spoit.mat.service.AutoAssignmentService;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import org.springframework.http.HttpStatus;
@@ -27,9 +27,9 @@ public class AutoAssignmentController {
 
     /** 저장하지 않는 미리보기라 GET으로 둔다. 저장 API가 생기면 같은 경로의 POST로 붙인다. */
     @GetMapping("/{matchId}/auto-assignment")
-    public ResponseEntity<AutoAssignmentResult> preview(@PathVariable long matchId,
+    public ResponseEntity<AssignmentResult> preview(@PathVariable long matchId,
                                                         @AuthenticationPrincipal MemberPrincipal principal) {
-        AutoAssignmentResult result = autoAssignmentService.preview(matchId, principal.getUserId());
+        AssignmentResult result = autoAssignmentService.preview(matchId, principal.getUserId());
         HttpStatus status = switch (result.outcome()) {
             case READY -> HttpStatus.OK;
             case NOT_FOUND -> HttpStatus.NOT_FOUND;

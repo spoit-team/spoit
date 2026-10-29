@@ -6,7 +6,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** 팀 배정 가능 여부를 판단할 때 쓰는 매칭방 정보 */
 @Getter
 @Setter
 @NoArgsConstructor
@@ -18,5 +17,8 @@ public class AssignmentMatch {
     private String status;
     private int teamACapacity;
     private int teamBCapacity;
+    private String assignmentMethod;
     private LocalDateTime assignmentConfirmedAt;
+    private Long captainAParticipantId;
+    private Long captainBParticipantId;
 }

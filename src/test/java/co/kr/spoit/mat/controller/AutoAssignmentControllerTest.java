@@ -12,8 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import co.kr.spoit.global.config.SecurityConfig;
 import co.kr.spoit.mat.domain.TeamAssignment;
-import co.kr.spoit.mat.dto.AutoAssignmentResult;
-import co.kr.spoit.mat.dto.AutoAssignmentResult.Outcome;
+import co.kr.spoit.mat.dto.AssignmentResult;
+import co.kr.spoit.mat.dto.AssignmentResult.Outcome;
 import co.kr.spoit.mat.service.AutoAssignmentService;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.domain.MemberPrincipal;
@@ -85,7 +85,7 @@ class AutoAssignmentControllerTest {
                 new BigDecimal("2100.00"), new BigDecimal("2050.00"),
                 new BigDecimal("1050.00"), new BigDecimal("1025.00"),
                 new BigDecimal("50.00"), 1L, 3L);
-        given(autoAssignmentService.preview(10L, 7L)).willReturn(AutoAssignmentResult.ready(assignment));
+        given(autoAssignmentService.preview(10L, 7L)).willReturn(AssignmentResult.ready(assignment));
 
         mockMvc.perform(get(URL).with(user(principal("시설 관리자"))))
                 .andExpect(status().isOk())
@@ -99,7 +99,7 @@ class AutoAssignmentControllerTest {
     @Test
     void returnsConflictForBusinessState() throws Exception {
         given(autoAssignmentService.preview(10L, 7L)).willReturn(
-                AutoAssignmentResult.rejected(Outcome.NOT_ENOUGH_PARTICIPANTS, "현재 3명"));
+                AssignmentResult.rejected(Outcome.NOT_ENOUGH_PARTICIPANTS, "현재 3명"));
 
         mockMvc.perform(get(URL).with(user(principal("시설 관리자"))))
                 .andExpect(status().isConflict())
@@ -111,7 +111,7 @@ class AutoAssignmentControllerTest {
     @Test
     void returnsNotFoundForMissingMatch() throws Exception {
         given(autoAssignmentService.preview(10L, 7L)).willReturn(
-                AutoAssignmentResult.rejected(Outcome.NOT_FOUND, "매칭방 정보를 찾을 수 없습니다."));
+                AssignmentResult.rejected(Outcome.NOT_FOUND, "매칭방 정보를 찾을 수 없습니다."));
 
         mockMvc.perform(get(URL).with(user(principal("시설 관리자"))))
                 .andExpect(status().isNotFound());
