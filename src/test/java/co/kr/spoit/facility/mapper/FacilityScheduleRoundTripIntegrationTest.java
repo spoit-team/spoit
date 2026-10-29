@@ -317,8 +317,8 @@ class FacilityScheduleRoundTripIntegrationTest {
                  WHERE facility_id = ?
                  ORDER BY start_at
                 """, (rs, rowNum) -> new ClosureRow(
-                rs.getTimestamp("start_at").toLocalDateTime(),
-                rs.getTimestamp("end_at").toLocalDateTime(),
+                rs.getObject("start_at", LocalDateTime.class),
+                rs.getObject("end_at", LocalDateTime.class),
                 rs.getString("status")), FACILITY_ID);
     }
 
