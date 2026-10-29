@@ -93,6 +93,9 @@ check(/\.admin-view:focus,\s*\.admin-view:focus-visible\s*\{[^}]*outline:\s*none
   'admin.css: .admin-view must not draw the full-viewport focus ring');
 check(/\.admin-view:focus-visible\s+\.page-heading-copy\s*\{[^}]*outline:\s*(?!none\b|0)\S/.test(adminCss),
   'admin.css: keyboard focus on .admin-view must mark the page title instead');
+// sticky topbar가 앵커 점프 대상의 첫 부분을 가리지 않게 한다(관리자 페이지 진입 시 화면이 살짝 내려가 보이던 문제).
+check(/html\s*\{[^}]*scroll-padding-top:\s*\d+px/.test(adminCss),
+  'admin.css: anchor jumps must account for the sticky topbar via scroll-padding-top');
 
 const templates = await files('templates/**/*.html');
 for (const file of templates) {
@@ -295,6 +298,13 @@ check(facilityScript.includes("id === 'schedule-conflict-modal'")
   'admin-facility.js: conflict modal must be wired');
 check(facilityScript.includes('scheduleReturnTarget'),
   'admin-facility.js: closing the auto-opened alert must restore focus inside the screen');
+// 달력(날짜·월 이동)은 GET 링크지만 JS가 있으면 조각 교체로 처리해 전체 새로고침을 막는다.
+// 시설이 선택되지 않았을 때는 서버가 렌더링한 빈 상태가 유일한 화면이므로 기본 이동에 맡긴다.
+check(facilityScript.includes("closest('a.date-calendar-day, .calendar-month-nav a')")
+  && facilityScript.includes('url.searchParams.get(\'date\')'),
+  'admin-facility.js: calendar day/month links must swap the schedule card without a full reload');
+check(facilityScript.includes("target?.closest('#date-schedule-hour-grid')"),
+  'admin-facility.js: date slot summary must be delegated so fragment swaps keep it working');
 
 // 관리자 진입 버튼은 역할별로만 노출하고, 관리자 화면끼리는 서로 이동 링크를 두지 않는다.
 function fragmentSlice(source, openMarker, closeMarker) {

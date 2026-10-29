@@ -24,6 +24,9 @@
 }
 
 * { box-sizing: border-box; }
+/* sticky topbar(68px)가 앵커 점프 대상의 첫 부분을 가리지 않게 한다.
+   840px 이하는 topbar가 56px로 줄어든다(아래 미디어 쿼리 참조). */
+html { scroll-padding-top: 76px; }
 html, body { min-height: 100%; margin: 0; }
 body.admin-body {
   background: var(--admin-canvas);
@@ -446,6 +449,7 @@ button { color: inherit; }
   .admin-body[data-admin-role="facility"] #facility-dashboard .dashboard-grid > .card + .card::before { display: none; }
 }
 @media (max-width: 840px) {
+  html { scroll-padding-top: 64px; }
   .admin-layout { grid-template-columns: var(--admin-sidebar) minmax(0, 1fr); }
   .admin-layout.is-sidebar-collapsed { --admin-sidebar: 68px; }
   .admin-layout.is-sidebar-expanded { --admin-sidebar: min(240px, max(120px, 36vw)); }
@@ -540,7 +544,6 @@ button { color: inherit; }
 .date-hour-grid { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 0; border-top: 1px solid var(--admin-line-strong); border-left: 1px solid var(--admin-line-strong); }
 .hour-slot { display: flex; min-width: 0; min-height: 46px; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px 2px; border: 0; border-right: 1px solid var(--admin-line-strong); border-bottom: 1px solid var(--admin-line-strong); border-radius: 0; background: transparent; color: var(--admin-muted); font-family: Archivo,sans-serif; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .hour-slot:hover:not(:disabled) { background: var(--admin-soft); color: var(--admin-blue-ink); }
-.hour-slot.is-selected { background: var(--admin-blue-soft); box-shadow: inset 3px 0 0 var(--admin-blue); color: var(--admin-blue-ink); }
 .hour-slot small { font: inherit; }
 .hour-slot i { color: #95620d; font-size: 8px; font-style: normal; font-weight: 700; line-height: 1; }
 .hour-slot.is-blocked, .hour-slot:disabled { cursor: not-allowed; background: #faf6ed; color: #8d7958; }

@@ -434,10 +434,14 @@
     }
   });
 
-  /* 일정 카드 내부 조작: 카드가 조각으로 교체되면 새 요소에 다시 바인딩한다. */
-  function initScheduleCard() {
-    document.getElementById('date-schedule-hour-grid')?.addEventListener('change', updateDateScheduleSummary);
+  /* 일정 카드 내부 조작: 카드가 조각으로 교체되면 새 요소에 다시 바인딩한다.
+     날짜 슬롯 요약은 문서 위임으로 묶어 교체와 무관하게 동작하게 한다. */
+  document.addEventListener('change', function (event) {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('#date-schedule-hour-grid')) updateDateScheduleSummary();
+  });
 
+  function initScheduleCard() {
     document.querySelectorAll('#weekly-hours-form tbody tr').forEach(function (row) {
       const openDay = row.querySelector('input[name="openDays"]');
       const startTime = row.querySelector('select[name^="start-"]');
@@ -617,7 +621,7 @@
   }
 
   async function swapScheduleCard() {
-    if (!scheduleFacilityForm || !scheduleFacilitySelect || !scheduleFacilitySelect.value) return;
+    if (!scheduleFacilityForm || !scheduleFacilitySelect || !scheduleFacilitySelect.value) return false;
     try {
       const response = await fetch(scheduleFacilityForm.action, {
         method: 'POST',
@@ -625,11 +629,11 @@
         headers: { 'X-Requested-With': 'fetch' },
         credentials: 'same-origin'
       });
-      if (!response.ok || response.redirected) { scheduleFacilityForm.submit(); return; }
+      if (!response.ok || response.redirected) { scheduleFacilityForm.submit(); return true; }
       const parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
       const nextCard = parsed.querySelector('.schedule-card');
       const currentCard = scheduleView?.querySelector('.schedule-card');
-      if (!nextCard || !currentCard) { scheduleFacilityForm.submit(); return; }
+      if (!nextCard || !currentCard) { scheduleFacilityForm.submit(); return true; }
       currentCard.replaceWith(nextCard);
       initScheduleCard();
       syncScheduleContextInputs();
@@ -643,9 +647,33 @@
       global.history.replaceState(null, '', global.location.pathname + '?' + params.toString() + '#facility-schedule');
     } catch (error) {
       scheduleFacilityForm.submit(); // 네트워크 실패 시 기존 동작(전체 제출)로 폴백
+      return true;
     }
   }
   scheduleFacilitySelect?.addEventListener('change', swapScheduleCard);
+
+  /* 달력(날짜·이전/다음 달)은 서버가 만든 GET 링크지만, JS가 있으면 같은 조각 교체로
+     처리해 전체 새로고침을 막는다. 링크의 date·sportId를 시설 선택 폼의 히든 값에
+     옮겨 담고, 탭은 현재 보고 있는 탭을 유지한다. 시설이 선택되지 않았거나 링크에
+     날짜가 없으면(이상한 링크) 브라우저 기본 이동에 맡긴다. */
+  document.addEventListener('click', function (event) {
+    if (event.defaultPrevented) return;
+    const target = event.target instanceof Element ? event.target : null;
+    const link = target?.closest('a.date-calendar-day, .calendar-month-nav a');
+    if (!link) return;
+    if (!scheduleFacilitySelect?.value) return;
+    const url = new URL(link.href, global.location.href);
+    if (url.pathname !== global.location.pathname) return;
+    const date = url.searchParams.get('date') || '';
+    if (!date) return;
+    event.preventDefault();
+    syncScheduleContextInputs();
+    const dateInput = scheduleFacilityForm.querySelector('input[name="date"]');
+    const sportInput = scheduleFacilityForm.querySelector('input[name="sportId"]');
+    if (dateInput) dateInput.value = date;
+    if (sportInput) sportInput.value = url.searchParams.get('sportId') || '';
+    swapScheduleCard();
+  });
 
   /* 일정 충돌 경고: 서버가 충돌 목록과 함께 돌려보낸 경우에만 자동으로 연다.
      목록이 없으면 정상 화면이며 아무것도 열지 않는다. */
