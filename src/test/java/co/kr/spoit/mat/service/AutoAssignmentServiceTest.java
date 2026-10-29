@@ -12,8 +12,8 @@ import static org.mockito.Mockito.when;
 
 import co.kr.spoit.mat.domain.AssignmentMatch;
 import co.kr.spoit.mat.domain.MatchParticipant;
-import co.kr.spoit.mat.dto.AutoAssignmentResult;
-import co.kr.spoit.mat.dto.AutoAssignmentResult.Outcome;
+import co.kr.spoit.mat.dto.AssignmentResult;
+import co.kr.spoit.mat.dto.AssignmentResult.Outcome;
 import co.kr.spoit.mat.mapper.MatchAssignmentMapper;
 import co.kr.spoit.mat.mapper.MatchParticipantMapper;
 import java.math.BigDecimal;
@@ -69,7 +69,7 @@ class AutoAssignmentServiceTest {
                 participant(6L, "확정", "950"),
                 participant(7L, "반려", "800")));
 
-        AutoAssignmentResult result = service.preview(MATCH_ID, MANAGER_ID);
+        AssignmentResult result = service.preview(MATCH_ID, MANAGER_ID);
 
         assertThat(result.outcome()).isEqualTo(Outcome.READY);
         assertThat(result.assignment().teamAParticipantIds()).containsExactly(1L, 2L);
@@ -88,7 +88,7 @@ class AutoAssignmentServiceTest {
                 participant(3L, "확정", "1000"),
                 participant(4L, "대기", "1000")));
 
-        AutoAssignmentResult result = service.preview(MATCH_ID, MANAGER_ID);
+        AssignmentResult result = service.preview(MATCH_ID, MANAGER_ID);
 
         assertThat(result.outcome()).isEqualTo(Outcome.NOT_ENOUGH_PARTICIPANTS);
         assertThat(result.message()).contains("4명", "현재 3명");
@@ -110,7 +110,7 @@ class AutoAssignmentServiceTest {
     void rejectsRequestAfterMatchStarted() {
         givenManagedMatch(match("모집 중", 2, 2, LocalDateTime.now(ZoneId.of("Asia/Seoul")).minusMinutes(1)));
 
-        AutoAssignmentResult result = service.preview(MATCH_ID, MANAGER_ID);
+        AssignmentResult result = service.preview(MATCH_ID, MANAGER_ID);
 
         assertThat(result.outcome()).isEqualTo(Outcome.STARTED);
         verifyNoInteractions(participantMapper);
@@ -159,7 +159,7 @@ class AutoAssignmentServiceTest {
         givenManagedMatch(match("모집 중", teamA, teamB, TOMORROW));
         when(participantMapper.findByMatchId(MATCH_ID)).thenReturn(confirmedParticipants(teamA + teamB));
 
-        AutoAssignmentResult result = service.preview(MATCH_ID, MANAGER_ID);
+        AssignmentResult result = service.preview(MATCH_ID, MANAGER_ID);
 
         assertThat(result.outcome()).isEqualTo(Outcome.UNSUPPORTED_CAPACITY);
         assertThat(result.assignment()).isNull();

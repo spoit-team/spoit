@@ -98,3 +98,28 @@ INSERT INTO social_match (
      6, 6, 3, 3, 0.00, '무관', '매칭 완료', 'MANUAL', 1, '2026-10-22 18:00:00', 'WAITING'),
     (4, 2, 1, 1, 'MAT 삭제 시설 경기', '2026-10-23 10:00:00', '2026-10-23 12:00:00',
      1, 2, 1, 1, 0.00, '무관', '모집 중', 'MANUAL', NULL, NULL, 'WAITING');
+
+-- 팀 배정 저장·취소 쿼리: 1:1 모집 중 경기와 미배정 확정 참가자 2명
+INSERT INTO social_match (
+    match_id, facility_id, sport_id, created_by, title, start_at, end_at,
+    min_participants, max_participants, team_a_capacity, team_b_capacity,
+    fee_per_person, required_skill, status, assignment_method, rating_status
+) VALUES
+    (5, 1, 1, 1, 'MAT 배정 저장 테스트 경기', '2026-10-24 10:00:00', '2026-10-24 12:00:00',
+     2, 2, 1, 1, 0.00, '무관', '모집 중', 'MANUAL', 'WAITING');
+
+INSERT INTO match_application (
+    application_id, match_id, applicant_user_id, club_id, application_type,
+    status, receipt_no, created_at, confirmed_at, cancelled_at, cancelled_by
+) VALUES
+    (50, 5, 1, NULL, '개인', '확정', 'MAT-TEST-RECEIPT-50',
+     '2026-10-20 09:00:00', '2026-10-20 09:00:00', NULL, NULL),
+    (51, 5, 2, NULL, '개인', '확정', 'MAT-TEST-RECEIPT-51',
+     '2026-10-20 09:00:00', '2026-10-20 09:00:00', NULL, NULL);
+
+INSERT INTO match_participant (
+    participant_id, application_id, match_id, user_id, participation_status,
+    match_side, entry_mmr, joined_at, cancelled_at
+) VALUES
+    (50, 50, 5, 1, '확정', NULL, 1100.00, '2026-10-20 09:00:00', NULL),
+    (51, 51, 5, 2, '확정', NULL, 900.00, '2026-10-20 09:00:00', NULL);
