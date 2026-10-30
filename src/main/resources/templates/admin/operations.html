@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/admin :: head('매치 운영 · SPO:IT 시설 관리', 'SPO:IT 시설 관리에서 매치 신청 내역과 A/B팀 운영을 확인합니다.', ${ {'match-operations.css'} })}"></head>
+<head th:replace="~{fragments/admin :: head('매치 운영 · SPO:IT 시설 관리', 'SPO:IT 시설 관리에서 매칭방의 참가 신청 내역과 참가자를 조회합니다.', ${ {'match-operations.css'} })}"></head>
 <body class="admin-body" data-admin-role="facility">
 <div class="admin-layout">
   <aside th:replace="~{fragments/admin :: facilitySidebar('facility-bookings')}"></aside>
@@ -10,153 +10,117 @@
     <div class="admin-content">
       <div class="page-heading">
         <div class="page-heading-copy">
-          <div class="page-eyebrow">시설 운영 / 매칭방 관리</div>
+          <div class="page-eyebrow">시설 운영 / 매칭방 상세</div>
           <h1>매치 운영</h1>
-          <p>참가 신청과 경기 팀 구성을 확인합니다. 신청 확정과 이용 완료 상태는 서버가 처리합니다. 결제는 이 화면에서 처리하지 않습니다.</p>
+          <p th:if="${match == null}">매칭방의 참가 신청과 참가자 내역을 확인합니다.</p>
+          <p th:if="${match != null}">선택한 매칭방의 참가 신청과 참가자 내역을 조회합니다. 이 화면은 조회 전용이며 값을 바꾸지 않습니다.</p>
         </div>
-        <div class="heading-actions"><a class="admin-button small" th:href="@{/admin/facility} + '#facility-bookings'">← 매칭방 목록</a></div>
+        <div class="heading-actions"><a class="admin-button small" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">← 매칭방 목록</a></div>
       </div>
 
-      <p th:if="${message != null}" id="ops-message" class="ops-message" role="status" th:text="${message}">운영 안내</p>
-      <p th:if="${error != null}" id="ops-error" class="ops-message is-error" role="alert" th:text="${error}">요청을 처리하지 못했습니다.</p>
+      <p th:if="${message != null}" class="ops-message" role="status" th:text="${message}">운영 안내</p>
+      <p th:if="${error != null}" class="ops-message is-error" role="alert" th:text="${error}">요청을 처리하지 못했습니다.</p>
 
+      <!-- 매칭방을 찾지 못했거나 조회할 수 없는 경우 -->
       <section id="ops-unavailable" class="ops-empty" th:if="${match == null}">
         <h2>매칭방을 찾을 수 없습니다.</h2>
-        <p>시설 매칭방 목록에서 운영할 매칭방을 다시 선택해 주세요.</p>
-        <a class="admin-button small primary" th:href="@{/admin/facility} + '#facility-bookings'">매칭방 목록으로</a>
+        <p>요청한 매칭방이 없거나 담당 시설의 매칭방이 아닙니다. 매칭방 목록에서 다시 선택해 주세요.</p>
+        <a class="admin-button small primary" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">매칭방 목록으로</a>
       </section>
 
       <div id="ops-content" th:if="${match != null}">
-        <section id="ops-room-summary" class="ops-room-summary" aria-label="매칭방 요약">
-          <div><span>매칭방</span><b th:text="${match.title + ' · ' + match.matchId}">매칭방</b></div>
-          <div><span>이용 일시</span><b th:text="${match.dateLabel + ' · ' + match.time}">이용 일시</b></div>
-          <div><span>참가 현황</span><b th:text="${match.confirmedCount + '명 확정 · ' + match.pendingConfirmationCount + '명 확정 대기 / ' + match.maxParticipants + '명'}">참가 현황</b></div>
-          <div><span>방 상태</span><b th:text="${match.statusLabel + ' · ' + match.place}">방 상태</b></div>
+        <section id="ops-room-summary" class="ops-room-summary" aria-labelledby="ops-room-title">
+          <div class="ops-room-head">
+            <div class="ops-room-ident">
+              <p class="ops-room-eyebrow">매칭방 <span th:text="${'#' + match.matchId}">#0</span></p>
+              <h2 id="ops-room-title" th:text="${match.title}">매칭방 이름</h2>
+            </div>
+            <span class="status-badge" th:classappend="${match.statusTone}" th:text="${match.statusLabel}">상태</span>
+          </div>
+          <dl class="ops-room-facts">
+            <div>
+              <dt>시설</dt>
+              <dd th:text="${match.facilityName}">시설</dd>
+            </div>
+            <div>
+              <dt>종목</dt>
+              <dd th:text="${match.sportName}">종목</dd>
+            </div>
+            <div>
+              <dt>이용 일시</dt>
+              <dd th:text="${match.dateLabel}">이용 일시</dd>
+            </div>
+            <div>
+              <dt>참가 현황</dt>
+              <dd th:text="${match.participation}">0 / 0명</dd>
+            </div>
+          </dl>
         </section>
+
+        <div class="notice-strip">
+          <strong>조회 전용 화면</strong>
+          <p>참가 신청 확정·반려, 팀 배정, 이용 완료 처리는 이 화면에서 할 수 없습니다. 아래 값은 서버에 저장된 상태를 그대로 보여 줍니다.</p>
+        </div>
 
         <section class="ops-section" aria-labelledby="ops-applications-heading">
           <div class="section-heading ops-section-heading">
-            <div class="section-title-wrap"><h2 id="ops-applications-heading">참가 신청 내역</h2><p>개인·팀·시설 관리자 등록 신청을 확인합니다. 좌석과 신청 상태는 서버가 검증한 값을 사용합니다.</p></div>
-            <span id="ops-application-count" class="status-badge" th:text="${#lists.size(match.applications) + '건'}">0건</span>
+            <div class="section-title-wrap">
+              <h2 id="ops-applications-heading">참가 신청 내역</h2>
+              <p>접수된 참가 신청을 접수 번호와 함께 표시합니다.</p>
+            </div>
+            <span class="status-badge neutral" th:text="${#lists.size(match.applications) + '건'}">0건</span>
           </div>
-          <div id="ops-application-list" class="ops-list">
-            <article th:each="opsApplication : ${match.applications}" class="ops-row">
-              <div class="ops-row-main">
-                <div class="ops-row-title"><span th:text="${opsApplication.applicantName + ' · ' + opsApplication.seats + '명'}">신청자</span> <span class="status-badge" th:classappend="${opsApplication.statusTone}" th:text="${opsApplication.statusLabel}">상태</span></div>
-                <span class="ops-row-meta" th:text="${opsApplication.kindLabel + ' · ' + opsApplication.memberNames + ' · ' + opsApplication.createdAt + ' · 접수 ' + opsApplication.receiptNo}">신청 정보</span>
-                <span th:if="${opsApplication.rejectionReason != null}" class="ops-row-note" th:text="${'반려 사유: ' + opsApplication.rejectionReason}">반려 사유</span>
-                <div th:if="${opsApplication.pending}" class="ops-row-actions">
-                  <form method="post" th:action="@{/admin/rooms/{matchId}/applications/{applicationId}/confirm(matchId=${match.matchId}, applicationId=${opsApplication.applicationId})}">
-                    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-                    <button class="admin-button small primary" type="submit">참가 확정</button>
-                  </form>
-                  <form method="post" class="ops-reject-form" th:action="@{/admin/rooms/{matchId}/applications/{applicationId}/reject(matchId=${match.matchId}, applicationId=${opsApplication.applicationId})}">
-                    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-                    <label class="ops-reject-reason"><span class="sr-only">반려 사유</span><input class="field-control" name="reason" type="text" maxlength="200" placeholder="반려 사유" required /></label>
-                    <button class="admin-button small" type="submit">반려</button>
-                  </form>
-                </div>
-              </div>
-            </article>
-            <p th:if="${#lists.isEmpty(match.applications)}" class="ops-team-empty">참가 신청 내역이 없습니다.</p>
-          </div>
-        </section>
-
-        <section class="ops-section" aria-labelledby="ops-pending-heading">
-          <div class="section-heading ops-section-heading">
-            <div class="section-title-wrap"><h2 id="ops-pending-heading">확정 대기 신청</h2><p>접수 후 참가 확정을 기다리는 신청입니다. 만석·초과 인원의 신규 신청을 이 상태로 전환하지 않습니다.</p></div>
-            <span id="ops-pending-count" class="status-badge" th:text="${match.pendingConfirmationCount + '명'}">0명</span>
-          </div>
-          <div id="ops-pending-list" class="ops-list">
-            <article th:each="group : ${match.pendingGroups}" class="ops-row">
-              <div class="ops-row-main">
-                <div class="ops-row-title"><span th:text="${'확정 대기 신청 · ' + group.count + '명'}">확정 대기 신청</span> <span class="status-badge warn">확정 대기</span></div>
-                <span class="ops-row-meta" th:text="${group.names + (group.receiptNo != null ? ' · 접수 ' + group.receiptNo : '')}">신청자</span>
-              </div>
-            </article>
-            <p th:if="${#lists.isEmpty(match.pendingGroups)}" class="ops-team-empty">확정 대기 신청이 없습니다.</p>
+          <div class="table-scroll">
+            <table class="admin-table ops-table">
+              <caption class="sr-only">매칭방 참가 신청 내역</caption>
+              <thead><tr><th scope="col">신청자</th><th scope="col">구분</th><th scope="col">접수 번호</th><th scope="col">신청 일시</th><th scope="col">상태</th></tr></thead>
+              <tbody>
+                <!-- 'application'는 Thymeleaf 예약어(웹 변수)라 지역 변수 이름으로 쓸 수 없다. -->
+                <tr th:each="roomApplication : ${match.applications}">
+                  <td><span class="cell-primary" th:text="${roomApplication.applicantName}">신청자</span></td>
+                  <td th:text="${roomApplication.kindLabel}">구분</td>
+                  <td class="ops-numeric" th:text="${#strings.isEmpty(roomApplication.receiptNo) ? '—' : roomApplication.receiptNo}">접수 번호</td>
+                  <td th:text="${roomApplication.createdAtLabel}">신청 일시</td>
+                  <td><span class="status-badge neutral" th:text="${roomApplication.statusLabel}">상태</span></td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(match.applications)}">
+                  <td class="table-empty" colspan="5">접수된 참가 신청이 없습니다.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </section>
 
-        <section class="ops-section" aria-labelledby="ops-teams-heading">
+        <section class="ops-section" aria-labelledby="ops-participants-heading">
           <div class="section-heading ops-section-heading">
-            <div class="section-title-wrap"><h2 id="ops-teams-heading">A/B팀 구성</h2><p>등록 팀 신청은 가능한 경우 팀원 전체를 같은 쪽에 배정합니다. 배정 변경은 저장 버튼으로 서버에 요청합니다.</p></div>
+            <div class="section-title-wrap">
+              <h2 id="ops-participants-heading">참가자</h2>
+              <p>매칭방에 등록된 참가자와 팀 구분을 표시합니다.</p>
+            </div>
+            <span class="status-badge neutral" th:text="${#lists.size(match.participants) + '명'}">0명</span>
           </div>
-          <div id="ops-team-controls" class="ops-team-grid">
-            <section class="ops-team" aria-labelledby="team-A-heading">
-              <h3 id="team-A-heading">A팀 <b th:text="${#lists.size(match.teamA.members) + ' / ' + match.teamA.limit + '명'}">0 / 0명</b></h3>
-              <div class="ops-roster">
-                <div th:each="person : ${match.teamA.members}" class="ops-roster-row">
-                  <div><strong th:text="${person.nickname}">참가자</strong><small th:text="${person.sourceLabel + ' · 레이팅 ' + person.ratingText}">레이팅</small></div>
-                  <div class="ops-roster-actions">
-                    <form th:if="${match.canAssign}" method="post" class="ops-assignment-form" th:action="@{/admin/rooms/{matchId}/participants/{participantId}/team(matchId=${match.matchId}, participantId=${person.participantId})}">
-                      <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-                      <select name="matchSide" class="ops-assignment" th:attr="aria-label=${person.nickname + ' 팀 배정'}">
-                        <option value="">미배정</option>
-                        <option value="A" th:selected="${person.matchSide == 'A'}">A팀</option>
-                        <option value="B" th:selected="${person.matchSide == 'B'}">B팀</option>
-                      </select>
-                      <button class="admin-button small" type="submit">저장</button>
-                    </form>
-                    <small th:unless="${match.canAssign}" th:text="${person.matchSide != null ? person.matchSide + '팀 확정' : '미배정'}">배정</small>
-                  </div>
-                </div>
-                <p th:if="${#lists.isEmpty(match.teamA.members)}" class="ops-team-empty">배정된 참가자가 없습니다.</p>
-              </div>
-            </section>
-
-            <section class="ops-team" aria-labelledby="team-B-heading">
-              <h3 id="team-B-heading">B팀 <b th:text="${#lists.size(match.teamB.members) + ' / ' + match.teamB.limit + '명'}">0 / 0명</b></h3>
-              <div class="ops-roster">
-                <div th:each="person : ${match.teamB.members}" class="ops-roster-row">
-                  <div><strong th:text="${person.nickname}">참가자</strong><small th:text="${person.sourceLabel + ' · 레이팅 ' + person.ratingText}">레이팅</small></div>
-                  <div class="ops-roster-actions">
-                    <form th:if="${match.canAssign}" method="post" class="ops-assignment-form" th:action="@{/admin/rooms/{matchId}/participants/{participantId}/team(matchId=${match.matchId}, participantId=${person.participantId})}">
-                      <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-                      <select name="matchSide" class="ops-assignment" th:attr="aria-label=${person.nickname + ' 팀 배정'}">
-                        <option value="">미배정</option>
-                        <option value="A" th:selected="${person.matchSide == 'A'}">A팀</option>
-                        <option value="B" th:selected="${person.matchSide == 'B'}">B팀</option>
-                      </select>
-                      <button class="admin-button small" type="submit">저장</button>
-                    </form>
-                    <small th:unless="${match.canAssign}" th:text="${person.matchSide != null ? person.matchSide + '팀 확정' : '미배정'}">배정</small>
-                  </div>
-                </div>
-                <p th:if="${#lists.isEmpty(match.teamB.members)}" class="ops-team-empty">배정된 참가자가 없습니다.</p>
-              </div>
-            </section>
-
-            <section th:if="${!#lists.isEmpty(match.unassigned)}" class="ops-team ops-unassigned" aria-labelledby="ops-unassigned-heading">
-              <h3 id="ops-unassigned-heading">미배정 참가자 <b th:text="${#lists.size(match.unassigned) + '명'}">0명</b></h3>
-              <div class="ops-roster">
-                <div th:each="person : ${match.unassigned}" class="ops-roster-row">
-                  <div><strong th:text="${person.nickname}">참가자</strong><small th:text="${'레이팅 ' + person.ratingText}">레이팅</small></div>
-                  <form th:if="${match.canAssign}" method="post" class="ops-assignment-form" th:action="@{/admin/rooms/{matchId}/participants/{participantId}/team(matchId=${match.matchId}, participantId=${person.participantId})}">
-                    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-                    <select name="matchSide" class="ops-assignment" th:attr="aria-label=${person.nickname + ' 팀 배정'}">
-                      <option value="">미배정</option>
-                      <option value="A">A팀</option>
-                      <option value="B">B팀</option>
-                    </select>
-                    <button class="admin-button small" type="submit">저장</button>
-                  </form>
-                  <small th:unless="${match.canAssign}">경기 완료 후 팀 변경 불가</small>
-                </div>
-              </div>
-            </section>
+          <div class="table-scroll">
+            <table class="admin-table ops-table">
+              <caption class="sr-only">매칭방 참가자 목록</caption>
+              <thead><tr><th scope="col">참가자</th><th scope="col">팀</th><th scope="col">상태</th></tr></thead>
+              <tbody>
+                <tr th:each="participant : ${match.participants}">
+                  <td><span class="cell-primary" th:text="${participant.name}">참가자</span></td>
+                  <td th:text="${participant.teamLabel}">팀</td>
+                  <td><span class="status-badge neutral" th:text="${participant.statusLabel}">상태</span></td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(match.participants)}">
+                  <td class="table-empty" colspan="3">등록된 참가자가 없습니다.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </section>
 
         <div class="ops-footer-actions">
-          <a class="admin-button small" th:href="@{/admin/facility} + '#facility-bookings'">매칭방 관리로 돌아가기</a>
-          <form th:if="${match.status == 'matched'}" method="post" th:action="@{/admin/rooms/{matchId}/complete(matchId=${match.matchId})}" data-confirm="이용 완료 처리하면 팀 구성이 잠기고 참가자 변경이 제한됩니다. 완료 처리할까요?">
-            <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-            <button class="admin-button small primary" type="submit" th:disabled="${!match.bothTeamsAssigned}">이용 완료 처리</button>
-          </form>
+          <a class="admin-button small" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">매칭방 목록으로 돌아가기</a>
         </div>
-        <p th:if="${match.status == 'matched' and !match.bothTeamsAssigned}" id="ops-complete-help" class="ops-footnote">A팀과 B팀에 참가자가 각각 한 명 이상 배정되어야 이용 완료 처리할 수 있습니다.</p>
-        <p class="ops-storage-note">신청 확정·이용 완료 상태는 서버가 검증한 값만 표시합니다. 결제 상태는 이 화면에서 관리하지 않습니다.</p>
+        <p class="ops-storage-note">표시되는 신청·참가 상태는 서버에 저장된 값입니다. 결제 상태는 이 화면에서 다루지 않습니다.</p>
       </div>
     </div>
   </main>
@@ -167,6 +131,5 @@
 
 <script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/admin-shell.js}"></script>
-<script th:src="@{/js/admin-operations.js}"></script>
 </body>
 </html>
