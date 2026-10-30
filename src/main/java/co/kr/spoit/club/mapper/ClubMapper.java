@@ -75,4 +75,7 @@ public interface ClubMapper {
 
     // 승인된 신청자를 동호회원으로 추가
     int insertJoinedMember(@Param ("clubId") Long clubId, @Param ("userId") Long userId);
+
+    // 내 가입 신청 취소(대기중만)
+    int cancelJoinRequest(@Param ("clubId") Long clubId, @Param ("requestId") Long requestId, @Param ("userId") Long userId);
 }

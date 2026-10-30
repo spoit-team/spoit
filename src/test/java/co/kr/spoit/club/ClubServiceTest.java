@@ -313,6 +313,18 @@ class ClubServiceTest {
         verify(clubMapper, never()).insertJoinedMember(any(), any());
     }
 
+    @Test
+    @DisplayName("내 대기중 신청이 아니면 취소하지 못한다")
+    void 처리된_신청은_취소를_거부한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.cancelJoinRequest(1L, 5L, 8L)).thenReturn(0);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.cancelJoin(8L, 1L, 5L));
+
+        assertThat(exception.getMessage()).isEqualTo("이미 처리된 가입 신청입니다.");
+    }
+
     private ClubSummary club(String recruitStatus, String activityDays, int startHour, int endHour) {
         ClubSummary club = new ClubSummary();
         club.setClubId(1L);
@@ -365,7 +377,7 @@ class ClubServiceTest {
         return club;
     }
 
-    // 처리할 대기중 신청(신청 번호6, 신청자 번호만)
+    // 처리할 대기중 신청(신청 번호5, 신청자 번호만)
     private ClubJoinRequest pendingRequest(Long userId) {
         ClubJoinRequest request = new ClubJoinRequest();
         request.setRequestId(5L);

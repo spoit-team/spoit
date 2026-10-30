@@ -45,4 +45,7 @@ public interface ClubService {
 
     // 가입 신청 거절
     void rejectJoin(Long userId, Long clubId, Long requestId);
+
+    // 가입 신청 취소
+    void cancelJoin(Long userId, Long clubId, Long requestId);
 }

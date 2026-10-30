@@ -281,6 +281,17 @@ public class ClubServiceImpl implements ClubService {
 
     }
 
+    // 가입 신청 취소: 내 대기중 신청만 취소
+    @Override
+    @Transactional
+    public void cancelJoin(Long userId, Long clubId, Long requestId) {
+        getActiveClubForUpdate(clubId);
+        if (clubMapper.cancelJoinRequest(clubId, requestId, userId) == 0) {
+            throw new IllegalArgumentException("이미 처리된 가입 신청입니다.");
+        }
+        log.info("가입 신청 취소: clubId={}, requestId={}, userId={}", clubId, requestId, userId);
+    }
+
     // 쓰기 전에 동호회 잠금, 없거나 해체 됐으면 거부
     private ClubSummary getActiveClubForUpdate(Long clubId) {
         ClubSummary club = clubMapper.selectActiveClubForUpdate(clubId);

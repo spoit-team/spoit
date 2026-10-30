@@ -201,5 +201,11 @@
     <insert id="insertJoinedMember">
         INSERT INTO club_member(club_id, user_id, role) VALUES (#{clubId}, #{userId}, '동호회원')
     </insert>
+
+    <update id="cancelJoinRequest">
+        UPDATE club_join_request
+        SET status = '취소', processed_at = NOW()
+        WHERE club_id = #{clubId} AND request_id = #{requestId} AND user_id = #{userId} AND status = '대기중'
+    </update>
     
     </mapper>

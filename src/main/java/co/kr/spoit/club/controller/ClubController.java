@@ -179,4 +179,20 @@ public class ClubController {
         }
         return "redirect:/teams/manage?clubId=" + clubId + "&tab=applications";
     }
+
+    // 가입 신청 취소
+    @PostMapping("/{clubId}/applications/{joinRequestId}/cancel")
+    public String cancel(@PathVariable("clubId") Long clubId, @PathVariable("joinRequestId") Long joinRequestId,
+            @AuthenticationPrincipal MemberPrincipal principal, RedirectAttributes redirectAttributes) {
+        Long userId = principal.getUserId();
+        log.info("가입 신청 취소 요청: clubId={}, requestId={}, userId={}", clubId, joinRequestId, userId);
+        try {
+            clubService.cancelJoin(userId, clubId, joinRequestId);
+            redirectAttributes.addFlashAttribute("message", "가입 신청을 취소했습니다.");
+        } catch (IllegalArgumentException exception) {
+            log.warn("가입 신청 취소 거부: clubId={}, requestId={}, {}", clubId, joinRequestId, exception.getMessage());
+            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+        }
+        return "redirect:/teams/" + clubId;
+    }
 }
