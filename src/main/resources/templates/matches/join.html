@@ -30,8 +30,13 @@
   </div>
 
   <div th:unless="${unavailableMessage != null}" id="join-layout" class="match-join-layout">
-    <form th:unless="${completed}" id="join-form" class="join-workflow" novalidate method="post" th:action="@{/matches/{matchId}/apply(matchId=${match.matchId})}">
+    <form th:unless="${completed}" id="join-form" class="join-workflow" novalidate method="post" th:action="${selection.applicationType == 'team'} ? @{/matches/{matchId}/apply/team(matchId=${match.matchId})} : @{/matches/{matchId}/apply(matchId=${match.matchId})}">
       <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+      <!-- RES-04 팀 신청: 상세에서 고른 동호회·팀원을 접수 때 서버가 다시 검증한다 -->
+      <th:block th:if="${selection.applicationType == 'team'}">
+        <input type="hidden" name="clubId" th:value="${selection.clubId}" />
+        <input th:each="clubMemberId : ${selection.clubMemberIds}" type="hidden" name="clubMemberIds" th:value="${clubMemberId}" />
+      </th:block>
       <div class="join-workflow-topline">
         <div><span class="join-workflow-kicker">MATCH APPLICATION</span><h2 id="stage-heading" tabindex="-1">신청 내용을 확인해 주세요</h2></div>
         <span id="stage-index" class="join-stage-index">STEP 01 / 02</span>

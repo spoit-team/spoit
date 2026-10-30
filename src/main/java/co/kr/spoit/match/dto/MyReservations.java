@@ -41,5 +41,9 @@ public class MyReservations {
         /** 무료 결제만 지원하므로 false */
         private final boolean canViewPaymentGuidance;
         private final String paymentGuidanceUrl;
+        /** RES-04 팀 신청 대표의 취소: 누르면 팀 전체 취소 확인창을 먼저 띄운다 */
+        private final boolean teamCancel;
+        /** 확인창 본문 (팀 신청 취소일 때만) */
+        private final String cancelConfirmMessage;
     }
 }

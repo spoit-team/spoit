@@ -159,7 +159,7 @@
                 </div>
                 <div class="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
                   <a th:if="${entry.canViewPaymentGuidance}" th:href="@{${entry.paymentGuidanceUrl}}" class="h-9 shrink-0 self-start rounded-lg bg-match px-3 py-2 text-xs font-bold text-white hover:bg-match-hover sm:self-center">결제 안내</a>
-                  <form th:if="${entry.canCancel}" method="post" th:action="@{/mypage/applications/{applicationId}/cancel(applicationId=${entry.applicationId})}">
+                  <form th:if="${entry.canCancel}" method="post" th:action="@{/mypage/applications/{applicationId}/cancel(applicationId=${entry.applicationId})}" th:attr="data-team-cancel=${entry.teamCancel ? entry.cancelConfirmMessage : null}, data-team-cancel-title=${entry.teamCancel ? entry.title : null}, data-team-cancel-meta=${entry.teamCancel ? entry.metaLine : null}">
                     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                     <button type="submit" class="h-9 shrink-0 self-start rounded-lg border border-line-strong px-3 text-xs font-bold text-ink-2 hover:border-danger hover:text-danger sm:self-center" th:text="${entry.cancelLabel}">신청 취소</button>
                   </form>
@@ -258,6 +258,21 @@
     </footer>
   </section>
 </div>
+
+<!-- RES-04 팀 신청 취소 확인: 대표가 취소하면 팀원 전원의 신청이 함께 취소된다 -->
+<dialog id="team-cancel-dialog" class="mypage-confirm-dialog" aria-labelledby="team-cancel-title" aria-describedby="team-cancel-message">
+  <div class="mypage-confirm-dialog-content">
+    <div class="mypage-confirm-dialog-heading">
+      <div><h2 id="team-cancel-title">팀 신청을 취소할까요?</h2><p id="team-cancel-match">매칭방</p></div>
+      <button class="mypage-confirm-close" type="button" data-close-team-cancel aria-label="닫기">×</button>
+    </div>
+    <p id="team-cancel-message" class="mypage-confirm-note">팀원의 신청이 모두 함께 취소됩니다.</p>
+    <div class="mypage-confirm-actions">
+      <button class="mypage-confirm-back" type="button" data-close-team-cancel>돌아가기</button>
+      <button id="team-cancel-confirm" class="mypage-confirm-submit" type="button">팀 신청 취소</button>
+    </div>
+  </div>
+</dialog>
 
 <script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/site-menu.js}"></script>
