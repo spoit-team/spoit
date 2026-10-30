@@ -148,4 +148,35 @@ public class ClubController {
         return "redirect:/teams/" + clubId;
     }
 
+    // 가입 신청 승인
+    @PostMapping("/{clubId}/applications/{joinRequestId}/approve")
+    public String approve(@PathVariable("clubId") Long clubId, @PathVariable("joinRequestId") Long joinRequestId,
+            @AuthenticationPrincipal MemberPrincipal principal, RedirectAttributes redirectAttributes) {
+        Long userId = principal.getUserId();
+        log.info("가입 신청 승인 요청: clubId={}, requestId={}, userId={}", clubId, joinRequestId, userId);
+        try {
+            clubService.approveJoin(userId, clubId, joinRequestId);
+            redirectAttributes.addFlashAttribute("message", "가입 신청을 승인했습니다.");
+        } catch (IllegalArgumentException exception) {
+            log.warn("가입 신청 승인 거부: clubId={}, requestId={}, {}", clubId, joinRequestId, exception.getMessage());
+            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+        }
+        return "redirect:/teams/manage?clubId=" + clubId + "&tab=applications";
+    }
+
+    // 가입 신청 거절
+    @PostMapping("/{clubId}/applications/{joinRequestId}/reject")
+    public String reject(@PathVariable("clubId") Long clubId, @PathVariable("joinRequestId") Long joinRequestId,
+            @AuthenticationPrincipal MemberPrincipal principal, RedirectAttributes redirectAttributes) {
+        Long userId = principal.getUserId();
+        log.info("가입 신청 거절 요청: clubId={}, requestId={}, userId={}", clubId, joinRequestId, userId);
+        try {
+            clubService.rejectJoin(userId, clubId, joinRequestId);
+            redirectAttributes.addFlashAttribute("message", "가입 신청을 거절했습니다.");
+        } catch (IllegalArgumentException exception) {
+            log.warn("가입 신청 거절 거부: clubId={}, requestId={}, {}", clubId, joinRequestId, exception.getMessage());
+            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+        }
+        return "redirect:/teams/manage?clubId=" + clubId + "&tab=applications";
+    }
 }

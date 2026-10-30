@@ -39,4 +39,10 @@ public interface ClubService {
 
     // 가입 신청
     void applyJoin(Long userId, Long clubId, String message);
+
+    // 가입 신청 승인
+    void approveJoin(Long userId, Long clubId, Long requestId);
+
+    // 가입 신청 거절
+    void rejectJoin(Long userId, Long clubId, Long requestId);
 }

@@ -185,4 +185,21 @@
         ORDER BY r.requested_at ASC
     </select>
 
+    <select id="selectPendingJoinRequest" resultType="co.kr.spoit.club.domain.ClubJoinRequest">
+        SELECT request_id AS requestId
+            ,user_id AS userId
+        FROM club_join_request
+        WHERE club_id = #{clubId} AND request_id = #{requestId} AND status = '대기중'
+    </select>
+
+    <update id="updateJoinRequestStatus">
+        UPDATE club_join_request
+        SET status = #{status}, processed_at = NOW()
+        WHERE request_id = #{requestId} AND status = '대기중'
+    </update>
+
+    <insert id="insertJoinedMember">
+        INSERT INTO club_member(club_id, user_id, role) VALUES (#{clubId}, #{userId}, '동호회원')
+    </insert>
+    
     </mapper>

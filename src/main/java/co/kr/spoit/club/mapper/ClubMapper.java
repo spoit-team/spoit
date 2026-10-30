@@ -66,4 +66,13 @@ public interface ClubMapper {
 
     // 대기중 가입 신청 목록(먼저 신청 순)
     List<ClubJoinRequest> selectPendingJoinRequests(@Param ("clubId") Long clubId);
+
+    // 처리할 가입 신청(대기중)
+    ClubJoinRequest selectPendingJoinRequest(@Param ("clubId") Long clubId, @Param ("requestId") Long requestId);
+
+    // 가입 신청 승인, 거절
+    int updateJoinRequestStatus(@Param ("requestId") Long requestId, @Param ("status") String status);
+
+    // 승인된 신청자를 동호회원으로 추가
+    int insertJoinedMember(@Param ("clubId") Long clubId, @Param ("userId") Long userId);
 }
