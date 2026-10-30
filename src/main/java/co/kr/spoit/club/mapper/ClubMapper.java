@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import co.kr.spoit.club.domain.Club;
+import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
 import co.kr.spoit.club.domain.ClubRegionOption;
 import co.kr.spoit.club.domain.ClubSportOption;
@@ -60,4 +61,9 @@ public interface ClubMapper {
     // 가입 신청 저장
     int insertJoinRequest(@Param("clubId") Long clubId, @Param("userId") Long userId, @Param("message") String message);
 
+    // 동호회장인지 확인
+    boolean existsActiveLeader(@Param ("clubId") Long clubId, @Param ("userId") Long userId);
+
+    // 대기중 가입 신청 목록(먼저 신청 순)
+    List<ClubJoinRequest> selectPendingJoinRequests(@Param ("clubId") Long clubId);
 }

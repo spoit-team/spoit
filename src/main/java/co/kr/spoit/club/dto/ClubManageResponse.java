@@ -4,6 +4,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
+import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
 import co.kr.spoit.club.domain.ClubSummary;
 import lombok.Builder;
@@ -25,11 +26,13 @@ public class ClubManageResponse {
     private final String founded;
     private final String time;
     private final String intro;
-    // 로그인한 내가 이 동호회의 동호회장인지
     private final boolean leader;
     private final List<ClubMemberResponse> members;
+    private final List<ClubJoinRequestResponse> applications;
+    private final Integer pendingApplicationCount;
 
-    public static ClubManageResponse from(ClubSummary club, List<ClubMember> members, Long userId) {
+    public static ClubManageResponse from(ClubSummary club, List<ClubMember> members, Long userId,
+            List<ClubJoinRequest> joinRequests) {
         String leaderName = "미정";
         boolean leader = false;
         List<ClubMemberResponse> memberResponses = new ArrayList<>();
@@ -42,6 +45,11 @@ public class ClubManageResponse {
             if (response.isLeader() && response.isCurrent()) {
                 leader = true;
             }
+        }
+
+        List<ClubJoinRequestResponse> applications = new ArrayList<>();
+        for (ClubJoinRequest r : joinRequests) {
+            applications.add(ClubJoinRequestResponse.from(r));
         }
 
         return ClubManageResponse.builder()
@@ -59,6 +67,8 @@ public class ClubManageResponse {
                 .intro(club.getIntro())
                 .leader(leader)
                 .members(memberResponses)
+                .applications(applications)
+                .pendingApplicationCount(applications.size())
                 .build();
 
     }

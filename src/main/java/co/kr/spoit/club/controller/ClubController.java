@@ -78,13 +78,16 @@ public class ClubController {
             return "redirect:/teams/manage";
         }
 
-        // 선택 버튼 강조 동호회
+        // 선택된 동호회 버튼 강조
         Long activeClubId = managedClub == null ? null : managedClub.getClubId();
 
         model.addAttribute("managedClubs", clubService.findMyClubs(userId, activeClubId));
         model.addAttribute("managedClub", managedClub);
-        // 내 동호회, 동호회원만 허용(가입 신청 미구현)
-        model.addAttribute("tab", "members".equals(tab) ? "members" : "team");
+        String activeTab = "team";
+        if ("members".equals(tab) || "applications".equals(tab)) {
+            activeTab = tab;
+        }
+        model.addAttribute("tab", activeTab);
         model.addAttribute("sports", clubService.findSportOptions());
         model.addAttribute("districts", clubService.findRegionOptions());
         return "teams/manage";

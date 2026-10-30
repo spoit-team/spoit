@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import co.kr.spoit.club.domain.Club;
+import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
 import co.kr.spoit.club.domain.ClubRegionOption;
 import co.kr.spoit.club.domain.ClubSportOption;
@@ -192,7 +193,12 @@ public class ClubServiceImpl implements ClubService {
             return null;
         }
         List<ClubMember> members = clubMapper.selectClubMembers(targetClubId);
-        return ClubManageResponse.from(club, members, userId);
+        // 가입 신청은 동호회장만 봄
+        List<ClubJoinRequest> joinRequests = new ArrayList<>();
+        if(clubMapper.existsActiveLeader(targetClubId, userId)){
+            joinRequests = clubMapper.selectPendingJoinRequests(targetClubId);
+        }
+        return ClubManageResponse.from(club, members, userId, joinRequests);
     }
 
     // 내 동호회 선택 버튼 응답
