@@ -169,11 +169,11 @@
         <div id="team-step-select">
           <h3>참가할 등록 팀을 선택하세요</h3>
           <div id="team-options" class="md-team-options">
-            <label th:each="club : ${match.clubs}" class="md-team-option" th:attr="data-team-index=${club.clubId}, data-leader-auto=${club.leaderAuto}, data-leader-is-applicant=${club.leaderIsApplicant}">
+            <label th:each="club : ${match.clubs}" class="md-team-option" th:attr="data-team-index=${club.clubId}">
               <input type="radio" name="clubId" class="sr-only" th:value="${club.clubId}" />
               <span class="md-team-radio" aria-hidden="true"></span>
               <span class="md-team-option-copy"><b th:text="${club.clubName}">팀</b><small th:text="${'팀장 ' + club.leaderName + ' · 등록 팀원 ' + club.memberCount + '명 · 평균 레이팅 ' + club.averageRatingText}">팀 정보</small></span>
-              <span class="md-team-option-count"><b th:text="${club.selectionCount}">1</b><small>팀장 포함</small></span>
+              <span class="md-team-option-count"><b th:text="${club.selectionCount}">1</b><small>신청자 포함</small></span>
             </label>
           </div>
           <p class="md-selection-help md-team-note">등록 팀 전체가 자동으로 참가하지 않습니다. 경기마다 함께할 팀원을 선택합니다.</p>
@@ -183,18 +183,18 @@
           <div class="md-team-roster-heading"><h3>참가 팀원을 선택하세요</h3><span>신청자 포함 인원</span></div>
           <div th:each="club : ${match.clubs}" th:id="'team-roster-' + ${club.clubId}" class="md-team-roster-list" th:attr="data-team-roster=${club.clubId}" hidden>
             <div class="md-team-member md-team-captain">
-              <span class="md-team-member-avatar" aria-hidden="true" th:text="${club.leaderInitial}">P</span>
-              <span class="md-team-member-name" th:text="${club.leaderName}">팀장</span>
-              <small th:text="${club.leaderCaption}">팀장 · 자동 포함</small>
+              <span class="md-team-member-avatar" aria-hidden="true" th:text="${currentMember.initial}">P</span>
+              <span class="md-team-member-name" th:text="${currentMember.nickname}">신청 대표</span>
+              <small>신청 대표 · 본인</small>
             </div>
-              <label th:each="member : ${club.members}" class="md-team-member">
-                <input type="checkbox" name="clubMemberIds" th:value="${member.clubMemberId}" th:attr="data-team=${club.clubId},data-leader-only=${member.leaderOnly},data-applicant=${member.applicant}" th:disabled="${member.leaderOnly or member.applicant}" />
+            <label th:each="member : ${club.members}" class="md-team-member" th:classappend="${member.alreadyApplied} ? 'is-applied'">
+              <input type="checkbox" name="clubMemberIds" th:value="${member.clubMemberId}" th:checked="${member.alreadyApplied}" th:disabled="${member.alreadyApplied}" th:attr="data-team=${club.clubId},data-applied=${member.alreadyApplied}" />
               <span class="md-team-member-avatar" aria-hidden="true" th:text="${member.initial}">P</span>
-              <span class="md-team-member-name" th:text="${member.nickname}">팀원</span>
-              <small class="md-team-member-rating" th:text="${member.ratingText}">기록 없음</small>
+              <span class="md-team-member-name" th:text="${member.leader ? member.nickname + ' · 동호회장' : member.nickname}">팀원</span>
+              <small class="md-team-member-rating" th:text="${member.alreadyApplied ? '이미 신청' : member.ratingText}">기록 없음</small>
             </label>
           </div>
-          <p class="md-selection-help md-team-note">신청 대표와 등록 팀장은 자동으로 포함됩니다. 선택 인원이 남은 자리보다 많으면 신청할 수 없습니다.</p>
+          <p class="md-selection-help md-team-note">신청 대표는 자동으로 포함됩니다. 이미 이 매치에 신청한 회원은 선택할 수 없습니다.</p>
         </div>
       </section>
 

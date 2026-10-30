@@ -105,7 +105,7 @@
          ORDER BY mp.match_id, mp.joined_at, mp.participant_id
     </select>
 
-    <!-- RES-03: 대기 신청은 match_participant에 없으므로 화면 정원 계산용으로 따로 가져온다 -->
+    <!-- RES-03·04: 대기 신청은 match_participant에 없으므로 화면 정원 계산용으로 따로 가져온다 (팀 신청은 팀원마다 행이 있다) -->
     <select id="findPendingApplicants" resultType="co.kr.spoit.match.dto.ParticipantRow">
         SELECT NULL                   AS participant_id,
                ma.match_id,
@@ -122,7 +122,6 @@
                    #{id}
                </foreach>
            AND ma.status = #{waitingStatus}
-           AND ma.application_type = #{individualType}
          ORDER BY ma.match_id, ma.created_at, ma.application_id
     </select>
 

@@ -312,13 +312,16 @@ CREATE TABLE match_application (
     confirmed_at       DATETIME    NULL COMMENT '신청 확정 시각',
     cancelled_at       DATETIME    NULL COMMENT '신청 취소 시각',
     cancelled_by       BIGINT      NULL COMMENT '취소를 처리한 회원',
+    group_application_id BIGINT    NULL COMMENT 'RES-04 팀 신청 묶음: 대표 행의 application_id (대표 행은 자기 자신), 개인 신청이면 NULL',
     PRIMARY KEY (application_id),
     UNIQUE KEY uk_match_application_receipt (receipt_no),
     UNIQUE KEY uk_match_application_match (application_id, match_id),
+    KEY idx_match_application_group (group_application_id),
     CONSTRAINT fk_match_application_match     FOREIGN KEY (match_id)          REFERENCES social_match (match_id),
     CONSTRAINT fk_match_application_applicant FOREIGN KEY (applicant_user_id) REFERENCES app_user (user_id),
     CONSTRAINT fk_match_application_club      FOREIGN KEY (club_id)           REFERENCES club (club_id),
-    CONSTRAINT fk_match_application_canceller FOREIGN KEY (cancelled_by)      REFERENCES app_user (user_id)
+    CONSTRAINT fk_match_application_canceller FOREIGN KEY (cancelled_by)      REFERENCES app_user (user_id),
+    CONSTRAINT fk_match_application_group     FOREIGN KEY (group_application_id) REFERENCES match_application (application_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='개인·동호회 참가 신청';
 
 CREATE TABLE match_participant (

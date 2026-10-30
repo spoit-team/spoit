@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import co.kr.spoit.match.dto.GroupMemberRow;
 import co.kr.spoit.match.dto.MyApplicationRow;
 import co.kr.spoit.match.dto.MyReservations;
 import co.kr.spoit.match.dto.MyReservations.Entry;
@@ -95,6 +96,57 @@ class MyReservationServiceTest {
         List<Entry> current = service.find(USER_ID, NOW).getCurrent();
 
         assertThat(current).extracting(Entry::isCanCancel).containsExactly(true, false, false);
+    }
+
+    @Test
+    @DisplayName("팀 신청 대표는 묶음 인원과 팀 전체 취소 확인 문구를 받는다")
+    void teamLeaderGetsGroupCancel() {
+        MyApplicationRow leader = teamRow(1L, USER_ID, 1L);
+        leader.setGroupSize(3);
+        given(mapper.findMyApplications(eq(USER_ID), anyList())).willReturn(List.of(leader));
+        given(mapper.findGroupMembers(1L)).willReturn(List.of(
+                group(1L, "김채원", "대기"), group(2L, "박민수", "대기"), group(3L, "이서연", "대기")));
+
+        Entry entry = service.find(USER_ID, NOW).getCurrent().get(0);
+
+        assertThat(entry.getTypeLabel()).isEqualTo("팀 신청");
+        assertThat(entry.getSeatLine()).isEqualTo("참가 3명");
+        assertThat(entry.isCanCancel()).isTrue();
+        assertThat(entry.isTeamCancel()).isTrue();
+        assertThat(entry.getCancelConfirmMessage())
+                .isEqualTo("팀원 3명(김채원, 박민수, 이서연)의 신청이 모두 함께 취소됩니다.");
+    }
+
+    @Test
+    @DisplayName("팀 신청 팀원은 취소 버튼 없이 대표에게 요청하라는 안내를 받는다")
+    void teamMemberCannotCancel() {
+        MyApplicationRow member = teamRow(2L, 99L, 1L);
+        member.setGroupSize(3);
+        given(mapper.findMyApplications(eq(USER_ID), anyList())).willReturn(List.of(member));
+
+        Entry entry = service.find(USER_ID, NOW).getCurrent().get(0);
+
+        assertThat(entry.isCanCancel()).isFalse();
+        assertThat(entry.isTeamCancel()).isFalse();
+        assertThat(entry.getStatusNote()).isEqualTo("대표 김채원님이 신청한 팀 신청입니다. 취소는 대표에게 요청해 주세요.");
+    }
+
+    /** @param leaderUserId 묶음 대표 회원 (내 행이면 USER_ID) */
+    private static MyApplicationRow teamRow(long applicationId, long leaderUserId, long groupId) {
+        MyApplicationRow r = row(applicationId, "대기", "모집 중", NOW.plusDays(1), null);
+        r.setApplicationType("동호회");
+        r.setGroupApplicationId(groupId);
+        r.setGroupLeaderUserId(leaderUserId);
+        r.setGroupLeaderName("김채원");
+        return r;
+    }
+
+    private static GroupMemberRow group(long applicationId, String nickname, String status) {
+        GroupMemberRow g = new GroupMemberRow();
+        g.setApplicationId(applicationId);
+        g.setNickname(nickname);
+        g.setStatus(status);
+        return g;
     }
 
     private static MyApplicationRow row(long applicationId, String status, String matchStatus,
