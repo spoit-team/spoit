@@ -49,25 +49,21 @@ public class MatchCardAssembler {
         int max = row.getMaxParticipants();
         int occupied = participants.size();
         int remaining = Math.max(0, max - occupied);
-        int percent = max == 0 ? 0 : Math.min(100, occupied * 100 / max);
+        int percent = occupancyPercent(occupied, max);
 
         boolean recruiting = MatchStatus.RECRUITING.dbValue().equals(row.getStatus());
         boolean matched = MatchStatus.MATCHED.dbValue().equals(row.getStatus());
         boolean canApply = recruiting && remaining > 0 && row.getStartAt().isAfter(now);
 
-        String statusLabel;
+        String statusLabel = commonStatusLabel(row.getStatus(), remaining);
         String statusClass;
         if (matched) {
-            statusLabel = "팀 배정 완료";
             statusClass = CLASS_MATCHED;
         } else if (recruiting && remaining == 0) {
-            statusLabel = "정원 마감";
             statusClass = CLASS_FULL;
         } else if (recruiting) {
-            statusLabel = "모집 중";
             statusClass = CLASS_RECRUITING;
         } else {
-            statusLabel = row.getStatus();
             statusClass = CLASS_CLOSED;
         }
 
@@ -154,12 +150,29 @@ public class MatchCardAssembler {
         return date.format(DATE) + "(" + date.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.KOREAN) + ")";
     }
 
-    private List<ParticipantRow> filterStatus(List<ParticipantRow> list, ParticipationStatus status) {
+    private List<ParticipantRow> filterSide(List<ParticipantRow> list, String side) {
+        return list.stream().filter(p -> side.equals(p.getMatchSide())).toList();
+    }
+
+    /** 확정·대기 참가자를 상태 값으로 나눈다. 카드와 상세가 같은 기준을 쓴다. */
+    static List<ParticipantRow> filterStatus(List<ParticipantRow> list, ParticipationStatus status) {
         return list.stream().filter(p -> status.dbValue().equals(p.getParticipationStatus())).toList();
     }
 
-    private List<ParticipantRow> filterSide(List<ParticipantRow> list, String side) {
-        return list.stream().filter(p -> side.equals(p.getMatchSide())).toList();
+    /** 카드·상세 공통 상태 문구. CSS 클래스는 화면마다 달라 각자 정한다. */
+    static String commonStatusLabel(String status, int remaining) {
+        if (MatchStatus.MATCHED.dbValue().equals(status)) {
+            return "팀 배정 완료";
+        }
+        if (MatchStatus.RECRUITING.dbValue().equals(status)) {
+            return remaining == 0 ? "정원 마감" : "모집 중";
+        }
+        return status;
+    }
+
+    /** 점유 퍼센트(0~100, 정수 나눗셈). 정원이 0이면 0. 카드와 상세가 같은 식을 쓴다. */
+    static int occupancyPercent(int occupied, int max) {
+        return max == 0 ? 0 : Math.min(100, occupied * 100 / max);
     }
 
     private List<ParticipantView> toViews(List<ParticipantRow> list, MatchRow row) {

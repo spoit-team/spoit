@@ -2,100 +2,20 @@
 // 시설 수정·삭제는 확인 창을 거친 뒤에만 서버로 전송되고, 취소하면 아무 요청도 보내지 않는지 확인합니다.
 // 등록은 확인 없이 바로 저장되고, 필수 검증 실패는 확인 창보다 먼저 막히는지도 함께 확인합니다.
 import assert from 'node:assert/strict';
+// DOM 스텁 공통부는 support/dom-stub.mjs가 준비합니다(Element/HTMLFormElement 포함).
+import { DomElement, DomFormElement } from './support/dom-stub.mjs';
 
-globalThis.Element ??= class Element {};
-globalThis.HTMLFormElement ??= class HTMLFormElement extends Element {};
+const Control = DomElement;
 
-function matchesSelector(element, selector) {
-  return selector.split(',').some(part => {
-    const token = part.trim();
-    if (!token) return false;
-    if (token.startsWith('#')) return element.id === token.slice(1);
-    if (token.startsWith('.')) return element.classes.has(token.slice(1));
-    if (token.startsWith('[')) {
-      const attribute = token.slice(1, -1).split('=')[0].trim();
-      return element.attributes[attribute] !== undefined;
-    }
-    return false;
-  });
-}
-
-class Control extends Element {
+/* 이 테스트만의 능력: 폼 제출 횟수를 세고, 실제 브라우저처럼 submit 이벤트를 다시 발생시킵니다.
+   폼은 HTMLFormElement 체인을 유지해야 스크립트의 instanceof 판정을 통과합니다. */
+class Form extends DomFormElement {
   constructor(properties = {}) {
-    super();
-    Object.assign(this, { hidden: false, disabled: false, value: '', checked: false, dataset: {}, textContent: '', id: '' }, properties);
-    this.listeners = {};
-    this.attributes = {};
-    this.classes = new Set(String(properties.className ?? '').split(' ').filter(Boolean));
-    this.parentElement = null;
-    this.classList = {
-      add: name => this.classes.add(name),
-      remove: name => this.classes.delete(name),
-      contains: name => this.classes.has(name),
-      toggle: (name, active) => active ? this.classes.add(name) : this.classes.delete(name)
-    };
-  }
-  addEventListener(type, handler) { (this.listeners[type] ??= []).push(handler); }
-  dispatch(type, target = this) {
-    const event = { target, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
-    for (const handler of this.listeners[type] ?? []) handler(event);
-    return event;
-  }
-  setAttribute(name, value) { this.attributes[name] = value; }
-  removeAttribute(name) { delete this.attributes[name]; }
-  getAttribute(name) { return this.attributes[name] ?? null; }
-  matches(selector) { return matchesSelector(this, selector); }
-  closest(selector) {
-    let node = this;
-    while (node) {
-      if (matchesSelector(node, selector)) return node;
-      node = node.parentElement;
-    }
-    return null;
-  }
-  append(...children) {
-    const [child] = children;
-    child.parentElement = this;
-    return child;
-  }
-  focus() { this.focused = true; }
-  reset() { this.resetCount = (this.resetCount ?? 0) + 1; }
-  querySelector() { return null; }
-  querySelectorAll() { return []; }
-}
-
-class Form extends HTMLFormElement {
-  constructor(properties = {}) {
-    super();
-    Object.assign(this, { hidden: false, disabled: false, value: '', dataset: {}, textContent: '', id: '' }, properties);
-    this.listeners = {};
-    this.attributes = {};
-    this.classes = new Set(String(properties.className ?? '').split(' ').filter(Boolean));
-    this.parentElement = null;
+    super(properties);
     this.requestSubmitCount = 0;
-    this.classList = {
-      add: name => this.classes.add(name),
-      remove: name => this.classes.delete(name),
-      contains: name => this.classes.has(name),
-      toggle: (name, active) => active ? this.classes.add(name) : this.classes.delete(name)
-    };
   }
-  addEventListener(type, handler) { (this.listeners[type] ??= []).push(handler); }
-  setAttribute(name, value) { this.attributes[name] = value; }
-  removeAttribute(name) { delete this.attributes[name]; }
-  getAttribute(name) { return this.attributes[name] ?? null; }
-  matches(selector) { return matchesSelector(this, selector); }
+  /* 원래 이 테스트의 폼은 closest 탐색을 하지 않습니다. */
   closest() { return null; }
-  focus() { this.focused = true; }
-  append(...children) {
-    const [child] = children;
-    child.parentElement = this;
-    return child;
-  }
-  reset() { this.resetCount = (this.resetCount ?? 0) + 1; }
-  querySelector() { return null; }
-  querySelectorAll() { return []; }
-  /* 실제 브라우저처럼 submit 이벤트를 다시 발생시킵니다. */
   requestSubmit() {
     this.requestSubmitCount += 1;
     page.document.dispatch('submit', this);

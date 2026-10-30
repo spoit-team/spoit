@@ -20,7 +20,6 @@ public class SchedulePage {
 
     private final FacilityListItem selectedFacility;
     private final List<WeeklyHourRow> weeklyHours;
-    private final List<String> hourOptions;
     private final CalendarView calendar;
     private final List<SportOption> sports;
     private final ConditionsView conditions;
@@ -28,11 +27,10 @@ public class SchedulePage {
     private final String tab;
 
     public SchedulePage(FacilityListItem selectedFacility, List<WeeklyHourRow> weeklyHours,
-            List<String> hourOptions, CalendarView calendar, List<SportOption> sports,
+            CalendarView calendar, List<SportOption> sports,
             ConditionsView conditions, List<ClosureRow> closures, String tab) {
         this.selectedFacility = selectedFacility;
         this.weeklyHours = List.copyOf(weeklyHours);
-        this.hourOptions = List.copyOf(hourOptions);
         this.calendar = calendar;
         this.sports = List.copyOf(sports);
         this.conditions = conditions;
@@ -41,7 +39,7 @@ public class SchedulePage {
     }
 
     public static SchedulePage empty() {
-        return new SchedulePage(null, List.of(), List.of(), null, List.of(),
+        return new SchedulePage(null, List.of(), null, List.of(),
                 ConditionsView.empty(), List.of(), null);
     }
 }

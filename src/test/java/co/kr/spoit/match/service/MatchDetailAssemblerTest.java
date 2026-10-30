@@ -82,6 +82,24 @@ class MatchDetailAssemblerTest {
         assertThat(page.getApplyMessage()).isEqualTo("신청 기간이 지난 매칭방입니다.");
     }
 
+    @Test
+    void occupancyPercentCapsAtHundredAndHandlesZeroCapacity() {
+        MatchDetailRow overfull = match("모집 중");
+        List<ParticipantRow> five = List.of(
+                participant(1L, 10L, "확정", null, "1000"),
+                participant(2L, 11L, "확정", null, "1000"),
+                participant(3L, 12L, "확정", null, "1000"),
+                participant(4L, 13L, "확정", null, "1000"),
+                participant(5L, 14L, "확정", null, "1000"));
+
+        assertThat(assembler.toPage(overfull, five, null, NOW, TODAY).getOccupancyPercent()).isEqualTo(100);
+
+        MatchDetailRow noCapacity = match("모집 중");
+        noCapacity.setMaxParticipants(0);
+
+        assertThat(assembler.toPage(noCapacity, List.of(), null, NOW, TODAY).getOccupancyPercent()).isZero();
+    }
+
     private MatchDetailRow match(String status) {
         MatchDetailRow row = new MatchDetailRow();
         row.setMatchId(1L);

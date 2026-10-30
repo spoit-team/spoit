@@ -1,5 +1,8 @@
 package co.kr.spoit.facility.mapper;
 
+import static co.kr.spoit.support.ConcurrentTestSupport.await;
+import static co.kr.spoit.support.ConcurrentTestSupport.awaitCompletion;
+import static co.kr.spoit.support.ConcurrentTestSupport.shutdown;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -9,15 +12,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +45,8 @@ import co.kr.spoit.match.domain.ApplicationType;
 import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.service.MatchApplicationService;
 import co.kr.spoit.match.service.MatchApplyException;
+import co.kr.spoit.support.ConcurrentTestSupport;
+import co.kr.spoit.support.MySqlTestDatabase;
 
 /**
  * 기존 매칭방의 신규 참가 신청이 시설 운영 일정의 최신 값을 잠금 읽기로 확인하는지, 그리고 응용
@@ -82,12 +84,6 @@ import co.kr.spoit.match.service.MatchApplyException;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Timeout(120)
 class FacilityScheduleConcurrencyIntegrationTest {
-
-    private static final Pattern TEST_DATABASE_URL = Pattern.compile(
-            "jdbc:mysql://(?:localhost|127\\.0\\.0\\.1):([0-9]{1,5})/spoit_mat_test");
-    private static final String JDBC_OPTIONS =
-            "?serverTimezone=Asia/Seoul&characterEncoding=UTF-8"
-                    + "&allowPublicKeyRetrieval=true&useSSL=false";
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
 
@@ -139,22 +135,17 @@ class FacilityScheduleConcurrencyIntegrationTest {
     private static final String PASSWORD_HASH = "TEST_ONLY_NOT_A_PASSWORD_HASH";
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 10, 20, 9, 0);
 
-    private static final int WAIT_SECONDS = 30;
     /**
      * 락을 기다려야 하는 쪽이 "제한 시간 안에 잠금을 얻지 못했음"을 관찰하는 짧은 상한이다.
      * 상대가 이미 락을 보유한 뒤에만 쓰므로 sleep으로 순서를 맞추지 않는다.
      */
     private static final int BLOCKED_CONFIRM_SECONDS = 2;
-    private static final int TERMINATION_SECONDS = 10;
 
     /** MySQL ER_LOCK_NOWAIT: {@code FOR UPDATE NOWAIT}가 잠금 대기 없이 즉시 실패할 때의 오류 코드다. */
     private static final int MYSQL_LOCK_NOWAIT = 3572;
 
-    private static final ThreadFactory DAEMON_THREADS = runnable -> {
-        Thread thread = new Thread(runnable, "facility-schedule-concurrency-test");
-        thread.setDaemon(true);
-        return thread;
-    };
+    private static final ThreadFactory DAEMON_THREADS =
+            ConcurrentTestSupport.daemonThreads("facility-schedule-concurrency-test");
 
     @Autowired
     private MatchApplicationService matchApplicationService;
@@ -173,28 +164,15 @@ class FacilityScheduleConcurrencyIntegrationTest {
 
     @DynamicPropertySource
     static void configureTestDatabase(DynamicPropertyRegistry registry) {
-        String url = validateUrl(requiredEnvironmentVariable("MAT_TEST_DB_URL"));
-        String username = requiredEnvironmentVariable("MAT_TEST_DB_USERNAME");
-        String password = requiredEnvironmentVariable("MAT_TEST_DB_PASSWORD");
-
-        registry.add("spring.datasource.url", () -> url + JDBC_OPTIONS);
-        registry.add("spring.datasource.username", () -> username);
-        registry.add("spring.datasource.password", () -> password);
-        registry.add("spring.datasource.driver-class-name", () -> "com.mysql.cj.jdbc.Driver");
+        MySqlTestDatabase.registerDataSource(registry);
     }
 
     /** 테스트 데이터를 만들기 전에 전용 DB·격리를 먼저 확인한다. */
     @BeforeEach
     void prepareCommittedFixture() {
-        String database = jdbcTemplate.queryForObject("SELECT DATABASE()", String.class);
-        if (!"spoit_mat_test".equals(database)) {
-            throw new IllegalStateException("전용 테스트 DB가 아니므로 fixture 생성을 중단합니다.");
-        }
+        MySqlTestDatabase.assertDedicatedDatabaseBeforeFixtureCreation(jdbcTemplate);
         // stale snapshot 시나리오는 MySQL 기본 REPEATABLE READ 전제 위에서만 의미가 있다.
-        String isolation = jdbcTemplate.queryForObject("SELECT @@transaction_isolation", String.class);
-        if (!"REPEATABLE-READ".equals(isolation)) {
-            throw new IllegalStateException("동시성 회귀 테스트는 REPEATABLE READ 격리를 전제로 합니다: " + isolation);
-        }
+        MySqlTestDatabase.assertRepeatableReadIsolation(jdbcTemplate);
 
         // 한 트랜잭션으로 커밋한다. 중간에 실패하면 아무 행도 남지 않으므로 cleanup 대상도 없다.
         txTemplate().executeWithoutResult(status -> insertFixture());
@@ -688,83 +666,5 @@ class FacilityScheduleConcurrencyIntegrationTest {
 
     private Long currentConnectionId() {
         return jdbcTemplate.queryForObject("SELECT CONNECTION_ID()", Long.class);
-    }
-
-    private static void await(CountDownLatch latch) {
-        try {
-            if (!latch.await(WAIT_SECONDS, TimeUnit.SECONDS)) {
-                throw new IllegalStateException("동시성 테스트 대기 시간이 초과되었습니다.");
-            }
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("동시성 테스트 대기가 중단되었습니다.", exception);
-        }
-    }
-
-    private static void awaitCompletion(Future<?>... futures) throws Exception {
-        Throwable failure = null;
-        boolean interrupted = false;
-        for (Future<?> future : futures) {
-            try {
-                future.get(WAIT_SECONDS, TimeUnit.SECONDS);
-            } catch (ExecutionException exception) {
-                if (failure == null) {
-                    failure = exception.getCause();
-                }
-            } catch (TimeoutException exception) {
-                if (failure == null) {
-                    failure = new IllegalStateException(
-                            "동시성 테스트 스레드가 제한 시간 안에 끝나지 않았습니다.", exception);
-                }
-            } catch (InterruptedException exception) {
-                interrupted = true;
-                if (failure == null) {
-                    failure = new IllegalStateException("동시성 테스트 대기가 중단되었습니다.", exception);
-                }
-            }
-        }
-        if (interrupted) {
-            Thread.currentThread().interrupt();
-        }
-        if (failure instanceof Error error) {
-            throw error;
-        }
-        if (failure instanceof Exception exception) {
-            throw exception;
-        }
-        if (failure != null) {
-            throw new IllegalStateException(failure);
-        }
-    }
-
-    /** 락 대기로 멈춘 스레드가 있어도 데몬 스레드이므로 JVM 종료를 막지 않는다. */
-    private static void shutdown(ExecutorService pool) {
-        pool.shutdownNow();
-        try {
-            pool.awaitTermination(TERMINATION_SECONDS, TimeUnit.SECONDS);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    static String validateUrl(String url) {
-        var matcher = TEST_DATABASE_URL.matcher(url == null ? "" : url);
-        if (!matcher.matches()) {
-            throw new IllegalArgumentException(
-                    "MAT_TEST_DB_URL은 localhost 또는 127.0.0.1의 명시적 포트와 spoit_mat_test DB를 지정해야 합니다.");
-        }
-        int port = Integer.parseInt(matcher.group(1));
-        if (port < 1 || port > 65535) {
-            throw new IllegalArgumentException("MAT_TEST_DB_URL의 포트는 1~65535 범위여야 합니다.");
-        }
-        return url;
-    }
-
-    private static String requiredEnvironmentVariable(String name) {
-        String value = System.getenv(name);
-        if (value == null || value.isBlank()) {
-            throw new IllegalStateException(name + " 환경변수가 필요합니다. 개발 DB 설정으로 대체하지 않습니다.");
-        }
-        return value;
     }
 }

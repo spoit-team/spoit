@@ -41,14 +41,14 @@ public class MatchDetailAssembler {
 
     public MatchDetailPage toPage(MatchDetailRow row, List<ParticipantRow> participants,
                                   Long currentUserId, LocalDateTime now, LocalDate today) {
-        List<ParticipantRow> confirmed = filterStatus(participants, ParticipationStatus.CONFIRMED);
-        List<ParticipantRow> pending = filterStatus(participants, ParticipationStatus.WAITING);
+        List<ParticipantRow> confirmed = MatchCardAssembler.filterStatus(participants, ParticipationStatus.CONFIRMED);
+        List<ParticipantRow> pending = MatchCardAssembler.filterStatus(participants, ParticipationStatus.WAITING);
         long unassigned = confirmed.stream().filter(p -> p.getMatchSide() == null).count();
 
         int max = row.getMaxParticipants();
         int occupied = participants.size();
         int available = Math.max(0, max - occupied);
-        int percent = max == 0 ? 0 : Math.min(100, occupied * 100 / max);
+        int percent = MatchCardAssembler.occupancyPercent(occupied, max);
 
         boolean recruiting = MatchStatus.RECRUITING.dbValue().equals(row.getStatus());
         boolean matched = MatchStatus.MATCHED.dbValue().equals(row.getStatus());
@@ -58,19 +58,15 @@ public class MatchDetailAssembler {
                 && participants.stream().anyMatch(p -> currentUserId.equals(p.getUserId()));
         boolean canApply = recruiting && available > 0 && !started && !joined;
 
-        String statusLabel;
+        String statusLabel = MatchCardAssembler.commonStatusLabel(row.getStatus(), available);
         String statusClass;
         if (matched) {
-            statusLabel = "팀 배정 완료";
             statusClass = "";
         } else if (recruiting && available == 0) {
-            statusLabel = "정원 마감";
             statusClass = CLASS_CLOSED;
         } else if (recruiting) {
-            statusLabel = "모집 중";
             statusClass = "";
         } else {
-            statusLabel = row.getStatus();
             statusClass = cancelled ? CLASS_CANCELLED : CLASS_CLOSED;
         }
 
@@ -195,10 +191,6 @@ public class MatchDetailAssembler {
 
     private boolean isHost(ParticipantRow p, MatchDetailRow row) {
         return Objects.equals(p.getUserId(), row.getCreatedBy());
-    }
-
-    private List<ParticipantRow> filterStatus(List<ParticipantRow> list, ParticipationStatus status) {
-        return list.stream().filter(p -> status.dbValue().equals(p.getParticipationStatus())).toList();
     }
 
     private record ApplyMessage(String text, String cssClass) {

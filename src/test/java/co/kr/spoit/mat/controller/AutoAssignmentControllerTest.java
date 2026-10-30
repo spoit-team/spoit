@@ -1,5 +1,8 @@
 package co.kr.spoit.mat.controller;
 
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.admin;
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.facilityManager;
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.member;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -15,16 +18,17 @@ import co.kr.spoit.mat.domain.TeamAssignment;
 import co.kr.spoit.mat.dto.AssignmentResult;
 import co.kr.spoit.mat.dto.AssignmentResult.Outcome;
 import co.kr.spoit.mat.service.AutoAssignmentService;
-import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.member.security.MemberLoginFailureHandler;
 import co.kr.spoit.member.security.MemberLoginSuccessHandler;
 import co.kr.spoit.member.service.MemberUserDetailsService;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -62,20 +66,26 @@ class AutoAssignmentControllerTest {
         verify(autoAssignmentService, never()).preview(anyLong(), anyLong());
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"일반 회원", "시스템 관리자"})
-    void rejectsUsersWithoutFacilityManagerRole(String role) throws Exception {
-        mockMvc.perform(get(URL).with(user(principal(role))))
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("nonManagerPrincipals")
+    void rejectsUsersWithoutFacilityManagerRole(String roleLabel, MemberPrincipal principal) throws Exception {
+        mockMvc.perform(get(URL).with(user(principal)))
                 .andExpect(status().isForbidden());
 
         verify(autoAssignmentService, never()).preview(anyLong(), anyLong());
+    }
+
+    static Stream<Arguments> nonManagerPrincipals() {
+        return Stream.of(
+                Arguments.of("일반 회원", member()),
+                Arguments.of("시스템 관리자", admin()));
     }
 
     @Test
     void rejectsManagerOfAnotherFacility() throws Exception {
         given(autoAssignmentService.preview(10L, 7L)).willThrow(new AccessDeniedException("담당 시설이 아님"));
 
-        mockMvc.perform(get(URL).with(user(principal("시설 관리자"))))
+        mockMvc.perform(get(URL).with(user(facilityManager())))
                 .andExpect(status().isForbidden());
     }
 
@@ -87,7 +97,7 @@ class AutoAssignmentControllerTest {
                 new BigDecimal("50.00"), 1L, 3L);
         given(autoAssignmentService.preview(10L, 7L)).willReturn(AssignmentResult.ready(assignment));
 
-        mockMvc.perform(get(URL).with(user(principal("시설 관리자"))))
+        mockMvc.perform(get(URL).with(user(facilityManager())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.outcome").value("READY"))
                 .andExpect(jsonPath("$.assignment.teamAParticipantIds[0]").value(1))
@@ -101,7 +111,7 @@ class AutoAssignmentControllerTest {
         given(autoAssignmentService.preview(10L, 7L)).willReturn(
                 AssignmentResult.rejected(Outcome.NOT_ENOUGH_PARTICIPANTS, "현재 3명"));
 
-        mockMvc.perform(get(URL).with(user(principal("시설 관리자"))))
+        mockMvc.perform(get(URL).with(user(facilityManager())))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.outcome").value("NOT_ENOUGH_PARTICIPANTS"))
                 .andExpect(jsonPath("$.message").value("현재 3명"))
@@ -113,17 +123,7 @@ class AutoAssignmentControllerTest {
         given(autoAssignmentService.preview(10L, 7L)).willReturn(
                 AssignmentResult.rejected(Outcome.NOT_FOUND, "매칭방 정보를 찾을 수 없습니다."));
 
-        mockMvc.perform(get(URL).with(user(principal("시설 관리자"))))
+        mockMvc.perform(get(URL).with(user(facilityManager())))
                 .andExpect(status().isNotFound());
-    }
-
-    private static MemberPrincipal principal(String role) {
-        Member member = new Member();
-        member.setUserId(7L);
-        member.setEmail("manager@example.com");
-        member.setNickname("시설담당");
-        member.setPhone("010-1234-5678");
-        member.setRole(role);
-        return MemberPrincipal.from(member);
     }
 }

@@ -249,7 +249,6 @@ public class FacilityAdminController {
     private void applyScheduleModel(Model model, SchedulePage page) {
         model.addAttribute("selectedFacility", page.getSelectedFacility());
         model.addAttribute("weeklyHours", page.getWeeklyHours());
-        model.addAttribute("hourOptions", page.getHourOptions());
         model.addAttribute("calendar", page.getCalendar());
         model.addAttribute("sports", page.getSports());
         model.addAttribute("conditions", page.getConditions());

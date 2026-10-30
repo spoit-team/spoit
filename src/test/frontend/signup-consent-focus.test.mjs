@@ -1,37 +1,14 @@
 // Dependency-free execution check: bun src/test/frontend/signup-consent-focus.test.mjs
 // signup.js의 필수 약관 판정(동의/다음 단계/제출)과 admin-shell.js의 focus trap 동작을 확인합니다.
 import assert from 'node:assert/strict';
+// DOM 스텁 공통부는 support/dom-stub.mjs가 준비합니다(Element/HTMLFormElement 포함).
+import { DomElement } from './support/dom-stub.mjs';
 
-globalThis.Element ??= class Element {};
-globalThis.HTMLFormElement ??= class HTMLFormElement extends Element {};
-
-class Control extends Element {
-  constructor(properties = {}) {
-    super();
-    Object.assign(this, { hidden: false, disabled: false, checked: false, value: '', dataset: {}, textContent: '', id: '', className: '' }, properties);
-    this.listeners = {};
-    this.attributes = {};
-    this.classes = new Set();
-    this.classList = {
-      add: name => this.classes.add(name),
-      remove: name => this.classes.delete(name),
-      contains: name => this.classes.has(name),
-      toggle: (name, active) => active ? this.classes.add(name) : this.classes.delete(name)
-    };
-  }
-  addEventListener(type, handler) { (this.listeners[type] ??= []).push(handler); }
-  dispatch(type, properties = {}) {
-    const event = { target: this, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...properties };
-    for (const handler of this.listeners[type] ?? []) handler(event);
-    return event;
-  }
-  setAttribute(name, value) { this.attributes[name] = value; }
-  removeAttribute(name) { delete this.attributes[name]; }
-  getAttribute(name) { return this.attributes[name] ?? null; }
+/* 이 테스트만의 능력: focus()가 document.activeElement를 옮기고,
+   이 화면의 요소는 closest 탐색을 하지 않습니다(각 요소가 필요할 때 직접 덮어씁니다). */
+class Control extends DomElement {
   focus() { globalThis.document.activeElement = this; }
   closest() { return null; }
-  querySelector() { return null; }
-  querySelectorAll() { return []; }
 }
 
 /* ---------- signup.js ---------- */

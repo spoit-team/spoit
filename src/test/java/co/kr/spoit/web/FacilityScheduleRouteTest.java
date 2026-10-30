@@ -347,7 +347,6 @@ class FacilityScheduleRouteTest {
                 java.util.stream.IntStream.rangeClosed(1, 7)
                         .mapToObj(day -> WeeklyHourRow.of(day, true, "06:00", "22:00"))
                         .toList(),
-                List.of("06:00", "24:00"),
                 new CalendarView("2026년 11월", "/prev", "/next", List.of(), "2026-11-03",
                         "2026년 11월 3일 (화)", "주간 운영 시간을 기준으로 표시합니다.", 0, List.of(),
                         "선택된 시간이 없습니다.", null, "예약 가능 0시간"),

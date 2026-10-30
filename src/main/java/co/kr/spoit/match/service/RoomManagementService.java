@@ -268,13 +268,19 @@ public class RoomManagementService {
         if (status == null) {
             return "상태 미설정";
         }
-        return switch (status) {
-            case "대기" -> "확정 대기";
-            case "확정" -> "참가 확정";
-            case "취소" -> "신청 취소";
-            case "반려" -> "신청 반려";
-            default -> status;
-        };
+        if (ApplicationStatus.WAITING.dbValue().equals(status)) {
+            return "확정 대기";
+        }
+        if (ApplicationStatus.CONFIRMED.dbValue().equals(status)) {
+            return "참가 확정";
+        }
+        if (ApplicationStatus.CANCELLED.dbValue().equals(status)) {
+            return "신청 취소";
+        }
+        if (ApplicationStatus.REJECTED.dbValue().equals(status)) {
+            return "신청 반려";
+        }
+        return status;
     }
 
     private static String participationStatusLabel(String status) {

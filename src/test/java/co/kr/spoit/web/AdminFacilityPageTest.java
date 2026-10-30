@@ -172,8 +172,8 @@ class AdminFacilityPageTest {
     }
 
     @Test
-    @DisplayName("일정 화면의 sportId는 매칭방 필터로 쓰지 않고 종목 선택지도 덮어쓰지 않는다")
-    void keepsScheduleSportIdOutOfBookingFilters() throws Exception {
+    @DisplayName("일정 화면의 facilityId·sportId는 매칭방 필터·종목 선택지로 새지 않는다")
+    void keepsScheduleFacilityAndSportOutOfBookingFilters() throws Exception {
         when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
         when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
         when(facilityScheduleService.findSchedulePage(7L, 10L, null, 3L, "schedule-hours", null))
@@ -187,8 +187,15 @@ class AdminFacilityPageTest {
                         .with(user(facilityManager())))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("view", "schedule"))
+                // 일정 화면의 종목 선택지를 매칭방 종목이 덮어쓰지 않는다.
                 .andExpect(model().attribute("sports", List.of()))
-                .andExpect(model().attribute("bookingSports", List.of()));
+                .andExpect(model().attribute("bookingSports", List.of()))
+                .andExpect(model().attribute("bookingFilters",
+                        org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.hasProperty("facilityId",
+                                        org.hamcrest.Matchers.nullValue()),
+                                org.hamcrest.Matchers.hasProperty("sportId",
+                                        org.hamcrest.Matchers.nullValue()))));
 
         verify(roomManagementService).findRooms(7L, null, null, null, null);
     }
@@ -233,31 +240,6 @@ class AdminFacilityPageTest {
                         org.hamcrest.Matchers.hasProperty("facilityId",
                                 org.hamcrest.Matchers.nullValue())));
 
-        verify(roomManagementService).findRooms(7L, null, null, null, null);
-    }
-
-    @Test
-    @DisplayName("일정 화면의 facilityId·sportId는 매칭방 필터로 새지 않는다")
-    void keepsScheduleFacilityAndSportOutOfBookingFilters() throws Exception {
-        when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
-        when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
-        when(facilityScheduleService.findSchedulePage(7L, 10L, null, 3L, "schedule-hours", null))
-                .thenReturn(co.kr.spoit.facility.dto.SchedulePage.empty());
-
-        mockMvc.perform(get("/admin/facility")
-                        .param("view", "schedule")
-                        .param("facilityId", "10")
-                        .param("sportId", "3")
-                        .param("tab", "schedule-hours")
-                        .with(user(facilityManager())))
-                .andExpect(status().isOk())
-                .andExpect(model().attribute("view", "schedule"))
-                .andExpect(model().attribute("bookingFilters",
-                        org.hamcrest.Matchers.allOf(
-                                org.hamcrest.Matchers.hasProperty("facilityId",
-                                        org.hamcrest.Matchers.nullValue()),
-                                org.hamcrest.Matchers.hasProperty("sportId",
-                                        org.hamcrest.Matchers.nullValue()))));
         verify(roomManagementService).findRooms(7L, null, null, null, null);
     }
 

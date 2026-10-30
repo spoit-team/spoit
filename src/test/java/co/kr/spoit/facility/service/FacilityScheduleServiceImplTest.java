@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -198,6 +199,8 @@ class FacilityScheduleServiceImplTest {
         // 기저 선택(06~12시 6칸)은 그대로 두고, 안내 문구만 휴관 1칸을 뺀 5시간으로 표시한다.
         assertThat(calendar.getSelectedCount()).isEqualTo(6);
         assertThat(calendar.getAvailabilityText()).isEqualTo("예약 가능 5시간");
+        // 종목 선택지와 모집 조건이 같은 조회 결과를 공유하므로 페이지당 한 번만 읽는다.
+        verify(scheduleMapper, times(1)).selectSportConditions(FACILITY_ID);
     }
 
     @Test

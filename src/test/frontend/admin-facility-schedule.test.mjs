@@ -6,91 +6,12 @@
 // - 시설을 바꿔도 보고 있던 탭이 유지된다.
 // - 날짜 슬롯을 모두 해제한 제출은 휴무 저장이므로 막지 않고 확인만 받는다.
 import assert from 'node:assert/strict';
+// DOM 스텁 공통부는 support/dom-stub.mjs가 준비합니다(Element/HTMLFormElement 포함).
+import { DomElement, DomFormElement } from './support/dom-stub.mjs';
 
-globalThis.Element ??= class Element {};
-globalThis.HTMLFormElement ??= class HTMLFormElement extends Element {};
+const Control = DomElement;
 
-const attributeValue = (element, name) => element.attributes?.[name]
-  ?? (name.startsWith('data-') ? element.dataset?.[name.replace(/^data-/, '').replace(/-([a-z])/g, (_, c) => c.toUpperCase())] : undefined);
-
-function matchesToken(element, token) {
-  if (!element) return false;
-  if (token.startsWith('#')) return element.id === token.slice(1);
-  if (token.startsWith('.')) return Boolean(element.classes?.has(token.slice(1)));
-  if (token.startsWith('[data-')) {
-    const [rawName, rawValue] = token.slice(1, -1).split('=');
-    const name = rawName.trim();
-    const camel = name.replace(/^data-/, '').replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-    const value = element.dataset?.[camel] ?? element.attributes?.[name];
-    if (value === undefined) return false;
-    if (rawValue === undefined) return true;
-    return String(value) === rawValue.replace(/^["']|["']$/g, '');
-  }
-  if (token.startsWith('[')) {
-    const name = token.slice(1, -1).split('=')[0].trim();
-    return element.attributes?.[name] !== undefined;
-  }
-  if (token.startsWith('input') || token.startsWith('select')) {
-    const name = token.match(/\[name\^?=?["']?([A-Za-z-]+)["']?\]/)?.[1];
-    if (!name) return (element.type || '').startsWith(token.slice(0, -1));
-    const matchesName = token.includes('^=') ? String(element.name || '').startsWith(name)
-      : token.includes('*=') ? String(element.name || '').includes(name)
-        : element.name === name;
-    if (!matchesName) return false;
-    if (token.includes(':checked')) return element.checked === true;
-    if (token.includes(':disabled')) return element.disabled === true;
-    if (token.includes(':not(:disabled)')) return element.disabled !== true;
-    return true;
-  }
-  return false;
-}
-
-function matchesAny(element, selector) {
-  return String(selector).split(',').some(part => matchesToken(element, part.trim()));
-}
-
-class Control extends Element {
-  constructor(properties = {}) {
-    super();
-    Object.assign(this, { hidden: false, disabled: false, value: '', checked: false, name: '', type: '', dataset: {}, textContent: '', id: '' }, properties);
-    this.listeners = {};
-    this.attributes = {};
-    this.children = [];
-    this.focused = false;
-    this.classes = new Set();
-    this.classList = {
-      add: name => this.classes.add(name),
-      remove: name => this.classes.delete(name),
-      contains: name => this.classes.has(name),
-      toggle: (name, active) => active ? this.classes.add(name) : this.classes.delete(name)
-    };
-  }
-  addEventListener(type, handler) { (this.listeners[type] ??= []).push(handler); }
-  dispatch(type, event = {}) {
-    const payload = { target: this, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...event };
-    for (const handler of this.listeners[type] ?? []) handler(payload);
-    return payload;
-  }
-  setAttribute(name, value) { this.attributes[name] = value; }
-  removeAttribute(name) { delete this.attributes[name]; }
-  getAttribute(name) { return this.attributes[name] ?? null; }
-  focus() { this.focused = true; }
-  closest(selector) {
-    let node = this;
-    while (node) {
-      if (matchesAny(node, selector)) return node;
-      node = node.parentElement;
-    }
-    return null;
-  }
-  append(...items) {
-    for (const item of items) item.parentElement = this;
-    this.children.push(...items);
-  }
-  querySelector() { return null; }
-  querySelectorAll() { return []; }
-}
-
+/* 이 테스트만의 능력: 값 선택/체크 시 change 이벤트를 함께 발생시킵니다. */
 class Select extends Control {
   constructor(properties = {}) { super({ type: 'select', ...properties }); }
   select(value) {
@@ -107,30 +28,16 @@ class Checkbox extends Control {
   }
 }
 
-class Form extends HTMLFormElement {
+/* 이 테스트만의 능력: 폼을 id 문자열로 만들고, 스크립트의 instanceof 판정을 위해
+   HTMLFormElement 체인을 유지합니다. */
+class Form extends DomFormElement {
   constructor(id) {
-    super();
-    this.id = id;
-    this.listeners = {};
-    this.attributes = {};
-    this.children = [];
-    this.focused = false;
-    this.classes = new Set();
+    super({ id });
+    /* 이 테스트의 폼은 클래스 토글을 쓰지 않습니다. */
     this.classList = { add() {}, remove() {}, contains: () => false, toggle() {} };
   }
-  addEventListener(type, handler) { (this.listeners[type] ??= []).push(handler); }
-  dispatch(type, event = {}) {
-    const payload = { target: this, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...event };
-    for (const handler of this.listeners[type] ?? []) handler(payload);
-    return payload;
-  }
-  setAttribute(name, value) { this.attributes[name] = value; }
-  getAttribute(name) { return this.attributes[name] ?? null; }
-  matches(selector) { return matchesAny(this, selector); }
+  /* 원래 이 테스트의 폼은 closest 탐색을 하지 않습니다. */
   closest() { return null; }
-  focus() { this.focused = true; }
-  querySelector() { return null; }
-  querySelectorAll() { return []; }
 }
 
 const ids = new Map();

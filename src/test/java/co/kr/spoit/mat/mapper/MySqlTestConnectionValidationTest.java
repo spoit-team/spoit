@@ -7,6 +7,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import co.kr.spoit.support.MySqlTestDatabase;
+
 class MySqlTestConnectionValidationTest {
 
     @ParameterizedTest
@@ -17,7 +19,7 @@ class MySqlTestConnectionValidationTest {
             "jdbc:mysql://localhost:65535/spoit_mat_test"
     })
     void allowsOnlyExplicitLocalTestDatabaseUrls(String url) {
-        assertThat(AbstractMySqlMapperTest.validateUrl(url)).isEqualTo(url);
+        assertThat(MySqlTestDatabase.validateUrl(url)).isEqualTo(url);
     }
 
     @ParameterizedTest
@@ -44,7 +46,7 @@ class MySqlTestConnectionValidationTest {
     })
     void rejectsOtherTargetsWithoutEchoingTheSuppliedValue(String url) {
         var error = assertThatIllegalArgumentException()
-                .isThrownBy(() -> AbstractMySqlMapperTest.validateUrl(url));
+                .isThrownBy(() -> MySqlTestDatabase.validateUrl(url));
         if (url != null && !url.isEmpty()) {
             error.withMessageNotContaining(url);
         }

@@ -85,13 +85,14 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
         FacilitySchedule schedule = snapshot.toSchedule();
         YearMonth visibleMonth = month != null ? month : (date != null ? YearMonth.from(date) : YearMonth.now(ZONE));
 
+        // 종목 선택지와 모집 조건은 같은 조회 결과를 쓰므로 페이지마다 한 번만 읽는다.
+        List<FacilitySportCondition> sportConditions = scheduleMapper.selectSportConditions(id);
         List<WeeklyHourRow> weeklyRows = weeklyRows(snapshot.rules());
-        List<String> hourOptions = hourOptions();
         CalendarView calendar = calendar(selected, snapshot, schedule, date, visibleMonth, sportId, tab);
-        List<SportOption> sports = sportOptions(id);
-        ConditionsView conditions = conditions(id, sportId);
+        List<SportOption> sports = sportOptions(sportConditions);
+        ConditionsView conditions = conditions(sportConditions, sportId);
         List<ClosureRow> closures = closureRows(id);
-        return new SchedulePage(selected, weeklyRows, hourOptions, calendar, sports, conditions,
+        return new SchedulePage(selected, weeklyRows, calendar, sports, conditions,
                 closures, normalizeTab(tab));
     }
 
@@ -206,20 +207,14 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
     public void registerClosure(Long userId, ClosureForm form) {
         long facilityId = requireManagedFacility(userId, form == null ? null : form.getFacilityId());
         LocalDate date = parseDate(form.getDate());
-        LocalDateTime startAt;
-        LocalDateTime endAt;
-        try {
-            LocalTime start = ScheduleTimes.parseStart(form.getStart(), "휴관 시작 시간");
-            ScheduleTimes.EndTime end = ScheduleTimes.parseEnd(form.getEnd(), "휴관 종료 시간");
-            startAt = date.atTime(start);
-            boolean nextDay = end.nextDay() || end.time().isBefore(start);
-            if (!end.nextDay() && end.time().equals(start)) {
-                throw new IllegalArgumentException("휴관 종료 시간은 시작 시간과 달라야 합니다.");
-            }
-            endAt = nextDay ? date.plusDays(1).atTime(end.time()) : date.atTime(end.time());
-        } catch (IllegalArgumentException exception) {
-            throw exception;
+        LocalTime start = ScheduleTimes.parseStart(form.getStart(), "휴관 시작 시간");
+        ScheduleTimes.EndTime end = ScheduleTimes.parseEnd(form.getEnd(), "휴관 종료 시간");
+        LocalDateTime startAt = date.atTime(start);
+        boolean nextDay = end.nextDay() || end.time().isBefore(start);
+        if (!end.nextDay() && end.time().equals(start)) {
+            throw new IllegalArgumentException("휴관 종료 시간은 시작 시간과 달라야 합니다.");
         }
+        LocalDateTime endAt = nextDay ? date.plusDays(1).atTime(end.time()) : date.atTime(end.time());
         if (form.getReason() == null || form.getReason().isBlank()) {
             throw new IllegalArgumentException("휴관 사유를 입력해 주세요.");
         }
@@ -390,17 +385,7 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
         return rule.isEndNextDay() && LocalTime.MIDNIGHT.equals(rule.getCloseTime());
     }
 
-    private List<String> hourOptions() {
-        List<String> options = new ArrayList<>(25);
-        for (int hour = 0; hour <= 23; hour++) {
-            options.add(String.format("%02d:00", hour));
-        }
-        options.add("24:00");
-        return options;
-    }
-
-    private List<SportOption> sportOptions(long facilityId) {
-        List<FacilitySportCondition> conditions = scheduleMapper.selectSportConditions(facilityId);
+    private List<SportOption> sportOptions(List<FacilitySportCondition> conditions) {
         List<SportOption> options = new ArrayList<>();
         if (conditions == null) {
             return options;
@@ -411,8 +396,7 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
         return options;
     }
 
-    private ConditionsView conditions(long facilityId, Long sportId) {
-        List<FacilitySportCondition> conditions = scheduleMapper.selectSportConditions(facilityId);
+    private ConditionsView conditions(List<FacilitySportCondition> conditions, Long sportId) {
         if (conditions == null || conditions.isEmpty()) {
             return ConditionsView.empty();
         }

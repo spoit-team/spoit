@@ -23,13 +23,14 @@ public class FacilityServiceImpl implements FacilityService {
     /**
      * 시설 삭제를 막는 매칭방 상태다. 취소·종료된 방은 남아 있어도 삭제를 허용한다.
      * 상태 문자열은 {@link MatchStatus}에서만 가져와 중복 정의하지 않는다.
+     *
+     * <p>값은 동시 점유 상태와 같지만 의미가 다르므로(삭제 차단 vs 대관 점유) 별도 상수로 둔다.</p>
      */
     private static final List<String> BLOCKING_DELETE_STATUSES = List.of(
             MatchStatus.RECRUITING.dbValue(), MatchStatus.MATCHED.dbValue());
 
     /** 동시 대관 점유로 인정하는 상태다. 구역 수 축소 검증에도 같은 기준을 쓴다. */
-    private static final List<String> OCCUPYING_STATUSES = List.of(
-            MatchStatus.RECRUITING.dbValue(), MatchStatus.MATCHED.dbValue());
+    private static final List<String> OCCUPYING_STATUSES = FacilityCapacityServiceImpl.OCCUPYING_STATUSES;
 
     /** 종목 해제가 매칭방 참조로 막혔을 때의 안내 문구다. 사전 검사와 FK 충돌 변환이 함께 쓴다. */
     private static final String SPORT_REFERENCED_MESSAGE =

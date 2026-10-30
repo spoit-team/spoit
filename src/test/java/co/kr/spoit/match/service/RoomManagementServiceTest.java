@@ -256,6 +256,23 @@ class RoomManagementServiceTest {
     }
 
     @Test
+    @DisplayName("신청 상태 문구는 DB 상태 값으로 매핑하고 null·알 수 없는 값은 원문/기본 문구로 둔다")
+    void labelsApplicationStatusesFromDbValues() {
+        given(mapper.findRoom(any())).willReturn(row(9401L, "모집 중", 2, 8));
+        given(mapper.findApplications(any())).willReturn(List.of(
+                application("개인", "취소", "ROOM-TEST-9601", "신청자하나", null),
+                application("개인", "반려", "ROOM-TEST-9602", "신청자둘", null),
+                application("개인", "알 수 없음", "ROOM-TEST-9603", "신청자셋", null),
+                application("개인", null, "ROOM-TEST-9604", "신청자넷", null)));
+        given(mapper.findParticipants(any())).willReturn(List.of());
+
+        RoomManagementDetail detail = service.findDetail(MANAGER_ID, 9401L);
+
+        assertThat(detail.getApplications()).extracting(RoomManagementDetail.Application::getStatusLabel)
+                .containsExactly("신청 취소", "신청 반려", "알 수 없음", "상태 미설정");
+    }
+
+    @Test
     @DisplayName("상세 조회도 담당자 식별자를 조회 조건으로 넘긴다")
     void scopesDetailQueryByManager() {
         given(mapper.findRoom(any())).willReturn(row(9401L, "모집 중", 2, 8));

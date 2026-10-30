@@ -101,6 +101,17 @@ class MatchApplicationServiceCancelTest {
         verify(mapper, never()).cancelParticipants(anyLong(), anyList(), anyString(), any());
     }
 
+    @Test
+    @DisplayName("잠근 매칭방이 없으면 같은 안내 문구로 취소를 막는다")
+    void rejectsMissingMatchOnLock() {
+        given(mapper.lockMatch(MATCH_ID)).willReturn(null);
+
+        assertThatThrownBy(() -> service.cancel(APPLICATION_ID, USER_ID))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("매칭방 정보를 찾을 수 없습니다.");
+        verify(mapper, never()).markCancelled(anyLong(), anyList(), anyString(), anyLong(), any());
+    }
+
     private static MatchApplication application(long applicantUserId) {
         MatchApplication a = MatchApplication.individual(MATCH_ID, applicantUserId, "RCPT-TEST", LocalDateTime.now(KST));
         a.setApplicationId(APPLICATION_ID);

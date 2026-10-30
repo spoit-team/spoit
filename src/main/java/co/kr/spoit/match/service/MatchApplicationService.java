@@ -115,10 +115,7 @@ public class MatchApplicationService {
             throw new MatchApplyException(displayMessage(e, "현재 시설 운영 일정으로는 신청할 수 없습니다."));
         }
 
-        MatchRow match = applicationMapper.lockMatch(matchId);
-        if (match == null) {
-            throw new MatchApplyException("매칭방 정보를 찾을 수 없습니다.");
-        }
+        MatchRow match = lockMatch(matchId);
         // 후보 id를 읽은 뒤 시설이 바뀌었으면 잠근 시설과 검증 대상이 어긋난다.
         if (match.getFacilityId() == null
                 || match.getFacilityId().longValue() != facilityId.longValue()) {
@@ -164,6 +161,20 @@ public class MatchApplicationService {
     }
 
     /**
+     * 매칭방 행을 잠그고 없다면 안내 예외로 끊는다.
+     *
+     * <p>호출부마다 잠금 순서(접수: 시설 → 매칭방, 확정·취소: 매칭방 → 신청)가 이미 정해져 있고,
+     * 이 헬퍼는 그 순서 중 {@code lockMatch} 호출 지점만 감싼다. 없을 때의 안내 문구도 같다.</p>
+     */
+    private MatchRow lockMatch(long matchId) {
+        MatchRow match = applicationMapper.lockMatch(matchId);
+        if (match == null) {
+            throw new MatchApplyException("매칭방 정보를 찾을 수 없습니다.");
+        }
+        return match;
+    }
+
+    /**
      * 신청 확정: match_application → match_participant 연동.
      * 참가자 행은 여기서만 만들며 application_id는 항상 채운다. 호출처(시설 관리자 승인 등)는 별도 구현.
      */
@@ -178,10 +189,7 @@ public class MatchApplicationService {
             throw new MatchApplyException("동호회 신청 확정은 아직 지원하지 않습니다.");
         }
         // 신청 접수와 같은 순서(매칭방 → 신청)로 잠가 교착을 피한다.
-        MatchRow match = applicationMapper.lockMatch(application.getMatchId());
-        if (match == null) {
-            throw new MatchApplyException("매칭방 정보를 찾을 수 없습니다.");
-        }
+        MatchRow match = lockMatch(application.getMatchId());
         int updated = applicationMapper.markConfirmed(applicationId,
                 ApplicationStatus.WAITING.dbValue(), ApplicationStatus.CONFIRMED.dbValue(), now);
         if (updated == 0) {
@@ -207,10 +215,7 @@ public class MatchApplicationService {
             throw new MatchApplyException("취소할 수 있는 신청이 아닙니다.");
         }
         // 신청 접수·확정과 같은 순서(매칭방 → 신청)로 잠근다.
-        MatchRow match = applicationMapper.lockMatch(application.getMatchId());
-        if (match == null) {
-            throw new MatchApplyException("매칭방 정보를 찾을 수 없습니다.");
-        }
+        MatchRow match = lockMatch(application.getMatchId());
         if (MatchStatus.MATCHED.dbValue().equals(match.getStatus())) {
             throw new MatchApplyException("팀 배정이 끝난 매치는 취소할 수 없습니다. 시설에 문의해 주세요.");
         }

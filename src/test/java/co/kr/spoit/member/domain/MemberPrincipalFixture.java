@@ -12,20 +12,25 @@ public final class MemberPrincipalFixture {
     }
 
     public static MemberPrincipal member() {
-        return principal("일반 회원");
+        return principal("일반 회원", 7L);
     }
 
     public static MemberPrincipal facilityManager() {
-        return principal("시설 관리자");
+        return facilityManager(7L);
+    }
+
+    /** 담당 시설 범위가 회원 ID로 갈리는 테스트에서 쓰는 시설 관리자 주체다. */
+    public static MemberPrincipal facilityManager(long userId) {
+        return principal("시설 관리자", userId);
     }
 
     public static MemberPrincipal admin() {
-        return principal("시스템 관리자");
+        return principal("시스템 관리자", 7L);
     }
 
-    private static MemberPrincipal principal(String role) {
+    private static MemberPrincipal principal(String role, long userId) {
         Member member = new Member();
-        member.setUserId(7L);
+        member.setUserId(userId);
         member.setEmail("user@example.com");
         member.setNickname("회원");
         member.setPhone("010-1234-5678");

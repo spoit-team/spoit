@@ -1,5 +1,6 @@
 package co.kr.spoit.web;
 
+import static co.kr.spoit.member.domain.MemberPrincipalFixture.facilityManager;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasProperty;
@@ -9,8 +10,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,8 +27,7 @@ import org.springframework.test.context.transaction.BeforeTransaction;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
-import co.kr.spoit.member.domain.Member;
-import co.kr.spoit.member.domain.MemberPrincipal;
+import co.kr.spoit.support.MySqlTestDatabase;
 
 /**
  * 시설 관리자 매칭방 조회의 소유권 경계를 실제 컨트롤러 → 서비스 → MyBatis → MySQL 경로로 검증한다.
@@ -71,12 +69,6 @@ class RoomManagementRouteIntegrationTest {
     /** 관리자 B만 담당하는 시설. */
     private static final long FOREIGN_FACILITY = 9303L;
 
-    private static final Pattern TEST_DATABASE_URL = Pattern.compile(
-            "jdbc:mysql://(?:localhost|127\\.0\\.0\\.1):([0-9]{1,5})/spoit_mat_test");
-    private static final String JDBC_OPTIONS =
-            "?serverTimezone=Asia/Seoul&characterEncoding=UTF-8"
-                    + "&allowPublicKeyRetrieval=true&useSSL=false";
-
     @Autowired
     private MockMvc mockMvc;
 
@@ -85,22 +77,12 @@ class RoomManagementRouteIntegrationTest {
 
     @DynamicPropertySource
     static void configureTestDatabase(DynamicPropertyRegistry registry) {
-        String url = validateUrl(requiredEnvironmentVariable("MAT_TEST_DB_URL"));
-        String username = requiredEnvironmentVariable("MAT_TEST_DB_USERNAME");
-        String password = requiredEnvironmentVariable("MAT_TEST_DB_PASSWORD");
-
-        registry.add("spring.datasource.url", () -> url + JDBC_OPTIONS);
-        registry.add("spring.datasource.username", () -> username);
-        registry.add("spring.datasource.password", () -> password);
-        registry.add("spring.datasource.driver-class-name", () -> "com.mysql.cj.jdbc.Driver");
+        MySqlTestDatabase.registerDataSource(registry);
     }
 
     @BeforeTransaction
     void verifyDatabaseBeforeFixture() {
-        String database = jdbcTemplate.queryForObject("SELECT DATABASE()", String.class);
-        if (!"spoit_mat_test".equals(database)) {
-            throw new IllegalStateException("전용 테스트 DB가 아니므로 fixture 실행을 중단합니다.");
-        }
+        MySqlTestDatabase.assertDedicatedDatabase(jdbcTemplate);
     }
 
     @Test
@@ -112,7 +94,7 @@ class RoomManagementRouteIntegrationTest {
                         .param("q", "농구")
                         .param("status", "recruiting")
                         .param("sportId", "9201")
-                        .with(user(manager(MANAGER_A))))
+                        .with(user(facilityManager(MANAGER_A))))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("matches", hasItem(
                         hasProperty("matchId", is(OWNED_MATCH_ID)))))
@@ -123,7 +105,7 @@ class RoomManagementRouteIntegrationTest {
         // 상세: 신청 내역과 참가자 명단이 서비스 조회 결과 그대로 모델에 담긴다.
         mockMvc.perform(get("/admin/operations")
                         .param("matchId", String.valueOf(OWNED_MATCH_ID))
-                        .with(user(manager(MANAGER_A))))
+                        .with(user(facilityManager(MANAGER_A))))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("match", hasProperty("matchId", is(OWNED_MATCH_ID))))
                 .andExpect(model().attribute("match", hasProperty("applications", hasItem(
@@ -147,7 +129,7 @@ class RoomManagementRouteIntegrationTest {
         // 관리자 B는 9406을 실제로 소유하지만, 관리자 A에게는 소유권 밖이다.
         mockMvc.perform(get("/admin/operations")
                         .param("matchId", String.valueOf(FOREIGN_MATCH_ID))
-                        .with(user(manager(MANAGER_A))))
+                        .with(user(facilityManager(MANAGER_A))))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("match", org.hamcrest.Matchers.nullValue()))
                 .andExpect(content().string(containsString("매칭방을 찾을 수 없습니다.")));
@@ -155,7 +137,7 @@ class RoomManagementRouteIntegrationTest {
         // 같은 방이 소유자(관리자 B)에게는 실제 상세로 열린다.
         mockMvc.perform(get("/admin/operations")
                         .param("matchId", String.valueOf(FOREIGN_MATCH_ID))
-                        .with(user(manager(MANAGER_B))))
+                        .with(user(facilityManager(MANAGER_B))))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("match", hasProperty("matchId", is(FOREIGN_MATCH_ID))));
     }
@@ -167,7 +149,7 @@ class RoomManagementRouteIntegrationTest {
         mockMvc.perform(get("/admin/facility")
                         .param("view", "bookings")
                         .param("facilityId", "9304")
-                        .with(user(manager(MANAGER_A))))
+                        .with(user(facilityManager(MANAGER_A))))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("matches", org.hamcrest.Matchers.hasSize(1)))
                 .andExpect(model().attribute("matches", hasItem(
@@ -187,7 +169,7 @@ class RoomManagementRouteIntegrationTest {
         mockMvc.perform(get("/admin/facility")
                         .param("view", "bookings")
                         .param("facilityId", "999999")
-                        .with(user(manager(MANAGER_A))))
+                        .with(user(facilityManager(MANAGER_A))))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("bookingFilters",
                         hasProperty("facilityId", org.hamcrest.Matchers.nullValue())))
@@ -200,7 +182,7 @@ class RoomManagementRouteIntegrationTest {
         mockMvc.perform(get("/admin/facility")
                         .param("view", "bookings")
                         .param("facilityId", "9302")
-                        .with(user(manager(MANAGER_A))))
+                        .with(user(facilityManager(MANAGER_A))))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("bookingFilters",
                         hasProperty("facilityId", org.hamcrest.Matchers.nullValue())))
@@ -211,7 +193,7 @@ class RoomManagementRouteIntegrationTest {
         mockMvc.perform(get("/admin/facility")
                         .param("view", "bookings")
                         .param("facilityId", String.valueOf(FOREIGN_FACILITY))
-                        .with(user(manager(MANAGER_A))))
+                        .with(user(facilityManager(MANAGER_A))))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("bookingFilters",
                         hasProperty("facilityId", org.hamcrest.Matchers.nullValue())))
@@ -225,7 +207,7 @@ class RoomManagementRouteIntegrationTest {
     void facilityOptionsExposeManagedFacilitiesOnly() throws Exception {
         mockMvc.perform(get("/admin/facility")
                         .param("view", "bookings")
-                        .with(user(manager(MANAGER_A))))
+                        .with(user(facilityManager(MANAGER_A))))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("facilities", org.hamcrest.Matchers.hasSize(2)))
                 .andExpect(model().attribute("facilities", hasItem(
@@ -246,7 +228,7 @@ class RoomManagementRouteIntegrationTest {
                         .param("view", "schedule")
                         .param("facilityId", String.valueOf(FACILITY_B))
                         .param("sportId", "9201")
-                        .with(user(manager(MANAGER_A))))
+                        .with(user(facilityManager(MANAGER_A))))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("view", "schedule"))
                 .andExpect(model().attribute("bookingFilters",
@@ -258,35 +240,4 @@ class RoomManagementRouteIntegrationTest {
                         hasProperty("matchId", is(OWNED_MATCH_ID)))));
     }
 
-    /** DB 역할 값과 같은 표기를 써서 실제 인증 주체와 동일한 권한을 갖게 한다. */
-    private static MemberPrincipal manager(long userId) {
-        Member member = new Member();
-        member.setUserId(userId);
-        member.setEmail("room-manager-" + userId + "@example.invalid");
-        member.setNickname("방관리자");
-        member.setPhone("010-9200-0000");
-        member.setRole("시설 관리자");
-        return MemberPrincipal.from(member);
-    }
-
-    static String validateUrl(String url) {
-        var matcher = TEST_DATABASE_URL.matcher(url == null ? "" : url);
-        if (!matcher.matches()) {
-            throw new IllegalArgumentException(
-                    "MAT_TEST_DB_URL은 localhost 또는 127.0.0.1의 명시적 포트와 spoit_mat_test DB를 지정해야 합니다.");
-        }
-        int port = Integer.parseInt(matcher.group(1));
-        if (port < 1 || port > 65535) {
-            throw new IllegalArgumentException("MAT_TEST_DB_URL의 포트는 1~65535 범위여야 합니다.");
-        }
-        return url;
-    }
-
-    private static String requiredEnvironmentVariable(String name) {
-        String value = System.getenv(name);
-        if (value == null || value.isBlank()) {
-            throw new IllegalStateException(name + " 환경변수가 필요합니다. 개발 DB 설정으로 대체하지 않습니다.");
-        }
-        return value;
-    }
 }
