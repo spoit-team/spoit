@@ -143,4 +143,29 @@
         WHERE club_id = #{clubId} AND user_id = #{userId} AND left_at IS NULL
     </select>
 
+    <select id="selectPendingJoinRequestId" resultType="long">
+        SELECT request_id FROM club_join_request
+        WHERE club_id = #{clubId} AND user_id = #{userId} AND status = '대기중'
+        LIMIT 1
+    </select>
+
+    <select id="selectActiveClubForUpdate" resultType="co.kr.spoit.club.domain.ClubSummary">
+        SELECT club_id AS clubId
+        ,max_members AS maxMembers
+        ,recruit_status AS recruitStatus
+        FROM club
+        WHERE club_id = #{clubId} AND deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <select id="countActiveMembers" resultType="int">
+        SELECT COUNT(*) FROM club_member
+        WHERE club_id = #{clubId} AND left_at IS NULL
+    </select>
+
+    <insert id="insertJoinRequest">
+        INSERT INTO club_join_request (club_id, user_id, message)
+        VALUES (#{clubId}, #{userId}, #{message})
+    </insert>
+
     </mapper>

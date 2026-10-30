@@ -35,6 +35,7 @@ public class ClubServiceImpl implements ClubService {
     private static final int INTRO_MAX_LENGTH = 240;
     private static final int MIN_MEMBERS = 2;
     private static final int MAX_MEMBERS = 30;
+    private static final int MESSAGE_MAX_LENGTH = 200;
 
     // 최신순 전체 조회(검색 미구현)
     @Override
@@ -49,14 +50,15 @@ public class ClubServiceImpl implements ClubService {
     }
 
     @Override
-    public ClubDetailResponse findClubDetail(Long clubId) {
+    public ClubDetailResponse findClubDetail(Long clubId, Long userId) {
         ClubSummary club = clubMapper.selectClubDetail(clubId);
         if (club == null) {
             log.info("없는 동호회 조회: clubId={}", clubId);
             return null;
         }
         List<ClubMember> members = clubMapper.selectClubMembers(clubId);
-        return ClubDetailResponse.from(club, members);
+        Long pendingJoinRequestId = clubMapper.selectPendingJoinRequestId(clubId, userId);
+        return ClubDetailResponse.from(club, members, userId, pendingJoinRequestId);
     }
 
     @Override
@@ -194,14 +196,55 @@ public class ClubServiceImpl implements ClubService {
     }
 
     // 내 동호회 선택 버튼 응답
-    @Override 
-    public List<MyClubResponse> findMyClubs(Long userId, Long activeClubId){
+    @Override
+    public List<MyClubResponse> findMyClubs(Long userId, Long activeClubId) {
         List<ClubSummary> clubs = clubMapper.selectMyClubs(userId);
 
         List<MyClubResponse> result = new ArrayList<>();
-        for(ClubSummary club : clubs){
+        for (ClubSummary club : clubs) {
             result.add(MyClubResponse.from(club, activeClubId));
         }
         return result;
+    }
+
+    // 가입 신청
+    @Override
+    @Transactional
+    public void applyJoin(Long userId, Long clubId, String message) {
+        // 1.자기소개 정리
+        String trimmedMessage = trim(message);
+        if (trimmedMessage.length() > MESSAGE_MAX_LENGTH) {
+            throw new IllegalArgumentException("자기소개는 200자 이하로 입력해 주세요.");
+        }
+
+        // 2. 동호회 잠금
+        ClubSummary club = getActiveClubForUpdate(clubId);
+
+        // 3. 신청 가능검사
+        if (clubMapper.existsActiveMember(clubId, userId)) {
+            throw new IllegalArgumentException("이미 소속된 팀입니다.");
+        }
+        if (clubMapper.selectPendingJoinRequestId(clubId, userId) != null) {
+            throw new IllegalArgumentException("이미 가입 신청을 보냈습니다.");
+        }
+        if (!"모집중".equals(club.getRecruitStatus())) {
+            throw new IllegalArgumentException("모집이 마감된 팀입니다.");
+        }
+        if (clubMapper.countActiveMembers(clubId) >= club.getMaxMembers()) {
+            throw new IllegalArgumentException("정원이 가득 찬 팀입니다.");
+        }
+
+        // 4. 저장
+        clubMapper.insertJoinRequest(clubId, userId, trimmedMessage.isEmpty() ? null : trimmedMessage);
+        log.info("가입 신청 저장 완료: clubId={}, userId={}", clubId, userId);
+    }
+
+    // 쓰기 전에 동호회 잠금, 없거나 해체 됐으면 거부
+    private ClubSummary getActiveClubForUpdate(Long clubId) {
+        ClubSummary club = clubMapper.selectActiveClubForUpdate(clubId);
+        if (club == null) {
+            throw new IllegalArgumentException("팀 정보를 찾을 수 없습니다.");
+        }
+        return club;
     }
 }

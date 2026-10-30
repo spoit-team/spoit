@@ -63,10 +63,10 @@
               <p th:if="${club.recruiting}" th:text="${club.footerNote}">모집 자리</p>
             </div>
             <span th:if="${club.member}" class="team-badge is-recruiting">이미 소속된 팀입니다</span>
-            <form th:if="${club.pendingJoinRequestId != null}" method="post" th:action="@{/teams/{clubId}/applications/{joinRequestId}/cancel(clubId=${club.clubId}, joinRequestId=${club.pendingJoinRequestId})}">
+            <!-- 신청취소 미구현: <form th:if="${club.pendingJoinRequestId != null}" method="post" th:action="@{/teams/{clubId}/applications/{joinRequestId}/cancel(clubId=${club.clubId}, joinRequestId=${club.pendingJoinRequestId})}">
               <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
               <button class="team-button team-button-quiet" type="submit">가입 신청 취소</button>
-            </form>
+            </form> -->
             <button th:if="${!club.member and club.pendingJoinRequestId == null and club.recruiting}" class="team-button team-button-primary" type="button" data-team-apply>가입 신청하기</button>
             <button th:if="${!club.member and club.pendingJoinRequestId == null and !club.recruiting}" class="team-button team-button-quiet" type="button" disabled>모집이 마감되었습니다</button>
             <div class="team-leader-line"><span class="team-roster-avatar" aria-hidden="true" th:text="${club.leaderInitials}">팀</span><span th:text="${'팀장 · ' + club.leaderName}">팀장</span></div>

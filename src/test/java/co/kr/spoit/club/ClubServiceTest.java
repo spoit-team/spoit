@@ -98,7 +98,7 @@ class ClubServiceTest {
                 member("윤드롭", "동호회원"),
                 member("이슛터", "동호회장")));
 
-        ClubDetailResponse detail = service.findClubDetail(1L);
+        ClubDetailResponse detail = service.findClubDetail(1L, 7L);
 
         assertThat(detail.getInitials()).isEqualTo("강남");
         assertThat(detail.getAreaLabel()).isEqualTo("강남구");
@@ -115,7 +115,7 @@ class ClubServiceTest {
     void 없는_동호회면_null을_돌려준다() {
         when(clubMapper.selectClubDetail(999L)).thenReturn(null);
 
-        assertThat(service.findClubDetail(999L)).isNull();
+        assertThat(service.findClubDetail(999L, 7L)).isNull();
         verify(clubMapper, never()).selectClubMembers(999L);
     }
 
@@ -230,6 +230,31 @@ class ClubServiceTest {
         assertThat(clubs.get(1).isActive()).isTrue();
     }
 
+    @Test
+    @DisplayName("가입 신청하면 빈 자기소개는 NULL로 저장한다")
+    void 가입_신청_성공() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.selectPendingJoinRequestId(1L, 7L)).thenReturn(null);
+        when(clubMapper.countActiveMembers(1L)).thenReturn(3);
+
+        service.applyJoin(7L, 1L, "   ");
+
+        verify(clubMapper).insertJoinRequest(1L, 7L, null);
+    }
+
+    @Test
+    @DisplayName("이미 대기중인 신청이 있으면 저장하지 않는다")
+    void 대기중_신청이_있으면_거부한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.selectPendingJoinRequestId(1L, 7L)).thenReturn(5L);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.applyJoin(7L, 1L, "안녕하세요"));
+
+        assertThat(exception.getMessage()).isEqualTo("이미 가입 신청을 보냈습니다.");
+        verify(clubMapper, never()).insertJoinRequest(any(), any(), any());
+    }
+
     private ClubSummary club(String recruitStatus, String activityDays, int startHour, int endHour) {
         ClubSummary club = new ClubSummary();
         club.setClubId(1L);
@@ -271,6 +296,15 @@ class ClubServiceTest {
         form.setSportId(1L);
         form.setRegionId(3L);
         return form;
+    }
+
+    // 잠금 SQL이 돌려주는 동호회(번호·모집 상태·최대 인원만)
+    private ClubSummary lockedClub(String recruitStatus, int maxMembers) {
+        ClubSummary club = new ClubSummary();
+        club.setClubId(1L);
+        club.setRecruitStatus(recruitStatus);
+        club.setMaxMembers(maxMembers);
+        return club;
     }
 
 }
