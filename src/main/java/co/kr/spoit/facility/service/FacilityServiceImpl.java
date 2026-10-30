@@ -142,9 +142,11 @@ public class FacilityServiceImpl implements FacilityService {
             throw new FacilityNotFoundException("삭제할 시설을 찾을 수 없습니다.");
         }
         // 모집 중·매칭 완료 방이 남아 있으면 시설을 숨기지 않는다. 취소·종료 방은 삭제를 막지 않는다.
-        if (facilityMapper.selectMatchIdInStatusesForUpdate(facilityId, BLOCKING_DELETE_STATUSES) != null) {
-            throw new IllegalArgumentException(
-                    "모집 중이거나 매칭 완료된 매칭방이 있어 시설을 삭제할 수 없습니다.");
+        // 어떤 방이 막는지 화면 경고에 보여 줄 수 있도록 차단 목록 전체를 예외에 담는다.
+        List<MatchPeriod> blocking = scheduleMapper.selectMatchPeriodsForUpdate(facilityId, BLOCKING_DELETE_STATUSES);
+        if (blocking != null && !blocking.isEmpty()) {
+            throw new FacilityDeleteBlockedException(
+                    "모집 중이거나 매칭 완료된 매칭방이 있어 시설을 삭제할 수 없습니다.", blocking);
         }
         int deleted = facilityMapper.deleteFacility(facilityId);
         if (deleted == 0) {

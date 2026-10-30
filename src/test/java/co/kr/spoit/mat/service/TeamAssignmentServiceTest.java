@@ -6,8 +6,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import co.kr.spoit.mat.domain.AssignmentMatch;
@@ -16,6 +18,7 @@ import co.kr.spoit.mat.dto.AssignmentResult;
 import co.kr.spoit.mat.dto.AssignmentResult.Outcome;
 import co.kr.spoit.mat.mapper.MatchAssignmentMapper;
 import co.kr.spoit.mat.mapper.MatchParticipantMapper;
+import co.kr.spoit.mat.service.TeamAssignmentService.StartResult;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -39,6 +42,7 @@ class TeamAssignmentServiceTest {
     private static final long FACILITY_ID = 3L;
     private static final long MANAGER_ID = 7L;
     private static final LocalDateTime TOMORROW = LocalDateTime.now(ZoneId.of("Asia/Seoul")).plusDays(1);
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 29, 18, 0);
 
     @Mock
     private MatchAssignmentMapper assignmentMapper;
@@ -166,6 +170,82 @@ class TeamAssignmentServiceTest {
 
         assertThat(service.getView(MATCH_ID, MANAGER_ID)).isEmpty();
         verify(assignmentMapper, never()).isFacilityManager(anyLong(), anyLong());
+    }
+
+    @Test
+    void startMatchSavesAutoAssignmentWithoutManager() {
+        givenStartingMatch(startingMatch(2, 2, NOW.plusHours(2)));
+        givenParticipants();
+        when(assignmentMapper.updateMatchSide(eq(MATCH_ID), any(), anyString(), eq("확정"))).thenReturn(2);
+        when(assignmentMapper.markAssigned(eq(MATCH_ID), anyString(), any(), any(), any(), any(), anyString(), anyString()))
+                .thenReturn(1);
+
+        assertThat(service.startMatch(MATCH_ID, NOW)).isEqualTo(StartResult.ASSIGNED);
+        verify(assignmentMapper).updateMatchSide(MATCH_ID, List.of(1L, 2L), "A", "확정");
+        verify(assignmentMapper).updateMatchSide(MATCH_ID, List.of(4L, 6L), "B", "확정");
+        verify(assignmentMapper).markAssigned(eq(MATCH_ID), eq("AUTO"), isNull(), eq(NOW),
+                eq(1L), eq(4L), eq("매칭 완료"), eq("모집 중"));
+        verify(assignmentMapper, never()).isFacilityManager(anyLong(), anyLong());
+    }
+
+    @Test
+    void startMatchCancelsWhenConfirmedParticipantsAreShort() {
+        givenStartingMatch(startingMatch(3, 3, NOW.plusHours(2)));
+        givenParticipants();
+        when(assignmentMapper.markCancelled(MATCH_ID, NOW, "취소", "모집 중")).thenReturn(1);
+
+        assertThat(service.startMatch(MATCH_ID, NOW)).isEqualTo(StartResult.CANCELLED);
+        verifyNoSave();
+    }
+
+    @Test
+    void startMatchCancelsWhenTeamCapacitiesDiffer() {
+        givenStartingMatch(startingMatch(2, 3, NOW.plusHours(2)));
+        givenParticipants();
+        when(assignmentMapper.markCancelled(MATCH_ID, NOW, "취소", "모집 중")).thenReturn(1);
+
+        assertThat(service.startMatch(MATCH_ID, NOW)).isEqualTo(StartResult.CANCELLED);
+        verifyNoSave();
+    }
+
+    @Test
+    void startMatchCancelsWithoutAssignmentWhenEndTimePassed() {
+        givenStartingMatch(startingMatch(2, 2, NOW));
+        when(assignmentMapper.markCancelled(MATCH_ID, NOW, "취소", "모집 중")).thenReturn(1);
+
+        assertThat(service.startMatch(MATCH_ID, NOW)).isEqualTo(StartResult.CANCELLED);
+        verifyNoInteractions(participantMapper);
+        verifyNoSave();
+    }
+
+    @Test
+    void startMatchSkipsMatchChangedBeforeLock() {
+        var match = startingMatch(2, 2, NOW.plusHours(2));
+        match.setStatus("매칭 완료");
+        givenStartingMatch(match);
+
+        assertThat(service.startMatch(MATCH_ID, NOW)).isEqualTo(StartResult.SKIPPED);
+        verifyNoInteractions(participantMapper);
+        verifyNoSave();
+        verify(assignmentMapper, never()).markCancelled(anyLong(), any(), anyString(), anyString());
+    }
+
+    private void givenStartingMatch(AssignmentMatch match) {
+        when(assignmentMapper.lockAssignmentMatch(MATCH_ID)).thenReturn(Optional.of(match));
+    }
+
+    private AssignmentMatch startingMatch(int teamA, int teamB, LocalDateTime endAt) {
+        var match = match("모집 중", NOW);
+        match.setTeamACapacity(teamA);
+        match.setTeamBCapacity(teamB);
+        match.setEndAt(endAt);
+        return match;
+    }
+
+    private void verifyNoSave() {
+        verify(assignmentMapper, never()).updateMatchSide(anyLong(), any(), anyString(), anyString());
+        verify(assignmentMapper, never()).markAssigned(anyLong(), anyString(), any(), any(), any(), any(),
+                anyString(), anyString());
     }
 
     private void givenLockedMatch(AssignmentMatch match) {

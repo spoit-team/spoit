@@ -117,9 +117,11 @@ for (const file of templates) {
       ids.add(attributes.id);
     }
     for (const name of ['th:href', 'th:src']) {
-      const reference = attributes[name]?.match(/^@\{\/(css|js|images)\/([^{}]+)\}$/);
+      // 캐시 버스팅 파라미터(v=...)가 붙은 참조도 자산 존재 검사 대상에 포함한다.
+      // 괄호 안에 ${...} 같은 표현식이 와도 URL 경로 부분만 뽑아낸다.
+      const reference = attributes[name]?.match(/^@\{\/(css|js|images)\/([^{}()]+?)(?:\(.+\))?\}$/);
       if (reference) {
-        const asset = path.join(resources, 'static', reference[1], reference[2]);
+        const asset = path.join(resources, 'static', reference[1], reference[2].split('(')[0]);
         check(await Bun.file(asset).exists(), `${file}: missing asset ${asset}`);
       }
     }
@@ -148,7 +150,6 @@ for (const file of templates) {
 const requiredBindings = {
   'selection-form': ['applicationType', 'clubId', 'clubMemberIds'],
   'team-create-form': ['clubName', 'sportId', 'regionId'],
-  'team-edit-form': ['clubName', 'sportId', 'regionId'],
   'team-transfer-form': ['clubMemberId'],
   'team-remove-form': ['clubMemberId'],
   'team-disband-form': ['clubNameConfirmation'],
@@ -164,6 +165,10 @@ const requiredBindings = {
   'conditions-form': ['facilityId', 'sportId', 'capacity', 'note'],
   'closure-form': ['facilityId', 'date', 'start', 'end', 'reason']
 };
+// 팀 수정 폼은 현재 비활성화되어 있으며, 다시 표시되면 필수 필드를 검사한다.
+if (namedForms.has('team-edit-form')) {
+  requiredBindings['team-edit-form'] = ['clubName', 'sportId', 'regionId'];
+}
 for (const [id, names] of Object.entries(requiredBindings)) {
   const form = namedForms.get(id);
   check(Boolean(form), `Missing form ${id}`);
@@ -283,6 +288,38 @@ check(conflictModal.includes('${scheduleConflictRange}'),
 check(!/type="submit"/.test(conflictModal) && !/data-force/.test(conflictModal),
   'schedule-conflict-modal: no bypass or auto-cancel action is allowed');
 
+// 6-1) 시설 삭제 차단 경고: 일정 충돌 경고와 같은 alertdialog로 막는 매칭방 전체를 보여 준다.
+const deleteBlockModal = facilitySource.slice(
+  facilitySource.indexOf('id="facility-delete-blocked-modal"'),
+  facilitySource.indexOf('id="maintenance-modal"'));
+check(deleteBlockModal.length > 0, 'facility.html: facility delete blocked modal missing');
+check(deleteBlockModal.includes('role="alertdialog"'),
+  'facility-delete-blocked-modal: must stay an alertdialog');
+check(deleteBlockModal.includes(
+  'th:attr="data-auto-open=${deleteBlockConflicts != null and !#lists.isEmpty(deleteBlockConflicts)'),
+  'facility-delete-blocked-modal: auto-open must depend on a non-empty deleteBlockConflicts list');
+check(deleteBlockModal.includes('th:each="conflict : ${deleteBlockConflicts}"'),
+  'facility-delete-blocked-modal: every blocking match must be rendered');
+check(deleteBlockModal.includes('${conflict.matchId}') && deleteBlockModal.includes('conflict.title'),
+  'facility-delete-blocked-modal: each room ID and title must be rendered');
+check(deleteBlockModal.includes('conflict.startAt') && deleteBlockModal.includes('conflict.endAt'),
+  'facility-delete-blocked-modal: each room start/end must be rendered');
+check(deleteBlockModal.includes('deleteBlockSummary'),
+  'facility-delete-blocked-modal: the blocking room summary must be rendered with th:text');
+check(deleteBlockModal.includes('deleteBlockMessage'),
+  'facility-delete-blocked-modal: the server guidance message must be rendered inside the modal');
+// 삭제 차단 안내는 모달 안에만 표시한다: 컨트롤러가 error가 아니라 deleteBlockMessage로 전달하는지 검사한다.
+const adminControllerSource = await readFile(path.resolve('src/main/java/co/kr/spoit/facility/controller/FacilityAdminController.java'), 'utf8');
+const deleteBlockCatch = adminControllerSource.slice(
+  adminControllerSource.indexOf('catch (FacilityDeleteBlockedException'),
+  adminControllerSource.indexOf('catch (IllegalArgumentException | FacilityAccessDeniedException | FacilityNotFoundException', adminControllerSource.indexOf('catch (FacilityDeleteBlockedException')));
+check(deleteBlockCatch.length > 0 && deleteBlockCatch.includes('deleteBlockMessage') && !deleteBlockCatch.includes('"error"'),
+  'facility delete blocked: guidance must be flash-only via deleteBlockMessage, not the shared error flash');
+check(deleteBlockModal.includes('data-close-facility-delete-blocked'),
+  'facility-delete-blocked-modal: the confirm button must close the dialog');
+check(!/type="submit"/.test(deleteBlockModal) && !/data-force/.test(deleteBlockModal),
+  'facility-delete-blocked-modal: no bypass or auto-cancel action is allowed');
+
 // 7) 탭 복귀: 시설을 바꿔도 보던 탭을 유지한다.
 check(facilitySource.includes('data-schedule-tab-input'),
   'facility.html: facility switch form must carry the current schedule tab');
@@ -298,6 +335,9 @@ check(facilityScript.includes("id === 'schedule-conflict-modal'")
   'admin-facility.js: conflict modal must be wired');
 check(facilityScript.includes('scheduleReturnTarget'),
   'admin-facility.js: closing the auto-opened alert must restore focus inside the screen');
+check(facilityScript.includes("getElementById('facility-delete-blocked-modal')")
+  && facilityScript.includes('deleteBlockedReturnTarget'),
+  'admin-facility.js: facility delete blocked modal must be wired and restore focus');
 // 달력(날짜·월 이동)은 GET 링크지만 JS가 있으면 조각 교체로 처리해 전체 새로고침을 막는다.
 // 시설이 선택되지 않았을 때는 서버가 렌더링한 빈 상태가 유일한 화면이므로 기본 이동에 맡긴다.
 check(facilityScript.includes("closest('a.date-calendar-day, .calendar-month-nav a')")
@@ -305,6 +345,111 @@ check(facilityScript.includes("closest('a.date-calendar-day, .calendar-month-nav
   'admin-facility.js: calendar day/month links must swap the schedule card without a full reload');
 check(facilityScript.includes("target?.closest('#date-schedule-hour-grid')"),
   'admin-facility.js: date slot summary must be delegated so fragment swaps keep it working');
+
+/* ── 매칭방 조회·상세 화면 계약 ────────────────────────────────────────────
+   시설 관리자는 담당 시설의 매칭방을 조회하고, 상세 화면에서 신청·참가자만 읽습니다.
+   필터 값이 어긋나면 Spring Long 바인딩이 실패하고, 상세 화면에 없는 변경 조작이
+   다시 생기면 서버에 없는 동작을 사용자에게 약속하게 되므로 여기서 고정한다. */
+const bookingsSource = fragmentSlice(facilitySource, 'id="facility-bookings"', 'id="facility-stats"');
+check(Boolean(bookingsSource), 'facility.html: bookings view missing');
+check(bookingsSource?.includes('name="view" value="bookings"'),
+  'facility.html: bookings filter must post view=bookings to stay on the matching list');
+for (const field of ['name="q"', 'name="status"', 'name="sportId"']) {
+  check(Boolean(bookingsSource?.includes(field)),
+    `facility.html: bookings filter must keep the ${field} input`);
+}
+check(bookingsSource?.includes('${bookingFilters?.q}'),
+  'facility.html: the search term must be restored from bookingFilters');
+check(bookingsSource?.includes('${bookingFilters?.status =='),
+  'facility.html: the status filter must restore the selected option');
+// 'matched'는 DB 값이 '매칭 완료'일 뿐 A/B 팀 배정을 뜻하지 않는다. 표시 문구가 그보다 앞서면 안 된다.
+check(bookingsSource?.includes('>매칭 완료</option>'),
+  'facility.html: the matched status must be labelled 매칭 완료');
+check(!/팀 배정 완료/.test(bookingsSource ?? ''),
+  'facility.html: the matched status must not claim team assignment');
+// 종목 목록은 담당 시설의 예약 종목(bookingSports)에서 온다. 'all' 문자열은 Long 바인딩을 깨뜨린다.
+check(bookingsSource?.includes('th:each="sport : ${bookingSports}"'),
+  'facility.html: the sport filter must list bookingSports');
+check(bookingsSource?.includes('<option value=""'),
+  'facility.html: "all sports" must submit an empty value so Spring can bind sportId as Long');
+const sportFilterMarkup = bookingsSource?.slice(
+  bookingsSource.indexOf('id="booking-sport-filter"'),
+  bookingsSource.indexOf('</select>', bookingsSource.indexOf('id="booking-sport-filter"')) + '</select>'.length) ?? '';
+check(sportFilterMarkup.length > 0 && !sportFilterMarkup.includes('value="all"'),
+  'facility.html: the sport filter must not send a non-numeric value');
+check(bookingsSource?.includes('${bookingFilters?.sportId == sport.sportId}'),
+  'facility.html: the sport filter must restore the selected sport');
+// 시설 필터는 종목 필터 바로 뒤에 오고, 담당 시설(${facilities})만 나열한다.
+// '전체 시설'도 빈 값이어야 Spring이 facilityId를 Long으로 바인딩할 수 있다.
+const facilityFilterStart = bookingsSource?.indexOf('id="booking-facility-filter"') ?? -1;
+const facilityFilterMarkup = facilityFilterStart < 0 ? '' : bookingsSource.slice(
+  facilityFilterStart,
+  bookingsSource.indexOf('</select>', facilityFilterStart) + '</select>'.length);
+check(facilityFilterMarkup.length > 0,
+  'facility.html: the bookings toolbar needs a facility filter');
+check(facilityFilterStart > (bookingsSource?.indexOf('id="booking-sport-filter"') ?? -1),
+  'facility.html: the facility filter must sit after the sport filter');
+check(facilityFilterMarkup.includes('name="facilityId"'),
+  'facility.html: the facility filter must submit facilityId');
+check(/<option value=""[^>]*>전체 시설<\/option>/.test(facilityFilterMarkup),
+  'facility.html: the facility default option must be 전체 시설 with an empty value');
+check(!facilityFilterMarkup.includes('value="all"'),
+  'facility.html: the facility filter must not send a non-numeric value');
+check(facilityFilterMarkup.includes('th:each="facility : ${facilities}"'),
+  'facility.html: the facility filter must list only the manager\'s facilities');
+check(facilityFilterMarkup.includes('th:value="${facility.facilityId}"')
+  && facilityFilterMarkup.includes('th:text="${facility.name}"'),
+  'facility.html: the facility option must bind facilityId and name');
+check(facilityFilterMarkup.includes('${bookingFilters?.facilityId == null}'),
+  'facility.html: the facility filter must mark 전체 시설 selected when unset');
+check(facilityFilterMarkup.includes('${bookingFilters?.facilityId == facility.facilityId}'),
+  'facility.html: the facility filter must restore the selected facility');
+check(/aria-label="[^"]+"/.test(facilityFilterMarkup),
+  'facility.html: the facility filter needs an accessible label');
+check(bookingsSource?.includes('view=\'bookings\''),
+  'facility.html: the reset link must keep view=bookings');
+check(bookingsSource?.includes('#facility-bookings'),
+  'facility.html: the reset link must restore the bookings anchor');
+for (const field of ['match.matchId', 'match.title', 'match.facilityName', 'match.sportName',
+  'match.participation', 'match.dateLabel', 'match.statusLabel', 'match.statusTone']) {
+  check(bookingsSource?.includes(field), `facility.html: bookings table must render ${field}`);
+}
+check(bookingsSource?.includes('@{/admin/operations(matchId=${match.matchId})}'),
+  'facility.html: each booking must deep-link to its read-only detail');
+
+const operationsSource = await readFile(path.join(resources, 'templates/admin/operations.html'), 'utf8');
+check(operationsSource.includes('th:if="${match == null}"'),
+  'operations.html: a missing match must render an honest empty state');
+check(operationsSource.includes('id="ops-content" th:if="${match != null}"'),
+  'operations.html: the detail body must render only for a real match');
+for (const field of ['match.matchId', 'match.title', 'match.facilityName', 'match.sportName',
+  'match.dateLabel', 'match.participation', 'match.statusLabel', 'match.statusTone']) {
+  check(operationsSource.includes(field), `operations.html: room summary must render ${field}`);
+}
+check(operationsSource.includes('th:each="roomApplication : ${match.applications}"')
+  && operationsSource.includes('th:each="participant : ${match.participants}"'),
+  'operations.html: applications and participants must be listed from the model');
+// 'application'은 Thymeleaf 예약어라 th:each 지역 변수 이름으로 쓸 수 없다. 예약어로 되돌아가면
+// 렌더링이 실패하므로 여기서 이름을 고정한다.
+check(!/th:each="application\s*:/.test(operationsSource),
+  'operations.html: the application loop variable must not use the reserved name "application"');
+for (const field of ['roomApplication.applicantName', 'roomApplication.kindLabel',
+  'roomApplication.statusLabel', 'roomApplication.receiptNo', 'roomApplication.createdAtLabel',
+  'participant.name', 'participant.teamLabel', 'participant.statusLabel']) {
+  check(operationsSource.includes(field), `operations.html: ${field} must be rendered`);
+}
+check(operationsSource.includes('#lists.isEmpty(match.applications)')
+  && operationsSource.includes('#lists.isEmpty(match.participants)'),
+  'operations.html: both lists need an empty state');
+// 조회 전용: 쓰기 폼·제출 버튼·없는 getter(seats/members 등)를 참조하지 않는다.
+check(!/<form\b/.test(operationsSource) && !/th:action=/.test(operationsSource),
+  'operations.html: the read-only detail must not contain write forms');
+check(!/type="submit"/.test(operationsSource),
+  'operations.html: the read-only detail must not offer submit actions');
+check(!/opsApplication|match\.pendingGroups|match\.teamA|match\.canAssign|match\.status ==/.test(operationsSource),
+  'operations.html: unimplemented confirm/reject/assign/complete controls must stay out of the page');
+check(operationsSource.includes('@{/admin/facility(view=\'bookings\')}'),
+  'operations.html: the detail must link back to the booking list');
 
 // 관리자 진입 버튼은 역할별로만 노출하고, 관리자 화면끼리는 서로 이동 링크를 두지 않는다.
 function fragmentSlice(source, openMarker, closeMarker) {

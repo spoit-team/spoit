@@ -27,7 +27,9 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import co.kr.spoit.facility.domain.MatchPeriod;
 import co.kr.spoit.facility.dto.FacilityForm;
+import co.kr.spoit.facility.service.FacilityDeleteBlockedException;
 import co.kr.spoit.facility.service.FacilityServiceImpl;
 import co.kr.spoit.match.dto.MatchDetailRow;
 import co.kr.spoit.match.mapper.MatchMapper;
@@ -134,7 +136,7 @@ class FacilityMatchReferenceIntegrationTest {
     void rejectsDeletionWhenUnfinishedMatchReferencesFacility(String matchStatus) {
         insertMatch(1002L, BASKETBALL_SPORT_ID, matchStatus);
 
-        assertRejected(() -> facilityService.deleteFacility(MANAGER_USER_ID, FACILITY_ID));
+        assertDeleteBlocked(() -> facilityService.deleteFacility(MANAGER_USER_ID, FACILITY_ID), 1002L);
 
         assertThat(isFacilityDeleted()).isFalse();
         assertThat(facilityMapper.selectManagedFacilities(MANAGER_USER_ID))
@@ -201,6 +203,23 @@ class FacilityMatchReferenceIntegrationTest {
 
         assertThatThrownBy(() -> nested.executeWithoutResult(status -> action.run()))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /**
+     * 삭제 차단은 전용 예외로 알리므로 안내 문구와 차단 매칭방까지 함께 검증한다.
+     * {@link #assertRejected(Runnable)}와 같은 세이브포인트 안에서 실행해 이후 검증은 바깥 트랜잭션에서 읽는다.
+     */
+    private void assertDeleteBlocked(Runnable action, Long... blockingMatchIds) {
+        TransactionTemplate nested = new TransactionTemplate(transactionManager);
+        nested.setPropagationBehavior(TransactionDefinition.PROPAGATION_NESTED);
+
+        assertThatThrownBy(() -> nested.executeWithoutResult(status -> action.run()))
+                .isInstanceOfSatisfying(FacilityDeleteBlockedException.class, exception -> {
+                    assertThat(exception).hasMessageContaining("시설을 삭제할 수 없습니다");
+                    assertThat(exception.getConflicts())
+                            .extracting(MatchPeriod::getMatchId)
+                            .containsExactly(blockingMatchIds);
+                });
     }
 
     /** 테스트 트랜잭션 안에서만 쓰는 매칭방 행이다. fixture의 시설·종목·회원을 참조한다. */

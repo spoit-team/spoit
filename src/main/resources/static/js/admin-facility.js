@@ -749,6 +749,60 @@
 
   openScheduleConflicts();
 
+  /* 시설 삭제 차단 경고: 삭제가 거부되어 차단 목록이 돌아온 경우에만 자동으로 연다.
+     목록이 없으면 정상 삭제 흐름이며 아무것도 열지 않는다. */
+  const deleteBlockedModal = document.getElementById('facility-delete-blocked-modal');
+  let deleteBlockedReturnFocus = null;
+
+  /* 자동으로 열린 경고는 사용자가 누른 버튼이 없다. 닫을 때 시설 목록의 같은 조작 요소로
+     초점을 되돌려 키보드 사용자가 위치를 잃지 않게 한다. */
+  function deleteBlockedReturnTarget() {
+    const assetsView = document.getElementById('facility-assets');
+    if (!assetsView) return null;
+    return assetsView.querySelector('[data-delete-facility]')
+      || assetsView.querySelector('[data-open-facility]')
+      || assetsView.querySelector('h1');
+  }
+
+  function openDeleteBlocked() {
+    if (!deleteBlockedModal || deleteBlockedModal.dataset.autoOpen !== 'true') return;
+    deleteBlockedReturnFocus = deleteBlockedReturnTarget();
+    /* 새로고침 뒤에도 다시 열리지 않도록 한 번 연 뒤 표시를 지운다. */
+    delete deleteBlockedModal.dataset.autoOpen;
+    openModal(deleteBlockedModal, '#facility-delete-blocked-close');
+  }
+
+  function closeDeleteBlocked() {
+    if (!deleteBlockedModal || deleteBlockedModal.hidden) return;
+    closeModal(deleteBlockedModal);
+    /* 공통 셸은 마지막에 초점이 있던 요소(대개 body)로 되돌린다. 여기서는 화면 안 조작 요소로 되돌린다. */
+    const target = deleteBlockedReturnFocus || deleteBlockedReturnTarget();
+    deleteBlockedReturnFocus = null;
+    target?.focus?.();
+  }
+
+  document.addEventListener('click', function (event) {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+    if (target.closest('[data-close-facility-delete-blocked]')) {
+      closeDeleteBlocked();
+      return;
+    }
+    if (target === deleteBlockedModal) closeDeleteBlocked();
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (!deleteBlockedModal || deleteBlockedModal.hidden) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeDeleteBlocked();
+      return;
+    }
+    admin?.trapFocus(deleteBlockedModal, event);
+  });
+
+  openDeleteBlocked();
+
   initScheduleCard();
 
   updateRoomEditorCapacity();

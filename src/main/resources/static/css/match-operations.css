@@ -1,3 +1,6 @@
+/* 매치 운영(매칭방 상세) 화면: 조회 전용 요약·신청 내역·참가자 목록만 스타일링합니다.
+   확정·반려·팀 배정 같은 변경 조작은 이 화면에 없으므로 관련 스타일도 두지 않습니다. */
+
 .ops-message {
   margin: 0 0 16px;
   padding: 11px 14px;
@@ -15,33 +18,78 @@
   color: var(--admin-red);
 }
 
+/* ── 매칭방 요약 ─────────────────────────────────────────── */
 .ops-room-summary {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   border-block: 1px solid var(--admin-line-strong);
 }
 
-.ops-room-summary > div {
-  min-width: 0;
-  padding: 15px 18px;
+.ops-room-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 2px 14px;
 }
 
-.ops-room-summary > div + div {
+.ops-room-ident {
+  min-width: 0;
+}
+
+.ops-room-eyebrow {
+  margin: 0 0 4px;
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+
+.ops-room-eyebrow span {
+  color: var(--admin-blue-ink);
+  font-family: Archivo, "Pretendard Variable", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.ops-room-ident h2 {
+  margin: 0;
+  color: var(--admin-ink);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.ops-room-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  border-top: 1px solid var(--admin-line);
+}
+
+.ops-room-facts > div {
+  min-width: 0;
+  padding: 13px 18px 15px;
+}
+
+.ops-room-facts > div:first-child {
+  padding-left: 2px;
+}
+
+.ops-room-facts > div + div {
   border-left: 1px solid var(--admin-line);
 }
 
-.ops-room-summary span {
-  display: block;
-  margin-bottom: 5px;
+.ops-room-facts dt {
+  margin-bottom: 4px;
   color: var(--admin-muted);
   font-size: 10px;
   font-weight: 700;
 }
 
-.ops-room-summary b {
-  display: block;
+.ops-room-facts dd {
+  margin: 0;
   color: var(--admin-ink);
   font-size: 12px;
   font-weight: 700;
@@ -49,12 +97,20 @@
   overflow-wrap: anywhere;
 }
 
+/* ── 신청 내역 · 참가자 ─────────────────────────────────── */
 .ops-section {
   border-bottom: 1px solid var(--admin-line-strong);
 }
 
 .ops-section-heading {
-  margin: 20px 0 10px;
+  margin: 22px 0 2px;
+}
+
+/* 시설 관리자 화면의 공통 규칙은 .section-heading에 위쪽 구분선을 그립니다.
+   상세 화면은 섹션 경계에만 선을 두므로 여기서는 그 선을 끕니다(구분선 중복 방지). */
+.admin-body[data-admin-role="facility"] .admin-content .ops-section > .ops-section-heading {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .ops-section-heading h2 {
@@ -72,172 +128,36 @@
   line-height: 1.6;
 }
 
-.ops-list {
-  display: grid;
-}
-
-.ops-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 16px;
-  padding: 13px 0;
-  border-top: 1px solid var(--admin-line);
-}
-
-.ops-row-main {
-  min-width: 0;
-}
-
-.ops-reject-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.ops-reject-reason {
-  display: inline-flex;
-}
-
-.ops-reject-reason .field-control {
-  height: 31px;
-  min-width: 160px;
-  font-size: 10.5px;
-}
-
-.ops-row-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 7px;
-  color: var(--admin-ink);
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.ops-row-meta,
-.ops-row-note {
-  display: block;
-  margin-top: 5px;
-  color: var(--admin-muted);
-  font-size: 10.5px;
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-}
-
-.ops-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 7px;
-}
-
-.ops-actions input {
-  width: min(210px, 24vw);
-  min-height: 32px;
-  padding: 0 9px;
-  border: 1px solid var(--admin-line-strong);
-  border-radius: 7px;
-  background: var(--admin-paper);
-  color: var(--admin-ink);
-  font-size: 11px;
-}
-
-.ops-team-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
-}
-
-.ops-team {
-  min-width: 0;
-  padding: 14px 0 10px;
-  border-top: 1px solid var(--admin-line);
-}
-
-.ops-team h3 {
-  margin: 0;
-  color: var(--admin-ink);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.ops-team h3 b {
-  margin-left: 7px;
-  color: var(--admin-muted);
-  font-size: 10.5px;
-  font-weight: 650;
-}
-
-.ops-roster {
-  display: grid;
-  margin-top: 9px;
-}
-
-.ops-roster-row {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 9px 0;
-  border-top: 1px solid var(--admin-line);
-}
-
-.ops-roster-row strong,
-.ops-roster-row small {
-  display: block;
-}
-
-.ops-roster-row strong {
-  color: var(--admin-ink-2);
-  font-size: 11.5px;
-  font-weight: 700;
-}
-
-.ops-roster-row small {
-  margin-top: 2px;
-  color: var(--admin-muted);
-  font-size: 9.5px;
-  line-height: 1.45;
-}
-
-.ops-roster-actions {
-  display: flex;
+.ops-section-heading .status-badge {
   flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
 }
 
-.ops-assignment {
-  min-width: 94px;
-  min-height: 31px;
-  padding: 0 8px;
-  border: 1px solid var(--admin-line-strong);
-  border-radius: 7px;
-  background: var(--admin-paper);
-  color: var(--admin-ink-2);
-  font-size: 10.5px;
+.ops-table {
+  margin: 8px 0 18px;
+  border-top: 1px solid var(--admin-line-strong);
 }
 
-.ops-team-empty,
-.ops-empty p {
-  padding: 13px 0;
-  color: var(--admin-muted);
-  font-size: 11px;
+.ops-table th:first-child,
+.ops-table td:first-child {
+  padding-left: 2px;
 }
 
-.ops-unassigned {
-  grid-column: 1 / -1;
+.ops-table .ops-numeric {
+  font-family: Archivo, "Pretendard Variable", sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .01em;
 }
 
+.ops-table td .status-badge {
+  margin-block: -2px;
+}
+
+/* ── 안내 문구 · 하단 링크 ──────────────────────────────── */
 .ops-empty {
   margin-top: 6px;
-  padding: 22px;
+  padding: 22px 2px;
   border-block: 1px solid var(--admin-line-strong);
-  background: var(--admin-paper);
+  background: transparent;
 }
 
 .ops-empty h2 {
@@ -247,9 +167,11 @@
 }
 
 .ops-empty p {
+  max-width: 620px;
   margin: 6px 0 15px;
-  padding: 0;
-  line-height: 1.6;
+  color: var(--admin-muted);
+  font-size: 11.5px;
+  line-height: 1.65;
 }
 
 .ops-footer-actions {
@@ -257,31 +179,31 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-top: 18px;
+  margin-top: 22px;
 }
 
-.ops-footnote,
 .ops-storage-note {
   margin: 10px 0 0;
-  color: var(--admin-muted);
+  color: var(--admin-faint);
   font-size: 10px;
   line-height: 1.55;
 }
 
-.ops-storage-note {
-  color: var(--admin-faint);
-}
-
 @media (max-width: 1000px) {
-  .ops-room-summary {
+  .ops-room-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .ops-room-summary > div:nth-child(3) {
+  .ops-room-facts > div:nth-child(odd) {
+    padding-left: 2px;
     border-left: 0;
   }
 
-  .ops-room-summary > div:nth-child(n + 3) {
+  .ops-room-facts > div:nth-child(even) {
+    border-left: 1px solid var(--admin-line);
+  }
+
+  .ops-room-facts > div:nth-child(n + 3) {
     border-top: 1px solid var(--admin-line);
   }
 }
@@ -291,45 +213,30 @@
     align-items: flex-start;
   }
 
-  .ops-reject-form {
-    justify-content: flex-start;
-  }
-
-  .ops-team-grid {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-
-  .ops-unassigned {
-    grid-column: auto;
-  }
-
-  .ops-row {
-    grid-template-columns: 1fr;
-    align-items: start;
+  .ops-room-head {
+    flex-direction: column;
+    align-items: flex-start;
     gap: 9px;
-  }
-
-  .ops-actions input {
-    width: min(100%, 280px);
   }
 }
 
-@media (max-width: 480px) {
-  .ops-room-summary > div {
-    padding: 12px 10px;
+@media (max-width: 560px) {
+  .ops-room-facts {
+    grid-template-columns: 1fr;
   }
 
-  .ops-room-summary b {
-    font-size: 11px;
+  /* 한 열로 접히면 세로 구분선은 모두 지우고 위쪽 선만 남깁니다.
+     (앞선 2열 규칙의 nth-child 선택자보다 우선해야 하므로 같은 형태로 맞춥니다.) */
+  .ops-room-facts > div:nth-child(n) {
+    padding-inline: 2px;
+    border-left: 0;
   }
 
-  .ops-roster-row {
-    align-items: flex-start;
+  .ops-room-facts > div:nth-child(n + 2) {
+    border-top: 1px solid var(--admin-line);
   }
 
-  .ops-roster-actions {
-    align-items: flex-end;
-    flex-direction: column;
+  .ops-room-ident h2 {
+    font-size: 18px;
   }
 }
