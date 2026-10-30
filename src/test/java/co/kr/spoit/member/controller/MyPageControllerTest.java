@@ -124,7 +124,7 @@ class MyPageControllerTest {
         given(memberService.findRegions(USER_ID)).willReturn(List.of());
         given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.empty());
         MyReservations.Entry entry = new MyReservations.Entry(1L, 3L, "풋살", "개인 신청", "확정 대기",
-                "text-book-ink", "매칭방", "내일 19:00~21:00 · 시설", "참가 1명", null, false, "신청 취소", false, null);
+                "text-book-ink", "매칭방", "내일 19:00~21:00 · 시설", "참가 1명", null, false, "신청 취소", false, null, false, null);
         given(reservationService.find(USER_ID)).willReturn(new MyReservations(List.of(entry), List.of(), 2, 1, 1));
 
         mockMvc.perform(get("/mypage").with(principal()))

@@ -7,7 +7,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
@@ -18,9 +20,13 @@ import co.kr.spoit.match.dto.MatchDetailPage;
 import co.kr.spoit.match.dto.MatchDetailPage.Facility;
 import co.kr.spoit.match.dto.MatchDetailPage.MyApplication;
 import co.kr.spoit.match.dto.MatchDetailPage.RosterMember;
+import co.kr.spoit.match.dto.MatchDetailPage.TeamMemberOption;
+import co.kr.spoit.match.dto.MatchDetailPage.TeamOption;
 import co.kr.spoit.match.dto.MatchDetailPage.TeamRoster;
 import co.kr.spoit.match.dto.MatchDetailRow;
 import co.kr.spoit.match.dto.ParticipantRow;
+import co.kr.spoit.match.dto.TeamClubRow;
+import co.kr.spoit.match.dto.TeamMemberRow;
 
 /**
  * 조회 결과(MatchDetailRow + 참가자)를 상세 화면용 MatchDetailPage로 변환한다.
@@ -39,8 +45,17 @@ public class MatchDetailAssembler {
 
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
+    private static final String NO_RATING = "기록 없음";
+
     public MatchDetailPage toPage(MatchDetailRow row, List<ParticipantRow> participants,
                                   Long currentUserId, LocalDateTime now, LocalDate today) {
+        return toPage(row, participants, currentUserId, now, today, List.of());
+    }
+
+    /** @param clubs RES-04 팀 신청에 쓸 수 있는 동호회 ({@link #toTeamOptions}) */
+    public MatchDetailPage toPage(MatchDetailRow row, List<ParticipantRow> participants,
+                                  Long currentUserId, LocalDateTime now, LocalDate today,
+                                  List<TeamOption> clubs) {
         List<ParticipantRow> confirmed = filterStatus(participants, ParticipationStatus.CONFIRMED);
         List<ParticipantRow> pending = filterStatus(participants, ParticipationStatus.WAITING);
         long unassigned = confirmed.stream().filter(p -> p.getMatchSide() == null).count();
@@ -136,9 +151,55 @@ public class MatchDetailAssembler {
                 .applyMessageClass(message.cssClass())
                 .myApplication(MyApplication.HIDDEN)
                 .canApply(canApply)
-                .hasTeams(false)
-                .clubs(List.of())
+                .hasTeams(!clubs.isEmpty())
+                .clubs(clubs)
                 .build();
+    }
+
+    /**
+     * RES-04 팀 신청 다이얼로그용 동호회·회원 목록. 신청 대표 본인은 회원 목록에서 빼고
+     * 다이얼로그 위쪽 고정 칸에 따로 보여 준다.
+     */
+    public List<TeamOption> toTeamOptions(List<TeamClubRow> clubs, List<TeamMemberRow> members, long applicantUserId) {
+        Map<Long, List<TeamMemberRow>> byClub = members.stream()
+                .collect(Collectors.groupingBy(TeamMemberRow::getClubId));
+        return clubs.stream().map(club -> {
+            List<TeamMemberRow> all = byClub.getOrDefault(club.getClubId(), List.of());
+            List<TeamMemberOption> options = all.stream()
+                    .filter(m -> m.getUserId() != applicantUserId)
+                    .map(m -> new TeamMemberOption(m.getClubMemberId(), m.getNickname(), initial(m.getNickname()),
+                            m.isLeader(), ratingText(m), m.isAlreadyApplied()))
+                    .toList();
+            return new TeamOption(club.getClubId(), club.getClubName(),
+                    club.getLeaderName() == null ? "없음" : club.getLeaderName(),
+                    club.getMemberCount(), averageRating(all), 1, options);
+        }).toList();
+    }
+
+    /** 확정 경기 기록이 있는 회원만 MMR을 보여 준다 (마이페이지와 같은 기준). */
+    private String ratingText(TeamMemberRow m) {
+        return rated(m) ? formatMmr(m.getCurrentMmr()) : NO_RATING;
+    }
+
+    private String averageRating(List<TeamMemberRow> members) {
+        List<BigDecimal> values = members.stream().filter(this::rated).map(TeamMemberRow::getCurrentMmr).toList();
+        if (values.isEmpty()) {
+            return NO_RATING;
+        }
+        BigDecimal sum = values.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+        return formatMmr(sum.divide(BigDecimal.valueOf(values.size()), 0, RoundingMode.HALF_UP));
+    }
+
+    private boolean rated(TeamMemberRow m) {
+        return m.getCurrentMmr() != null && m.getRatedMatchCount() != null && m.getRatedMatchCount() > 0;
+    }
+
+    private static String initial(String nickname) {
+        if (nickname == null || nickname.isBlank()) {
+            return "?";
+        }
+        String trimmed = nickname.strip();
+        return trimmed.substring(0, trimmed.offsetByCodePoints(0, 1));
     }
 
     private ApplyMessage applyMessage(boolean recruiting, boolean matched, boolean cancelled,

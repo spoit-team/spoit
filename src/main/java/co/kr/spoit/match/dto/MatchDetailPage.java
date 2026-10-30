@@ -44,9 +44,9 @@ public class MatchDetailPage {
     private final String applyMessageClass;
     private final MyApplication myApplication;
     private final boolean canApply;
-    /** RES-03 팀 신청에서 채운다. false면 팀 신청 버튼이 비활성화된다. */
+    /** RES-04 로그인 회원이 팀 신청에 쓸 수 있는 동호회가 있는지. false면 팀 신청 버튼이 비활성화된다. */
     private final boolean hasTeams;
-    private final List<?> clubs;
+    private final List<TeamOption> clubs;
 
     @Getter
     @AllArgsConstructor
@@ -73,6 +73,34 @@ public class MatchDetailPage {
         /** 방장 여부 */
         private final boolean host;
         private final String meta;
+    }
+
+    /** RES-04 팀 신청 다이얼로그의 동호회 하나 (detail.html #team-panel) */
+    @Getter
+    @AllArgsConstructor
+    public static class TeamOption {
+        private final Long clubId;
+        private final String clubName;
+        private final String leaderName;
+        /** 활성 회원 수 (신청자 포함) */
+        private final int memberCount;
+        private final String averageRatingText;
+        /** 처음 선택 인원: 신청 대표 1명 */
+        private final int selectionCount;
+        /** 신청 대표 본인을 뺀 활성 회원 */
+        private final List<TeamMemberOption> members;
+    }
+
+    @Getter
+    @AllArgsConstructor
+    public static class TeamMemberOption {
+        private final Long clubMemberId;
+        private final String nickname;
+        private final String initial;
+        private final boolean leader;
+        private final String ratingText;
+        /** 이 매치에 이미 신청했으면 체크된 채 잠근다 */
+        private final boolean alreadyApplied;
     }
 
     /** 내 신청 내역. RES-04 전까지는 숨김만 쓴다. */

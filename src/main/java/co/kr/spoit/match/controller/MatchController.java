@@ -1,5 +1,7 @@
 package co.kr.spoit.match.controller;
 
+import java.util.List;
+
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.stereotype.Controller;
@@ -25,7 +27,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * 매칭(=시설 예약) 화면 컨트롤러.
  *
- * <p>CorePageController에서 분리했다. RES-01 검색(카드형)·RES-02 상세·RES-03 개인 신청.
+ * <p>CorePageController에서 분리했다. RES-01 검색(카드형)·RES-02 상세·RES-03 개인 신청·RES-04 팀 신청.
  * 신청 흐름: 상세 다이얼로그 → 신청 내용(STEP 1) → 신청 완료(STEP 3). 결제 안내(STEP 2)는
  * 무료 결제만 지원하는 동안 건너뛴다.</p>
  */
@@ -68,14 +70,24 @@ public class MatchController {
         return "matches/detail";
     }
 
-    /** RES-03 상세 다이얼로그의 참가 방식 선택 → 신청 내용 화면. 지금은 개인 신청만 받는다. */
+    /**
+     * RES-03·04 상세 다이얼로그의 참가 방식 선택 → 신청 내용 화면.
+     * 팀 신청은 고른 동호회·팀원을 쿼리로 넘기고, 신청 내용 화면과 접수 때 서버가 다시 검증한다.
+     */
     @PostMapping("/{matchId}/selection")
     public String select(@PathVariable long matchId,
-                         @RequestParam(defaultValue = "individual") String applicationType) {
-        if (!"individual".equals(applicationType)) {
+                         @RequestParam(defaultValue = "individual") String applicationType,
+                         @RequestParam(required = false) Long clubId,
+                         @RequestParam(required = false) List<Long> clubMemberIds,
+                         RedirectAttributes redirect) {
+        if ("individual".equals(applicationType)) {
+            return "redirect:/matches/{matchId}/apply";
+        }
+        if (!"team".equals(applicationType) || clubId == null) {
             return "redirect:/matches/{matchId}";
         }
-        return "redirect:/matches/{matchId}/apply";
+        addTeamSelection(redirect, clubId, clubMemberIds);
+        return "redirect:/matches/{matchId}/apply/team";
     }
 
     /** RES-03 신청 내용 화면 (STEP 1) */
@@ -112,6 +124,60 @@ public class MatchController {
             redirect.addFlashAttribute("error", e.getMessage());
             return "redirect:/matches/{matchId}/apply";
         }
+    }
+
+    /** RES-04 팀 신청 내용 화면 (STEP 1) */
+    @GetMapping("/{matchId}/apply/team")
+    public String applyTeam(@PathVariable long matchId,
+                            @RequestParam long clubId,
+                            @RequestParam(required = false) List<Long> clubMemberIds,
+                            @AuthenticationPrincipal MemberPrincipal principal,
+                            CsrfToken csrfToken,
+                            Model model) {
+        csrfToken.getToken();
+        model.addAttribute("matchId", matchId);
+        model.addAttribute("completed", false);
+        applicationService.prepareTeam(matchId, principal.getUserId(), clubId, nullToEmpty(clubMemberIds))
+                .ifPresentOrElse(
+                        page -> addJoinModel(page, model),
+                        () -> addUnavailableModel(model));
+        return "matches/join";
+    }
+
+    /** RES-04 팀 신청 접수. 실패하면 같은 선택값으로 신청 내용 화면에 돌아가 사유를 보여 준다. */
+    @PostMapping("/{matchId}/apply/team")
+    public String submitTeam(@PathVariable long matchId,
+                             @RequestParam long clubId,
+                             @RequestParam(required = false) List<Long> clubMemberIds,
+                             @AuthenticationPrincipal MemberPrincipal principal,
+                             @RequestParam(defaultValue = "false") boolean agreeRules,
+                             RedirectAttributes redirect) {
+        List<Long> memberIds = nullToEmpty(clubMemberIds);
+        if (!agreeRules) {
+            redirect.addFlashAttribute("error", "매치 운영 규칙과 취소·노쇼 안내에 동의해 주세요.");
+            addTeamSelection(redirect, clubId, memberIds);
+            return "redirect:/matches/{matchId}/apply/team";
+        }
+        try {
+            String receiptNo = applicationService.applyTeam(matchId, principal.getUserId(), clubId, memberIds);
+            redirect.addAttribute("receiptNo", receiptNo);
+            return "redirect:/matches/{matchId}/apply/complete";
+        } catch (MatchApplyException e) {
+            redirect.addFlashAttribute("error", e.getMessage());
+            addTeamSelection(redirect, clubId, memberIds);
+            return "redirect:/matches/{matchId}/apply/team";
+        }
+    }
+
+    private static void addTeamSelection(RedirectAttributes redirect, long clubId, List<Long> clubMemberIds) {
+        redirect.addAttribute("clubId", clubId);
+        if (clubMemberIds != null && !clubMemberIds.isEmpty()) {
+            redirect.addAttribute("clubMemberIds", clubMemberIds);
+        }
+    }
+
+    private static List<Long> nullToEmpty(List<Long> ids) {
+        return ids == null ? List.of() : ids;
     }
 
     /** RES-03 신청 완료 (STEP 3, 새로고침해도 다시 접수되지 않는다) */

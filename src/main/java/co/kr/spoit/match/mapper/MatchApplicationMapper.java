@@ -8,8 +8,11 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import co.kr.spoit.match.domain.MatchApplication;
+import co.kr.spoit.match.dto.GroupMemberRow;
 import co.kr.spoit.match.dto.MatchRow;
 import co.kr.spoit.match.dto.MyApplicationRow;
+import co.kr.spoit.match.dto.TeamClubRow;
+import co.kr.spoit.match.dto.TeamMemberRow;
 
 @Mapper
 public interface MatchApplicationMapper {
@@ -28,13 +31,18 @@ public interface MatchApplicationMapper {
                               @Param("userId") long userId,
                               @Param("applicationStatuses") List<String> applicationStatuses);
 
-    /** 정원 점유 인원: 참가자(대기·확정) + 확정 대기 중인 개인 신청 */
+    /**
+     * 정원 점유 인원: 참가자(대기·확정) + 확정 대기 중인 신청.
+     * 팀 신청도 팀원마다 신청 행이 있으므로 대기 신청 행 수가 곧 대기 인원이다.
+     */
     int countOccupiedSeats(@Param("matchId") long matchId,
                            @Param("participantStatuses") List<String> participantStatuses,
-                           @Param("waitingStatus") String waitingStatus,
-                           @Param("individualType") String individualType);
+                           @Param("waitingStatus") String waitingStatus);
 
     int insert(MatchApplication application);
+
+    /** RES-04 팀 신청 대표 행: INSERT 뒤 묶음 id를 자기 자신으로 채운다. */
+    int markGroupLeader(@Param("applicationId") long applicationId);
 
     MatchApplication findById(@Param("applicationId") long applicationId);
 
@@ -59,6 +67,22 @@ public interface MatchApplicationMapper {
                            @Param("cancelledStatus") String cancelledStatus,
                            @Param("now") LocalDateTime now);
 
+    /** RES-04 팀 신청 묶음 전체 취소. 바뀐 행 수 (모두 이미 취소됐으면 0) */
+    int markGroupCancelled(@Param("groupApplicationId") long groupApplicationId,
+                           @Param("activeStatuses") List<String> activeStatuses,
+                           @Param("cancelledStatus") String cancelledStatus,
+                           @Param("cancelledBy") long cancelledBy,
+                           @Param("now") LocalDateTime now);
+
+    /** 묶음에 속한 신청으로 들어간 활성 참가자 행을 모두 취소한다. */
+    int cancelGroupParticipants(@Param("groupApplicationId") long groupApplicationId,
+                                @Param("occupyingStatuses") List<String> occupyingStatuses,
+                                @Param("cancelledStatus") String cancelledStatus,
+                                @Param("now") LocalDateTime now);
+
+    /** 같은 묶음의 신청 행 (대표가 먼저, 그다음 접수 순) */
+    List<GroupMemberRow> findGroupMembers(@Param("groupApplicationId") long groupApplicationId);
+
     /** RES-06 내 신청 내역: 내가 낸 신청 + 내가 참가자로 들어간 신청 (경기 시작 순) */
     List<MyApplicationRow> findMyApplications(@Param("userId") long userId,
                                               @Param("participantStatuses") List<String> participantStatuses);
@@ -70,4 +94,23 @@ public interface MatchApplicationMapper {
                           @Param("status") String status,
                           @Param("entryMmr") BigDecimal entryMmr,
                           @Param("joinedAt") LocalDateTime joinedAt);
+
+    /* ---------------- RES-04 팀 신청 대상 ---------------- */
+
+    /** 이 회원이 활성 회원인 해체되지 않은 동호회 중 종목이 같은 것 */
+    List<TeamClubRow> findTeamClubs(@Param("userId") long userId,
+                                    @Param("sportId") long sportId);
+
+    /** 이 회원이 활성 회원인 해체되지 않은 동호회 한 곳, 아니면 null */
+    TeamClubRow findTeamClub(@Param("clubId") long clubId,
+                             @Param("userId") long userId);
+
+    /**
+     * 동호회들의 활성 회원 (탈퇴 회원 제외). 매치 종목 레이팅과 이 매치에 이미 들어갔는지를 함께 읽는다.
+     * 동호회장이 먼저, 그다음 가입 순.
+     */
+    List<TeamMemberRow> findTeamMembers(@Param("clubIds") List<Long> clubIds,
+                                        @Param("matchId") long matchId,
+                                        @Param("sportId") long sportId,
+                                        @Param("applicationStatuses") List<String> applicationStatuses);
 }

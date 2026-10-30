@@ -1892,3 +1892,126 @@
     width: 100%;
   }
 }
+
+/* RES-04 팀 신청 취소 확인창: 회원 탈퇴 확인창과 같은 모양 */
+.mypage-confirm-dialog {
+  position: fixed;
+  inset: 50% auto auto 50%;
+  width: min(460px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  margin: 0;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  overflow: auto;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 16px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  box-shadow: 0 24px 70px rgb(19 21 25 / 20%);
+}
+
+.mypage-confirm-dialog:not([open]) {
+  display: none;
+}
+
+.mypage-confirm-dialog::backdrop {
+  background: rgb(19 21 25 / 48%);
+  backdrop-filter: blur(2px);
+}
+
+.mypage-confirm-dialog-content {
+  display: grid;
+  gap: 10px;
+  padding: 22px;
+}
+
+.mypage-confirm-dialog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+.mypage-confirm-dialog-heading h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 850;
+  letter-spacing: -.04em;
+}
+
+.mypage-confirm-dialog-heading p {
+  margin: 5px 0 0;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.mypage-confirm-close {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 1px solid var(--color-line);
+  border-radius: 9px;
+  background: var(--color-paper);
+  color: var(--color-muted);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.mypage-confirm-note {
+  margin: 0;
+  border-left: 2px solid var(--color-danger);
+  background: var(--color-danger-soft);
+  padding: 10px 12px;
+  color: var(--color-danger);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.mypage-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-line);
+}
+
+.mypage-confirm-back,
+.mypage-confirm-submit {
+  min-height: 40px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 9px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 750;
+  transition: border-color .15s, background-color .15s, color .15s;
+}
+
+.mypage-confirm-back {
+  background: var(--color-paper);
+  color: var(--color-ink-2);
+}
+
+.mypage-confirm-back:hover {
+  background: var(--color-paper-soft);
+}
+
+.mypage-confirm-submit {
+  border-color: var(--color-danger);
+  background: var(--color-danger);
+  color: #fff;
+}
+
+.mypage-confirm-submit:hover {
+  filter: brightness(.94);
+}
+
+.mypage-confirm-close:focus-visible,
+.mypage-confirm-back:focus-visible,
+.mypage-confirm-submit:focus-visible {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 3px;
+}

@@ -48,6 +48,7 @@
                           AND active_match_user = #{userId})
     </select>
 
+    <!-- 팀 신청도 팀원마다 신청 행이 있으므로 신청 종류와 관계없이 대기 행 수를 센다 -->
     <select id="countOccupiedSeats" resultType="int">
         SELECT (SELECT COUNT(*)
                   FROM match_participant
@@ -59,21 +60,26 @@
              + (SELECT COUNT(*)
                   FROM match_application
                  WHERE match_id = #{matchId}
-                   AND status = #{waitingStatus}
-                   AND application_type = #{individualType})
+                   AND status = #{waitingStatus})
     </select>
 
     <insert id="insert" parameterType="co.kr.spoit.match.domain.MatchApplication"
             useGeneratedKeys="true" keyProperty="applicationId">
         INSERT INTO match_application (match_id, applicant_user_id, club_id, application_type,
-                                       status, receipt_no, created_at)
+                                       status, receipt_no, created_at, group_application_id)
         VALUES (#{matchId}, #{applicantUserId}, #{clubId}, #{applicationType},
-                #{status}, #{receiptNo}, #{createdAt})
+                #{status}, #{receiptNo}, #{createdAt}, #{groupApplicationId})
     </insert>
+
+    <update id="markGroupLeader">
+        UPDATE match_application
+           SET group_application_id = application_id
+         WHERE application_id = #{applicationId}
+    </update>
 
     <sql id="applicationColumns">
         application_id, match_id, applicant_user_id, club_id, application_type,
-        status, receipt_no, created_at, confirmed_at
+        status, receipt_no, created_at, confirmed_at, group_application_id
     </sql>
 
     <select id="findById" resultType="co.kr.spoit.match.domain.MatchApplication">
@@ -120,8 +126,46 @@
                </foreach>
     </update>
 
+    <update id="markGroupCancelled">
+        UPDATE match_application
+           SET status = #{cancelledStatus},
+               cancelled_at = #{now},
+               cancelled_by = #{cancelledBy}
+         WHERE group_application_id = #{groupApplicationId}
+           AND status IN
+               <foreach collection="activeStatuses" item="st" open="(" separator="," close=")">
+                   #{st}
+               </foreach>
+    </update>
+
+    <update id="cancelGroupParticipants">
+        UPDATE match_participant
+           SET participation_status = #{cancelledStatus},
+               cancelled_at = #{now}
+         WHERE application_id IN (SELECT application_id
+                                    FROM match_application
+                                   WHERE group_application_id = #{groupApplicationId})
+           AND participation_status IN
+               <foreach collection="occupyingStatuses" item="st" open="(" separator="," close=")">
+                   #{st}
+               </foreach>
+    </update>
+
+    <select id="findGroupMembers" resultType="co.kr.spoit.match.dto.GroupMemberRow">
+        SELECT ma.application_id,
+               ma.applicant_user_id AS user_id,
+               u.nickname,
+               ma.status
+          FROM match_application ma
+          JOIN app_user u ON u.user_id = ma.applicant_user_id
+         WHERE ma.group_application_id = #{groupApplicationId}
+         ORDER BY (ma.application_id = #{groupApplicationId}) DESC, ma.created_at, ma.application_id
+    </select>
+
     <!--
-      RES-06 내 신청 내역. 동호회 신청이면 신청자는 동호회장이므로, 참가자로 포함된 신청도 함께 가져온다.
+      RES-06 내 신청 내역. 팀 신청(RES-04)은 팀원마다 신청 행이 있어 applicant_user_id로 찾는다.
+      이전 방식의 동호회 신청(신청 1건 : 참가자 N명)은 참가자로 포함된 신청도 함께 가져온다.
+      group_size: 같은 묶음에서 내 행과 상태가 같은 행 수 (묶음은 확정·취소가 함께 바뀐다).
       지난 기록이라 삭제된 시설의 매칭도 포함한다.
     -->
     <select id="findMyApplications" resultType="co.kr.spoit.match.dto.MyApplicationRow">
@@ -138,6 +182,13 @@
                sm.end_at,
                sm.status AS match_status,
                mine.match_side,
+               ma.group_application_id,
+               leader.applicant_user_id AS group_leader_user_id,
+               lu.nickname              AS group_leader_name,
+               (SELECT COUNT(*)
+                  FROM match_application g
+                 WHERE g.group_application_id = ma.group_application_id
+                   AND g.status = ma.status) AS group_size,
                (SELECT COUNT(*)
                   FROM match_participant p
                  WHERE p.application_id = ma.application_id
@@ -152,6 +203,8 @@
           LEFT JOIN match_participant mine
                  ON mine.application_id = ma.application_id
                 AND mine.user_id = #{userId}
+          LEFT JOIN match_application leader ON leader.application_id = ma.group_application_id
+          LEFT JOIN app_user lu              ON lu.user_id = leader.applicant_user_id
          WHERE ma.applicant_user_id = #{userId}
             OR mine.participant_id IS NOT NULL
          ORDER BY sm.start_at, ma.application_id
@@ -163,5 +216,81 @@
         VALUES (#{applicationId}, #{matchId}, #{userId},
                 #{status}, #{entryMmr}, #{joinedAt})
     </insert>
+
+    <!-- ================= RES-04 팀 신청 대상 ================= -->
+
+    <sql id="teamClubColumns">
+        c.club_id,
+        c.club_name,
+        c.sport_id,
+        (SELECT lu.nickname
+           FROM club_member lm
+           JOIN app_user lu ON lu.user_id = lm.user_id
+          WHERE lm.club_id = c.club_id
+            AND lm.left_at IS NULL
+            AND lm.role = '동호회장'
+          ORDER BY lm.joined_at
+          LIMIT 1) AS leader_name,
+        (SELECT COUNT(*)
+           FROM club_member am
+          WHERE am.club_id = c.club_id
+            AND am.left_at IS NULL) AS member_count
+    </sql>
+
+    <select id="findTeamClubs" resultType="co.kr.spoit.match.dto.TeamClubRow">
+        SELECT <include refid="teamClubColumns"/>
+          FROM club c
+          JOIN club_member me ON me.club_id = c.club_id
+                             AND me.user_id = #{userId}
+                             AND me.left_at IS NULL
+         WHERE c.deleted_at IS NULL
+           AND c.sport_id = #{sportId}
+         ORDER BY c.club_name, c.club_id
+    </select>
+
+    <select id="findTeamClub" resultType="co.kr.spoit.match.dto.TeamClubRow">
+        SELECT <include refid="teamClubColumns"/>
+          FROM club c
+          JOIN club_member me ON me.club_id = c.club_id
+                             AND me.user_id = #{userId}
+                             AND me.left_at IS NULL
+         WHERE c.deleted_at IS NULL
+           AND c.club_id = #{clubId}
+    </select>
+
+    <select id="findTeamMembers" resultType="co.kr.spoit.match.dto.TeamMemberRow">
+        SELECT m.club_id,
+               m.club_member_id,
+               m.user_id,
+               u.nickname,
+               m.role,
+               u.deleted_at,
+               u.penalty_time,
+               sr.current_mmr,
+               sr.rated_match_count,
+               (EXISTS (SELECT 1
+                          FROM match_application ma
+                         WHERE ma.match_id = #{matchId}
+                           AND ma.applicant_user_id = m.user_id
+                           AND ma.status IN
+                               <foreach collection="applicationStatuses" item="st" open="(" separator="," close=")">
+                                   #{st}
+                               </foreach>)
+                OR EXISTS (SELECT 1
+                             FROM match_participant mp
+                            WHERE mp.match_id = #{matchId}
+                              AND mp.active_match_user = m.user_id)) AS already_applied
+          FROM club_member m
+          JOIN app_user u ON u.user_id = m.user_id
+                         AND u.deleted_at IS NULL
+          LEFT JOIN sport_rating sr ON sr.user_id = m.user_id
+                                   AND sr.sport_id = #{sportId}
+         WHERE m.club_id IN
+               <foreach collection="clubIds" item="id" open="(" separator="," close=")">
+                   #{id}
+               </foreach>
+           AND m.left_at IS NULL
+         ORDER BY m.club_id, (m.role = '동호회장') DESC, m.joined_at, m.club_member_id
+    </select>
 
 </mapper>

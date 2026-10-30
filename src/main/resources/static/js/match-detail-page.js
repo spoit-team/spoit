@@ -49,26 +49,22 @@
     return document.querySelector('[data-team-roster="' + clubId + '"]');
   }
 
+  // 이미 이 매치에 신청한 회원: 체크된 채 잠겨 있고 인원·제출에서 빠진다 (disabled는 전송되지 않는다).
+  function isApplied(checkbox) {
+    return checkbox.dataset.applied === 'true';
+  }
+
   function checkedClubMemberIds(clubId) {
     const roster = rosterFor(clubId);
     if (!roster) return [];
     return Array.from(roster.querySelectorAll('input[type="checkbox"]:checked:not(:disabled)')).map(function (input) { return input.value; });
   }
 
-  function leaderAuto(option) {
-    return option?.dataset.leaderAuto === 'true';
-  }
-
-  function leaderSeats(option) {
-    if (!leaderAuto(option)) return 0;
-    return option?.dataset.leaderIsApplicant === 'true' ? 0 : 1;
-  }
-
   function seatCount() {
     if (selectionKind === 'individual') return 1;
     const option = selectedClubOption();
     if (!option) return 1;
-    return 1 + checkedClubMemberIds(option.dataset.teamIndex).length + leaderSeats(option);
+    return 1 + checkedClubMemberIds(option.dataset.teamIndex).length;
   }
 
   function showError(message) {
@@ -107,7 +103,7 @@
       const isActiveRoster = isTeam && teamStep === 2 && roster.dataset.teamRoster === clubId;
       roster.hidden = roster.dataset.teamRoster !== clubId;
       roster.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
-        checkbox.disabled = !isActiveRoster || checkbox.dataset.leaderOnly === 'true' || checkbox.dataset.applicant === 'true';
+        checkbox.disabled = !isActiveRoster || isApplied(checkbox);
       });
     });
     clubRadios.forEach(function (radio) {
@@ -141,7 +137,7 @@
   function hasParticipants() {
     const option = selectedClubOption();
     if (!option) return false;
-    return checkedClubMemberIds(option.dataset.teamIndex).length > 0 || leaderSeats(option) > 0;
+    return checkedClubMemberIds(option.dataset.teamIndex).length > 0;
   }
 
   function openSelection(kind) {
@@ -171,7 +167,10 @@
   teamOptions?.addEventListener('change', function (event) {
     if (!event.target.matches('input[name="clubId"]')) return;
     const roster = rosterFor(event.target.value);
-    roster?.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) { checkbox.checked = false; });
+    // 이미 신청한 회원은 체크된 채 잠겨 있어야 하므로 건드리지 않는다.
+    roster?.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
+      if (!isApplied(checkbox)) checkbox.checked = false;
+    });
     showError('');
     renderTeamStep();
   });

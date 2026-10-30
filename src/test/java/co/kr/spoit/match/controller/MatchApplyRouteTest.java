@@ -1,16 +1,21 @@
 package co.kr.spoit.match.controller;
 
 import static co.kr.spoit.member.domain.MemberPrincipalFixture.member;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -86,6 +91,76 @@ class MatchApplyRouteTest {
                         .param("agreeRules", "true"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/matches/1/apply/complete?receiptNo=RCPT-TEST"));
+    }
+
+    @Test
+    @DisplayName("RES-04 팀 선택은 동호회·팀원을 쿼리로 넘겨 팀 신청 내용 화면으로 보낸다")
+    void teamSelectionRedirectsToTeamApply() throws Exception {
+        mockMvc.perform(post("/matches/{matchId}/selection", MATCH_ID)
+                        .with(user(member()))
+                        .with(csrf())
+                        .param("applicationType", "team")
+                        .param("clubId", "5")
+                        .param("clubMemberIds", "21", "22"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/matches/1/apply/team?clubId=5&clubMemberIds=21%2C22"));
+    }
+
+    @Test
+    @DisplayName("RES-04 팀 신청 내용 화면은 쉼표로 이어진 팀원 목록을 그대로 읽는다")
+    void teamApplyPageReadsMemberList() throws Exception {
+        given(applicationService.prepareTeam(MATCH_ID, 7L, 5L, List.of(21L, 22L))).willReturn(Optional.empty());
+
+        // 리다이렉트 URL의 clubMemberIds=21%2C22가 디코딩되면 "21,22"가 된다.
+        mockMvc.perform(get("/matches/{matchId}/apply/team", MATCH_ID)
+                        .param("clubId", "5")
+                        .param("clubMemberIds", "21,22")
+                        .with(user(member())))
+                .andExpect(status().isOk());
+        verify(applicationService).prepareTeam(MATCH_ID, 7L, 5L, List.of(21L, 22L));
+    }
+
+    @Test
+    @DisplayName("RES-04 팀 신청 접수는 고른 팀원 목록 그대로 서비스에 넘기고 완료 화면으로 간다")
+    void teamApplyRedirectsToCompletion() throws Exception {
+        given(applicationService.applyTeam(MATCH_ID, 7L, 5L, List.of(21L, 22L))).willReturn("RCPT-TEAM");
+
+        mockMvc.perform(post("/matches/{matchId}/apply/team", MATCH_ID)
+                        .with(user(member()))
+                        .with(csrf())
+                        .param("agreeRules", "true")
+                        .param("clubId", "5")
+                        .param("clubMemberIds", "21", "22"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/matches/1/apply/complete?receiptNo=RCPT-TEAM"));
+    }
+
+    @Test
+    @DisplayName("RES-04 팀 신청이 거부되면 같은 선택으로 팀 신청 화면에 돌아가 사유를 보여 준다")
+    void teamApplyRejectionKeepsSelection() throws Exception {
+        given(applicationService.applyTeam(MATCH_ID, 7L, 5L, List.of(21L)))
+                .willThrow(new MatchApplyException("박민수님은 이미 이 매칭방에 신청했습니다."));
+
+        mockMvc.perform(post("/matches/{matchId}/apply/team", MATCH_ID)
+                        .with(user(member()))
+                        .with(csrf())
+                        .param("agreeRules", "true")
+                        .param("clubId", "5")
+                        .param("clubMemberIds", "21"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/matches/1/apply/team?clubId=5&clubMemberIds=21"))
+                .andExpect(flash().attribute("error", "박민수님은 이미 이 매칭방에 신청했습니다."));
+    }
+
+    @Test
+    @DisplayName("RES-04 팀 신청 접수도 로그인이 필요하다")
+    void teamApplyRequiresLogin() throws Exception {
+        mockMvc.perform(post("/matches/{matchId}/apply/team", MATCH_ID).with(csrf())
+                        .param("agreeRules", "true")
+                        .param("clubId", "5")
+                        .param("clubMemberIds", "21"))
+                .andExpect(status().is3xxRedirection());
+        verify(applicationService, never()).applyTeam(anyLong(), anyLong(), anyLong(), anyList());
     }
 
     @Test

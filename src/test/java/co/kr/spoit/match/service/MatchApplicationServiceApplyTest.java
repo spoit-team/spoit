@@ -72,7 +72,7 @@ class MatchApplicationServiceApplyTest {
         LocalDateTime endAt = startAt.plusHours(2);
         given(applicationMapper.lockMatch(MATCH_ID)).willReturn(recruitingMatch(startAt, endAt));
         given(applicationMapper.existsActiveEntry(anyLong(), anyLong(), anyList())).willReturn(false);
-        given(applicationMapper.countOccupiedSeats(anyLong(), anyList(), anyString(), anyString())).willReturn(0);
+        given(applicationMapper.countOccupiedSeats(anyLong(), anyList(), anyString())).willReturn(0);
         given(applicationMapper.insert(any(MatchApplication.class))).willReturn(1);
 
         String receiptNo = service.applyIndividual(MATCH_ID, USER_ID);

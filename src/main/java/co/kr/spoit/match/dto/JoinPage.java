@@ -6,7 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 
-/** RES-03 참가 신청 화면(matches/join.html) */
+/** RES-03·04 참가 신청 화면(matches/join.html) */
 @Getter
 @Builder
 public class JoinPage {
@@ -50,6 +50,10 @@ public class JoinPage {
         private final String applicationType;
         private final int seats;
         private final List<Person> participants;
+        /** RES-04 팀 신청이면 선택한 동호회, 개인 신청이면 null (신청 폼 hidden 값) */
+        private final Long clubId;
+        /** RES-04 팀 신청이면 함께 신청할 동호회원(club_member_id), 개인 신청이면 빈 목록 */
+        private final List<Long> clubMemberIds;
     }
 
     @Getter
