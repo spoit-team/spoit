@@ -116,13 +116,13 @@ public class MatchDetailAssembler {
                         new Fact("일시", dateLabel + " " + time),
                         new Fact("종목", row.getSportName()),
                         new Fact("실력 조건", row.getRequiredSkill()),
-                        new Fact("모집 인원", recruitText(row.getMinParticipants(), max)),
+                        new Fact("모집 인원", max + "명"),
                         new Fact("팀 구성", "A팀 " + row.getTeamACapacity() + "명 · B팀 " + row.getTeamBCapacity() + "명"),
                         new Fact("참가비", feeText + "원 / 1인"),
                         new Fact("신청 방식", "개인 신청 · 팀 대표 신청")))
                 .note(matched
                         ? "팀 배정이 완료된 매칭방입니다."
-                        : "최소 " + row.getMinParticipants() + "명이 모이면 경기가 진행되며, 정원이 차면 A·B팀으로 배정됩니다.")
+                        : "시설 관리자가 참가를 확정하면 A·B팀으로 배정됩니다.")
                 .facility(new Facility(
                         null, // 시설 사진 컬럼 없음 → 종목명 fallback (RES-01과 동일)
                         row.getFacilityName(),
@@ -220,11 +220,6 @@ public class MatchDetailAssembler {
             return new ApplyMessage("정원이 모두 찼습니다.", MESSAGE_ERROR);
         }
         return new ApplyMessage(available + "자리 남았습니다. 참가 방식을 선택해 신청해 주세요.", "");
-    }
-
-    /** 최소·최대가 같으면 "6명", 다르면 "4~8명" */
-    private String recruitText(int min, int max) {
-        return min == max ? max + "명" : min + "~" + max + "명";
     }
 
     private TeamRoster roster(List<ParticipantRow> confirmed, String side, Long captainId, MatchDetailRow row) {

@@ -89,12 +89,12 @@ public class MatchCardAssembler {
                         new Fact("일시", dateLabel + " " + time),
                         new Fact("종목", row.getSportName()),
                         new Fact("실력 조건", row.getRequiredSkill()),
-                        new Fact("모집 인원", row.getMinParticipants() + "~" + max + "명"),
+                        new Fact("모집 인원", max + "명"),
                         new Fact("참가비", feeText + "원"),
                         new Fact("신청 방식", "개인 신청 · 팀 대표 신청")))
                 .note(matched
                         ? "팀 배정이 완료된 매칭방입니다."
-                        : "최소 " + row.getMinParticipants() + "명이 모이면 경기가 진행됩니다.")
+                        : "시설 관리자가 참가를 확정하면 A·B팀으로 배정됩니다.")
                 .facilityVisible(true)
                 .facilityFacts(List.of(
                         new Fact("시설명", row.getFacilityName()),

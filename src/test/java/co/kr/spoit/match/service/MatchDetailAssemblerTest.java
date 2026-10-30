@@ -2,6 +2,7 @@ package co.kr.spoit.match.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import co.kr.spoit.match.dto.Fact;
 import co.kr.spoit.match.dto.MatchDetailPage;
 import co.kr.spoit.match.dto.MatchDetailPage.RosterMember;
 import co.kr.spoit.match.dto.MatchDetailPage.TeamMemberOption;
@@ -48,6 +49,16 @@ class MatchDetailAssemblerTest {
         assertThat(option.getMembers()).extracting(TeamMemberOption::isAlreadyApplied).containsExactly(false, true);
         assertThat(option.getMembers()).extracting(TeamMemberOption::getRatingText).containsExactly("1,240", "기록 없음");
         assertThat(option.getMembers().get(0).getInitial()).isEqualTo("박");
+    }
+
+    @Test
+    void recruitInfoUsesCapacityWithoutMinimum() {
+        // 최소 인원(2명)은 쓰지 않는다: 모집 인원은 정원만, 안내는 관리자 확정 기준으로 보여 준다.
+        MatchDetailPage page = assembler.toPage(match("모집 중"), List.of(), null, NOW, TODAY);
+
+        assertThat(page.getFacts()).filteredOn(f -> "모집 인원".equals(f.getLabel()))
+                .extracting(Fact::getValue).containsExactly("4명");
+        assertThat(page.getNote()).isEqualTo("시설 관리자가 참가를 확정하면 A·B팀으로 배정됩니다.");
     }
 
     @Test
