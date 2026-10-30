@@ -20,6 +20,7 @@ public interface MatchAssignmentMapper {
             SELECT sm.match_id AS matchId,
                    sm.facility_id AS facilityId,
                    sm.start_at AS startAt,
+                   sm.end_at AS endAt,
                    sm.status AS status,
                    sm.team_a_capacity AS teamACapacity,
                    sm.team_b_capacity AS teamBCapacity,
@@ -39,6 +40,30 @@ public interface MatchAssignmentMapper {
     // RES 신청 접수·확정·취소와 같이 매칭방 행부터 잠근다. 참가자 행은 이 잠금 아래에서만 바뀐다.
     @Select(ASSIGNMENT_MATCH_QUERY + "FOR UPDATE OF sm")
     Optional<AssignmentMatch> lockAssignmentMatch(@Param("matchId") Long matchId);
+
+    @Select("""
+            SELECT sm.match_id
+            FROM social_match sm
+            JOIN facility f ON f.facility_id = sm.facility_id
+                           AND f.deleted_at IS NULL
+            WHERE sm.status = #{recruitingStatus}
+              AND sm.start_at <= #{now}
+            ORDER BY sm.start_at, sm.match_id
+            """)
+    List<Long> findStartableMatchIds(@Param("recruitingStatus") String recruitingStatus,
+                                     @Param("now") LocalDateTime now);
+
+    @Update("""
+            UPDATE social_match
+            SET status = #{cancelledStatus},
+                cancelled_at = #{cancelledAt}
+            WHERE match_id = #{matchId}
+              AND status = #{recruitingStatus}
+            """)
+    int markCancelled(@Param("matchId") Long matchId,
+                      @Param("cancelledAt") LocalDateTime cancelledAt,
+                      @Param("cancelledStatus") String cancelledStatus,
+                      @Param("recruitingStatus") String recruitingStatus);
 
     @Select("""
             SELECT EXISTS (SELECT 1

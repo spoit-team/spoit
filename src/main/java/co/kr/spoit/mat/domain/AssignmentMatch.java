@@ -14,6 +14,7 @@ public class AssignmentMatch {
     private Long matchId;
     private Long facilityId;
     private LocalDateTime startAt;
+    private LocalDateTime endAt;
     private String status;
     private int teamACapacity;
     private int teamBCapacity;

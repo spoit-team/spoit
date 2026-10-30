@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,8 +34,15 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>저장·취소는 매칭방 행을 잠근 뒤 다시 읽은 값으로 검사하므로,
  * 같은 경기에 확정 요청이 동시에 와도 하나만 저장되고 나머지는 ALREADY_ASSIGNED를 받는다.</p>
  */
+@Slf4j
 @Service
 public class TeamAssignmentService {
+
+    public enum StartResult {
+        ASSIGNED,
+        CANCELLED,
+        SKIPPED
+    }
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
     private static final String SIDE_A = "A";
@@ -92,7 +100,7 @@ public class TeamAssignmentService {
         TeamAssignment assignment = result.assignment();
         save(match, assignment.teamAParticipantIds(), assignment.teamBParticipantIds(),
                 assignment.captainAParticipantId(), assignment.captainBParticipantId(),
-                AssignmentMethod.AUTO, managerUserId);
+                AssignmentMethod.AUTO, managerUserId, LocalDateTime.now(ZONE));
         return AssignmentResult.assigned();
     }
 
@@ -116,7 +124,7 @@ public class TeamAssignmentService {
                     "확정 참가자 전원을 A팀과 B팀에 정원만큼 나눠 배정해 주세요.");
         }
         save(match, teamA, teamB, captainOf(teamA, confirmed), captainOf(teamB, confirmed),
-                AssignmentMethod.MANUAL, managerUserId);
+                AssignmentMethod.MANUAL, managerUserId, LocalDateTime.now(ZONE));
         return AssignmentResult.assigned();
     }
 
@@ -139,13 +147,66 @@ public class TeamAssignmentService {
         return AssignmentResult.reset();
     }
 
-    private void save(AssignmentMatch match, List<Long> teamA, List<Long> teamB,
-                      Long captainA, Long captainB, AssignmentMethod method, Long assignedBy) {
+    @Transactional(readOnly = true)
+    public List<Long> findStartableMatchIds(LocalDateTime now) {
+        return assignmentMapper.findStartableMatchIds(MatchStatus.RECRUITING.dbValue(), now);
+    }
+
+    /**
+     * 시작 시각이 된 모집 중 경기를 자동 배정하거나 취소한다. 스케줄러가 경기마다 호출한다.
+     * 신청·참가자 상태는 바꾸지 않는다. 마이페이지는 경기 상태로 '매치 취소'를 표시한다.
+     */
+    @Transactional
+    public StartResult startMatch(long matchId, LocalDateTime now) {
+        AssignmentMatch match = assignmentMapper.lockAssignmentMatch(matchId).orElse(null);
+        // 조회와 잠금 사이에 관리자가 확정·취소했거나 시설이 삭제됐을 수 있어 잠근 값으로 다시 본다.
+        if (match == null || !MatchStatus.RECRUITING.dbValue().equals(match.getStatus())
+                || match.getStartAt().isAfter(now)) {
+            log.info("경기 시작 처리 건너뜀: matchId={}, status={}", matchId, match == null ? null : match.getStatus());
+            return StartResult.SKIPPED;
+        }
+        if (!match.getEndAt().isAfter(now)) {
+            return cancel(match, now, "종료 시각 경과");
+        }
+
+        AssignmentResult result = autoAssignmentService.evaluate(match, participantMapper.findByMatchId(matchId));
+        switch (result.outcome()) {
+            case READY -> {
+                TeamAssignment assignment = result.assignment();
+                save(match, assignment.teamAParticipantIds(), assignment.teamBParticipantIds(),
+                        assignment.captainAParticipantId(), assignment.captainBParticipantId(),
+                        AssignmentMethod.AUTO, null, now);
+                log.info("경기 시작 자동 배정: matchId={}, 차이={}", matchId, assignment.mmrDifference());
+                return StartResult.ASSIGNED;
+            }
+            case NOT_ENOUGH_PARTICIPANTS, UNSUPPORTED_CAPACITY -> {
+                return cancel(match, now, result.message());
+            }
+            default -> {
+                log.warn("경기 시작 처리 건너뜀: matchId={}, outcome={}, message={}",
+                        matchId, result.outcome(), result.message());
+                return StartResult.SKIPPED;
+            }
+        }
+    }
+
+    private StartResult cancel(AssignmentMatch match, LocalDateTime now, String reason) {
+        int updated = assignmentMapper.markCancelled(match.getMatchId(), now,
+                MatchStatus.CANCELLED.dbValue(), MatchStatus.RECRUITING.dbValue());
+        if (updated != 1) {
+            throw new IllegalStateException("경기 취소에 실패했습니다. matchId=" + match.getMatchId());
+        }
+        log.info("경기 시작 자동 취소: matchId={}, 사유={}", match.getMatchId(), reason);
+        return StartResult.CANCELLED;
+    }
+
+    private void save(AssignmentMatch match, List<Long> teamA, List<Long> teamB, Long captainA, Long captainB,
+                      AssignmentMethod method, Long assignedBy, LocalDateTime confirmedAt) {
         Long matchId = match.getMatchId();
         String confirmedStatus = ParticipationStatus.CONFIRMED.dbValue();
         int sides = assignmentMapper.updateMatchSide(matchId, teamA, SIDE_A, confirmedStatus)
                 + assignmentMapper.updateMatchSide(matchId, teamB, SIDE_B, confirmedStatus);
-        int matches = assignmentMapper.markAssigned(matchId, method.name(), assignedBy, LocalDateTime.now(ZONE),
+        int matches = assignmentMapper.markAssigned(matchId, method.name(), assignedBy, confirmedAt,
                 captainA, captainB, MatchStatus.MATCHED.dbValue(), MatchStatus.RECRUITING.dbValue());
         // 잠금 아래에서 검사를 마쳤으므로 행 수가 다르면 데이터 오류다. 예외로 전체를 롤백한다.
         if (sides != teamA.size() + teamB.size() || matches != 1) {
