@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import co.kr.spoit.club.domain.Club;
+import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
 import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.club.dto.ClubCardResponse;
@@ -255,6 +256,63 @@ class ClubServiceTest {
         verify(clubMapper, never()).insertJoinRequest(any(), any(), any());
     }
 
+    @Test
+    @DisplayName("가입 신청을 승인하면 상태를 바꾼 뒤 동호회원으로 추가한다.")
+    void 가입_신청_승인_성공() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectPendingJoinRequest(1L, 5L)).thenReturn(pendingRequest(8L));
+        when(clubMapper.countActiveMembers(1L)).thenReturn(3);
+
+        service.approveJoin(7L, 1L, 5L);
+
+        InOrder order = inOrder(clubMapper);
+        order.verify(clubMapper).updateJoinRequestStatus(5L, "승인");
+        order.verify(clubMapper).insertJoinedMember(1L, 8L);
+    }
+
+    @Test
+    @DisplayName("동호회장이 아니면 가입 신청을 처리하지 않는다")
+    void 동호회장이_아니면_승인을_거부한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(false);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.approveJoin(7L, 1L, 5L));
+
+        assertThat(exception.getMessage()).isEqualTo("팀장만 가입 신청을 처리할 수 있습니다.");
+        verify(clubMapper, never()).updateJoinRequestStatus(any(), any());
+    }
+
+    @Test
+    @DisplayName("정원이 가득 차면 승인하지 않는다")
+    void 정원이_가득_차면_승인을_거부한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectPendingJoinRequest(1L, 5L)).thenReturn(pendingRequest(8L));
+        when(clubMapper.countActiveMembers(1L)).thenReturn(10);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.approveJoin(7L, 1L, 5L));
+
+        assertThat(exception.getMessage()).isEqualTo("정원이 가득 찬 팀입니다.");
+        verify(clubMapper, never()).updateJoinRequestStatus(any(), any());
+        verify(clubMapper, never()).insertJoinedMember(any(), any());
+    }
+
+    @Test
+    @DisplayName("가입 신청을 거절하면 상태만 바꾸고 동호회원으로 추가하지 않는다")
+    void 가입_신청_거절_성공() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectPendingJoinRequest(1L, 5L)).thenReturn(pendingRequest(8L));
+
+        service.rejectJoin(7L, 1L, 5L);
+
+        verify(clubMapper).updateJoinRequestStatus(5L, "거절");
+        verify(clubMapper, never()).insertJoinedMember(any(), any());
+    }
+
     private ClubSummary club(String recruitStatus, String activityDays, int startHour, int endHour) {
         ClubSummary club = new ClubSummary();
         club.setClubId(1L);
@@ -305,6 +363,14 @@ class ClubServiceTest {
         club.setRecruitStatus(recruitStatus);
         club.setMaxMembers(maxMembers);
         return club;
+    }
+
+    // 처리할 대기중 신청(신청 번호6, 신청자 번호만)
+    private ClubJoinRequest pendingRequest(Long userId) {
+        ClubJoinRequest request = new ClubJoinRequest();
+        request.setRequestId(5L);
+        request.setUserId(userId);
+        return request;
     }
 
 }
