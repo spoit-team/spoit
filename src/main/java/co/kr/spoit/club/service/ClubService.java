@@ -41,11 +41,11 @@ public interface ClubService {
     void applyJoin(Long userId, Long clubId, String message);
 
     // 가입 신청 승인
-    void approveJoin(Long userId, Long clubId, Long requestId);
+    void approveJoin(Long userId, Long clubId, Long joinRequestId);
 
     // 가입 신청 거절
-    void rejectJoin(Long userId, Long clubId, Long requestId);
+    void rejectJoin(Long userId, Long clubId, Long joinRequestId);
 
     // 가입 신청 취소
-    void cancelJoin(Long userId, Long clubId, Long requestId);
+    void cancelJoin(Long userId, Long clubId, Long joinRequestId);
 }

@@ -18,7 +18,7 @@ public class ClubJoinRequestResponse {
     // 내동호회 관리 화면 가입 신청 탭
     public static ClubJoinRequestResponse from(ClubJoinRequest request){
         return ClubJoinRequestResponse.builder()
-        .joinRequestId(request.getRequestId())
+        .joinRequestId(request.getJoinRequestId())
         .nickname(request.getNickname())
         .date(request.getRequestedAt().format(DateTimeFormatter.ofPattern("yyyy.MM.dd")))
         .message(request.getMessage())

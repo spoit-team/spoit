@@ -11,7 +11,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class ClubJoinRequest {
 
-    private Long requestId;
+    private Long joinRequestId;
     private Long userId;
     private String nickname;
     private String message;
