@@ -3,7 +3,7 @@
 <mapper namespace="co.kr.spoit.club.mapper.ClubMapper">
 
     <!-- 동호회 목록: 해체되지 않은 동호회만 -->
-    <select id="selectClubSummaryList" resultType="co.kr.spoit.club.domain.ClubSummary">
+    <select id="selectClubs" resultType="co.kr.spoit.club.domain.ClubSummary">
         SELECT club_id AS clubId
               ,club_name AS clubName
               ,c.sport_id AS sportId
@@ -121,7 +121,7 @@
         INSERT INTO club_region (club_id, region_id) VALUES (#{clubId}, #{regionId})
     </insert>
 
-    <insert id="insertClubMember">
+    <insert id="insertClubLeader">
         INSERT INTO club_member (club_id, user_id, role) VALUES (#{clubId}, #{userId}, '동호회장')
     </insert>
 
@@ -143,7 +143,7 @@
         WHERE club_id = #{clubId} AND user_id = #{userId} AND left_at IS NULL
     </select>
 
-    <select id="selectPendingJoinRequestId" resultType="long">
+    <select id="selectMyPendingJoinRequestId" resultType="long">
         SELECT request_id FROM club_join_request
         WHERE club_id = #{clubId} AND user_id = #{userId} AND status = '대기중'
         LIMIT 1
@@ -168,4 +168,44 @@
         VALUES (#{clubId}, #{userId}, #{message})
     </insert>
 
+    <select id="existsActiveLeader" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM club_member
+        WHERE club_id = #{clubId} AND user_id = #{userId} AND role = '동호회장' AND left_at IS NULL
+    </select>
+
+    <select id="selectPendingJoinRequests" resultType="co.kr.spoit.club.domain.ClubJoinRequest">
+        SELECT r.request_id AS joinRequestId
+            ,r.user_id AS userId
+            ,u.nickname AS nickname
+            ,r.message AS message
+            ,r.requested_at AS requestedAt
+        FROM club_join_request r
+        JOIN app_user u ON r.user_id = u.user_id
+        WHERE r.club_id = #{clubId} AND r.status = '대기중'
+        ORDER BY r.requested_at ASC
+    </select>
+
+    <select id="selectPendingJoinRequestById" resultType="co.kr.spoit.club.domain.ClubJoinRequest">
+        SELECT request_id AS joinRequestId
+            ,user_id AS userId
+        FROM club_join_request
+        WHERE club_id = #{clubId} AND request_id = #{joinRequestId} AND status = '대기중'
+    </select>
+
+    <update id="updateJoinRequestStatus">
+        UPDATE club_join_request
+        SET status = #{status}, processed_at = NOW()
+        WHERE request_id = #{joinRequestId} AND status = '대기중'
+    </update>
+
+    <insert id="insertJoinedMember">
+        INSERT INTO club_member(club_id, user_id, role) VALUES (#{clubId}, #{userId}, '동호회원')
+    </insert>
+
+    <update id="cancelJoinRequest">
+        UPDATE club_join_request
+        SET status = '취소', processed_at = NOW()
+        WHERE club_id = #{clubId} AND request_id = #{joinRequestId} AND user_id = #{userId} AND status = '대기중'
+    </update>
+    
     </mapper>

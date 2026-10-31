@@ -46,9 +46,6 @@ public class ClubController {
     @GetMapping("/{clubId}")
     public String detail(@PathVariable("clubId") Long clubId,
             @AuthenticationPrincipal MemberPrincipal principal, Model model) {
-        if (principal == null) {
-            return "redirect:/login";
-        }
         Long userId = principal.getUserId();
         log.info("동호회 상세 조회: clubId={}, userId={}", clubId, userId);
         model.addAttribute("club", clubService.findClubDetail(clubId, userId));
@@ -57,14 +54,10 @@ public class ClubController {
 
     // 동호회 관리 화면: 내 동호회 목록 + 선택한 동호회
     @GetMapping("/manage")
-    public String teamManage(@RequestParam(value = "clubId", required = false) Long clubId,
+    public String manage(@RequestParam(value = "clubId", required = false) Long clubId,
             @RequestParam(value = "tab", defaultValue = "team") String tab,
             @AuthenticationPrincipal MemberPrincipal principal,
             Model model, RedirectAttributes redirectAttributes) {
-        // SecurityConfig 이후 재확인
-        if (principal == null) {
-            return "redirect:/login";
-        }
         Long userId = principal.getUserId();
         log.info("동호회 관리 화면 조회: userId={}, clubId={}, tab={}", userId, clubId, tab);
 
@@ -78,13 +71,16 @@ public class ClubController {
             return "redirect:/teams/manage";
         }
 
-        // 선택 버튼 강조 동호회
+        // 선택된 동호회 버튼 강조
         Long activeClubId = managedClub == null ? null : managedClub.getClubId();
 
         model.addAttribute("managedClubs", clubService.findMyClubs(userId, activeClubId));
         model.addAttribute("managedClub", managedClub);
-        // 내 동호회, 동호회원만 허용(가입 신청 미구현)
-        model.addAttribute("tab", "members".equals(tab) ? "members" : "team");
+        String activeTab = "team";
+        if ("members".equals(tab) || "applications".equals(tab)) {
+            activeTab = tab;
+        }
+        model.addAttribute("tab", activeTab);
         model.addAttribute("sports", clubService.findSportOptions());
         model.addAttribute("districts", clubService.findRegionOptions());
         return "teams/manage";
@@ -95,10 +91,6 @@ public class ClubController {
     public String create(ClubCreateForm form, BindingResult bindingResult,
             @AuthenticationPrincipal MemberPrincipal principal, RedirectAttributes redirectAttributes) {
         log.info("동호회 생성 요청: {}", form);
-        // SecurityConfig 이후 재확인
-        if (principal == null) {
-            return "redirect:/login";
-        }
         // 형식이 맞지 않으면 관리 화면으로 보냄(숫자 칸에 글자가 오는 등)
         if (bindingResult.hasErrors()) {
             log.info("동호회 생성 입력 형식 오류: {}", bindingResult.getAllErrors());
@@ -145,4 +137,51 @@ public class ClubController {
         return "redirect:/teams/" + clubId;
     }
 
+    // 가입 신청 승인
+    @PostMapping("/{clubId}/applications/{joinRequestId}/approve")
+    public String approve(@PathVariable("clubId") Long clubId, @PathVariable("joinRequestId") Long joinRequestId,
+            @AuthenticationPrincipal MemberPrincipal principal, RedirectAttributes redirectAttributes) {
+        Long userId = principal.getUserId();
+        log.info("가입 신청 승인 요청: clubId={}, joinRequestId={}, userId={}", clubId, joinRequestId, userId);
+        try {
+            clubService.approveJoin(userId, clubId, joinRequestId);
+            redirectAttributes.addFlashAttribute("message", "가입 신청을 승인했습니다.");
+        } catch (IllegalArgumentException exception) {
+            log.warn("가입 신청 승인 거부: clubId={}, joinRequestId={}, {}", clubId, joinRequestId, exception.getMessage());
+            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+        }
+        return "redirect:/teams/manage?clubId=" + clubId + "&tab=applications";
+    }
+
+    // 가입 신청 거절
+    @PostMapping("/{clubId}/applications/{joinRequestId}/reject")
+    public String reject(@PathVariable("clubId") Long clubId, @PathVariable("joinRequestId") Long joinRequestId,
+            @AuthenticationPrincipal MemberPrincipal principal, RedirectAttributes redirectAttributes) {
+        Long userId = principal.getUserId();
+        log.info("가입 신청 거절 요청: clubId={}, joinRequestId={}, userId={}", clubId, joinRequestId, userId);
+        try {
+            clubService.rejectJoin(userId, clubId, joinRequestId);
+            redirectAttributes.addFlashAttribute("message", "가입 신청을 거절했습니다.");
+        } catch (IllegalArgumentException exception) {
+            log.warn("가입 신청 거절 거부: clubId={}, joinRequestId={}, {}", clubId, joinRequestId, exception.getMessage());
+            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+        }
+        return "redirect:/teams/manage?clubId=" + clubId + "&tab=applications";
+    }
+
+    // 가입 신청 취소
+    @PostMapping("/{clubId}/applications/{joinRequestId}/cancel")
+    public String cancel(@PathVariable("clubId") Long clubId, @PathVariable("joinRequestId") Long joinRequestId,
+            @AuthenticationPrincipal MemberPrincipal principal, RedirectAttributes redirectAttributes) {
+        Long userId = principal.getUserId();
+        log.info("가입 신청 취소 요청: clubId={}, joinRequestId={}, userId={}", clubId, joinRequestId, userId);
+        try {
+            clubService.cancelJoin(userId, clubId, joinRequestId);
+            redirectAttributes.addFlashAttribute("message", "가입 신청을 취소했습니다.");
+        } catch (IllegalArgumentException exception) {
+            log.warn("가입 신청 취소 거부: clubId={}, joinRequestId={}, {}", clubId, joinRequestId, exception.getMessage());
+            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+        }
+        return "redirect:/teams/" + clubId;
+    }
 }

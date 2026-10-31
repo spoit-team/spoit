@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import co.kr.spoit.club.domain.Club;
+import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
 import co.kr.spoit.club.domain.ClubRegionOption;
 import co.kr.spoit.club.domain.ClubSportOption;
@@ -40,7 +41,7 @@ public class ClubServiceImpl implements ClubService {
     // 최신순 전체 조회(검색 미구현)
     @Override
     public List<ClubCardResponse> findClubCards() {
-        List<ClubSummary> clubs = clubMapper.selectClubSummaryList(null, null, null, false, "recent");
+        List<ClubSummary> clubs = clubMapper.selectClubs(null, null, null, false, "recent");
 
         List<ClubCardResponse> cards = new ArrayList<>();
         for (ClubSummary club : clubs) {
@@ -57,7 +58,7 @@ public class ClubServiceImpl implements ClubService {
             return null;
         }
         List<ClubMember> members = clubMapper.selectClubMembers(clubId);
-        Long pendingJoinRequestId = clubMapper.selectPendingJoinRequestId(clubId, userId);
+        Long pendingJoinRequestId = clubMapper.selectMyPendingJoinRequestId(clubId, userId);
         return ClubDetailResponse.from(club, members, userId, pendingJoinRequestId);
     }
 
@@ -137,7 +138,7 @@ public class ClubServiceImpl implements ClubService {
             throw new ClubNameExistException();
         }
         clubMapper.insertClubRegion(club.getClubId(), form.getRegionId());
-        clubMapper.insertClubMember(club.getClubId(), userId);
+        clubMapper.insertClubLeader(club.getClubId(), userId);
         log.info("동호회 저장 완료: clubId={}, userId={}", club.getClubId(), userId);
         return club.getClubId();
     }
@@ -192,7 +193,12 @@ public class ClubServiceImpl implements ClubService {
             return null;
         }
         List<ClubMember> members = clubMapper.selectClubMembers(targetClubId);
-        return ClubManageResponse.from(club, members, userId);
+        // 가입 신청은 동호회장만 봄
+        List<ClubJoinRequest> joinRequests = new ArrayList<>();
+        if (clubMapper.existsActiveLeader(targetClubId, userId)) {
+            joinRequests = clubMapper.selectPendingJoinRequests(targetClubId);
+        }
+        return ClubManageResponse.from(club, members, userId, joinRequests);
     }
 
     // 내 동호회 선택 버튼 응답
@@ -224,7 +230,7 @@ public class ClubServiceImpl implements ClubService {
         if (clubMapper.existsActiveMember(clubId, userId)) {
             throw new IllegalArgumentException("이미 소속된 팀입니다.");
         }
-        if (clubMapper.selectPendingJoinRequestId(clubId, userId) != null) {
+        if (clubMapper.selectMyPendingJoinRequestId(clubId, userId) != null) {
             throw new IllegalArgumentException("이미 가입 신청을 보냈습니다.");
         }
         if (!"모집중".equals(club.getRecruitStatus())) {
@@ -237,6 +243,53 @@ public class ClubServiceImpl implements ClubService {
         // 4. 저장
         clubMapper.insertJoinRequest(clubId, userId, trimmedMessage.isEmpty() ? null : trimmedMessage);
         log.info("가입 신청 저장 완료: clubId={}, userId={}", clubId, userId);
+    }
+
+    // 가입 신청 승인: 잠금->동호회장->대기중->정원확인
+    @Override
+    @Transactional
+    public void approveJoin(Long userId, Long clubId, Long joinRequestId) {
+        ClubSummary club = getActiveClubForUpdate(clubId);
+        if (!clubMapper.existsActiveLeader(clubId, userId)) {
+            throw new IllegalArgumentException("팀장만 가입 신청을 처리할 수 있습니다.");
+        }
+        ClubJoinRequest request = clubMapper.selectPendingJoinRequestById(clubId, joinRequestId);
+        if (request == null) {
+            throw new IllegalArgumentException("이미 처리된 가입 신청입니다.");
+        }
+        if (clubMapper.countActiveMembers(clubId) >= club.getMaxMembers()) {
+            throw new IllegalArgumentException("정원이 가득 찬 팀입니다.");
+        }
+        clubMapper.updateJoinRequestStatus(joinRequestId, "승인");
+        clubMapper.insertJoinedMember(clubId, request.getUserId());
+        log.info("가입 신청 승인: clubId={}, joinRequestId={}", clubId, joinRequestId);
+    }
+
+    // 가입신청 거절: 잠금-> 동호회장-> 상태확인
+    @Override
+    @Transactional
+    public void rejectJoin(Long userId, Long clubId, Long joinRequestId) {
+        getActiveClubForUpdate(clubId);
+        if (!clubMapper.existsActiveLeader(clubId, userId)) {
+            throw new IllegalArgumentException("팀장만 가입 신청을 처리할 수 있습니다.");
+        }
+        if (clubMapper.selectPendingJoinRequestById(clubId, joinRequestId) == null) {
+            throw new IllegalArgumentException("이미 처리된 가입 신청입니다.");
+        }
+        clubMapper.updateJoinRequestStatus(joinRequestId, "거절");
+        log.info("가입 신청 거절: clubId={}, joinRequestId={}", clubId, joinRequestId);
+
+    }
+
+    // 가입 신청 취소: 내 대기중 신청만 취소
+    @Override
+    @Transactional
+    public void cancelJoin(Long userId, Long clubId, Long joinRequestId) {
+        getActiveClubForUpdate(clubId);
+        if (clubMapper.cancelJoinRequest(clubId, joinRequestId, userId) == 0) {
+            throw new IllegalArgumentException("이미 처리된 가입 신청입니다.");
+        }
+        log.info("가입 신청 취소: clubId={}, joinRequestId={}, userId={}", clubId, joinRequestId, userId);
     }
 
     // 쓰기 전에 동호회 잠금, 없거나 해체 됐으면 거부
