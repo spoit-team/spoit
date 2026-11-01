@@ -1,5 +1,6 @@
 package co.kr.spoit.match.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import lombok.Getter;
@@ -25,4 +26,12 @@ public class RoomManagementRow {
     private int occupiedCount;
     /** social_match.status */
     private String status;
+
+    /* 아래는 목록 조회에서만 채운다. 수정 모달의 현재 값으로 쓴다. */
+    private int teamACapacity;
+    private int teamBCapacity;
+    private BigDecimal feePerPerson;
+    private String requiredSkill;
+    /** 참가자 행(대기·확정) + 대기 신청(개인·팀). 1 이상이면 일정을 바꿀 수 없다. */
+    private int reservedCount;
 }

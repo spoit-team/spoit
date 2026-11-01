@@ -60,6 +60,22 @@ class FacilityCapacityServiceImplTest {
     }
 
     @Test
+    @DisplayName("일정을 옮기는 방 자신은 점유에서 빼고 검사한다")
+    void excludesMovingRoomItself() {
+        when(scheduleMapper.selectConcurrentLimitForUpdate(FACILITY_ID)).thenReturn(1);
+        when(scheduleMapper.selectMatchPeriodsForUpdate(eq(FACILITY_ID), anyList())).thenReturn(List.of(
+                period(1L, 10, 12)));
+
+        // 한도 1에서 방 1을 11~13시로 옮긴다. 자기 자신을 빼지 않으면 11~12시가 겹쳐 막힌다.
+        service.requireCapacity(FACILITY_ID, DATE.atTime(11, 0), DATE.atTime(13, 0), 1L);
+
+        assertThatThrownBy(() -> service.requireCapacity(FACILITY_ID,
+                DATE.atTime(11, 0), DATE.atTime(13, 0), 2L))
+                .isInstanceOf(FacilityScheduleUnavailableException.class)
+                .hasMessageContaining("동시 대관 한도");
+    }
+
+    @Test
     @DisplayName("시설이 없으면 대관 한도를 확인할 수 없다")
     void rejectsUnknownFacility() {
         when(scheduleMapper.selectConcurrentLimitForUpdate(999L)).thenReturn(null);

@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="co.kr.spoit.match.mapper.RoomCommandMapper">
+
+    <!-- 담당 범위: RoomManagementMapper.managedRoomFrom과 같은 조건 -->
+    <sql id="managedRoom">
+        SELECT sm.match_id,
+               sm.facility_id,
+               sm.sport_id,
+               sm.start_at,
+               sm.end_at,
+               sm.status
+          FROM social_match sm
+          JOIN facility f ON f.facility_id = sm.facility_id
+                         AND f.deleted_at IS NULL
+          JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                  AND fm.user_id = #{managerUserId}
+         WHERE sm.match_id = #{matchId}
+    </sql>
+
+    <select id="countManagedFacilitySport" resultType="int">
+        SELECT COUNT(*)
+          FROM facility_sport fs
+          JOIN facility f ON f.facility_id = fs.facility_id
+                         AND f.deleted_at IS NULL
+          JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                  AND fm.user_id = #{managerUserId}
+         WHERE fs.facility_id = #{facilityId}
+           AND fs.sport_id = #{sportId}
+    </select>
+
+    <select id="findRoom" resultType="co.kr.spoit.match.dto.RoomEditTarget">
+        <include refid="managedRoom"/>
+    </select>
+
+    <!-- social_match 행만 잠근다. 시설 행 잠금은 서비스가 먼저 FacilityReservationService로 잡는다. -->
+    <select id="findRoomForUpdate" resultType="co.kr.spoit.match.dto.RoomEditTarget">
+        <include refid="managedRoom"/>
+           FOR UPDATE OF sm
+    </select>
+
+    <select id="countReserved" resultType="int">
+        SELECT (SELECT COUNT(*)
+                  FROM match_participant mp
+                 WHERE mp.match_id = #{matchId}
+                   AND mp.participation_status IN
+                       <foreach collection="participationStatuses" item="st" open="(" separator="," close=")">
+                           #{st}
+                       </foreach>)
+             + (SELECT COUNT(*)
+                  FROM match_application ma
+                 WHERE ma.match_id = #{matchId}
+                   AND ma.status = #{waitingApplicationStatus})
+    </select>
+
+    <insert id="insertRoom" parameterType="co.kr.spoit.match.dto.RoomCommand"
+            useGeneratedKeys="true" keyProperty="matchId" keyColumn="match_id">
+        INSERT INTO social_match (facility_id, sport_id, created_by, title, start_at, end_at,
+                                  min_participants, max_participants, team_a_capacity, team_b_capacity,
+                                  fee_per_person, required_skill, status)
+        VALUES (#{facilityId}, #{sportId}, #{createdBy}, #{title}, #{startAt}, #{endAt},
+                #{minParticipants}, #{maxParticipants}, #{teamACapacity}, #{teamBCapacity},
+                #{feePerPerson}, #{requiredSkill}, #{status})
+    </insert>
+
+    <update id="updateRoom" parameterType="co.kr.spoit.match.dto.RoomCommand">
+        UPDATE social_match
+           SET facility_id      = #{facilityId},
+               sport_id         = #{sportId},
+               title            = #{title},
+               start_at         = #{startAt},
+               end_at           = #{endAt},
+               min_participants = #{minParticipants},
+               max_participants = #{maxParticipants},
+               team_a_capacity  = #{teamACapacity},
+               team_b_capacity  = #{teamBCapacity},
+               fee_per_person   = #{feePerPerson},
+               required_skill   = #{requiredSkill}
+         WHERE match_id = #{matchId}
+    </update>
+
+    <update id="updateRoomDetails" parameterType="co.kr.spoit.match.dto.RoomCommand">
+        UPDATE social_match
+           SET title            = #{title},
+               min_participants = #{minParticipants},
+               max_participants = #{maxParticipants},
+               team_a_capacity  = #{teamACapacity},
+               team_b_capacity  = #{teamBCapacity},
+               fee_per_person   = #{feePerPerson},
+               required_skill   = #{requiredSkill}
+         WHERE match_id = #{matchId}
+    </update>
+
+    <update id="cancelRoom">
+        UPDATE social_match
+           SET status       = #{cancelledStatus},
+               cancelled_at = #{now}
+         WHERE match_id = #{matchId}
+           AND status IN
+               <foreach collection="fromStatuses" item="st" open="(" separator="," close=")">
+                   #{st}
+               </foreach>
+    </update>
+
+    <update id="cancelApplications">
+        UPDATE match_application
+           SET status       = #{cancelledStatus},
+               cancelled_at = #{now},
+               cancelled_by = #{cancelledBy}
+         WHERE match_id = #{matchId}
+           AND status IN
+               <foreach collection="fromStatuses" item="st" open="(" separator="," close=")">
+                   #{st}
+               </foreach>
+    </update>
+
+    <update id="cancelParticipants">
+        UPDATE match_participant
+           SET participation_status = #{cancelledStatus},
+               cancelled_at         = #{now}
+         WHERE match_id = #{matchId}
+           AND participation_status IN
+               <foreach collection="fromStatuses" item="st" open="(" separator="," close=")">
+                   #{st}
+               </foreach>
+    </update>
+
+</mapper>

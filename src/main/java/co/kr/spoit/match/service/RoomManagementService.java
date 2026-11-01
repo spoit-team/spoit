@@ -1,11 +1,15 @@
 package co.kr.spoit.match.service;
 
+import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +20,7 @@ import co.kr.spoit.match.domain.ParticipationStatus;
 import co.kr.spoit.match.domain.RoomStatusFilter;
 import co.kr.spoit.match.dto.RoomManagementApplicationRow;
 import co.kr.spoit.match.dto.RoomManagementDetail;
+import co.kr.spoit.match.dto.RoomManagementFacilitySport;
 import co.kr.spoit.match.dto.RoomManagementPage;
 import co.kr.spoit.match.dto.RoomManagementParticipantRow;
 import co.kr.spoit.match.dto.RoomManagementQuery;
@@ -52,10 +57,20 @@ public class RoomManagementService {
 
     private static final String TEAM_UNASSIGNED = "미배정";
 
-    private final RoomManagementMapper roomManagementMapper;
+    private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
+    private static final DateTimeFormatter ISO_DATE = DateTimeFormatter.ISO_LOCAL_DATE;
 
+    private final RoomManagementMapper roomManagementMapper;
+    private final Clock clock;
+
+    @Autowired
     public RoomManagementService(RoomManagementMapper roomManagementMapper) {
+        this(roomManagementMapper, Clock.system(ZONE));
+    }
+
+    RoomManagementService(RoomManagementMapper roomManagementMapper, Clock clock) {
         this.roomManagementMapper = roomManagementMapper;
+        this.clock = clock;
     }
 
     /**
@@ -80,12 +95,13 @@ public class RoomManagementService {
         Long normalizedFacilityId = normalizeFacilityId(managerUserId, facilityId);
         String normalizedQ = normalizeQuery(q);
 
+        LocalDateTime now = LocalDateTime.now(clock);
         List<RoomManagementPage.Match> matches = new ArrayList<>();
         RoomManagementQuery query = buildQuery(managerUserId, null, escapeLikePattern(normalizedQ),
                 statusFilter.dbValue(), normalizedSportId, normalizedFacilityId);
         for (RoomManagementRow row : nullSafe(roomManagementMapper.findRooms(query))) {
             if (row != null) {
-                matches.add(toListMatch(row));
+                matches.add(toListMatch(row, now));
             }
         }
 
@@ -93,9 +109,18 @@ public class RoomManagementService {
                 .map(sport -> new RoomManagementPage.Sport(sport.getSportId(), sport.getName()))
                 .toList();
 
+        List<RoomManagementPage.FacilitySport> facilitySports = new ArrayList<>();
+        for (RoomManagementFacilitySport item : nullSafe(roomManagementMapper.findFacilitySports(managerUserId))) {
+            if (item != null && item.getFacilityId() != null && item.getSportId() != null) {
+                facilitySports.add(new RoomManagementPage.FacilitySport(item.getFacilityId(), item.getSportId(),
+                        label(item.getName(), "종목 미설정")));
+            }
+        }
+
         return RoomManagementPage.of(matches, sportItems,
                 new RoomManagementPage.Filters(normalizedQ, statusFilter.value(), normalizedSportId,
-                        normalizedFacilityId));
+                        normalizedFacilityId),
+                facilitySports);
     }
 
     /**
@@ -221,7 +246,7 @@ public class RoomManagementService {
 
     /* ---------------- 화면 문구 ---------------- */
 
-    private RoomManagementPage.Match toListMatch(RoomManagementRow row) {
+    private RoomManagementPage.Match toListMatch(RoomManagementRow row, LocalDateTime now) {
         return new RoomManagementPage.Match(
                 row.getMatchId(),
                 label(row.getTitle(), "제목 없음"),
@@ -230,7 +255,44 @@ public class RoomManagementService {
                 participationLabel(row),
                 dateLabel(row),
                 statusLabel(row.getStatus()),
-                statusTone(row.getStatus()));
+                statusTone(row.getStatus()),
+                editValues(row, now));
+    }
+
+    /**
+     * 수정·취소 버튼에 실을 현재 값이다. RoomCommandService와 같은 기준(모집 중·매칭 완료이며
+     * 시작 전)일 때만 만들고, 그 밖에는 null로 버튼을 숨긴다. 서버가 요청 때 다시 검증한다.
+     */
+    private static RoomManagementPage.Edit editValues(RoomManagementRow row, LocalDateTime now) {
+        boolean editableStatus = MatchStatus.RECRUITING.dbValue().equals(row.getStatus())
+                || MatchStatus.MATCHED.dbValue().equals(row.getStatus());
+        if (!editableStatus || row.getStartAt() == null || row.getEndAt() == null
+                || !row.getStartAt().isAfter(now)) {
+            return null;
+        }
+        return new RoomManagementPage.Edit(
+                row.getFacilityId(),
+                row.getSportId(),
+                row.getTitle() == null ? "" : row.getTitle().strip(),
+                row.getStartAt().format(ISO_DATE),
+                hourBlocks(row.getStartAt(), row.getEndAt()),
+                // 예전 데이터에 두 팀 정원이 다른 방이 있으면 큰 쪽을 보여 줘 정원이 줄지 않게 한다.
+                Math.max(0, Math.max(row.getTeamACapacity(), row.getTeamBCapacity())),
+                row.getFeePerPerson() == null ? 0
+                        : row.getFeePerPerson().setScale(0, RoundingMode.DOWN).intValue(),
+                row.getRequiredSkill() == null ? "" : row.getRequiredSkill().strip(),
+                Math.max(0, row.getReservedCount()));
+    }
+
+    /** [시작, 종료) 구간이 덮는 1시간 블록 시작 시각 목록. "10:00,11:00" */
+    private static String hourBlocks(LocalDateTime startAt, LocalDateTime endAt) {
+        List<String> hours = new ArrayList<>();
+        LocalDateTime cursor = startAt.withMinute(0).withSecond(0).withNano(0);
+        while (cursor.isBefore(endAt) && hours.size() < 24) {
+            hours.add(cursor.format(TIME));
+            cursor = cursor.plusHours(1);
+        }
+        return String.join(",", hours);
     }
 
     private RoomManagementDetail.Application toApplication(RoomManagementApplicationRow row) {

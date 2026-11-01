@@ -7,6 +7,9 @@
   const admin = global.PlayOnAdmin;
   const roomEditorModal = document.getElementById('room-editor-modal');
   const roomEditorForm = document.getElementById('room-editor-form');
+  const roomEditorHourInputs = Array.from(document.querySelectorAll('#room-editor-hour-grid input[name="hours"]'));
+  /* 신청자가 있는 방을 수정할 때 잠그는 입력. 비활성 입력은 전송되지 않고 서버도 그 값을 쓰지 않는다. */
+  const roomScheduleFieldIds = ['room-editor-facility', 'room-editor-sport', 'room-editor-date'];
   const facilityModal = document.getElementById('facility-modal');
   const facilityForm = document.getElementById('facility-form');
   const facilitySportOptions = Array.from(document.querySelectorAll('[data-facility-sport]'));
@@ -145,7 +148,7 @@
       previous = value;
     });
     ranges.push(start + '–' + minutesToHour(hourToMinutes(previous) + 60));
-    return { count: values.length, text: ranges.join(', ') };
+    return { count: values.length, rangeCount: ranges.length, text: ranges.join(', ') };
   }
 
   function updateDateScheduleSummary() {
@@ -175,15 +178,106 @@
 
   function updateRoomEditorCapacity() {
     const hint = document.getElementById('room-editor-capacity-hint');
-    const teamA = Number(document.getElementById('room-editor-team-a')?.value || 0);
-    const teamB = Number(document.getElementById('room-editor-team-b')?.value || 0);
+    const team = Number(document.getElementById('room-editor-team')?.value || 0);
     if (!hint) return;
-    const maxParticipants = teamA + teamB;
-    if (!maxParticipants) {
-      hint.textContent = 'A팀과 B팀 정원을 입력하면 전체 정원이 표시됩니다.';
+    if (!team) {
+      hint.textContent = '팀당 정원을 입력하면 전체 정원이 표시됩니다.';
       return;
     }
-    hint.textContent = '최대 참가 인원 ' + maxParticipants + '명 (A팀 ' + teamA + '명 · B팀 ' + teamB + '명)';
+    const reserved = Number(roomEditorForm?.dataset.roomReserved || 0);
+    hint.textContent = '최대 참가 인원 ' + team * 2 + '명 (A팀 ' + team + '명 · B팀 ' + team + '명)'
+      + (reserved ? ' · 현재 참가·신청 ' + reserved + '명' : '');
+  }
+
+  /* 고른 시설이 제공하는 종목만 남긴다. 종목 검증의 최종 판단은 서버가 한다. */
+  function filterRoomEditorSports() {
+    const facility = document.getElementById('room-editor-facility');
+    const sport = document.getElementById('room-editor-sport');
+    if (!facility || !sport) return;
+    let firstVisible = null;
+    Array.from(sport.options).forEach(function (option) {
+      const visible = option.dataset.facilityId === facility.value;
+      option.hidden = !visible;
+      option.disabled = !visible;
+      if (visible && !firstVisible) firstVisible = option;
+    });
+    const selected = sport.options[sport.selectedIndex];
+    if (!selected || selected.disabled) sport.value = firstVisible ? firstVisible.value : '';
+  }
+
+  /**
+   * 생성·수정 모드에 맞춰 폼 주소와 문구를 바꾼다. 신청자가 있는 방(locked)은 시설·종목·날짜·시간을
+   * 잠그고 안내를 보여 준다.
+   */
+  function setRoomEditorMode(mode, room) {
+    if (!roomEditorForm) return;
+    const editing = mode === 'edit';
+    const locked = Boolean(editing && room?.locked);
+    const base = roomEditorForm.dataset.roomBase || roomEditorForm.action;
+    roomEditorForm.action = editing ? base + '/' + room.id : base;
+    roomEditorForm.dataset.roomMode = editing ? 'edit' : 'create';
+    roomEditorForm.dataset.roomLocked = locked ? 'true' : '';
+    roomEditorForm.dataset.roomReserved = editing ? String(room.reserved || 0) : '';
+
+    const title = document.getElementById('room-editor-title');
+    if (title) title.textContent = editing ? '매칭방 수정' : '매칭방 생성';
+    const description = document.getElementById('room-editor-description');
+    if (description) {
+      description.textContent = editing
+        ? room.id + '번 매칭방의 정보를 수정합니다.'
+        : '담당 시설의 운영 시간에 맞춰 매칭방을 개설합니다. 연속된 1시간 블록을 선택하세요.';
+    }
+    const submit = document.getElementById('room-editor-submit');
+    if (submit) submit.textContent = editing ? '수정 저장' : '매칭방 생성';
+    const lockedNote = document.getElementById('room-editor-locked-note');
+    if (lockedNote) lockedNote.hidden = !locked;
+
+    roomScheduleFieldIds.forEach(function (id) {
+      const field = document.getElementById(id);
+      if (field) field.disabled = locked;
+    });
+    roomEditorHourInputs.forEach(function (input) {
+      input.disabled = locked || input.dataset.slotUnavailable === 'true';
+    });
+  }
+
+  /* 선택한 날짜와 가장 이른 시간 블록으로 만든 시작 시각. 값이 비어 있으면 null */
+  function roomEditorStartAt(grid) {
+    const date = document.getElementById('room-editor-date')?.value || '';
+    const dateMatch = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const hours = Array.from(grid?.querySelectorAll('input[name="hours"]:checked') || [])
+      .map(function (input) { return hourToMinutes(input.value); })
+      .filter(function (minutes) { return minutes !== null; });
+    if (!dateMatch || !hours.length) return null;
+    const first = Math.min.apply(null, hours);
+    return new Date(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3]),
+      Math.floor(first / 60), first % 60);
+  }
+
+  function fillRoomEditor(dataset) {
+    if (!roomEditorForm) return;
+    roomEditorForm.reset();
+    const setValue = function (id, value) {
+      const field = document.getElementById(id);
+      if (field) field.value = value || '';
+    };
+    setValue('room-editor-facility', dataset.roomFacility);
+    filterRoomEditorSports();
+    setValue('room-editor-sport', dataset.roomSport);
+    setValue('room-editor-title-input', dataset.roomTitle);
+    setValue('room-editor-date', dataset.roomDate);
+    setValue('room-editor-team', dataset.roomTeam);
+    setValue('room-editor-fee', dataset.roomFee);
+    setValue('room-editor-level', dataset.roomSkill);
+    const hours = new Set(String(dataset.roomHours || '').split(',').filter(Boolean));
+    roomEditorHourInputs.forEach(function (input) { input.checked = hours.has(input.value); });
+    setRoomEditorMode('edit', {
+      id: dataset.roomId,
+      locked: dataset.roomLocked === 'true',
+      reserved: Number(dataset.roomReserved || 0)
+    });
+    updateRoomEditorSummary();
+    updateRoomEditorCapacity();
   }
 
   function setFacilitySports(value) {
@@ -197,6 +291,8 @@
     if (!roomEditorForm) return;
     roomEditorForm.reset();
     roomEditorForm.querySelectorAll('input[name="hours"]').forEach(function (input) { input.checked = false; });
+    setRoomEditorMode('create');
+    filterRoomEditorSports();
     updateRoomEditorSummary();
     updateRoomEditorCapacity();
   }
@@ -212,6 +308,12 @@
     }
     if (target.closest('[data-close-room-editor]')) {
       closeModal(roomEditorModal);
+      return;
+    }
+    const editRoom = target.closest('[data-edit-room]');
+    if (editRoom) {
+      fillRoomEditor(editRoom.dataset);
+      openModal(roomEditorModal, '#room-editor-title-input');
       return;
     }
     if (target.closest('[data-open-facility]')) {
@@ -308,10 +410,13 @@
     if (top) admin?.trapFocus(top, event);
   });
 
-  document.getElementById('room-editor-hour-grid')?.addEventListener('change', updateRoomEditorSummary);
-  ['room-editor-team-a', 'room-editor-team-b'].forEach(function (id) {
-    document.getElementById(id)?.addEventListener('input', updateRoomEditorCapacity);
+  /* 서버가 처음부터 막아 둔 블록은 모드를 바꿔도 계속 비활성으로 둔다. */
+  roomEditorHourInputs.forEach(function (input) {
+    input.dataset.slotUnavailable = input.disabled ? 'true' : '';
   });
+  document.getElementById('room-editor-facility')?.addEventListener('change', filterRoomEditorSports);
+  document.getElementById('room-editor-hour-grid')?.addEventListener('change', updateRoomEditorSummary);
+  document.getElementById('room-editor-team')?.addEventListener('input', updateRoomEditorCapacity);
 
   /* 주간 폼에서 같은 시작·종료 시각은 잘못된 값이다. 서버도 같은 규칙으로 검증한다. */
   function findInvalidWeeklyRow() {
@@ -387,12 +492,50 @@
       return;
     }
 
+    if (form.matches('.room-cancel-form')) {
+      if (confirmedSubmitForm === form) {
+        confirmedSubmitForm = null;
+        return;
+      }
+      event.preventDefault();
+      const button = form.querySelector('[data-cancel-room]');
+      const reserved = Number(button?.dataset.roomReserved || 0);
+      confirmOrSubmit({
+        form: form,
+        name: button?.dataset.roomTitle || '매칭방',
+        title: '이 매칭방을 취소할까요?',
+        message: reserved
+          ? '참가·신청 인원 ' + reserved + '명의 신청도 함께 취소되며 되돌릴 수 없습니다.'
+          : '취소한 매칭방은 이용자 화면에서 신청할 수 없으며 되돌릴 수 없습니다.',
+        submitLabel: '매칭방 취소',
+        danger: true
+      });
+      return;
+    }
+
     if (form === roomEditorForm) {
+      /* 일정이 잠긴 수정은 시간 블록을 보내지 않는다. */
+      if (form.dataset.roomLocked === 'true') return;
       const grid = document.getElementById('room-editor-hour-grid');
       if (grid && !grid.querySelector('input[name="hours"]:checked')) {
         event.preventDefault();
         admin?.toast('예약 시간 블록을 하나 이상 선택해 주세요.', true);
         grid.querySelector('input:not(:disabled)')?.focus();
+        return;
+      }
+      /* 한 방은 연속된 시간 하나만 쓴다. 수정 때 기존 블록을 해제하지 않고 새 블록을 더하는 실수도 여기서 막는다. */
+      if (grid && selectedRanges(grid).rangeCount > 1) {
+        event.preventDefault();
+        admin?.toast('예약 시간은 연속된 블록만 선택할 수 있습니다. 선택한 시간을 확인해 주세요.', true);
+        grid.querySelector('input[name="hours"]:checked')?.focus();
+        return;
+      }
+      /* 시작 시각이 이미 지났으면 보내지 않는다. 서버도 한국 시간 기준으로 다시 검사한다. */
+      const startAt = roomEditorStartAt(grid);
+      if (startAt && startAt.getTime() <= Date.now()) {
+        event.preventDefault();
+        admin?.toast('지난 시간에는 매칭방을 만들 수 없습니다. 날짜와 시간을 확인해 주세요.', true);
+        document.getElementById('room-editor-date')?.focus();
       }
       return;
     }

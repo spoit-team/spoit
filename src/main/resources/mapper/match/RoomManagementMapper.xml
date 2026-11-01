@@ -37,6 +37,24 @@
                AND ma.application_type = #{individualType}))
     </sql>
 
+    <!--
+      수정·취소 판단용 인원. 참가자 행(대기·확정)과 대기 신청(개인·팀 모두)의 합이다.
+      RoomCommandMapper.countReserved와 같은 기준이며, 확정 신청은 참가자 행으로 이미 센다.
+    -->
+    <sql id="reservedCount">
+        ((SELECT COUNT(*)
+            FROM match_participant mp
+           WHERE mp.match_id = sm.match_id
+             AND mp.participation_status IN
+                 <foreach collection="participationStatuses" item="st" open="(" separator="," close=")">
+                     #{st}
+                 </foreach>)
+         + (SELECT COUNT(*)
+              FROM match_application ma
+             WHERE ma.match_id = sm.match_id
+               AND ma.status = #{waitingApplicationStatus}))
+    </sql>
+
     <!-- 목록 조회 조건: 검색어·상태·종목·시설 -->
     <sql id="roomFilter">
         <!-- 검색어의 %·_·!는 서비스가 '!'로 이스케이프해 넘긴다. -->
@@ -71,7 +89,12 @@
                sm.end_at,
                sm.max_participants,
                <include refid="occupiedCount"/> AS occupied_count,
-               sm.status
+               sm.status,
+               sm.team_a_capacity,
+               sm.team_b_capacity,
+               sm.fee_per_person,
+               sm.required_skill,
+               <include refid="reservedCount"/> AS reserved_count
         <include refid="managedRoomFrom"/>
         JOIN app_user u ON u.user_id = sm.created_by
         <where>
@@ -112,6 +135,18 @@
                                   AND fm.user_id = #{managerUserId}
           JOIN sport s ON s.sport_id = fs.sport_id
          ORDER BY s.sport_id
+    </select>
+
+    <!-- 생성·수정 모달 종목 선택지: 담당 활성 시설별 제공 종목 -->
+    <select id="findFacilitySports" resultType="co.kr.spoit.match.dto.RoomManagementFacilitySport">
+        SELECT fs.facility_id, s.sport_id, s.name
+          FROM facility_sport fs
+          JOIN facility f ON f.facility_id = fs.facility_id
+                         AND f.deleted_at IS NULL
+          JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                  AND fm.user_id = #{managerUserId}
+          JOIN sport s ON s.sport_id = fs.sport_id
+         ORDER BY fs.facility_id, s.sport_id
     </select>
 
     <!--

@@ -228,6 +228,8 @@ button { color: inherit; }
 .table-link.danger-link { color: var(--admin-red); }
 .facility-row-actions { display: flex; align-items: center; gap: 8px; }
 .facility-delete-form { display: inline; }
+.room-row-actions { display: flex; align-items: center; gap: 8px; }
+.room-cancel-form { display: inline; }
 .table-empty { padding: 34px 16px !important; color: var(--admin-muted) !important; text-align: center; }
 .table-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 15px; border-top: 1px solid var(--admin-line); color: var(--admin-muted); font-size: 10.5px; }
 .pagination { display: flex; gap: 4px; }
@@ -632,6 +634,7 @@ button { color: inherit; }
 .room-editor-time-summary { margin: 8px 0 0; color: var(--admin-blue-ink); font-size: 10px; font-weight: 700; }
 .room-editor-time-summary.has-error { color: #b54141; }
 .room-editor-footnote { margin: 15px 0 0; padding-top: 12px; border-top: 1px solid var(--admin-line); color: var(--admin-muted); font-size: 9.5px; line-height: 1.5; }
+.room-editor-locked-note { margin: 0 0 14px; padding: 9px 12px; border-radius: 8px; background: var(--admin-amber-soft); color: #754b0d; font-size: 10.5px; line-height: 1.45; }
 .room-editor-capacity-hint { margin: -5px 0 0; color: var(--admin-muted); font-size: 9.5px; line-height: 1.45; }
 #room-editor-submit:disabled { cursor: not-allowed; opacity: .55; }
 
