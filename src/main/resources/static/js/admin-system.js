@@ -98,4 +98,4 @@
   settingsForm?.addEventListener('click', function (event) {
     if (event.target instanceof Element && event.target.closest('.toggle[role="switch"]')) markSettingsDirty();
   });
-})();
+})(window);

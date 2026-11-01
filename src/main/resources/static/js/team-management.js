@@ -120,7 +120,7 @@
 
     form.addEventListener('submit', function (event) {
       const hasDay = dayInputs.some(function (input) { return input.checked; });
-      const hasValidTimeRange = startInput?.value && endInput?.value && startInput.value < endInput.value;
+      const hasValidTimeRange = startInput?.value && endInput?.value && startInput.value !== endInput.value;
       if (hasDay && hasValidTimeRange) {
         if (error) error.hidden = true;
         return;
@@ -130,7 +130,7 @@
       if (error) {
         error.textContent = !hasDay
           ? '정기 활동 요일을 하나 이상 선택해 주세요.'
-          : '활동 종료 시간은 시작 시간보다 뒤여야 합니다.';
+          : '활동 시작 시간과 종료 시간이 같을 수 없습니다.';
         error.hidden = false;
       }
       if (!hasDay) dayInputs[0]?.focus();

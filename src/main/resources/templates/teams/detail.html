@@ -13,6 +13,7 @@
   <div th:if="${club != null}" id="team-detail" aria-live="polite">
     <a class="team-detail-back" th:href="@{/teams}"><span aria-hidden="true">←</span> 팀 목록으로 돌아가기</a>
     <p th:if="${message != null}" id="team-status-message" class="team-status-message" role="status" th:text="${message}">팀 안내</p>
+    <p th:if="${error != null}" id="team-status-error" class="team-status-message is-error" role="alert" th:text="${error}">팀 요청을 처리하지 못했습니다.</p>
     <article class="team-detail-card" th:attr="aria-label=${club.clubName + ' 팀 상세 정보'}">
       <section class="team-detail-hero">
         <div class="team-detail-heading">

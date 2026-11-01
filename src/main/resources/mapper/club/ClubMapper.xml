@@ -2,7 +2,8 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="co.kr.spoit.club.mapper.ClubMapper">
 
-    <select id="selectClubSummaryList" resultType="co.kr.spoit.club.domain.ClubSummary">
+    <!-- 동호회 목록: 해체되지 않은 동호회만 -->
+    <select id="selectClubs" resultType="co.kr.spoit.club.domain.ClubSummary">
         SELECT club_id AS clubId
               ,club_name AS clubName
               ,c.sport_id AS sportId
@@ -46,6 +47,7 @@
     </choose>
     </select>
 
+    <!-- 동호회 상세: 목록에 intro만 추가 -->
     <select id="selectClubDetail" resultType="co.kr.spoit.club.domain.ClubSummary">
         SELECT c.club_id AS clubId
               ,c.club_name AS clubName
@@ -81,4 +83,129 @@
         ORDER BY (m.role = '동호회장') DESC, m.joined_at ASC
     </select>
 
+    <select id="selectClubSportOptions" resultType="co.kr.spoit.club.domain.ClubSportOption">
+        SELECT sport_id AS sportId, name AS name FROM sport ORDER BY sport_id
+    </select>
+
+    <select id="selectClubRegionOptions" resultType="co.kr.spoit.club.domain.ClubRegionOption">
+        SELECT region_id AS regionId, name AS name
+        FROM region
+        WHERE parent_region_id IS NOT NULL
+        ORDER BY name
+    </select>
+
+    <!-- 해체되지 않은 동호회끼리만 이름 중복 검사 -->
+    <select id="existsActiveClubName" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM club
+        WHERE club_name = #{clubName} AND deleted_at IS NULL
+    </select>
+
+    <select id="existsSport" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM sport WHERE sport_id = #{sportId}
+    </select>
+
+    <select id="existsRegion" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM region
+        WHERE region_id = #{regionId} AND parent_region_id IS NOT NULL
+    </select>
+
+    <!-- DB가 만든 번호를 clubId에 연결-->
+    <insert id="insertClub" useGeneratedKeys="true" keyProperty="clubId">
+        INSERT INTO club (sport_id, club_name, intro, max_members, 
+                            activity_days, activity_start_time, activity_end_time)
+        VALUES (#{sportId}, #{clubName}, #{intro}, #{maxMembers},
+                #{activityDays}, #{activityStartTime}, #{activityEndTime})
+    </insert>
+
+    <insert id="insertClubRegion">
+        INSERT INTO club_region (club_id, region_id) VALUES (#{clubId}, #{regionId})
+    </insert>
+
+    <insert id="insertClubLeader">
+        INSERT INTO club_member (club_id, user_id, role) VALUES (#{clubId}, #{userId}, '동호회장')
+    </insert>
+
+    <select id="selectMyClubs" resultType="co.kr.spoit.club.domain.ClubSummary">
+        SELECT c.club_id AS clubId
+                ,c.club_name AS clubName
+                ,(SELECT COUNT(*) FROM club_member cm
+                WHERE cm.club_id = c.club_id AND cm.left_at IS NULL) AS memberCount
+                FROM club c
+                JOIN club_member m ON m.club_id = c.club_id
+                WHERE m.user_id = #{userId}
+                AND m.left_at IS NULL
+                AND c.deleted_at IS NULL
+                ORDER BY (m.role = '동호회장') DESC, m.joined_at DESC
+    </select>
+
+    <select id="existsActiveMember" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM club_member
+        WHERE club_id = #{clubId} AND user_id = #{userId} AND left_at IS NULL
+    </select>
+
+    <select id="selectMyPendingJoinRequestId" resultType="long">
+        SELECT request_id FROM club_join_request
+        WHERE club_id = #{clubId} AND user_id = #{userId} AND status = '대기중'
+        LIMIT 1
+    </select>
+
+    <select id="selectActiveClubForUpdate" resultType="co.kr.spoit.club.domain.ClubSummary">
+        SELECT club_id AS clubId
+        ,max_members AS maxMembers
+        ,recruit_status AS recruitStatus
+        FROM club
+        WHERE club_id = #{clubId} AND deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <select id="countActiveMembers" resultType="int">
+        SELECT COUNT(*) FROM club_member
+        WHERE club_id = #{clubId} AND left_at IS NULL
+    </select>
+
+    <insert id="insertJoinRequest">
+        INSERT INTO club_join_request (club_id, user_id, message)
+        VALUES (#{clubId}, #{userId}, #{message})
+    </insert>
+
+    <select id="existsActiveLeader" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM club_member
+        WHERE club_id = #{clubId} AND user_id = #{userId} AND role = '동호회장' AND left_at IS NULL
+    </select>
+
+    <select id="selectPendingJoinRequests" resultType="co.kr.spoit.club.domain.ClubJoinRequest">
+        SELECT r.request_id AS joinRequestId
+            ,r.user_id AS userId
+            ,u.nickname AS nickname
+            ,r.message AS message
+            ,r.requested_at AS requestedAt
+        FROM club_join_request r
+        JOIN app_user u ON r.user_id = u.user_id
+        WHERE r.club_id = #{clubId} AND r.status = '대기중'
+        ORDER BY r.requested_at ASC
+    </select>
+
+    <select id="selectPendingJoinRequestById" resultType="co.kr.spoit.club.domain.ClubJoinRequest">
+        SELECT request_id AS joinRequestId
+            ,user_id AS userId
+        FROM club_join_request
+        WHERE club_id = #{clubId} AND request_id = #{joinRequestId} AND status = '대기중'
+    </select>
+
+    <update id="updateJoinRequestStatus">
+        UPDATE club_join_request
+        SET status = #{status}, processed_at = NOW()
+        WHERE request_id = #{joinRequestId} AND status = '대기중'
+    </update>
+
+    <insert id="insertJoinedMember">
+        INSERT INTO club_member(club_id, user_id, role) VALUES (#{clubId}, #{userId}, '동호회원')
+    </insert>
+
+    <update id="cancelJoinRequest">
+        UPDATE club_join_request
+        SET status = '취소', processed_at = NOW()
+        WHERE club_id = #{clubId} AND request_id = #{joinRequestId} AND user_id = #{userId} AND status = '대기중'
+    </update>
+    
     </mapper>

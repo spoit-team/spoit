@@ -37,4 +37,7 @@ public interface MemberService {
 
     /** 닉네임·연락처·대표 종목·선호 지역을 저장한다. 검증 실패 시 {@link IllegalArgumentException}. */
     void updateProfile(Long userId, ProfileUpdateForm form);
+
+    /** 비밀번호를 재확인한 뒤 회원의 탈퇴 시각(deleted_at)을 기록한다. 소프트 삭제라 다른 행은 건드리지 않는다. */
+    void withdraw(Long userId, String rawPassword);
 }

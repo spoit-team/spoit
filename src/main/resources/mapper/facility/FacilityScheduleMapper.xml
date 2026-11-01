@@ -1,0 +1,301 @@
+﻿<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="co.kr.spoit.facility.mapper.FacilityScheduleMapper">
+
+    <!-- 점유·충돌 계산에 쓰는 상태 목록은 서비스가 MatchStatus에서 만들어 넘긴다.
+         취소·종료 상태는 여기에 포함되지 않는다. -->
+    <sql id="statusIn">
+        <foreach collection="statuses" item="status" open="(" separator="," close=")">
+            #{status}
+        </foreach>
+    </sql>
+
+    <select id="selectWeeklyRulesForUpdate" resultType="co.kr.spoit.facility.domain.OperatingRule" flushCache="true">
+        SELECT weekday        AS weekday
+              ,is_open        AS open
+              ,open_time      AS openTime
+              ,close_time     AS closeTime
+              ,end_next_day   AS endNextDay
+          FROM operating_rule
+         WHERE facility_id = #{facilityId}
+         ORDER BY weekday ASC
+           FOR UPDATE
+    </select>
+
+    <select id="selectWeeklyRules" resultType="co.kr.spoit.facility.domain.OperatingRule">
+        SELECT weekday        AS weekday
+              ,is_open        AS open
+              ,open_time      AS openTime
+              ,close_time     AS closeTime
+              ,end_next_day   AS endNextDay
+          FROM operating_rule
+         WHERE facility_id = #{facilityId}
+         ORDER BY weekday ASC
+    </select>
+
+    <select id="selectDateOverridesForUpdate" resultType="co.kr.spoit.facility.domain.DateOverride" flushCache="true">
+        SELECT facility_date_override_id AS overrideId
+              ,facility_id               AS facilityId
+              ,override_date             AS date
+              ,note                      AS note
+          FROM facility_date_override
+         WHERE facility_id = #{facilityId}
+         ORDER BY override_date ASC
+           FOR UPDATE
+    </select>
+
+    <select id="selectDateOverrides" resultType="co.kr.spoit.facility.domain.DateOverride">
+        SELECT facility_date_override_id AS overrideId
+              ,facility_id               AS facilityId
+              ,override_date             AS date
+              ,note                      AS note
+          FROM facility_date_override
+         WHERE facility_id = #{facilityId}
+         ORDER BY override_date ASC
+    </select>
+
+    <select id="selectDateOverrideHours" resultType="int">
+        SELECT slot_hour
+          FROM facility_date_override_slot
+         WHERE facility_date_override_id = #{overrideId}
+         ORDER BY slot_hour ASC
+    </select>
+
+    <select id="selectDateOverrideHoursForUpdate" resultType="int" flushCache="true">
+        SELECT slot_hour
+          FROM facility_date_override_slot
+         WHERE facility_date_override_id = #{overrideId}
+         ORDER BY slot_hour ASC
+           FOR UPDATE
+    </select>
+
+    <select id="selectActiveClosuresForUpdate" resultType="co.kr.spoit.facility.domain.FacilityClosure" flushCache="true">
+        SELECT schedule_change_id AS scheduleChangeId
+              ,facility_id        AS facilityId
+              ,created_by         AS createdBy
+              ,start_at           AS startAt
+              ,end_at             AS endAt
+              ,reason             AS reason
+              ,status             AS status
+          FROM schedule_change
+         WHERE facility_id = #{facilityId}
+           AND change_type = 'FACILITY_CLOSURE'
+           AND status = 'ACTIVE'
+         ORDER BY start_at ASC, schedule_change_id ASC
+           FOR UPDATE
+    </select>
+
+    <select id="selectActiveClosures" resultType="co.kr.spoit.facility.domain.FacilityClosure">
+        SELECT schedule_change_id AS scheduleChangeId
+              ,facility_id        AS facilityId
+              ,created_by         AS createdBy
+              ,start_at           AS startAt
+              ,end_at             AS endAt
+              ,reason             AS reason
+              ,status             AS status
+          FROM schedule_change
+         WHERE facility_id = #{facilityId}
+           AND change_type = 'FACILITY_CLOSURE'
+           AND status = 'ACTIVE'
+         ORDER BY start_at ASC, schedule_change_id ASC
+    </select>
+
+    <select id="selectClosureForUpdate" resultType="co.kr.spoit.facility.domain.FacilityClosure" flushCache="true">
+        SELECT schedule_change_id AS scheduleChangeId
+              ,facility_id        AS facilityId
+              ,created_by         AS createdBy
+              ,start_at           AS startAt
+              ,end_at             AS endAt
+              ,reason             AS reason
+              ,status             AS status
+          FROM schedule_change
+         WHERE facility_id = #{facilityId}
+           AND schedule_change_id = #{scheduleChangeId}
+           AND change_type = 'FACILITY_CLOSURE'
+           AND status = 'ACTIVE'
+           FOR UPDATE
+    </select>
+
+    <!-- 겹침 조건: 매칭/휴관 시작 < 상대 종료 && 종료 > 상대 시작. 경계가 맞닿으면 제외한다. -->
+    <select id="selectClosures" resultType="co.kr.spoit.facility.domain.FacilityClosure">
+        SELECT schedule_change_id AS scheduleChangeId
+              ,facility_id        AS facilityId
+              ,created_by         AS createdBy
+              ,start_at           AS startAt
+              ,end_at             AS endAt
+              ,reason             AS reason
+              ,status             AS status
+          FROM schedule_change
+         WHERE facility_id = #{facilityId}
+           AND change_type = 'FACILITY_CLOSURE'
+         ORDER BY start_at DESC, schedule_change_id DESC
+    </select>
+
+    <select id="selectActiveClosuresOverlappingForUpdate"
+            resultType="co.kr.spoit.facility.domain.FacilityClosure" flushCache="true">
+        SELECT schedule_change_id AS scheduleChangeId
+              ,facility_id        AS facilityId
+              ,created_by         AS createdBy
+              ,start_at           AS startAt
+              ,end_at             AS endAt
+              ,reason             AS reason
+              ,status             AS status
+          FROM schedule_change
+         WHERE facility_id = #{facilityId}
+           AND change_type = 'FACILITY_CLOSURE'
+           AND status = 'ACTIVE'
+           AND start_at &lt; #{endAt}
+           AND end_at &gt; #{startAt}
+         ORDER BY start_at ASC, schedule_change_id ASC
+           FOR UPDATE
+    </select>
+
+    <select id="selectClosureById" resultType="co.kr.spoit.facility.domain.FacilityClosure">
+        SELECT schedule_change_id AS scheduleChangeId
+              ,facility_id        AS facilityId
+              ,created_by         AS createdBy
+              ,start_at           AS startAt
+              ,end_at             AS endAt
+              ,reason             AS reason
+              ,status             AS status
+          FROM schedule_change
+         WHERE schedule_change_id = #{scheduleChangeId}
+           AND change_type = 'FACILITY_CLOSURE'
+    </select>
+
+    <select id="selectMatchPeriodsForUpdate" resultType="co.kr.spoit.facility.domain.MatchPeriod" flushCache="true">
+        SELECT match_id AS matchId
+              ,title    AS title
+              ,start_at AS startAt
+              ,end_at   AS endAt
+          FROM social_match
+         WHERE facility_id = #{facilityId}
+           AND status IN <include refid="statusIn"/>
+         ORDER BY start_at ASC, match_id ASC
+           FOR UPDATE
+    </select>
+
+    <select id="selectOverlappingMatchPeriodsForUpdate" resultType="co.kr.spoit.facility.domain.MatchPeriod" flushCache="true">
+        SELECT match_id AS matchId
+              ,title    AS title
+              ,start_at AS startAt
+              ,end_at   AS endAt
+          FROM social_match
+         WHERE facility_id = #{facilityId}
+           AND status IN <include refid="statusIn"/>
+           AND start_at &lt; #{endAt}
+           AND end_at &gt; #{startAt}
+         ORDER BY start_at ASC, match_id ASC
+           FOR UPDATE
+    </select>
+
+    <delete id="deleteWeeklyRules">
+        DELETE FROM operating_rule
+         WHERE facility_id = #{facilityId}
+    </delete>
+
+    <insert id="insertWeeklyRules">
+        INSERT INTO operating_rule (
+            facility_id, weekday, open_time, close_time, end_next_day, is_open
+        ) VALUES
+        <foreach collection="rows" item="row" separator=", ">
+            (#{facilityId}, #{row.weekday}, #{row.openTime}, #{row.closeTime},
+             #{row.endNextDay}, #{row.open})
+        </foreach>
+    </insert>
+
+    <delete id="deleteDateOverrideSlots">
+        DELETE FROM facility_date_override_slot
+         WHERE facility_date_override_id = #{overrideId}
+    </delete>
+
+    <delete id="deleteDateOverride">
+        DELETE FROM facility_date_override
+         WHERE facility_date_override_id = #{overrideId}
+    </delete>
+
+    <!-- 0슬롯 휴무도 헤더 행을 남겨 주간 상속과 구분한다. -->
+    <insert id="insertDateOverride" useGeneratedKeys="true" keyProperty="override.overrideId"
+            keyColumn="facility_date_override_id">
+        INSERT INTO facility_date_override (facility_id, override_date, note)
+        VALUES (#{override.facilityId}, #{override.date}, #{override.note})
+    </insert>
+
+    <insert id="insertDateOverrideHours">
+        INSERT INTO facility_date_override_slot (facility_date_override_id, slot_hour)
+        VALUES
+        <foreach collection="hours" item="hour" separator=", ">
+            (#{overrideId}, #{hour})
+        </foreach>
+    </insert>
+
+    <select id="selectSportCapacityForUpdate" resultType="java.lang.Integer" flushCache="true">
+        SELECT default_max
+          FROM facility_sport
+         WHERE facility_id = #{facilityId}
+           AND sport_id = #{sportId}
+           FOR UPDATE
+    </select>
+
+    <update id="updateSportConditions">
+        UPDATE facility_sport
+           SET default_max = #{capacity},
+               note = #{note}
+         WHERE facility_id = #{facilityId}
+           AND sport_id = #{sportId}
+    </update>
+
+    <select id="selectSportConditions" resultType="co.kr.spoit.facility.domain.FacilitySportCondition">
+        SELECT fs.sport_id        AS sportId
+              ,s.name             AS sportName
+              ,fs.default_max     AS capacity
+              ,fs.note            AS note
+          FROM facility_sport fs
+          JOIN sport s ON s.sport_id = fs.sport_id
+         WHERE fs.facility_id = #{facilityId}
+         ORDER BY fs.sport_id ASC
+    </select>
+
+    <insert id="insertClosure" useGeneratedKeys="true" keyProperty="closure.scheduleChangeId"
+            keyColumn="schedule_change_id">
+        INSERT INTO schedule_change (
+            facility_id, created_by, start_at, end_at, change_type, reason, status
+        ) VALUES (
+            #{closure.facilityId}, #{closure.createdBy}, #{closure.startAt}, #{closure.endAt},
+            'FACILITY_CLOSURE', #{closure.reason}, 'ACTIVE'
+        )
+    </insert>
+
+    <update id="cancelClosure">
+        UPDATE schedule_change
+           SET status = #{status}
+         WHERE facility_id = #{facilityId}
+           AND schedule_change_id = #{scheduleChangeId}
+           AND change_type = 'FACILITY_CLOSURE'
+           AND status = 'ACTIVE'
+    </update>
+
+    <select id="selectConcurrentLimitForUpdate" resultType="java.lang.Integer" flushCache="true">
+        SELECT concurrent_match_limit
+          FROM facility
+         WHERE facility_id = #{facilityId}
+           AND deleted_at IS NULL
+           FOR UPDATE
+    </select>
+
+    <select id="selectFacilityNameForUpdate" resultType="java.lang.String" flushCache="true">
+        SELECT name
+          FROM facility
+         WHERE facility_id = #{facilityId}
+           AND deleted_at IS NULL
+           FOR UPDATE
+    </select>
+
+    <select id="selectFacilityName" resultType="java.lang.String">
+        SELECT name
+          FROM facility
+         WHERE facility_id = #{facilityId}
+           AND deleted_at IS NULL
+    </select>
+
+</mapper>

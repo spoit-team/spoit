@@ -3,12 +3,12 @@
 -- Decimal boundary values test DECIMAL(8,2) mapping, not an approved rating policy.
 
 INSERT INTO app_user (
-    user_id, email, password_hash, nickname, phone, role, status, created_at
+    user_id, email, password_hash, nickname, phone, role, created_at
 ) VALUES
     (1, 'mat-user-1@example.invalid', 'TEST_ONLY_NOT_A_PASSWORD_HASH',
-     'MAT 테스트 회원 1', '010-0000-0001', 'USER', 'ACTIVE', '2026-10-20 09:00:00'),
+     'MAT 테스트 회원 1', '010-0000-0001', 'USER', '2026-10-20 09:00:00'),
     (2, 'mat-user-2@example.invalid', 'TEST_ONLY_NOT_A_PASSWORD_HASH',
-     'MAT 테스트 회원 2', '010-0000-0002', 'USER', 'ACTIVE', '2026-10-20 09:00:00');
+     'MAT 테스트 회원 2', '010-0000-0002', 'USER', '2026-10-20 09:00:00');
 
 INSERT INTO sport (sport_id, name) VALUES
     (1, 'MAT 테스트 종목 1'),
@@ -71,3 +71,55 @@ INSERT INTO sport_rating (
     (1, 1, 1023.45, 7, '2026-10-21 09:30:00'),
     (1, 2, 999999.99, 0, '2026-10-21 09:30:00'),
     (2, 1, -999999.99, 12, '2026-10-21 09:30:00');
+
+-- MatchAssignmentMapper: user 1 manages facility 1 only, and facility 2 is deleted.
+INSERT INTO facility (
+    facility_id, region_id, name, address, latitude, longitude,
+    concurrent_match_limit, status, deleted_at
+) VALUES
+    (2, 1, 'MAT 삭제된 테스트 시설', '테스트 전용 주소', 37.5000000, 127.0000000,
+     1, '운영중', '2026-10-21 00:00:00');
+
+INSERT INTO facility_sport (
+    facility_id, sport_id, default_min, default_max, default_fee, default_skill
+) VALUES
+    (2, 1, 1, 2, 0.00, '무관');
+
+INSERT INTO facility_manager (facility_id, user_id, assigned_at) VALUES
+    (1, 1, '2026-10-20 09:00:00');
+
+INSERT INTO social_match (
+    match_id, facility_id, sport_id, created_by, title, start_at, end_at,
+    min_participants, max_participants, team_a_capacity, team_b_capacity,
+    fee_per_person, required_skill, status, assignment_method,
+    assigned_by, assignment_confirmed_at, rating_status
+) VALUES
+    (3, 1, 1, 1, 'MAT 배정 테스트 경기', '2026-10-23 10:00:00', '2026-10-23 12:00:00',
+     6, 6, 3, 3, 0.00, '무관', '매칭 완료', 'MANUAL', 1, '2026-10-22 18:00:00', 'WAITING'),
+    (4, 2, 1, 1, 'MAT 삭제 시설 경기', '2026-10-23 10:00:00', '2026-10-23 12:00:00',
+     1, 2, 1, 1, 0.00, '무관', '모집 중', 'MANUAL', NULL, NULL, 'WAITING');
+
+-- 팀 배정 저장·취소 쿼리: 1:1 모집 중 경기와 미배정 확정 참가자 2명
+INSERT INTO social_match (
+    match_id, facility_id, sport_id, created_by, title, start_at, end_at,
+    min_participants, max_participants, team_a_capacity, team_b_capacity,
+    fee_per_person, required_skill, status, assignment_method, rating_status
+) VALUES
+    (5, 1, 1, 1, 'MAT 배정 저장 테스트 경기', '2026-10-24 10:00:00', '2026-10-24 12:00:00',
+     2, 2, 1, 1, 0.00, '무관', '모집 중', 'MANUAL', 'WAITING');
+
+INSERT INTO match_application (
+    application_id, match_id, applicant_user_id, club_id, application_type,
+    status, receipt_no, created_at, confirmed_at, cancelled_at, cancelled_by
+) VALUES
+    (50, 5, 1, NULL, '개인', '확정', 'MAT-TEST-RECEIPT-50',
+     '2026-10-20 09:00:00', '2026-10-20 09:00:00', NULL, NULL),
+    (51, 5, 2, NULL, '개인', '확정', 'MAT-TEST-RECEIPT-51',
+     '2026-10-20 09:00:00', '2026-10-20 09:00:00', NULL, NULL);
+
+INSERT INTO match_participant (
+    participant_id, application_id, match_id, user_id, participation_status,
+    match_side, entry_mmr, joined_at, cancelled_at
+) VALUES
+    (50, 50, 5, 1, '확정', NULL, 1100.00, '2026-10-20 09:00:00', NULL),
+    (51, 51, 5, 2, '확정', NULL, 900.00, '2026-10-20 09:00:00', NULL);

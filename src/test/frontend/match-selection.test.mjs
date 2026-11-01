@@ -46,10 +46,11 @@ function exercise(source, legacy = false) {
   const applicationType = get('selection-kind');
   applicationType.name = applicationField;
   const radio = new Control({ name: clubField, value: '10' });
-  const option = new Control({ dataset: { teamIndex: '10', leaderAuto: 'true', leaderIsApplicant: 'false' } });
+  const option = new Control({ dataset: { teamIndex: '10' } });
+  // RES-04: 101은 이미 이 매치에 신청한 회원이라 체크된 채 잠겨 있다. 동호회장 자동 포함은 없다.
   const members = [
-    new Control({ name: memberField, value: '101', dataset: { leaderOnly: 'true' } }),
-    new Control({ name: memberField, value: '102', dataset: { applicant: 'true' } }),
+    new Control({ name: memberField, value: '101', checked: true, dataset: { applied: 'true' } }),
+    new Control({ name: memberField, value: '102' }),
     new Control({ name: memberField, value: '103' })
   ];
   option.querySelector = selector => selector === 'b' ? new Control({ textContent: '테스트 팀' }) : radio;
@@ -96,9 +97,16 @@ function exercise(source, legacy = false) {
   options.dispatch('change', radio);
   assert.equal(get('selection-submit').disabled, false);
   assert.equal(form.dispatch('submit').defaultPrevented, true); // First team step only advances.
-  assert.deepEqual(members.map(member => member.disabled), [true, true, false]);
-  assert.equal(get('selection-submit').disabled, false); // Applicant + auto-included leader fit.
+  assert.deepEqual(members.map(member => member.disabled), [true, false, false]);
+  assert.equal(members[0].checked, true); // Already applied: stays checked and locked.
+  assert.equal(get('selection-submit').disabled, true); // Applicant alone is not a team.
+  assert.equal(get('team-selected-count').textContent, '총 1명 · 신청자 포함');
   trace.push(snapshot());
+
+  members[1].checked = true;
+  roster.dispatch('change', members[1]);
+  assert.equal(get('selection-submit').disabled, false); // Applicant + one member fit two seats.
+  assert.equal(get('team-selected-count').textContent, '총 2명 · 신청자 포함');
 
   members[2].checked = true;
   roster.dispatch('change', members[2]);
@@ -109,7 +117,14 @@ function exercise(source, legacy = false) {
   members[2].checked = false;
   roster.dispatch('change', members[2]);
   assert.equal(form.dispatch('submit').defaultPrevented, false);
+  // The locked, already-applied member is not submitted.
+  assert.deepEqual(snapshot().fields, [['applicationType', 'team'], ['clubId', '10'], ['clubMemberIds', '102']]);
   trace.push(snapshot());
+
+  options.dispatch('change', radio); // Re-selecting the club clears picks but keeps the applied lock.
+  assert.deepEqual(members.map(member => member.checked), [true, false, false]);
+  members[1].checked = true;
+  roster.dispatch('change', members[1]);
 
   openers[0].dispatch('click');
   assert.deepEqual(snapshot().fields, [['applicationType', 'individual']]);
@@ -127,4 +142,4 @@ if (baseline) {
   assert.equal(previous.exitCode, 0, 'Baseline source must exist');
   assert.deepEqual(currentTrace, exercise(previous.stdout.toString(), true));
 }
-console.log('PASS: individual/team selection, capacity limits, excluded roster members, submit fields and close behavior.');
+console.log('PASS: individual/team selection, capacity limits, already-applied members locked, submit fields and close behavior.');

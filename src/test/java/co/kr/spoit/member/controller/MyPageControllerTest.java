@@ -3,11 +3,14 @@ package co.kr.spoit.member.controller;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -18,6 +21,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -37,6 +42,10 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import co.kr.spoit.mat.dto.SportRatingResponse;
 import co.kr.spoit.mat.service.SportRatingService;
+import co.kr.spoit.match.dto.MyReservations;
+import co.kr.spoit.match.service.MatchApplicationService;
+import co.kr.spoit.match.service.MatchApplyException;
+import co.kr.spoit.match.service.MyReservationService;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.member.dto.SignupRegion;
@@ -50,23 +59,29 @@ class MyPageControllerTest {
     private static final String EMAIL = "player@example.com";
     private static final String NICKNAME = "플레이어";
     private static final String PHONE = "010-1234-5678";
+    private static final String RAW_PASSWORD = "spoit1234!";
 
     private MemberService memberService;
     private SportRatingService sportRatingService;
+    private MyReservationService reservationService;
+    private MatchApplicationService applicationService;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         memberService = mock(MemberService.class);
         sportRatingService = mock(SportRatingService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new MyPageController(memberService, sportRatingService)).build();
+        reservationService = mock(MyReservationService.class);
+        given(reservationService.find(anyLong())).willReturn(MyReservations.empty());
+        applicationService = mock(MatchApplicationService.class);
+        mockMvc = MockMvcBuilders.standaloneSetup(new MyPageController(
+                memberService, sportRatingService, reservationService, applicationService)).build();
     }
 
     @Test
     @DisplayName("로그인 회원은 마이페이지에서 본인 닉네임과 이메일을 본다")
     void myPageShowsOwnIdentity() throws Exception {
         given(memberService.findRegions(USER_ID)).willReturn(List.of());
-        given(memberService.findSports()).willReturn(List.of(sportOption(2L, "농구")));
         given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.empty());
 
         mockMvc.perform(get("/mypage").with(principal()))
@@ -104,11 +119,94 @@ class MyPageControllerTest {
     }
 
     @Test
-    @DisplayName("로그인 회원은 프로필 수정 화면에서 본인 정보를 본다")
+    @DisplayName("신청 내역과 요약 집계는 본인 userId로 조회한 결과를 쓴다")
+    void reservationsComeFromOwnApplications() throws Exception {
+        given(memberService.findRegions(USER_ID)).willReturn(List.of());
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.empty());
+        MyReservations.Entry entry = new MyReservations.Entry(1L, 3L, "풋살", "개인 신청", "확정 대기",
+                "text-book-ink", "매칭방", "내일 19:00~21:00 · 시설", "참가 1명", null, false, "신청 취소", false, null, false, null);
+        given(reservationService.find(USER_ID)).willReturn(new MyReservations(List.of(entry), List.of(), 2, 1, 1));
+
+        mockMvc.perform(get("/mypage").with(principal()))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("currentReservations", hasSize(1)))
+                .andExpect(model().attribute("pastReservations", hasSize(0)))
+                .andExpect(model().attribute("summary", hasEntry("confirmedCount", 2)))
+                .andExpect(model().attribute("summary", hasEntry("completedCount", 1)))
+                .andExpect(model().attribute("summary", hasEntry("waitingCount", 1)));
+        verify(reservationService).find(USER_ID);
+    }
+
+    @Test
+    @DisplayName("신청 취소는 본인 userId로 처리하고 결과를 마이페이지 안내로 돌려준다")    void cancelApplicationRedirectsWithMessage() throws Exception {
+        mockMvc.perform(post("/mypage/applications/11/cancel").with(principal()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/mypage?message="
+                        + URLEncoder.encode("신청을 취소했습니다.", StandardCharsets.UTF_8) + "#reservations"));
+        verify(applicationService).cancel(11L, USER_ID);
+    }
+
+    @Test
+    @DisplayName("취소할 수 없는 신청이면 사유를 안내한다")
+    void cancelApplicationShowsReason() throws Exception {
+        willThrow(new MatchApplyException("이미 취소되었거나 처리된 신청입니다."))
+                .given(applicationService).cancel(11L, USER_ID);
+
+        mockMvc.perform(post("/mypage/applications/11/cancel").with(principal()))
+                .andExpect(redirectedUrl("/mypage?message="
+                        + URLEncoder.encode("이미 취소되었거나 처리된 신청입니다.", StandardCharsets.UTF_8)
+                        + "#reservations"));
+    }
+
+    @Test
+    @DisplayName("비로그인 취소 요청은 로그인으로 보낸다")
+    void cancelApplicationRequiresLogin() throws Exception {
+        mockMvc.perform(post("/mypage/applications/11/cancel"))
+                .andExpect(redirectedUrl("/login"));
+        verify(applicationService, never()).cancel(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("레이팅이 없거나 확정 경기가 0건이거나 MMR이 null이면 기록 없음으로 표시한다")
+    void summaryShowsNoRatingTextWhenRatingMissing() throws Exception {
+        given(memberService.findRegions(USER_ID)).willReturn(List.of());
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.of(sportOption(2L, "농구")));
+        given(sportRatingService.findByUserIdAndSportId(USER_ID, 2L))
+                .willReturn(Optional.empty(),
+                        Optional.of(new SportRatingResponse(USER_ID, 2L, new BigDecimal("1015.66"), 0, null)),
+                        Optional.of(new SportRatingResponse(USER_ID, 2L, null, 4, null)));
+
+        mockMvc.perform(get("/mypage").with(principal()))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("summary", hasEntry("representativeRatingText", "기록 없음")));
+        mockMvc.perform(get("/mypage").with(principal()))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("summary", hasEntry("representativeRatingText", "기록 없음")));
+        mockMvc.perform(get("/mypage").with(principal()))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("summary", hasEntry("representativeRatingText", "기록 없음")));
+    }
+
+    @Test
+    @DisplayName("프로필 화면의 오류·안내 파라미터는 빈 값을 null로 바꿔 모델에 담는다")
+    void profileRendersErrorAndMessageQueryParams() throws Exception {
+        given(memberService.findRegions(USER_ID)).willReturn(List.of());
+        given(memberService.findSports()).willReturn(List.of());
+        given(memberService.findSignupRegions()).willReturn(List.of());
+
+        mockMvc.perform(get("/mypage/profile").with(principal()).param("error", " ").param("message", "저장"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("error", nullValue()))
+                .andExpect(model().attribute("message", "저장"));
+    }
+
+    @Test
+    @DisplayName("로그인 회원은 프로필 수정 화면에서 본인 정보와 지역 선택지를 본다")
     void profileShowsOwnIdentity() throws Exception {
         given(memberService.findRegions(USER_ID))
                 .willReturn(List.of(region(11L, "강남구"), region(12L, "송파구")));
-        given(memberService.findSignupRegions()).willReturn(List.of(region(11L, "강남구")));
+        given(memberService.findSignupRegions())
+                .willReturn(List.of(region(11L, "강남구"), region(12L, "송파구")));
         given(memberService.findSports()).willReturn(List.of(sportOption(2L, "농구")));
         given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.of(sportOption(2L, "농구")));
 
@@ -118,19 +216,7 @@ class MyPageControllerTest {
                 .andExpect(model().attribute("profile", hasEntry("email", EMAIL)))
                 .andExpect(model().attribute("profile", hasEntry("phone", PHONE)))
                 .andExpect(model().attribute("profile", hasEntry("regionId", 11L)))
-                .andExpect(model().attribute("profile", hasEntry("representativeSportId", 2L)));
-    }
-
-    @Test
-    @DisplayName("프로필 화면은 저장된 지역을 선택할 수 있도록 자치구 선택지를 채운다")
-    void profileFillsRegionOptions() throws Exception {
-        given(memberService.findRegions(USER_ID)).willReturn(List.of(region(11L, "강남구")));
-        given(memberService.findSignupRegions()).willReturn(List.of(region(11L, "강남구"), region(12L, "송파구")));
-        given(memberService.findSports()).willReturn(List.of(sportOption(2L, "농구")));
-        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.empty());
-
-        mockMvc.perform(get("/mypage/profile").with(principal()))
-                .andExpect(status().isOk())
+                .andExpect(model().attribute("profile", hasEntry("representativeSportId", 2L)))
                 .andExpect(model().attribute("districts", hasSize(2)));
     }
 
@@ -166,8 +252,6 @@ class MyPageControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("mypage/profile"))
                 .andExpect(model().attributeExists("error"));
-
-        // 서비스가 예외로 저장을 거부했으므로 저장 성공 경로는 실행되지 않는다.
     }
 
     @Test
@@ -178,6 +262,41 @@ class MyPageControllerTest {
                         .param("phone", PHONE))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/login"));
+    }
+
+    @Test
+    @DisplayName("비밀번호가 맞으면 탈퇴를 위임하고 로그인 화면으로 보낸다")
+    void withdrawalDelegatesAndRedirectsToLogin() throws Exception {
+        mockMvc.perform(post("/mypage/withdrawal-requests").with(principal())
+                        .param("password", RAW_PASSWORD))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login?message=" + URLEncoder.encode("탈퇴가 완료되었습니다.", StandardCharsets.UTF_8)));
+
+        verify(memberService).withdraw(USER_ID, RAW_PASSWORD);
+    }
+
+    @Test
+    @DisplayName("비밀번호가 틀리면 탈퇴하지 않고 프로필 화면에 오류를 전달한다")
+    void withdrawalWithWrongPasswordShowsError() throws Exception {
+        willThrow(new IllegalArgumentException("비밀번호가 일치하지 않습니다."))
+                .given(memberService).withdraw(USER_ID, "wrong-password");
+
+        mockMvc.perform(post("/mypage/withdrawal-requests").with(principal())
+                        .param("password", "wrong-password"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/mypage/profile?error="
+                        + URLEncoder.encode("비밀번호가 일치하지 않습니다.", StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    @DisplayName("비로그인 탈퇴 요청은 서비스를 호출하지 않고 로그인 화면으로 보낸다")
+    void anonymousWithdrawalRedirectsToLogin() throws Exception {
+        mockMvc.perform(post("/mypage/withdrawal-requests")
+                        .param("password", RAW_PASSWORD))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login"));
+
+        verify(memberService, never()).withdraw(anyLong(), anyString());
     }
 
     @Test
@@ -223,7 +342,6 @@ class MyPageControllerTest {
         member.setNickname(NICKNAME);
         member.setPhone(PHONE);
         member.setRole("일반 회원");
-        member.setStatus("활성");
         return member;
     }
 

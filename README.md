@@ -84,6 +84,8 @@ SOURCE db/seed.sql;
 
 `seed.sql`은 빈 DB에 한 번만 넣는 개발용 더미 데이터입니다. 이미 가져온 DB에는 다시 실행하지 마세요. 재구성이 필요하면 먼저 데이터를 백업하고, 별도의 새 개발 DB를 만들어 스키마와 seed를 처음부터 적용하세요. [시드 계정 및 주의사항](db/seed-accounts.md)도 확인하세요.
 
+이미 만든 DB를 데이터는 그대로 두고 최신 스키마로 맞추려면 [db/migrations/README.md](db/migrations/README.md)의 순서대로 마이그레이션을 적용하세요.
+
 ### 4. 로컬 설정 파일 만들기
 
 기본 `application.properties`는 `DB_USERNAME`과 `DB_PASSWORD` 환경 변수를 사용하므로, OS 또는 IDE의 실행 설정에 두 값을 비밀값으로 설정하면 별도 로컬 설정 파일 없이 실행할 수 있습니다. 기본 datasource URL은 `localhost:3306/spoit`입니다. 다른 호스트나 포트를 쓰면 `SPRING_DATASOURCE_URL`도 같은 방식으로 설정하세요.

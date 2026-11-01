@@ -1,5 +1,6 @@
 package co.kr.spoit.member.mapper;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,6 +20,16 @@ public interface MemberMapper {
 
     /** {@code email}은 유니크 키라 최대 한 건이 반환된다. */
     Optional<Member> findByEmail(@Param("email") String email);
+
+    /** 탈퇴 시 비밀번호 재확인을 위해 식별자로 조회한다. */
+    Optional<Member> findById(@Param("userId") Long userId);
+
+    /**
+     * 미탈퇴({@code deleted_at IS NULL})이면서 이용정지 기간이 끝났거나 정지 이력이 없을 때만
+     * 탈퇴 시각을 기록한다. 변경 행 수로 동시 탈퇴를 판별한다.
+     */
+    int recordWithdrawal(@Param("userId") Long userId, @Param("deletedAt") LocalDateTime deletedAt,
+            @Param("now") LocalDateTime now);
 
     /** 회원을 저장하고 {@code useGeneratedKeys}로 {@code userId}를 돌려준다. */
     int insert(Member member);

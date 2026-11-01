@@ -19,6 +19,9 @@ public class Member {
     private String nickname;
     private String phone;
     private String role;
-    private String status;
     private LocalDateTime createdAt;
+    /** 탈퇴 시각. null이면 미탈퇴 회원이다. */
+    private LocalDateTime deletedAt;
+    /** 이용정지 종료 시각. null이면 정지 종료 시각이 설정되지 않은 상태다. */
+    private LocalDateTime penaltyTime;
 }

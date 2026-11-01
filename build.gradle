@@ -49,4 +49,6 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // @SpringBootTest가 연결한 DB의 경기를 경기 시작 스케줄러가 취소·배정하지 않도록 테스트에서는 끈다.
+    systemProperty 'spoit.match-start-scheduler.enabled', 'false'
 }

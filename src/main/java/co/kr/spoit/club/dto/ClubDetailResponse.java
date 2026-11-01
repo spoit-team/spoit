@@ -9,8 +9,8 @@ import co.kr.spoit.club.domain.ClubSummary;
 import lombok.Builder;
 import lombok.Getter;
 
-@Getter 
-@Builder 
+@Getter
+@Builder
 public class ClubDetailResponse {
 
     private final Long clubId;
@@ -35,39 +35,49 @@ public class ClubDetailResponse {
     private final boolean manager;
     private final Long pendingJoinRequestId;
 
-    public static ClubDetailResponse from(ClubSummary club, List<ClubMember> members) {
+    public static ClubDetailResponse from(ClubSummary club, List<ClubMember> members,
+            Long userId, Long pendingJoinRequestId) {
         boolean recruiting = ClubFormat.isRecruiting(club.getRecruitStatus());
 
         String leaderName = "미정";
         String leaderInitials = "미정";
+        boolean member = false;
+        boolean manager = false;
         List<ClubMemberResponse> memberResponses = new ArrayList<>();
         for (ClubMember m : members) {
-            ClubMemberResponse response = ClubMemberResponse.from(m);
+            ClubMemberResponse response = ClubMemberResponse.from(m, userId);
             memberResponses.add(response);
-            if(response.isLeader()) {
+            if (response.isLeader()) {
                 leaderName = response.getNickname();
                 leaderInitials = response.getInitials();
+            }
+            if(response.isCurrent()){
+                member = true;
+                manager = response.isLeader();
             }
 
         }
 
-        return  ClubDetailResponse.builder()
-        .clubId(club.getClubId())
-        .clubName(club.getClubName())
-        .initials(ClubFormat.initials(club.getClubName()))
-        .recruiting(recruiting)
-        .memberCount(club.getMemberCount())
-        .maxMembers(club.getMaxMembers())
-        .time(ClubFormat.time(club))
-        .footerNote(ClubFormat.footerNote(recruiting, club))
-        .founded(club.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy.MM.dd")))
-        .leaderInitials(leaderInitials)
-        .members(memberResponses)
-        .sportId(club.getSportId())
-        .sportName(club.getSportName())
-        .areaLabel(ClubFormat.areaLabel(club.getAreaLabel()))
-        .intro(club.getIntro())
-        .leaderName(leaderName)
-        .build();
+        return ClubDetailResponse.builder()
+                .clubId(club.getClubId())
+                .clubName(club.getClubName())
+                .initials(ClubFormat.initials(club.getClubName()))
+                .recruiting(recruiting)
+                .memberCount(club.getMemberCount())
+                .maxMembers(club.getMaxMembers())
+                .time(ClubFormat.time(club))
+                .footerNote(ClubFormat.footerNote(recruiting, club))
+                .founded(club.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy.MM.dd")))
+                .leaderInitials(leaderInitials)
+                .members(memberResponses)
+                .sportId(club.getSportId())
+                .sportName(club.getSportName())
+                .areaLabel(ClubFormat.areaLabel(club.getAreaLabel()))
+                .intro(club.getIntro())
+                .leaderName(leaderName)
+                .member(member)
+                .manager(manager)
+                .pendingJoinRequestId(pendingJoinRequestId)
+                .build();
     }
 }

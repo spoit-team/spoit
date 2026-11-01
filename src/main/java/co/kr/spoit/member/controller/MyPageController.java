@@ -1,6 +1,5 @@
 package co.kr.spoit.member.controller;
 
-import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
@@ -10,6 +9,9 @@ import java.util.Optional;
 
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.web.authentication.logout.CookieClearingLogoutHandler;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -17,24 +19,33 @@ import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import co.kr.spoit.mat.dto.SportRatingResponse;
 import co.kr.spoit.mat.service.SportRatingService;
+import co.kr.spoit.match.dto.MyReservations;
+import co.kr.spoit.match.service.MatchApplicationService;
+import co.kr.spoit.match.service.MatchApplyException;
+import co.kr.spoit.match.service.MyReservationService;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.member.dto.ProfileUpdateForm;
 import co.kr.spoit.member.dto.SportOption;
 import co.kr.spoit.member.dto.SignupRegion;
+import co.kr.spoit.member.dto.WithdrawalRequestForm;
 import co.kr.spoit.member.service.MemberService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 
 /**
  * 마이페이지 화면 컨트롤러.
  *
  * <p>로그인 세션의 {@link MemberPrincipal}로 본인 정보를 채운다. 선호 종목·프로필 저장을 지원하고,
- * 레이팅은 저장된 {@code sport_rating} 값을 그대로 보여준다.</p>
+ * 레이팅은 저장된 {@code sport_rating} 값을 그대로 보여준다. 신청 내역(RES-06)은
+ * {@link MyReservationService}가 현재 신청과 지난 참여·취소로 나눠 채운다.</p>
  */
 @Controller
 @RequiredArgsConstructor
@@ -48,8 +59,13 @@ public class MyPageController {
 
     private static final List<Object> EMPTY_LIST = List.of();
 
+    /** 확정된 레이팅 기록이 없을 때 화면에 보여줄 문구 */
+    private static final String NO_RATING_TEXT = "기록 없음";
+
     private final MemberService memberService;
     private final SportRatingService sportRatingService;
+    private final MyReservationService reservationService;
+    private final MatchApplicationService applicationService;
 
     /** 폼 바인딩 대상 필드를 제한해 의도하지 않은 값 주입을 막는다. */
     @InitBinder("profileUpdateForm")
@@ -57,14 +73,28 @@ public class MyPageController {
         binder.setAllowedFields(new String[]{"nickname", "phone", "representativeSportId", "regionId"});
     }
 
+    /** 탈퇴 폼은 비밀번호만 받는다. */
+    @InitBinder("withdrawalRequestForm")
+    void initWithdrawalRequestFormBinder(WebDataBinder binder) {
+        binder.setAllowedFields("password");
+    }
+
     /** 마이페이지 요약 화면. 비로그인 상태는 세션 주체가 없어 빈 값으로 렌더링된다. */
     @GetMapping("/mypage")
-    public String myPage(Authentication authentication, Model model) {
+    public String myPage(Authentication authentication, HttpServletRequest request, Model model,
+            @RequestParam(name = "message", required = false) String message) {
+        // 신청 취소 폼이 있으므로 지연 생성되는 CSRF 토큰을 렌더링 전에 확정한다.
+        // standalone MockMvc에서는 시큐리티 필터가 없어 속성이 비어 있을 수 있다.
+        if (request.getAttribute(CsrfToken.class.getName()) instanceof CsrfToken csrfToken) {
+            csrfToken.getToken();
+        }
         MemberPrincipal principal = principalOf(authentication);
         Long userId = principal == null ? null : principal.getUserId();
+        MyReservations reservations = (userId == null || userId <= 0)
+                ? MyReservations.empty() : reservationService.find(userId);
 
         model.addAttribute("member", memberView(principal));
-        model.addAttribute("summary", summaryView(userId));
+        model.addAttribute("summary", summaryView(userId, reservations));
         model.addAttribute("otherSports", EMPTY_LIST);
         model.addAttribute("sports", EMPTY_LIST);
         model.addAttribute("selectedSport", "all");
@@ -73,11 +103,28 @@ public class MyPageController {
         model.addAttribute("historyCount", 0);
         model.addAttribute("history", EMPTY_LIST);
         model.addAttribute("historyEmptyNote", "확정된 경기 기록이 없습니다.");
-        model.addAttribute("currentReservations", EMPTY_LIST);
-        model.addAttribute("pastReservations", EMPTY_LIST);
+        model.addAttribute("currentReservations", reservations.getCurrent());
+        model.addAttribute("pastReservations", reservations.getPast());
         model.addAttribute("notifications", EMPTY_LIST);
-        model.addAttribute("message", null);
+        model.addAttribute("message", blankToNull(message));
         return "mypage/index";
+    }
+
+    /** RES-05 신청 취소. 결과는 성공·실패 모두 마이페이지 상단 안내 영역에 보여 준다. */
+    @PostMapping("/mypage/applications/{applicationId}/cancel")
+    public String cancelApplication(@PathVariable long applicationId, Authentication authentication) {
+        MemberPrincipal principal = principalOf(authentication);
+        if (principal == null) {
+            return "redirect:/login";
+        }
+        String message;
+        try {
+            applicationService.cancel(applicationId, principal.getUserId());
+            message = "신청을 취소했습니다.";
+        } catch (MatchApplyException exception) {
+            message = exception.getMessage();
+        }
+        return "redirect:/mypage?message=" + URLEncoder.encode(message, StandardCharsets.UTF_8) + "#reservations";
     }
 
     /** 템플릿이 참조하는 회원 표시값만 담는다. */
@@ -99,33 +146,32 @@ public class MyPageController {
         return member;
     }
 
-    /** 대표 종목과 저장된 레이팅만 조회하고, 나머지 집계는 조회 구현 전까지 0건 기본값을 유지한다. */
-    private Map<String, Object> summaryView(Long userId) {
+    /** 대표 종목·저장된 레이팅과 신청 내역 집계(참가 확정·완료·확정 대기)를 담는다. */
+    private Map<String, Object> summaryView(Long userId, MyReservations reservations) {
         Optional<SportOption> representative =
                 (userId == null || userId <= 0) ? Optional.empty() : memberService.findRepresentativeSport(userId);
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("representativeRatingText", representative
                 .map(sport -> ratingText(userId, sport.getSportId()))
-                .orElse("기록 없음"));
+                .orElse(NO_RATING_TEXT));
         summary.put("representativeSportId", representative.<Object>map(SportOption::getSportId).orElse(""));
         summary.put("representativeSportName", representative.map(SportOption::getName).orElse("종목"));
         summary.put("skillNote", "참가 확정 매치의 개인 레이팅 평균을 표시합니다.");
-        summary.put("confirmedCount", 0);
-        summary.put("completedCount", 0);
-        summary.put("waitingCount", 0);
+        summary.put("confirmedCount", reservations.getConfirmedCount());
+        summary.put("completedCount", reservations.getCompletedCount());
+        summary.put("waitingCount", reservations.getWaitingCount());
         summary.put("otherSportsNote", "매칭 참가 기록이 생기면 종목별 레이팅을 표시합니다.");
         return summary;
     }
 
     /** 저장된 레이팅 행의 MMR을 그대로 표시한다. 행이 없거나 확정 매치가 없으면 기록 없음. */
     private String ratingText(Long userId, Long sportId) {
-        Optional<SportRatingResponse> rating = sportRatingService.findByUserIdAndSportId(userId, sportId);
-        if (rating.isEmpty() || rating.get().ratedMatchCount() == null
-                || rating.get().ratedMatchCount() <= 0) {
-            return "기록 없음";
+        SportRatingResponse rating = sportRatingService.findByUserIdAndSportId(userId, sportId).orElse(null);
+        if (rating == null || rating.ratedMatchCount() == null || rating.ratedMatchCount() <= 0
+                || rating.currentMmr() == null) {
+            return NO_RATING_TEXT;
         }
-        BigDecimal mmr = rating.get().currentMmr();
-        return mmr == null ? "기록 없음" : mmr.toPlainString();
+        return rating.currentMmr().toPlainString();
     }
 
     /** 프로필 수정 화면. 로그인 회원이면 저장된 정보를, 아니면 빈 폼을 보여준다. */
@@ -133,13 +179,8 @@ public class MyPageController {
     public String profile(Authentication authentication, Model model,
             @RequestParam(name = "error", required = false) String error,
             @RequestParam(name = "message", required = false) String message) {
-        model.addAttribute("profile", profileView(principalOf(authentication)));
-        model.addAttribute("sports", memberService.findSports());
-        // 선택지가 없으면 저장된 지역을 표시할 수 없으므로 가입 화면과 같은 자치구 목록을 쓴다.
-        model.addAttribute("districts", memberService.findSignupRegions());
-        model.addAttribute("error", blankToNull(error));
-        model.addAttribute("message", blankToNull(message));
-        return "mypage/profile";
+        return renderProfile(model, profileView(principalOf(authentication)),
+                blankToNull(error), blankToNull(message));
     }
 
     /** 프로필 저장. 검증 실패 시 제출 값을 유지한 채 프로필 화면을 다시 그린다. */
@@ -163,21 +204,50 @@ public class MyPageController {
         return "redirect:/mypage/profile?message=" + URLEncoder.encode("프로필을 저장했습니다.", StandardCharsets.UTF_8);
     }
 
+    /**
+     * 회원 탈퇴. 비밀번호를 재확인한 뒤 탈퇴 시각만 기록하는 소프트 삭제이므로
+     * 세션과 remember-me 쿠키를 지워 재로그인 경로를 끊는다.
+     */
+    @PostMapping("/mypage/withdrawal-requests")
+    public String withdraw(@ModelAttribute("withdrawalRequestForm") WithdrawalRequestForm form,
+            Authentication authentication, HttpServletRequest request, HttpServletResponse response) {
+        MemberPrincipal principal = principalOf(authentication);
+        if (principal == null) {
+            return "redirect:/login";
+        }
+        try {
+            memberService.withdraw(principal.getUserId(), form.getPassword());
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            String message = exception.getMessage();
+            return "redirect:/mypage/profile?error=" + URLEncoder.encode(
+                    message == null || message.isBlank() ? "탈퇴를 처리하지 못했습니다." : message,
+                    StandardCharsets.UTF_8);
+        }
+        new CookieClearingLogoutHandler("JSESSIONID", "remember-me").logout(request, response, authentication);
+        new SecurityContextLogoutHandler().logout(request, response, authentication);
+        return "redirect:/login?message=" + URLEncoder.encode("탈퇴가 완료되었습니다.", StandardCharsets.UTF_8);
+    }
+
     /** 저장 실패 시 제출 값을 유지해 사용자가 수정 내용을 잃지 않게 한다. */
     private String renderProfileError(Model model, MemberPrincipal principal, ProfileUpdateForm form, String error) {
         Map<String, Object> profile = new LinkedHashMap<>();
         profile.put("nickname", form == null ? "" : nullToEmpty(form.getNickname()));
         profile.put("phone", form == null ? "" : nullToEmpty(form.getPhone()));
         profile.put("representativeSportId", form == null ? null : form.getRepresentativeSportId());
-        profile.put("representativeRatingText", "기록 없음");
+        profile.put("representativeRatingText", NO_RATING_TEXT);
         profile.put("representativeRatingNote", "확정 매치 기록이 없으면 기록 없음으로 표시합니다.");
         profile.put("regionId", form == null ? null : form.getRegionId());
         profile.put("email", principal.getEmail());
+        return renderProfile(model, profile, error, null);
+    }
+
+    /** 프로필 화면 모델을 조립한다. 선택지가 없으면 저장된 지역을 표시할 수 없으므로 가입 화면과 같은 자치구 목록을 쓴다. */
+    private String renderProfile(Model model, Map<String, Object> profile, String error, String message) {
         model.addAttribute("profile", profile);
         model.addAttribute("sports", memberService.findSports());
         model.addAttribute("districts", memberService.findSignupRegions());
         model.addAttribute("error", error);
-        model.addAttribute("message", null);
+        model.addAttribute("message", message);
         return "mypage/profile";
     }
 
@@ -195,7 +265,7 @@ public class MyPageController {
         profile.put("email", nullToEmpty(principal.getEmail()));
         profile.put("phone", member == null ? nullToEmpty(principal.getPhone()) : nullToEmpty(member.getPhone()));
         profile.put("representativeSportId", representative.map(SportOption::getSportId).orElse(null));
-        profile.put("representativeRatingText", "기록 없음");
+        profile.put("representativeRatingText", NO_RATING_TEXT);
         profile.put("representativeRatingNote", "확정 매치 기록이 없으면 기록 없음으로 표시합니다.");
         profile.put("regionId", regions.isEmpty() ? null : regions.get(0).getRegionId());
         return profile;

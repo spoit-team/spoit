@@ -1144,6 +1144,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* RES-04 이미 이 매치에 신청한 회원: 체크된 채 잠금 */
+.md-team-member.is-applied {
+  color: var(--color-faint);
+  cursor: not-allowed;
+}
+
+.md-team-member.is-applied .md-team-member-avatar {
+  filter: grayscale(1);
+  opacity: .6;
+}
+
 .md-team-note {
   margin: 10px 0 0;
 }

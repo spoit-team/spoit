@@ -12,8 +12,7 @@
   const withdrawalDialog = document.getElementById('profile-withdrawal-dialog');
   const withdrawalOpen = document.getElementById('open-withdrawal-dialog');
   const withdrawalForm = document.getElementById('profile-withdrawal-form');
-  const withdrawalInput = document.getElementById('withdrawal-nickname');
-  const withdrawalCurrent = document.getElementById('withdrawal-current-nickname');
+  const withdrawalInput = document.getElementById('withdrawal-password');
   const withdrawalError = document.getElementById('withdrawal-error');
   const withdrawalConfirm = document.getElementById('confirm-withdrawal');
   let withdrawalOpener = null;
@@ -60,6 +59,7 @@
     if (!withdrawalDialog || withdrawalDialog.open) return;
     withdrawalOpener = document.activeElement;
     withdrawalInput.value = '';
+    withdrawalInput.setAttribute('aria-invalid', 'false');
     withdrawalConfirm.disabled = true;
     if (withdrawalError) withdrawalError.hidden = true;
     withdrawalDialog.showModal();
@@ -98,18 +98,17 @@
   });
 
   withdrawalInput?.addEventListener('input', function () {
-    const expected = (withdrawalCurrent?.textContent || '').trim();
-    const matches = Boolean(expected) && withdrawalInput.value.trim() === expected;
-    withdrawalConfirm.disabled = !matches;
-    if (withdrawalError) withdrawalError.hidden = matches || !withdrawalInput.value;
-    withdrawalInput.setAttribute('aria-invalid', matches ? 'false' : 'true');
+    const filled = Boolean(withdrawalInput.value.trim());
+    withdrawalConfirm.disabled = !filled;
+    if (withdrawalError) withdrawalError.hidden = filled;
+    withdrawalInput.setAttribute('aria-invalid', filled ? 'false' : 'true');
   });
 
   withdrawalForm?.addEventListener('submit', function (event) {
-    const expected = (withdrawalCurrent?.textContent || '').trim();
-    if (withdrawalInput.value.trim() !== expected) {
+    if (!withdrawalInput.value.trim()) {
       event.preventDefault();
       if (withdrawalError) withdrawalError.hidden = false;
+      withdrawalInput.setAttribute('aria-invalid', 'true');
       withdrawalInput.focus();
     }
   });

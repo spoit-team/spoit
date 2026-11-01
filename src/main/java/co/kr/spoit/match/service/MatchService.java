@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import co.kr.spoit.match.domain.ApplicationStatus;
 import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.domain.ParticipationStatus;
 import co.kr.spoit.match.dto.ActiveFilter;
@@ -24,6 +25,7 @@ import co.kr.spoit.match.dto.DistrictOption;
 import co.kr.spoit.match.dto.MatchCardView;
 import co.kr.spoit.match.dto.MatchCountSummary;
 import co.kr.spoit.match.dto.MatchDetailPage;
+import co.kr.spoit.match.dto.MatchDetailPage.TeamOption;
 import co.kr.spoit.match.dto.MatchDetailRow;
 import co.kr.spoit.match.dto.MatchListView;
 import co.kr.spoit.match.dto.MatchRow;
@@ -32,11 +34,13 @@ import co.kr.spoit.match.dto.MatchSearchQuery;
 import co.kr.spoit.match.dto.ParticipantRow;
 import co.kr.spoit.match.dto.SportCount;
 import co.kr.spoit.match.dto.SportTab;
+import co.kr.spoit.match.dto.TeamClubRow;
+import co.kr.spoit.match.mapper.MatchApplicationMapper;
 import co.kr.spoit.match.mapper.MatchMapper;
 import lombok.RequiredArgsConstructor;
 
 /**
- * RES-01 시설·매칭 검색, RES-02 매칭방 상세.
+ * RES-01 시설·매칭 검색, RES-02 매칭방 상세 (RES-04 팀 신청 동호회 목록 포함).
  */
 @Service
 @RequiredArgsConstructor
@@ -58,6 +62,7 @@ public class MatchService {
             List.of(MatchStatus.RECRUITING.dbValue(), MatchStatus.MATCHED.dbValue());
 
     private final MatchMapper matchMapper;
+    private final MatchApplicationMapper applicationMapper;
     private final MatchCardAssembler assembler;
     private final MatchDetailAssembler detailAssembler;
 
@@ -118,7 +123,7 @@ public class MatchService {
     /**
      * RES-02 매칭방 상세. 없거나 시설이 삭제된 방이면 empty.
      *
-     * @param currentUserId 로그인 회원 (비로그인이면 null), 이미 신청했는지 판단에 쓴다
+     * @param currentUserId 로그인 회원 (비로그인이면 null), 이미 신청했는지 판단과 팀 신청 동호회 목록에 쓴다
      */
     public Optional<MatchDetailPage> findDetail(long matchId, Long currentUserId) {
         MatchDetailRow row = matchMapper.findMatchDetail(matchId);
@@ -126,9 +131,22 @@ public class MatchService {
             return Optional.empty();
         }
         LocalDateTime now = LocalDateTime.now(ZONE);
-        List<ParticipantRow> participants =
-                matchMapper.findParticipants(List.of(matchId), ParticipationStatus.occupyingValues());
-        return Optional.of(detailAssembler.toPage(row, participants, currentUserId, now, now.toLocalDate()));
+        List<ParticipantRow> participants = findOccupants(List.of(matchId));
+        List<TeamOption> clubs = currentUserId == null ? List.of() : findTeamOptions(row, currentUserId);
+        return Optional.of(detailAssembler.toPage(row, participants, currentUserId, now, now.toLocalDate(), clubs));
+    }
+
+    /** RES-04 로그인 회원이 속한 같은 종목 동호회와 그 회원들 (이미 이 매치에 들어간 회원 표시 포함) */
+    private List<TeamOption> findTeamOptions(MatchRow row, long userId) {
+        List<TeamClubRow> clubs = applicationMapper.findTeamClubs(userId, row.getSportId());
+        if (clubs.isEmpty()) {
+            return List.of();
+        }
+        List<Long> clubIds = clubs.stream().map(TeamClubRow::getClubId).toList();
+        return detailAssembler.toTeamOptions(clubs,
+                applicationMapper.findTeamMembers(clubIds, row.getMatchId(), row.getSportId(),
+                        ApplicationStatus.activeValues()),
+                userId);
     }
 
     /* ---------------- 조회 결과 변환 ---------------- */
@@ -138,14 +156,26 @@ public class MatchService {
             return List.of();
         }
         List<Long> ids = rows.stream().map(MatchRow::getMatchId).toList();
-        Map<Long, List<ParticipantRow>> byMatch = matchMapper
-                .findParticipants(ids, ParticipationStatus.occupyingValues())
+        Map<Long, List<ParticipantRow>> byMatch = findOccupants(ids)
                 .stream()
                 .collect(Collectors.groupingBy(ParticipantRow::getMatchId));
 
         return rows.stream()
                 .map(r -> assembler.toCard(r, byMatch.getOrDefault(r.getMatchId(), Collections.emptyList()), now, today))
                 .toList();
+    }
+
+    /**
+     * 정원을 차지하는 사람: 참가자 행(대기·확정) + 확정 대기 중인 신청 (팀 신청은 팀원마다 한 행).
+     * 신청은 확정 전까지 match_participant에 없으므로 여기서 합쳐 기존 Assembler가 그대로 쓰게 한다.
+     */
+    private List<ParticipantRow> findOccupants(List<Long> matchIds) {
+        List<ParticipantRow> rows = new ArrayList<>(
+                matchMapper.findParticipants(matchIds, ParticipationStatus.occupyingValues()));
+        rows.addAll(matchMapper.findPendingApplicants(matchIds,
+                ApplicationStatus.WAITING.dbValue(),
+                ParticipationStatus.WAITING.dbValue()));
+        return rows;
     }
 
     private List<SportTab> buildSportTabs(List<SportTab> sports, List<SportCount> counts) {

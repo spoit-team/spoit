@@ -1,4 +1,4 @@
-/* 마이페이지: 경기 이력 펼치기와 섹션 메뉴 표시만 처리합니다. 데이터는 서버가 렌더링합니다. */
+/* 마이페이지: 경기 이력 펼치기, 섹션 메뉴 표시, 팀 신청 취소 확인창을 처리합니다. 데이터는 서버가 렌더링합니다. */
 (function () {
   'use strict';
 
@@ -32,6 +32,47 @@
   });
 
   setCurrentNav(window.location.hash);
+
+  /* RES-04 팀 신청 취소: 대표가 취소하면 팀원 전원이 함께 취소되므로 확인창을 먼저 띄웁니다. */
+  const teamCancelDialog = document.getElementById('team-cancel-dialog');
+  const teamCancelMatch = document.getElementById('team-cancel-match');
+  const teamCancelMessage = document.getElementById('team-cancel-message');
+  const teamCancelConfirm = document.getElementById('team-cancel-confirm');
+  let pendingTeamCancelForm = null;
+
+  document.querySelectorAll('form[data-team-cancel]').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      if (!teamCancelDialog || typeof teamCancelDialog.showModal !== 'function') return;
+      event.preventDefault();
+      pendingTeamCancelForm = form;
+      if (teamCancelMatch) {
+        teamCancelMatch.textContent = [form.dataset.teamCancelTitle, form.dataset.teamCancelMeta].filter(Boolean).join(' · ');
+      }
+      if (teamCancelMessage) teamCancelMessage.textContent = form.dataset.teamCancel;
+      teamCancelDialog.showModal();
+      teamCancelDialog.querySelector('.mypage-confirm-back')?.focus({ preventScroll: true });
+    });
+  });
+
+  teamCancelDialog?.querySelectorAll('[data-close-team-cancel]').forEach(function (button) {
+    button.addEventListener('click', function () { teamCancelDialog.close(); });
+  });
+
+  teamCancelDialog?.addEventListener('click', function (event) {
+    if (event.target === teamCancelDialog) teamCancelDialog.close();
+  });
+
+  teamCancelDialog?.addEventListener('close', function () {
+    pendingTeamCancelForm = null;
+  });
+
+  teamCancelConfirm?.addEventListener('click', function () {
+    const form = pendingTeamCancelForm;
+    if (!form) return;
+    teamCancelConfirm.disabled = true;
+    // form.submit()은 submit 이벤트를 다시 일으키지 않아 확인창이 반복되지 않는다.
+    form.submit();
+  });
 
   /* 알림 모달: 헤더 종 버튼으로 열고 닫습니다. 목록은 서버가 렌더링합니다. */
   const notificationModal = document.getElementById('notification-modal');

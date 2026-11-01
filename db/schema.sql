@@ -13,7 +13,8 @@ DROP TABLE IF EXISTS audit_log, penalty, report_evidence, admin_request, notific
     sport_rating_history, sport_rating, match_evaluation_score, match_evaluation,
     sport_evaluation_item, match_result_submission, match_participant, match_application,
     social_match, club_join_request, club_member, club_hashtag, hashtag, club_region, club,
-    schedule_change, operating_rule, facility_sport, facility_manager, facility,
+    schedule_change, facility_date_override_slot, facility_date_override,
+    operating_rule, facility_sport, facility_manager, facility,
     user_preferred_sport, user_region, region, sport, app_user;
 
 SET FOREIGN_KEY_CHECKS = 1;
@@ -28,8 +29,9 @@ CREATE TABLE app_user (
     nickname       VARCHAR(50)  NOT NULL COMMENT '화면과 매칭에서 표시할 회원명',
     phone          VARCHAR(20)  NOT NULL COMMENT '연락처',
     role           VARCHAR(30)  NOT NULL COMMENT '일반 회원·시설 관리자·시스템 관리자 등 계정 역할',
-    status         VARCHAR(30)  NOT NULL COMMENT '계정 이용 상태 (활성, 정지 등)',
     created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '계정 생성 시각',
+    deleted_at     DATETIME     NULL COMMENT '탈퇴 시각. NULL이면 미탈퇴, 값이 있으면 탈퇴 회원',
+    penalty_time   DATETIME     NULL COMMENT '이용정지 종료 시각. NULL이면 정지 종료 시각 미설정',
     PRIMARY KEY (user_id),
     UNIQUE KEY uk_app_user_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='회원';
@@ -101,6 +103,7 @@ CREATE TABLE facility_sport (
     default_max    INT           NOT NULL COMMENT '매칭방 생성 시 기본 최대 참가 인원',
     default_fee    DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '참가자 1인당 기본 이용료',
     default_skill  VARCHAR(30)   NOT NULL COMMENT '매칭방 생성 시 기본 실력 조건',
+    note           VARCHAR(500)  NULL COMMENT '참가자에게 표시할 신규 예약 참가 안내',
     PRIMARY KEY (facility_id, sport_id),
     CONSTRAINT fk_facility_sport_facility FOREIGN KEY (facility_id) REFERENCES facility (facility_id),
     CONSTRAINT fk_facility_sport_sport    FOREIGN KEY (sport_id)    REFERENCES sport (sport_id),
@@ -112,13 +115,34 @@ CREATE TABLE operating_rule (
     operating_rule_id  BIGINT   NOT NULL AUTO_INCREMENT COMMENT '운영 시간 규칙 ID',
     facility_id        BIGINT   NOT NULL COMMENT '규칙이 적용되는 시설',
     weekday            TINYINT  NOT NULL COMMENT '요일, 1=월 ~ 7=일 (java.time.DayOfWeek)',
-    open_time          TIME     NOT NULL COMMENT '운영 시작 시각',
-    close_time         TIME     NOT NULL COMMENT '운영 종료 시각',
+    open_time          TIME     NOT NULL COMMENT '운영 시작 시각(휴무 행은 00:00 보관)',
+    close_time         TIME     NOT NULL COMMENT '운영 종료 시각(휴무 행은 00:00 보관)',
+    end_next_day       BOOLEAN  NOT NULL DEFAULT FALSE COMMENT '종료 시각이 다음 날인지, 22:00~익일 06:00이면 true',
     is_open            BOOLEAN  NOT NULL DEFAULT TRUE COMMENT '운영 여부, 휴무면 false',
     PRIMARY KEY (operating_rule_id),
+    UNIQUE KEY uk_operating_rule_facility_weekday (facility_id, weekday),
     CONSTRAINT fk_operating_rule_facility FOREIGN KEY (facility_id) REFERENCES facility (facility_id),
     CONSTRAINT ck_operating_rule_weekday CHECK (weekday BETWEEN 1 AND 7)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='요일별 운영 시간';
+
+CREATE TABLE facility_date_override (
+    facility_date_override_id  BIGINT       NOT NULL AUTO_INCREMENT COMMENT '날짜별 예외 ID',
+    facility_id                BIGINT       NOT NULL COMMENT '예외가 적용되는 시설',
+    override_date              DATE         NOT NULL COMMENT '예외가 적용되는 날짜',
+    note                       VARCHAR(500) NULL COMMENT '날짜별 안내문',
+    PRIMARY KEY (facility_date_override_id),
+    UNIQUE KEY uk_facility_date_override (facility_id, override_date),
+    CONSTRAINT fk_facility_date_override_facility FOREIGN KEY (facility_id) REFERENCES facility (facility_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='날짜별 예외 헤더(슬롯 0개면 그날 휴무)';
+
+CREATE TABLE facility_date_override_slot (
+    facility_date_override_id  BIGINT  NOT NULL COMMENT '슬롯이 속한 날짜별 예외',
+    slot_hour                  TINYINT NOT NULL COMMENT '0~23시 1시간 슬롯',
+    PRIMARY KEY (facility_date_override_id, slot_hour),
+    CONSTRAINT fk_facility_date_override_slot_header FOREIGN KEY (facility_date_override_id)
+        REFERENCES facility_date_override (facility_date_override_id),
+    CONSTRAINT ck_facility_date_override_slot_hour CHECK (slot_hour BETWEEN 0 AND 23)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='날짜별 예외의 1시간 이용 가능 슬롯';
 
 CREATE TABLE schedule_change (
     schedule_change_id  BIGINT       NOT NULL AUTO_INCREMENT COMMENT '운영 변경 건 ID',
@@ -126,10 +150,11 @@ CREATE TABLE schedule_change (
     created_by          BIGINT       NOT NULL COMMENT '변경을 등록한 회원',
     start_at            DATETIME     NOT NULL COMMENT '변경 시작 일시',
     end_at              DATETIME     NOT NULL COMMENT '변경 종료 일시',
-    change_type         VARCHAR(30)  NOT NULL COMMENT '변경 종류 (임시 개방·폐쇄 등)',
+    change_type         VARCHAR(30)  NOT NULL COMMENT '변경 종류. 휴관 등록은 FACILITY_CLOSURE만 사용한다',
     reason              VARCHAR(255) NOT NULL COMMENT '변경 사유',
-    status              VARCHAR(30)  NOT NULL COMMENT '적용·취소 등 처리 상태',
+    status              VARCHAR(30)  NOT NULL COMMENT '처리 상태. 휴관은 ACTIVE·CANCELLED만 유효하다',
     PRIMARY KEY (schedule_change_id),
+    KEY idx_schedule_change_facility_period (facility_id, start_at, end_at),
     CONSTRAINT fk_schedule_change_facility FOREIGN KEY (facility_id) REFERENCES facility (facility_id),
     CONSTRAINT fk_schedule_change_user     FOREIGN KEY (created_by)  REFERENCES app_user (user_id),
     CONSTRAINT ck_schedule_change_period CHECK (end_at > start_at)
@@ -141,7 +166,7 @@ CREATE TABLE schedule_change (
 CREATE TABLE club (
     club_id              BIGINT       NOT NULL AUTO_INCREMENT COMMENT '동호회 식별자',
     sport_id             BIGINT       NOT NULL COMMENT '주 종목',
-    club_name            VARCHAR(50)  NOT NULL COMMENT '동호회명, 활성 동호회끼리 중복 불가 (서비스 로직)',
+    club_name            VARCHAR(50)  NOT NULL COMMENT '동호회명, 활성 동호회끼리 중복 불가 (active_club_name UK)',
     intro                VARCHAR(500) NOT NULL COMMENT '동호회 소개, 최대 500자',
     max_members          INT          NOT NULL COMMENT '최대 인원 2~30',
     recruit_status       VARCHAR(10)  NOT NULL DEFAULT '모집중' COMMENT '모집중 또는 마감',
@@ -151,7 +176,9 @@ CREATE TABLE club (
     activity_end_time    TIME         NOT NULL COMMENT '대표 활동 종료 시각',
     deleted_at           DATETIME     NULL COMMENT '해체 시각, 값이 있으면 해체된 동호회',
     created_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시각 = 창단일',
+    active_club_name     VARCHAR(50)  AS (CASE WHEN deleted_at IS NULL THEN club_name END) STORED COMMENT '활성 동호회 이름 중복 방지용 값 (생성 컬럼)',
     PRIMARY KEY (club_id),
+    UNIQUE KEY uk_club_active_name (active_club_name),
     CONSTRAINT fk_club_sport FOREIGN KEY (sport_id) REFERENCES sport (sport_id),
     CONSTRAINT ck_club_max_members    CHECK (max_members BETWEEN 2 AND 30),
     CONSTRAINT ck_club_recruit_status CHECK (recruit_status IN ('모집중', '마감')),
@@ -191,7 +218,7 @@ CREATE TABLE club_member (
     role            VARCHAR(10)  NOT NULL COMMENT '동호회장 또는 동호회원',
     joined_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '가입 시각',
     left_at         DATETIME     NULL COMMENT '탈퇴 또는 내보내기 시각, 값이 있으면 이탈',
-    leave_type      VARCHAR(10)  NULL COMMENT '탈퇴 또는 내보내기',
+    leave_type      VARCHAR(10)  NULL COMMENT '탈퇴 또는 내보내기 또는 해체',
     kick_reason     VARCHAR(255) NULL COMMENT '내보내기 사유',
     PRIMARY KEY (club_member_id),
     KEY idx_club_member_club_active (club_id, left_at),
@@ -202,6 +229,7 @@ CREATE TABLE club_member (
         (left_at IS NULL AND leave_type IS NULL AND kick_reason IS NULL)
         OR (left_at IS NOT NULL AND leave_type = '탈퇴' AND kick_reason IS NULL)
         OR (left_at IS NOT NULL AND leave_type = '내보내기')
+        OR (left_at IS NOT NULL AND leave_type = '해체' AND kick_reason IS NULL)
     )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='동호회 소속 및 이탈 이력';
 
@@ -209,7 +237,7 @@ CREATE TABLE club_join_request (
     request_id    BIGINT      NOT NULL AUTO_INCREMENT COMMENT '가입 신청 식별자',
     club_id       BIGINT      NOT NULL COMMENT '동호회',
     user_id       BIGINT      NOT NULL COMMENT '신청 회원',
-    message       TEXT        NULL COMMENT '가입 신청 자기소개, 최대 500자, 처리 시 NULL',
+    message       TEXT        NULL COMMENT '가입 신청 자기소개, 최대 500자',
     status        VARCHAR(10) NOT NULL DEFAULT '대기중' COMMENT '대기중, 승인, 거절, 취소',
     requested_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '신청 시각',
     processed_at  DATETIME    NULL COMMENT '처리 시각, 대기중이면 NULL',
@@ -284,13 +312,16 @@ CREATE TABLE match_application (
     confirmed_at       DATETIME    NULL COMMENT '신청 확정 시각',
     cancelled_at       DATETIME    NULL COMMENT '신청 취소 시각',
     cancelled_by       BIGINT      NULL COMMENT '취소를 처리한 회원',
+    group_application_id BIGINT    NULL COMMENT 'RES-04 팀 신청 묶음: 대표 행의 application_id (대표 행은 자기 자신), 개인 신청이면 NULL',
     PRIMARY KEY (application_id),
     UNIQUE KEY uk_match_application_receipt (receipt_no),
     UNIQUE KEY uk_match_application_match (application_id, match_id),
+    KEY idx_match_application_group (group_application_id),
     CONSTRAINT fk_match_application_match     FOREIGN KEY (match_id)          REFERENCES social_match (match_id),
     CONSTRAINT fk_match_application_applicant FOREIGN KEY (applicant_user_id) REFERENCES app_user (user_id),
     CONSTRAINT fk_match_application_club      FOREIGN KEY (club_id)           REFERENCES club (club_id),
-    CONSTRAINT fk_match_application_canceller FOREIGN KEY (cancelled_by)      REFERENCES app_user (user_id)
+    CONSTRAINT fk_match_application_canceller FOREIGN KEY (cancelled_by)      REFERENCES app_user (user_id),
+    CONSTRAINT fk_match_application_group     FOREIGN KEY (group_application_id) REFERENCES match_application (application_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='개인·동호회 참가 신청';
 
 CREATE TABLE match_participant (
