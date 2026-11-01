@@ -325,6 +325,60 @@ class ClubServiceTest {
         assertThat(exception.getMessage()).isEqualTo("이미 처리된 가입 신청입니다.");
     }
 
+    @Test
+    @DisplayName("동호회장을 위임하면 받을 동호회원을 동호회장으로 바꾼 뒤 나를 동호회원으로 바꾼다")
+    void 동호회장_위임_성공() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.updateRoleToLeader(1L, 3L)).thenReturn(1);
+
+        service.transferLeader(7L, 1L, 3L);
+
+        InOrder order = inOrder(clubMapper);
+        order.verify(clubMapper).updateRoleToLeader(1L, 3L);
+        order.verify(clubMapper).updateRoleToMember(1L, 7L);
+    }
+
+    @Test
+    @DisplayName("동호회장이 아니면 위임하지 않는다")
+    void 동호회장이_아니면_위임을_거부한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(false);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.transferLeader(7L, 1L, 3L));
+
+        assertThat(exception.getMessage()).isEqualTo("팀장만 위임할 수 있습니다.");
+        verify(clubMapper, never()).updateRoleToLeader(any(), any());
+        verify(clubMapper, never()).updateRoleToMember(any(), any());
+    }
+
+    @Test
+    @DisplayName("이 동호회의 활성 동호회원이 아니면 위임하지 않는다")
+    void 받을_동호회원이_없으면_위임을_거부한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.updateRoleToLeader(1L, 99L)).thenReturn(0);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.transferLeader(7L, 1L, 99L));
+
+        assertThat(exception.getMessage()).isEqualTo("위임할 수 없는 팀원입니다.");
+        verify(clubMapper, never()).updateRoleToMember(any(), any());
+    }
+
+    @Test
+    @DisplayName("없거나 해체된 동호회면 위임하지 않는다")
+    void 해체된_동호회는_위임을_거부한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(null);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.transferLeader(7L, 1L, 3L));
+
+        assertThat(exception.getMessage()).isEqualTo("팀 정보를 찾을 수 없습니다.");
+        verify(clubMapper, never()).updateRoleToLeader(any(), any());
+    }
+
     private ClubSummary club(String recruitStatus, String activityDays, int startHour, int endHour) {
         ClubSummary club = new ClubSummary();
         club.setClubId(1L);

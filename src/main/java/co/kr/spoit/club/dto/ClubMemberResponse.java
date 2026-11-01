@@ -15,6 +15,7 @@ public class ClubMemberResponse {
     private final boolean leader;
     private final boolean current;
     private final String joined;
+    private final Long clubMemberId;
 
     // 동호회 상세정보, 내 동호회 관리 화면 용
     public static ClubMemberResponse from(ClubMember member, Long userId) {
@@ -24,6 +25,7 @@ public class ClubMemberResponse {
                 .leader("동호회장".equals(member.getRole()))
                 .current(userId != null && userId.equals(member.getUserId()))
                 .joined(member.getJoinedAt().format(DateTimeFormatter.ofPattern("yyyy.MM.dd")))
+                .clubMemberId(member.getClubMemberId())
                 .build();
     }
 

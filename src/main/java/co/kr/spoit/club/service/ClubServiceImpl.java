@@ -300,4 +300,19 @@ public class ClubServiceImpl implements ClubService {
         }
         return club;
     }
+
+    // 동호회장 위임
+    @Override
+    @Transactional
+    public void transferLeader(Long userId, Long clubId, Long clubMemberId) {
+        getActiveClubForUpdate(clubId);
+        if (!clubMapper.existsActiveLeader(clubId, userId)) {
+            throw new IllegalArgumentException("팀장만 위임할 수 있습니다.");
+        }
+        if (clubMapper.updateRoleToLeader(clubId, clubMemberId) == 0) {
+            throw new IllegalArgumentException("위임할 수 없는 팀원입니다.");
+        }
+        clubMapper.updateRoleToMember(clubId, userId);
+        log.info("동호회장 위임: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
+    }
 }
