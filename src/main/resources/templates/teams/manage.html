@@ -98,15 +98,15 @@
             </div>
             <div class="team-row-actions">
               <span class="team-member-role" th:text="${member.leader ? '팀장' : '팀원'}">팀원</span>
-              <!-- 위임, 추방 미구현:<span th:if="${member.leader or !managedClub.leader}" class="team-member-role" th:text="${member.leader ? '팀장' : '팀원'}">팀원</span>
+              <!--추방 미구현:<span th:if="${member.leader or !managedClub.leader}" class="team-member-role" th:text="${member.leader ? '팀장' : '팀원'}">팀원</span>-->
                <th:block th:if="${managedClub.leader and !member.leader}">
                 <button class="team-button team-button-quiet team-button-compact" type="button" data-team-transfer th:attr="data-member-id=${member.clubMemberId},data-member-name=${member.nickname}">팀장 위임</button>
-                <button class="team-button team-button-danger team-button-compact" type="button" data-team-remove-member th:attr="data-member-id=${member.clubMemberId},data-member-name=${member.nickname}">팀원 추방</button>
-              </th:block> -->
+                <!--추방 미구현:<button class="team-button team-button-danger team-button-compact" type="button" data-team-remove-member th:attr="data-member-id=${member.clubMemberId},data-member-name=${member.nickname}">팀원 추방</button>-->
+              </th:block>
             </div>
           </article>
         </div>
-        <!-- 위임, 추방 미구현: <p class="team-management-note">팀장 위임과 팀원 추방은 서버에 요청되며, 처리 결과는 감사 기록과 함께 저장됩니다.</p> -->
+        <!--추방 미구현: <p class="team-management-note">팀장 위임과 팀원 추방은 서버에 요청되며, 처리 결과는 감사 기록과 함께 저장됩니다.</p> -->
       </section>
 
       <!-- 가입 신청 -->

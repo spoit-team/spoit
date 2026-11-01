@@ -184,4 +184,21 @@ public class ClubController {
         }
         return "redirect:/teams/" + clubId;
     }
+
+    // 동호회장 위임
+    @PostMapping("/{clubId}/leadership")
+    public String transfer(@PathVariable("clubId") Long clubId, @RequestParam("clubMemberId") Long clubMemberId,
+            @AuthenticationPrincipal MemberPrincipal principal, RedirectAttributes redirectAttributes) {
+        Long userId = principal.getUserId();
+        log.info("동호회장 위임 요청: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
+        try {
+            clubService.transferLeader(userId, clubId, clubMemberId);
+            redirectAttributes.addFlashAttribute("message", "팀장을 위임했습니다.");
+        } catch (IllegalArgumentException exception) {
+            log.warn("동호회장 위임 거부: clubId={}, clubMemberId={}, {}", clubId, clubMemberId, exception.getMessage());
+            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+        }
+        return "redirect:/teams/manage?clubId=" + clubId + "&tab=members";
+    }
+
 }

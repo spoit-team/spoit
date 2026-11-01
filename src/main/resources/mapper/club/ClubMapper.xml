@@ -77,6 +77,7 @@
               ,m.role AS role
               ,m.joined_at AS joinedAt
               ,u.nickname AS nickname
+              ,m.club_member_id AS clubMemberId
         FROM club_member m
         JOIN app_user u ON m.user_id = u.user_id
         WHERE m.club_id = #{clubId} AND m.left_at IS NULL
@@ -206,6 +207,18 @@
         UPDATE club_join_request
         SET status = '취소', processed_at = NOW()
         WHERE club_id = #{clubId} AND request_id = #{joinRequestId} AND user_id = #{userId} AND status = '대기중'
+    </update>
+
+    <update id="updateRoleToLeader">
+        UPDATE club_member SET role = '동호회장'
+        WHERE club_member_id = #{clubMemberId} AND club_id = #{clubId}
+            AND role = '동호회원' AND left_at IS NULL
+    </update>
+
+    <update id="updateRoleToMember">
+        UPDATE club_member SET role = '동호회원'
+        WHERE club_id = #{clubId} AND user_id = #{userId}
+            AND role = '동호회장' AND left_at IS NULL
     </update>
     
     </mapper>

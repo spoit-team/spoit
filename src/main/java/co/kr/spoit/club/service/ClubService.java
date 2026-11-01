@@ -48,4 +48,7 @@ public interface ClubService {
 
     // 가입 신청 취소
     void cancelJoin(Long userId, Long clubId, Long joinRequestId);
+
+    // 동호회장 위임
+    void transferLeader(Long userId, Long clubId, Long clubMemberId);
 }
