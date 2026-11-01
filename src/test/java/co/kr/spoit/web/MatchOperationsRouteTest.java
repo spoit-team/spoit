@@ -89,7 +89,7 @@ class MatchOperationsRouteTest {
                 .andExpect(content().string(containsString("이영희")))
                 .andExpect(content().string(containsString("A팀")))
                 .andExpect(content().string(containsString("참가 확정")))
-                // 조회 전용: 승인·반려·팀 배정·완료 처리 경로와 제출 폼이 남아 있으면 안 된다.
+                // 승인·반려·완료 처리 경로와 제출 폼이 남아 있으면 안 된다. 팀 배정은 폼 없이 fetch로 보낸다.
                 .andExpect(content().string(not(containsString("/admin/rooms/"))))
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
 
@@ -98,6 +98,20 @@ class MatchOperationsRouteTest {
         org.assertj.core.api.Assertions.assertThat(opsContent).doesNotContain("<form");
         org.assertj.core.api.Assertions.assertThat(opsContent).doesNotContain("type=\"submit\"");
         org.assertj.core.api.Assertions.assertThat(opsContent).doesNotContain("/admin/rooms/");
+    }
+
+    @Test
+    @DisplayName("상세는 팀 배정 API 주소와 CSRF 헤더를 팀 배정 영역에 전달한다")
+    void rendersAssignmentSectionWithApiUrlAndCsrf() throws Exception {
+        when(roomManagementService.findDetail(7L, 500L)).thenReturn(detail(500L, "토요 풋살"));
+
+        mockMvc.perform(get("/admin/operations").param("matchId", "500").with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("id=\"ops-assignment\"")))
+                .andExpect(content().string(containsString(
+                        "data-assignment-url=\"/admin/operations/matches/500\"")))
+                .andExpect(content().string(containsString("data-csrf-header=\"X-CSRF-TOKEN\"")))
+                .andExpect(content().string(containsString("/js/match-assignment.js")));
     }
 
     @Test
