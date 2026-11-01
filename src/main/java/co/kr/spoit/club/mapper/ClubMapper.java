@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import co.kr.spoit.club.domain.Club;
+import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
 import co.kr.spoit.club.domain.ClubRegionOption;
 import co.kr.spoit.club.domain.ClubSportOption;
@@ -15,7 +16,7 @@ import co.kr.spoit.club.domain.ClubSummary;
 public interface ClubMapper {
 
     // 동호회 목록(조건 null이면 그 조건은 빠짐)
-    List<ClubSummary> selectClubSummaryList(@Param("query") String query, @Param("sportId") Long sportId,
+    List<ClubSummary> selectClubs(@Param("query") String query, @Param("sportId") Long sportId,
             @Param("regionId") Long regionId, @Param("recruitingOnly") boolean recruitingOnly,
             @Param("sort") String sort);
 
@@ -42,14 +43,14 @@ public interface ClubMapper {
 
     int insertClubRegion(@Param("clubId") Long clubId, @Param("regionId") Long regionId);
 
-    int insertClubMember(@Param("clubId") Long clubId, @Param("userId") Long userId);
+    int insertClubLeader(@Param("clubId") Long clubId, @Param("userId") Long userId);
 
     List<ClubSummary> selectMyClubs(@Param("userId") Long userId);
 
     boolean existsActiveMember(@Param("clubId") Long clubId, @Param("userId") Long userId);
 
-    // 동호회 가입 신청 번호(대기중)
-    Long selectPendingJoinRequestId(@Param("clubId") Long clubId, @Param("userId") Long userId);
+    // 내 동호회 가입 신청 번호(대기중)
+    Long selectMyPendingJoinRequestId(@Param("clubId") Long clubId, @Param("userId") Long userId);
 
     // 쓰기 전에 동호회 잠금
     ClubSummary selectActiveClubForUpdate(@Param("clubId") Long clubId);
@@ -60,4 +61,21 @@ public interface ClubMapper {
     // 가입 신청 저장
     int insertJoinRequest(@Param("clubId") Long clubId, @Param("userId") Long userId, @Param("message") String message);
 
+    // 동호회장인지 확인
+    boolean existsActiveLeader(@Param ("clubId") Long clubId, @Param ("userId") Long userId);
+
+    // 대기중 가입 신청 목록(먼저 신청 순)
+    List<ClubJoinRequest> selectPendingJoinRequests(@Param ("clubId") Long clubId);
+
+    // 처리할 가입 신청(대기중)
+    ClubJoinRequest selectPendingJoinRequestById(@Param ("clubId") Long clubId, @Param ("joinRequestId") Long joinRequestId);
+
+    // 가입 신청 승인, 거절
+    int updateJoinRequestStatus(@Param ("joinRequestId") Long joinRequestId, @Param ("status") String status);
+
+    // 승인된 신청자를 동호회원으로 추가
+    int insertJoinedMember(@Param ("clubId") Long clubId, @Param ("userId") Long userId);
+
+    // 내 가입 신청 취소(대기중만)
+    int cancelJoinRequest(@Param ("clubId") Long clubId, @Param ("joinRequestId") Long joinRequestId, @Param ("userId") Long userId);
 }

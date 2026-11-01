@@ -27,7 +27,8 @@
   <nav class="team-management-tabs" role="tablist" aria-label="팀 관리 메뉴" th:if="${managedClub != null}">
     <a class="team-management-tab" th:classappend="${tab == 'team'} ? 'is-active' : ''" role="tab" id="management-tab-team" aria-controls="management-panel" th:aria-selected="${tab == 'team'}" th:tabindex="${tab == 'team'} ? 0 : -1" th:href="@{/teams/manage(clubId=${managedClub.clubId}, tab='team')}">내 팀</a>
     <a class="team-management-tab" th:classappend="${tab == 'members'} ? 'is-active' : ''" role="tab" id="management-tab-members" aria-controls="management-panel" th:aria-selected="${tab == 'members'}" th:tabindex="${tab == 'members'} ? 0 : -1" th:href="@{/teams/manage(clubId=${managedClub.clubId}, tab='members')}">팀원 <span th:text="${managedClub.memberCount}">0</span></a>
-    <!-- 가입 신청 미구현: <a class="team-management-tab" th:classappend="${tab == 'applications'} ? 'is-active' : ''" role="tab" id="management-tab-applications" aria-controls="management-panel" th:aria-selected="${tab == 'applications'}" th:tabindex="${tab == 'applications'} ? 0 : -1" th:href="@{/teams/manage(clubId=${managedClub.clubId}, tab='applications')}">가입 신청 <span th:text="${managedClub.pendingApplicationCount != null ? managedClub.pendingApplicationCount : 0}">0</span></a> -->
+    <a th:if="${managedClub.leader}" class="team-management-tab" th:classappend="${tab == 'applications'} ? 'is-active' : ''" role="tab" id="management-tab-applications" aria-controls="management-panel" th:aria-selected="${tab == 'applications'}" th:tabindex="${tab == 'applications'} ? 0 : -1" th:href="@{/teams/manage(clubId=${managedClub.clubId}, tab='applications')}">가입 신청 
+      <span th:text="${managedClub.pendingApplicationCount != null ? managedClub.pendingApplicationCount : 0}">0</span></a>
   </nav>
 
   <section id="management-panel" role="tabpanel" th:attr="aria-labelledby=${'management-tab-' + tab}" tabindex="0">
@@ -122,7 +123,7 @@
               <p th:if="${joinRequest.message != null}" class="team-application-message" th:text="${joinRequest.message}">신청 메시지</p>
             </div>
             <div class="team-application-actions">
-              <th:block th:if="${joinRequest.pending and managedClub.leader}">
+              <th:block th:if="${managedClub.leader}">
                 <form method="post" th:action="@{/teams/{clubId}/applications/{joinRequestId}/reject(clubId=${managedClub.clubId}, joinRequestId=${joinRequest.joinRequestId})}">
                   <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                   <button class="team-button team-button-quiet team-button-compact" type="submit">거절</button>
@@ -132,7 +133,6 @@
                   <button class="team-button team-button-primary team-button-compact" type="submit">승인</button>
                 </form>
               </th:block>
-              <span th:if="${!joinRequest.pending or !managedClub.leader}" class="team-badge" th:classappend="${joinRequest.approved} ? 'is-recruiting' : ''" th:text="${joinRequest.statusLabel}">검토 중</span>
             </div>
           </article>
           <p th:if="${#lists.isEmpty(managedClub.applications)}" class="team-management-empty" th:text="${managedClub.leader ? '이 팀에 도착한 가입 신청이 없습니다.' : '가입 신청 내용은 팀장만 확인하고 관리할 수 있습니다.'}">가입 신청이 없습니다.</p>
