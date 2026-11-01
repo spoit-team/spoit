@@ -154,7 +154,7 @@ const requiredBindings = {
   'team-remove-form': ['clubMemberId'],
   'team-disband-form': ['clubNameConfirmation'],
   'facility-form': ['concurrentMatchLimit'],
-  'room-editor-form': ['facilityId', 'sportId', 'teamACapacity', 'teamBCapacity', 'feePerPerson'],
+  'room-editor-form': ['facilityId', 'sportId', 'teamCapacity', 'feePerPerson'],
   'profile-form': ['nickname', 'regionId', 'representativeSportId'],
   'signup-form': ['nickname', 'regionId'],
   // 예약 운영 일정: 주간·날짜별·모집 조건·휴관 저장 폼의 필수 바인딩입니다.

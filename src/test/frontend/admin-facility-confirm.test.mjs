@@ -161,7 +161,7 @@ confirmSubmit.setAttribute('data-confirm-facility-action', '');
 
 ['room-editor-modal', 'room-editor-form', 'maintenance-modal', 'admin-toast',
   'breadcrumb-current', 'facility-map-address', 'room-editor-hour-grid', 'room-editor-time-summary',
-  'room-editor-capacity-hint', 'room-editor-team-a', 'room-editor-team-b', 'date-schedule-hour-grid',
+  'room-editor-capacity-hint', 'room-editor-team', 'date-schedule-hour-grid',
   'date-schedule-count', 'date-schedule-ranges'].forEach(id => control(id));
 control('admin-notification-modal', { hidden: true });
 

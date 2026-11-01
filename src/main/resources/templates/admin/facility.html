@@ -139,14 +139,23 @@
             <a class="admin-button small" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">초기화</a>
           </form>
           <div class="result-meta"><b th:text="${#lists.size(matches)}">0</b>개의 매칭방</div>
-          <div class="table-scroll"><table class="admin-table"><thead><tr><th>방 번호·이름</th><th>시설·종목</th><th>참여 현황</th><th>이용 일시</th><th>방 상태</th><th>상세</th></tr></thead><tbody>
+          <div class="table-scroll"><table class="admin-table"><thead><tr><th>방 번호·이름</th><th>시설·종목</th><th>참여 현황</th><th>이용 일시</th><th>방 상태</th><th>관리</th></tr></thead><tbody>
             <tr th:each="match : ${matches}">
               <td><span class="cell-primary" th:text="${match.matchId}">방 번호</span><span class="cell-secondary" th:text="${match.title}">방 이름</span></td>
               <td><span th:text="${match.facilityName}">시설</span><small class="cell-secondary" th:text="${match.sportName}">종목</small></td>
               <td th:text="${match.participation}">0 / 0명</td>
               <td th:text="${match.dateLabel}">일시</td>
               <td><span class="status-badge" th:classappend="${match.statusTone}" th:text="${match.statusLabel}">상태</span></td>
-              <td><a class="table-link" th:href="@{/admin/operations(matchId=${match.matchId})}" th:aria-label="${match.matchId + '번 매칭방 상세 보기'}">상세</a></td>
+              <td class="room-row-actions">
+                <a class="table-link" th:href="@{/admin/operations(matchId=${match.matchId})}" th:aria-label="${match.matchId + '번 매칭방 상세 보기'}">상세</a>
+                <th:block th:if="${match.edit != null}">
+                  <button class="table-link" type="button" data-edit-room th:aria-label="${match.matchId + '번 매칭방 수정'}" th:attr="data-room-id=${match.matchId},data-room-facility=${match.edit.facilityId},data-room-sport=${match.edit.sportId},data-room-title=${match.edit.title},data-room-date=${match.edit.date},data-room-hours=${match.edit.hours},data-room-team=${match.edit.teamCapacity},data-room-fee=${match.edit.feePerPerson},data-room-skill=${match.edit.requiredSkill},data-room-reserved=${match.edit.reservedCount},data-room-locked=${match.edit.scheduleLocked}">수정</button>
+                  <form class="room-cancel-form" method="post" th:action="@{/admin/rooms/{matchId}/cancel(matchId=${match.matchId})}">
+                    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                    <button class="table-link danger-link" type="submit" data-cancel-room th:aria-label="${match.matchId + '번 매칭방 취소'}" th:attr="data-room-title=${match.title},data-room-reserved=${match.edit.reservedCount}">취소</button>
+                  </form>
+                </th:block>
+              </td>
             </tr>
             <tr th:if="${#lists.isEmpty(matches)}"><td class="table-empty" colspan="6">조건에 맞는 매칭방이 없습니다.</td></tr>
           </tbody></table></div>
@@ -268,13 +277,14 @@
 <!-- 매칭방 개설 -->
 <div class="modal-backdrop" id="room-editor-modal" hidden>
   <section class="admin-modal wide" role="dialog" aria-modal="true" aria-labelledby="room-editor-title">
-    <div class="modal-header"><div><h2 id="room-editor-title">매칭방 생성</h2><p>담당 시설의 운영 시간에 맞춰 매칭방을 개설합니다. 연속된 1시간 블록을 선택하세요.</p></div><button class="modal-close" type="button" data-close-room-editor aria-label="닫기">×</button></div>
-    <form id="room-editor-form" method="post" th:action="@{/admin/rooms}">
+    <div class="modal-header"><div><h2 id="room-editor-title">매칭방 생성</h2><p id="room-editor-description">담당 시설의 운영 시간에 맞춰 매칭방을 개설합니다. 연속된 1시간 블록을 선택하세요.</p></div><button class="modal-close" type="button" data-close-room-editor aria-label="닫기">×</button></div>
+    <form id="room-editor-form" method="post" th:action="@{/admin/rooms}" th:attr="data-room-base=@{/admin/rooms}">
       <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
       <div class="modal-body">
+        <p class="room-editor-locked-note" id="room-editor-locked-note" hidden>신청자가 있어 시설·종목·날짜·시간은 바꿀 수 없습니다. 정원은 현재 참가·신청 인원보다 줄일 수 없습니다.</p>
         <div class="form-grid">
           <div class="form-field"><label for="room-editor-facility">담당 시설</label><select id="room-editor-facility" name="facilityId" required><option th:each="facility : ${facilities}" th:value="${facility.facilityId}" th:text="${facility.name}" th:selected="${selectedFacility?.facilityId == facility.facilityId}">시설</option></select></div>
-          <div class="form-field"><label for="room-editor-sport">종목</label><select id="room-editor-sport" name="sportId" required><option th:each="sport : ${sports}" th:value="${sport.sportId}" th:text="${sport.name}">종목</option></select></div>
+          <div class="form-field"><label for="room-editor-sport">종목</label><select id="room-editor-sport" name="sportId" required><option th:each="sport : ${roomEditorSports}" th:value="${sport.sportId}" th:text="${sport.name}" th:attr="data-facility-id=${sport.facilityId}">종목</option></select></div>
           <div class="form-field"><label for="room-editor-title-input">방 이름</label><input id="room-editor-title-input" name="title" maxlength="70" placeholder="매칭방 이름을 입력하세요." required /></div>
           <div class="form-field"><label for="room-editor-date">이용 날짜</label><input id="room-editor-date" name="date" type="date" required /></div>
           <div class="form-field full"><div class="room-editor-section-label"><strong>예약 시간</strong><span>1시간 블록을 선택하세요. 연속된 시간만 한 방으로 예약됩니다.</span></div><div class="room-hour-grid" id="room-editor-hour-grid" role="group" aria-label="1시간 예약 블록">
@@ -284,16 +294,14 @@
               <small th:text="${slot.label != null ? slot.label : '예약 가능'}">예약 가능</small>
             </label>
           </div><p class="room-editor-time-summary" id="room-editor-time-summary" aria-live="polite">시간대를 선택해 주세요.</p></div>
-          <div class="form-field"><label for="room-editor-team-a">A팀 정원</label><input id="room-editor-team-a" name="teamACapacity" type="number" min="1" max="30" required /></div>
-          <div class="form-field"><label for="room-editor-team-b">B팀 정원</label><input id="room-editor-team-b" name="teamBCapacity" type="number" min="1" max="30" required /></div>
+          <div class="form-field"><label for="room-editor-team">팀당 정원</label><input id="room-editor-team" name="teamCapacity" type="number" min="1" max="11" required /></div>
           <div class="form-field full"><p class="room-editor-capacity-hint" id="room-editor-capacity-hint"></p></div>
           <div class="form-field"><label for="room-editor-fee">참가비 (1인)</label><input id="room-editor-fee" name="feePerPerson" type="number" min="0" step="500" required /></div>
-          <div class="form-field"><label for="room-editor-level">실력 수준</label><select id="room-editor-level" name="level"><option value="all">모든 실력</option><option value="1">1단계</option><option value="2">2단계</option><option value="3">3단계</option><option value="4">4단계</option><option value="5">5단계</option></select></div>
-          <div class="form-field full"><label for="room-editor-note">참가 안내</label><textarea id="room-editor-note" name="note" maxlength="250" rows="3" placeholder="준비물이나 매치 운영 안내를 입력해 주세요."></textarea></div>
+          <div class="form-field"><label for="room-editor-level">실력 수준</label><select id="room-editor-level" name="requiredSkill" required><option value="초급">초급</option><option value="중급" selected>중급</option><option value="고급">고급</option></select></div>
         </div>
         <p class="room-editor-footnote">시설 관리자가 개설한 매칭방은 이용자 화면에 공개됩니다. 시설 관리자는 참가 인원에 포함되지 않습니다.</p>
       </div>
-      <div class="modal-footer"><button class="admin-button" type="button" data-close-room-editor>취소</button><button class="admin-button primary" type="submit">매칭방 생성</button></div>
+      <div class="modal-footer"><button class="admin-button" type="button" data-close-room-editor>취소</button><button class="admin-button primary" type="submit" id="room-editor-submit">매칭방 생성</button></div>
     </form>
   </section>
 </div>

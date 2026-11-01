@@ -35,6 +35,13 @@ public class FacilityCapacityServiceImpl implements FacilityCapacityService {
     @Override
     @Transactional(propagation = Propagation.REQUIRED)
     public void requireCapacity(long facilityId, LocalDateTime startAt, LocalDateTime endAt) {
+        requireCapacity(facilityId, startAt, endAt, null);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void requireCapacity(long facilityId, LocalDateTime startAt, LocalDateTime endAt,
+            Long excludeMatchId) {
         if (startAt == null || endAt == null || !startAt.isBefore(endAt)) {
             throw new FacilityScheduleUnavailableException("이용 시작과 종료 시각을 확인해 주세요.");
         }
@@ -46,8 +53,13 @@ public class FacilityCapacityServiceImpl implements FacilityCapacityService {
             throw new FacilityScheduleUnavailableException("시설의 대관 가능 구역 수가 설정되지 않았습니다.");
         }
 
-        List<MatchPeriod> existing = scheduleMapper.selectMatchPeriodsForUpdate(facilityId, OCCUPYING_STATUSES);
-        int peak = FacilityOccupancy.peakWithin(nullSafe(existing), startAt, endAt);
+        List<MatchPeriod> existing = nullSafe(
+                scheduleMapper.selectMatchPeriodsForUpdate(facilityId, OCCUPYING_STATUSES));
+        if (excludeMatchId != null) {
+            // 일정을 옮기는 방 자신은 새 구간으로 다시 더해지므로 기존 점유에서 뺀다.
+            existing.removeIf(period -> period != null && excludeMatchId.equals(period.getMatchId()));
+        }
+        int peak = FacilityOccupancy.peakWithin(existing, startAt, endAt);
         if (peak + 1 > limit) {
             throw new FacilityScheduleUnavailableException(
                     "선택한 시간대의 동시 대관 한도(" + limit + "구역)를 넘어 매칭방을 만들 수 없습니다.");
@@ -55,6 +67,7 @@ public class FacilityCapacityServiceImpl implements FacilityCapacityService {
     }
 
     private static List<MatchPeriod> nullSafe(List<MatchPeriod> values) {
-        return values == null ? new ArrayList<>() : values;
+        // 제외 대상을 지울 수 있도록 매퍼 결과를 수정 가능한 복사본으로 만든다.
+        return values == null ? new ArrayList<>() : new ArrayList<>(values);
     }
 }

@@ -172,6 +172,45 @@ class AdminFacilityPageTest {
     }
 
     @Test
+    @DisplayName("수정 가능한 방에만 수정·취소 버튼을 두고, 모달은 시설별 종목·실력 수준을 렌더링한다")
+    void rendersRoomEditAndCancelActions() throws Exception {
+        RoomManagementPage.Edit edit = new RoomManagementPage.Edit(10L, 3L, "토요 풋살", "2026-11-08",
+                "10:00,11:00", 3, 9000, "중급", 2);
+        RoomManagementPage page = RoomManagementPage.of(
+                List.of(new RoomManagementPage.Match(501L, "토요 풋살", "테스트 체육관", "풋살",
+                                "2 / 6명", "2026-11-08(일) 10:00~12:00", "모집 중", "good", edit),
+                        new RoomManagementPage.Match(502L, "지난 방", "테스트 체육관", "풋살",
+                                "0 / 6명", "2026-10-01(목) 10:00~12:00", "이용 완료", "neutral")),
+                List.of(new RoomManagementPage.Sport(3L, "풋살")),
+                RoomManagementPage.Filters.none(),
+                List.of(new RoomManagementPage.FacilitySport(10L, 3L, "풋살")));
+        when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(page);
+        when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
+
+        String html = mockMvc.perform(get("/admin/facility").param("view", "bookings")
+                        .with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/admin/rooms/501/cancel")))
+                .andExpect(content().string(not(containsString("/admin/rooms/502/cancel"))))
+                .andExpect(content().string(containsString("data-room-hours=\"10:00,11:00\"")))
+                .andExpect(content().string(containsString("data-room-locked=\"true\"")))
+                .andExpect(content().string(containsString("data-room-base=\"/admin/rooms\"")))
+                .andExpect(content().string(not(containsString("name=\"minParticipants\""))))
+                .andExpect(content().string(containsString("name=\"requiredSkill\"")))
+                .andExpect(content().string(containsString("name=\"teamCapacity\"")))
+                .andExpect(content().string(containsString("data-room-team=\"3\"")))
+                .andExpect(content().string(not(containsString("name=\"teamACapacity\""))))
+                .andExpect(content().string(containsString("value=\"23:00\"")))
+                .andExpect(content().string(not(containsString("name=\"note\" maxlength=\"250\""))))
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        org.assertj.core.api.Assertions.assertThat(optionTagContaining(html, "data-facility-id=\"10\""))
+                .contains("value=\"3\"");
+        // 이용 완료된 방은 수정 버튼도 없다.
+        org.assertj.core.api.Assertions.assertThat(html).doesNotContain("data-room-id=\"502\"");
+    }
+
+    @Test
     @DisplayName("일정 화면의 sportId는 매칭방 필터로 쓰지 않고 종목 선택지도 덮어쓰지 않는다")
     void keepsScheduleSportIdOutOfBookingFilters() throws Exception {
         when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
