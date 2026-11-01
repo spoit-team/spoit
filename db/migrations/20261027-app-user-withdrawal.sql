@@ -6,12 +6,13 @@
 --   * app_user.deleted_at(탈퇴 시각), app_user.penalty_time(이용정지 종료 시각)을 추가한다.
 --   * app_user.status 를 제거한다. 코드는 #36부터 status 를 읽지도 쓰지도 않는다.
 -- 원칙:
---   * status 에는 'ACTIVE'·'승인' 말고도 '정지'(이용정지)와 '대기'·'거절'(시설 관리자 승인 상태)이
---     들어 있을 수 있다. 그대로 지우면 정지 회원의 정지가 풀리고, 승인 대기·거절된 시설 관리자가
---     로그인할 수 있게 된다. 이 스크립트는 그런 행을 임의로 바꾸지 않고 "2. 사전 점검"에서 멈춘다.
+--   * #36 이전 코드는 status 가 'ACTIVE'·'활성'·'NORMAL' 인 회원만 로그인을 허용했다
+--     (가입 시 '활성' 저장). 그 밖의 값('정지', 시설 관리자 승인 대기·거절 등)은 로그인할 수 없던
+--     회원인데, status 를 그대로 지우면 로그인할 수 있게 된다. 이 스크립트는 그런 행을 임의로
+--     바꾸지 않고 "2. 사전 점검"에서 멈춘다.
 --   * 2단계에서 멈추면 1단계(컬럼 추가)는 이미 적용된 상태다. 이 파일을 다시 실행하지 말고,
 --     담당자가 목록의 회원을 처리한 뒤(예: 정지 → penalty_time 에 정지 종료 시각 지정,
---     대기·거절 → 승인 여부를 정해 role 조정) status 를 'ACTIVE' 로 바꾸고
+--     승인 대기·거절 → 승인 여부를 정해 role 조정) status 를 'ACTIVE' 로 바꾸고
 --     3단계 ALTER 와 4단계 확인 질의만 실행한다.
 --   * 배포 순서: status 를 지우면 이를 쓰는 이전 버전 앱은 회원 조회에 실패한다.
 --     #36 이후 버전 배포 직전에 적용한다.
@@ -45,7 +46,7 @@ ALTER TABLE app_user
         AFTER deleted_at;
 
 -- ---------------------------------------------------------------------
--- 2. 사전 점검: 지우면 의미가 사라지는 status
+-- 2. 사전 점검: 지우면 의미가 사라지는 status (이전 코드가 로그인을 막던 값)
 --
 -- 먼저 처리가 필요한 회원 목록을 보여 준다. 목록이 비어 있지 않으면 바로 아래 임시 테이블의
 -- CHECK 제약 위반으로 이 지점에서 실행이 중단된다.
@@ -53,13 +54,13 @@ ALTER TABLE app_user
 -- ---------------------------------------------------------------------
 SELECT user_id, email, nickname, role, status
   FROM app_user
- WHERE status NOT IN ('ACTIVE', '승인')
+ WHERE status NOT IN ('ACTIVE', '활성', 'NORMAL')
  ORDER BY user_id;
 
 DROP TEMPORARY TABLE IF EXISTS app_user_status_guard;
 CREATE TEMPORARY TABLE app_user_status_guard (
     status VARCHAR(30) NOT NULL,
-    CONSTRAINT ck_app_user_status_guard CHECK (status IN ('ACTIVE', '승인'))
+    CONSTRAINT ck_app_user_status_guard CHECK (status IN ('ACTIVE', '활성', 'NORMAL'))
 );
 
 INSERT INTO app_user_status_guard (status)
