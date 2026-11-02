@@ -1,8 +1,9 @@
 package co.kr.spoit.mat.domain;
 
 import java.math.RoundingMode;
+import java.time.Duration;
 
-/** 레이팅 정책 숫자를 한 곳에 모은다. 값이나 공식이 바뀌면 ALGORITHM_VERSION도 함께 올린다. */
+/** 레이팅 정책 숫자를 한 곳에 모은다. Elo 계산 값이나 공식이 바뀌면 ALGORITHM_VERSION도 함께 올린다. */
 public final class RatingPolicy {
 
     public static final String ALGORITHM_VERSION = "ELO-K32-V1";
@@ -21,6 +22,10 @@ public final class RatingPolicy {
     public static final int GOLD_MIN_MMR = 1050;
     public static final int PLATINUM_MIN_MMR = 1200;
     public static final int DIAMOND_MIN_MMR = 1350;
+
+    // 경기 종료 후 결과 제출 기간과, 마감 전에 리마인더를 보내는 시점
+    public static final Duration RESULT_SUBMIT_PERIOD = Duration.ofHours(24);
+    public static final Duration REMINDER_BEFORE_DEADLINE = Duration.ofHours(1);
 
     private RatingPolicy() {
     }
