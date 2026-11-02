@@ -78,4 +78,10 @@ public interface ClubMapper {
 
     // 내 가입 신청 취소(대기중만)
     int cancelJoinRequest(@Param ("clubId") Long clubId, @Param ("joinRequestId") Long joinRequestId, @Param ("userId") Long userId);
+
+    // 동호회장 위임: 남을 동호회장으로
+    int updateRoleToLeader(@Param ("clubId") Long clubId, @Param ("clubMemberId") Long clubMemberId);
+
+    // 동호회장 위임: 나를 동호회원으로
+    int updateRoleToMember(@Param ("clubId") Long clubId, @Param ("userId") Long userId);
 }
