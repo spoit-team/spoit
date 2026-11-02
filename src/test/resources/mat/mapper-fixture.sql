@@ -123,3 +123,51 @@ INSERT INTO match_participant (
 ) VALUES
     (50, 50, 5, 1, '확정', NULL, 1100.00, '2026-10-20 09:00:00', NULL),
     (51, 51, 5, 2, '확정', NULL, 900.00, '2026-10-20 09:00:00', NULL);
+
+-- 레이팅 반영·자동 취소 수신자: 1:1 매칭 완료 경기
+-- 회원 3은 레이팅 행이 있고, 회원 4는 없어 1000에서 시작한다. 회원 5는 대기 신청만, 회원 6은 취소 참가자다.
+INSERT INTO app_user (
+    user_id, email, password_hash, nickname, phone, role, created_at
+) VALUES
+    (3, 'mat-user-3@example.invalid', 'TEST_ONLY_NOT_A_PASSWORD_HASH',
+     'MAT 테스트 회원 3', '010-0000-0003', 'USER', '2026-10-20 09:00:00'),
+    (4, 'mat-user-4@example.invalid', 'TEST_ONLY_NOT_A_PASSWORD_HASH',
+     'MAT 테스트 회원 4', '010-0000-0004', 'USER', '2026-10-20 09:00:00'),
+    (5, 'mat-user-5@example.invalid', 'TEST_ONLY_NOT_A_PASSWORD_HASH',
+     'MAT 테스트 회원 5', '010-0000-0005', 'USER', '2026-10-20 09:00:00'),
+    (6, 'mat-user-6@example.invalid', 'TEST_ONLY_NOT_A_PASSWORD_HASH',
+     'MAT 테스트 회원 6', '010-0000-0006', 'USER', '2026-10-20 09:00:00');
+
+INSERT INTO social_match (
+    match_id, facility_id, sport_id, created_by, title, start_at, end_at,
+    min_participants, max_participants, team_a_capacity, team_b_capacity,
+    fee_per_person, required_skill, status, assignment_method, rating_status
+) VALUES
+    (6, 1, 1, 1, 'MAT 레이팅 테스트 경기', '2026-10-25 10:00:00', '2026-10-25 12:00:00',
+     2, 2, 1, 1, 0.00, '무관', '매칭 완료', 'AUTO', 'WAITING');
+
+INSERT INTO match_application (
+    application_id, match_id, applicant_user_id, club_id, application_type,
+    status, receipt_no, created_at, confirmed_at, cancelled_at, cancelled_by
+) VALUES
+    (60, 6, 3, NULL, '개인', '확정', 'MAT-TEST-RECEIPT-60',
+     '2026-10-20 09:00:00', '2026-10-20 09:00:00', NULL, NULL),
+    (61, 6, 4, NULL, '개인', '확정', 'MAT-TEST-RECEIPT-61',
+     '2026-10-20 09:00:00', '2026-10-20 09:00:00', NULL, NULL),
+    (62, 6, 5, NULL, '개인', '대기', 'MAT-TEST-RECEIPT-62',
+     '2026-10-20 09:00:00', NULL, NULL, NULL),
+    (63, 6, 6, NULL, '개인', '취소', 'MAT-TEST-RECEIPT-63',
+     '2026-10-20 09:00:00', NULL, '2026-10-21 12:00:00', 6);
+
+INSERT INTO match_participant (
+    participant_id, application_id, match_id, user_id, participation_status,
+    match_side, entry_mmr, joined_at, cancelled_at
+) VALUES
+    (60, 60, 6, 3, '확정', 'A', 1100.00, '2026-10-20 09:00:00', NULL),
+    (61, 61, 6, 4, '확정', 'B', 900.00, '2026-10-20 09:00:00', NULL),
+    (63, 63, 6, 6, '취소', 'A', 1000.00, '2026-10-20 09:00:00', '2026-10-21 12:00:00');
+
+INSERT INTO sport_rating (
+    user_id, sport_id, current_mmr, rated_match_count, updated_at
+) VALUES
+    (3, 1, 1000.00, 7, '2026-10-21 09:30:00');

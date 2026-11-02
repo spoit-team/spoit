@@ -53,6 +53,23 @@ public interface MatchAssignmentMapper {
     List<Long> findStartableMatchIds(@Param("recruitingStatus") String recruitingStatus,
                                      @Param("now") LocalDateTime now);
 
+    // 대기 신청은 match_participant 행이 없어 match_application에서 함께 찾는다.
+    @Select("""
+            SELECT mp.user_id AS userId
+            FROM match_participant mp
+            WHERE mp.match_id = #{matchId}
+              AND mp.participation_status = #{confirmedStatus}
+            UNION
+            SELECT ma.applicant_user_id
+            FROM match_application ma
+            WHERE ma.match_id = #{matchId}
+              AND ma.status = #{waitingStatus}
+            ORDER BY userId
+            """)
+    List<Long> findAutoCancelRecipients(@Param("matchId") Long matchId,
+                                        @Param("confirmedStatus") String confirmedStatus,
+                                        @Param("waitingStatus") String waitingStatus);
+
     @Update("""
             UPDATE social_match
             SET status = #{cancelledStatus},

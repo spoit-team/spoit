@@ -69,6 +69,12 @@ class MatchAssignmentMapperIntegrationTest extends AbstractMySqlMapperTest {
     }
 
     @Test
+    void findsConfirmedAndWaitingUsersAsAutoCancelRecipients() {
+        // 3·4는 확정 참가자, 5는 대기 신청자다. 취소 참가자 6은 제외한다.
+        assertThat(assignmentMapper.findAutoCancelRecipients(6L, "확정", "대기")).containsExactly(3L, 4L, 5L);
+    }
+
+    @Test
     void cancelsOnlyRecruitingMatch() {
         var cancelledAt = LocalDateTime.of(2026, 10, 24, 10, 0);
 
