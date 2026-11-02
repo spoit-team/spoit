@@ -6,7 +6,9 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import co.kr.spoit.match.dto.FacilityDashboard;
 import co.kr.spoit.match.dto.RoomManagementApplicationRow;
 import co.kr.spoit.match.dto.RoomManagementDetail;
 import co.kr.spoit.match.dto.RoomManagementPage;
@@ -271,10 +274,140 @@ class RoomManagementServiceTest {
         assertThat(captor.getValue().getParticipationStatuses()).containsExactly("대기", "확정");
     }
 
+    @Test
+    @DisplayName("대시보드는 필터와 무관하게 담당 시설 전체를 한 번 조회하고 24칸을 만든다")
+    void dashboardAggregatesAllManagedRoomsWithoutFilters() {
+        RoomManagementService roomService = serviceAt(LocalDateTime.of(2026, 11, 2, 14, 5));
+        given(mapper.findRooms(any())).willReturn(List.of(
+                room(9501L, "모집 중", 2026, 11, 2, 10, 0),
+                room(9502L, "종료", 2026, 11, 2, 10, 30),
+                room(9503L, "취소", 2026, 11, 2, 18, 0),
+                room(9504L, "매칭 완료", 2026, 11, 3, 10, 0),
+                room(9505L, "모집 중", 2026, 10, 31, 9, 0)));
+
+        FacilityDashboard dashboard = roomService.findDashboard(MANAGER_ID);
+
+        // 취소·종료·다른 날짜 방까지 담당 시설 전체가 집계된다.
+        assertThat(dashboard.getMatchCount()).isEqualTo(5);
+        assertThat(dashboard.getRecruitingCount()).isEqualTo(2);
+        assertThat(dashboard.getHourlyBars()).hasSize(24);
+        assertThat(dashboard.getHourlyBars()).extracting(FacilityDashboard.HourlyBar::getLabel)
+                .first().isEqualTo("00시");
+        assertThat(dashboard.getHourlyBars().get(23).getLabel()).isEqualTo("23시");
+
+        // 오늘(11/2) 방만 차트에 들어가고, 그중 종료 상태만 '이용 완료'다.
+        FacilityDashboard.HourlyBar ten = dashboard.getHourlyBars().get(10);
+        assertThat(ten.getMatchCount()).isEqualTo(2);
+        assertThat(ten.getCompletedCount()).isEqualTo(1);
+        FacilityDashboard.HourlyBar eighteen = dashboard.getHourlyBars().get(18);
+        assertThat(eighteen.getMatchCount()).isEqualTo(1);
+        assertThat(eighteen.getCompletedCount()).isZero();
+        assertThat(dashboard.getHourlyBars().get(9).getMatchCount()).isZero();
+
+        assertThat(dashboard.getTodayLabel()).isEqualTo("2026-11-02(월)");
+        assertThat(dashboard.getCollectedAt()).isEqualTo("2026-11-02 14:05");
+        assertThat(dashboard.getScopeName()).isEqualTo("담당 시설 전체");
+
+        // 집계 조회는 검색어·상태·종목·시설 조건을 넣지 않는다.
+        ArgumentCaptor<RoomManagementQuery> captor = ArgumentCaptor.forClass(RoomManagementQuery.class);
+        org.mockito.Mockito.verify(mapper).findRooms(captor.capture());
+        RoomManagementQuery query = captor.getValue();
+        assertThat(query.getManagerUserId()).isEqualTo(MANAGER_ID);
+        assertThat(query.getQ()).isNull();
+        assertThat(query.getStatusValue()).isNull();
+        assertThat(query.getSportId()).isNull();
+        assertThat(query.getFacilityId()).isNull();
+        assertThat(query.getParticipationStatuses()).containsExactly("대기", "확정");
+    }
+
+    @Test
+    @DisplayName("차트 높이는 24칸 중 최대 방 수의 상대 백분율이고 모두 0이면 0이다")
+    void dashboardBarHeightsAreRelativeToBusiestHour() {
+        RoomManagementService roomService = serviceAt(LocalDateTime.of(2026, 11, 2, 14, 5));
+        given(mapper.findRooms(any())).willReturn(List.of(
+                room(9601L, "종료", 2026, 11, 2, 10, 0),
+                room(9602L, "종료", 2026, 11, 2, 10, 0),
+                room(9603L, "모집 중", 2026, 11, 2, 10, 0),
+                room(9604L, "모집 중", 2026, 11, 2, 10, 0),
+                room(9605L, "모집 중", 2026, 11, 2, 11, 0)));
+
+        FacilityDashboard dashboard = roomService.findDashboard(MANAGER_ID);
+
+        FacilityDashboard.HourlyBar ten = dashboard.getHourlyBars().get(10);
+        assertThat(ten.getMatchHeight()).isEqualTo(100);
+        assertThat(ten.getCompletedHeight()).isEqualTo(50);
+        FacilityDashboard.HourlyBar eleven = dashboard.getHourlyBars().get(11);
+        assertThat(eleven.getMatchHeight()).isEqualTo(25);
+        assertThat(eleven.getCompletedHeight()).isZero();
+
+        // 모든 칸이 0이면 높이도 0이다(0으로 나누지 않는다).
+        given(mapper.findRooms(any())).willReturn(List.of());
+        assertThat(roomService.findDashboard(MANAGER_ID).getHourlyBars())
+                .allSatisfy(bar -> {
+                    assertThat(bar.getMatchHeight()).isZero();
+                    assertThat(bar.getCompletedHeight()).isZero();
+                    assertThat(bar.getMatchCount()).isZero();
+                });
+    }
+
+    @Test
+    @DisplayName("최근 매칭방은 번호 내림차순 5개이고 없으면 빈 목록이다")
+    void dashboardRecentMatchesUseMatchIdOrder() {
+        RoomManagementService roomService = serviceAt(LocalDateTime.of(2026, 11, 2, 14, 5));
+        given(mapper.findRooms(any())).willReturn(List.of(
+                room(9701L, "모집 중", 2026, 11, 2, 10, 0),
+                room(9706L, "종료", 2026, 11, 2, 11, 0),
+                room(9703L, "취소", 2026, 11, 2, 12, 0),
+                room(9705L, "매칭 완료", 2026, 11, 2, 13, 0),
+                room(9702L, "모집 중", 2026, 11, 2, 14, 0),
+                room(9704L, "종료", 2026, 11, 2, 15, 0)));
+
+        List<RoomManagementPage.Match> recent = roomService.findDashboard(MANAGER_ID)
+                .getRecentMatches();
+
+        assertThat(recent).hasSize(RoomManagementService.RECENT_MATCH_LIMIT);
+        assertThat(recent).extracting(RoomManagementPage.Match::getMatchId)
+                .containsExactly(9706L, 9705L, 9704L, 9703L, 9702L);
+        // 목록 화면과 같은 표시 모델을 쓰므로 상태·참여 문구도 그대로 채워진다.
+        assertThat(recent.get(0).getStatusLabel()).isEqualTo("이용 완료");
+        assertThat(recent.get(0).getParticipation()).isEqualTo("2 / 8명");
+
+        given(mapper.findRooms(any())).willReturn(List.of());
+        assertThat(roomService.findDashboard(MANAGER_ID).getRecentMatches()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("관리자 식별자가 없으면 조회 없이 0건 대시보드를 돌려준다")
+    void dashboardIsEmptyWithoutManager() {
+        FacilityDashboard dashboard = service.findDashboard(null);
+
+        assertThat(dashboard.getMatchCount()).isZero();
+        assertThat(dashboard.getRecruitingCount()).isZero();
+        assertThat(dashboard.getHourlyBars()).hasSize(24);
+        assertThat(dashboard.getRecentMatches()).isEmpty();
+        assertThat(dashboard.getScopeName()).isEqualTo("담당 시설 전체");
+        assertThat(dashboard.getTodayLabel()).isNotBlank();
+        verifyNoInteractions(mapper);
+    }
+
     private RoomManagementQuery capturedQuery() {
         ArgumentCaptor<RoomManagementQuery> captor = ArgumentCaptor.forClass(RoomManagementQuery.class);
         org.mockito.Mockito.verify(mapper).findRooms(captor.capture());
         return captor.getValue();
+    }
+
+    /** 날짜 경계 검증을 위해 조회 시각을 고정한 서비스. */
+    private RoomManagementService serviceAt(LocalDateTime at) {
+        return new RoomManagementService(mapper,
+                Clock.fixed(at.atZone(ZoneId.of("Asia/Seoul")).toInstant(), ZoneId.of("Asia/Seoul")));
+    }
+
+    private static RoomManagementRow room(long matchId, String status, int year, int month, int day,
+            int hour, int minute) {
+        RoomManagementRow row = row(matchId, status, 2, 8);
+        row.setStartAt(LocalDateTime.of(year, month, day, hour, minute));
+        row.setEndAt(LocalDateTime.of(year, month, day, hour, minute).plusHours(2));
+        return row;
     }
 
     private static RoomManagementRow row(long matchId, String status, int occupied, int max) {

@@ -346,6 +346,34 @@ check(facilityScript.includes("closest('a.date-calendar-day, .calendar-month-nav
 check(facilityScript.includes("target?.closest('#date-schedule-hour-grid')"),
   'admin-facility.js: date slot summary must be delegated so fragment swaps keep it working');
 
+/* ── 대시보드 시설 현황 계약 ──────────────────────────────────────────────
+   대시보드에서 실제로 연결된 것은 담당 시설 전체의 매칭방 현황뿐이다.
+   요청·점검은 서버 값이 없으므로 0건처럼 보이는 표시나 동작하지 않는 링크를 두지 않는다. */
+const dashboardSource = fragmentSlice(facilitySource, 'id="facility-dashboard"', 'id="facility-assets"');
+check(Boolean(dashboardSource), 'facility.html: dashboard view missing');
+for (const field of ['dashboard?.matchCount', 'dashboard?.recruitingCount',
+  'dashboard?.hourlyBars', 'dashboard?.recentMatches', 'todayLabel', 'scopeName']) {
+  check(dashboardSource?.includes(field), `facility.html: dashboard must render ${field}`);
+}
+// 24칸 차트는 시각별 실제 방 수를 title·aria-label로 알린다(상대 높이만으로는 값을 알 수 없다).
+check(dashboardSource?.includes('bar.matchCount') && dashboardSource?.includes('bar.completedCount'),
+  'facility.html: each hourly bar must expose its real match/completed counts');
+check(/th:aria-label="\$\{bar\.label[^"]*bar\.matchCount/.test(dashboardSource ?? ''),
+  'facility.html: hourly bars need an aria-label with the hour and counts');
+// 연동 전 지표는 '연동 전'으로만 남기고 0건으로 렌더링하지 않는다.
+for (const unlinked of ['openRequestCount', 'maintenanceCount', 'recentRequests']) {
+  check(!dashboardSource?.includes(unlinked),
+    `facility.html: unlinked dashboard field ${unlinked} must not be rendered`);
+}
+check((dashboardSource?.match(/연동 전/g) ?? []).length >= 3,
+  'facility.html: unlinked request/maintenance cards must say 연동 전 instead of 0건');
+check(!/@\{[^}]*view='requests'/.test(dashboardSource ?? ''),
+  'facility.html: the dashboard must not link to the unbuilt requests view');
+check(dashboardSource?.includes('@{/admin/operations(matchId=${match.matchId})}'),
+  'facility.html: recent matches must keep their detail link');
+check(dashboardSource?.includes('data-open-room-editor'),
+  'facility.html: the dashboard must keep the room editor button');
+
 /* ── 매칭방 조회·상세 화면 계약 ────────────────────────────────────────────
    시설 관리자는 담당 시설의 매칭방을 조회하고, 상세 화면에서 신청·참가자만 읽습니다.
    필터 값이 어긋나면 Spring Long 바인딩이 실패하고, 상세 화면에 없는 변경 조작이

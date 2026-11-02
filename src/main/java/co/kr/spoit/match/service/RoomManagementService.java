@@ -2,10 +2,12 @@ package co.kr.spoit.match.service;
 
 import java.math.RoundingMode;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -18,6 +20,7 @@ import co.kr.spoit.match.domain.ApplicationType;
 import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.domain.ParticipationStatus;
 import co.kr.spoit.match.domain.RoomStatusFilter;
+import co.kr.spoit.match.dto.FacilityDashboard;
 import co.kr.spoit.match.dto.RoomManagementApplicationRow;
 import co.kr.spoit.match.dto.RoomManagementDetail;
 import co.kr.spoit.match.dto.RoomManagementFacilitySport;
@@ -59,6 +62,9 @@ public class RoomManagementService {
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter ISO_DATE = DateTimeFormatter.ISO_LOCAL_DATE;
+
+    /** 대시보드 최근 매칭방 표시 건수 */
+    static final int RECENT_MATCH_LIMIT = 5;
 
     private final RoomManagementMapper roomManagementMapper;
     private final Clock clock;
@@ -121,6 +127,83 @@ public class RoomManagementService {
                 new RoomManagementPage.Filters(normalizedQ, statusFilter.value(), normalizedSportId,
                         normalizedFacilityId),
                 facilitySports);
+    }
+
+    /**
+     * 담당 시설 전체의 매칭방 현황을 대시보드용으로 집계한다.
+     *
+     * <p>화면의 검색어·상태·종목·시설 필터와 무관하게 인증 주체의 담당 활성 시설 전체를 대상으로
+     * 한다. 목록 표시용 {@link RoomManagementPage}의 문자열 DTO는 날짜를 다시 해석해야 하므로 쓰지
+     * 않고, 소유권 제한이 걸린 {@code findRooms}의 raw 행을 필터 없이 조회해 시각·상태로 집계한다.
+     * 목록 조회와 같은 쿼리를 한 번 더 실행하지만 담당 범위 계산을 중복 구현하지 않기 위한 선택이다.</p>
+     *
+     * <p>관리자 식별자가 없으면 매퍼를 호출하지 않고 0건 집계를 돌려준다. 차트의 '이용 완료'는
+     * DB 종료({@link MatchStatus#CLOSED}) 상태만 뜻하고 취소는 포함하지 않는다.</p>
+     */
+    public FacilityDashboard findDashboard(Long managerUserId) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        String todayLabel = now.format(DATE);
+        String collectedAt = now.format(DATE_TIME);
+        if (!hasManager(managerUserId)) {
+            return FacilityDashboard.empty(todayLabel, collectedAt);
+        }
+
+        RoomManagementQuery query = buildQuery(managerUserId, null, null, null, null, null);
+        List<RoomManagementRow> rows = new ArrayList<>();
+        for (RoomManagementRow row : nullSafe(roomManagementMapper.findRooms(query))) {
+            if (row != null) {
+                rows.add(row);
+            }
+        }
+
+        int matchCount = rows.size();
+        int recruitingCount = 0;
+        int[] hourlyCounts = new int[24];
+        int[] completedCounts = new int[24];
+        LocalDate today = now.toLocalDate();
+        for (RoomManagementRow row : rows) {
+            if (MatchStatus.RECRUITING.dbValue().equals(row.getStatus())) {
+                recruitingCount++;
+            }
+            LocalDateTime startAt = row.getStartAt();
+            if (startAt == null || !startAt.toLocalDate().equals(today)) {
+                continue;
+            }
+            int hour = startAt.getHour();
+            hourlyCounts[hour]++;
+            if (MatchStatus.CLOSED.dbValue().equals(row.getStatus())) {
+                completedCounts[hour]++;
+            }
+        }
+
+        int maxCount = 0;
+        for (int count : hourlyCounts) {
+            maxCount = Math.max(maxCount, count);
+        }
+        List<FacilityDashboard.HourlyBar> hourlyBars = new ArrayList<>();
+        for (int hour = 0; hour < 24; hour++) {
+            hourlyBars.add(new FacilityDashboard.HourlyBar(hourlyCounts[hour], completedCounts[hour],
+                    height(hourlyCounts[hour], maxCount), height(completedCounts[hour], maxCount),
+                    String.format("%02d시", hour)));
+        }
+
+        List<RoomManagementPage.Match> recentMatches = rows.stream()
+                .filter(row -> row.getMatchId() != null)
+                .sorted(Comparator.comparing(RoomManagementRow::getMatchId).reversed())
+                .limit(RECENT_MATCH_LIMIT)
+                .map(row -> toListMatch(row, now))
+                .toList();
+
+        return new FacilityDashboard(matchCount, recruitingCount, hourlyBars, recentMatches,
+                todayLabel, collectedAt);
+    }
+
+    /** 24칸 중 최대값에 대한 상대 백분율. 모두 0이면 0이다. */
+    private static int height(int count, int maxCount) {
+        if (maxCount <= 0) {
+            return 0;
+        }
+        return (int) Math.round(count * 100.0 / maxCount);
     }
 
     /**

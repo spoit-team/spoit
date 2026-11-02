@@ -187,7 +187,18 @@ button { color: inherit; }
 .bar.secondary { background: #9dc4ee; opacity: .9; }
 .bar.green { background: var(--admin-green); }
 .bar-label { padding-bottom: 8px; color: var(--admin-faint); font-size: 10px; font-weight: 600; }
+/* 24칸(00~23시) 차트는 한 칸이 좁아 기본 막대 폭이 넘친다. 칸 폭 안에 들어오도록 좁힌다. */
+.bar-chart.is-day .bar-pair { gap: 2px; }
+.bar-chart.is-day .bar { width: 6px; min-height: 3px; }
+.chart-empty-note { margin: -5px 20px 12px; padding: 8px 10px; border-left: 2px solid var(--admin-line-strong); color: var(--admin-muted); font-size: 10.5px; line-height: 1.6; }
 .chart-foot { display: flex; justify-content: space-between; gap: 10px; padding: 0 20px 15px; color: var(--admin-faint); font-size: 10px; }
+/* 서버 값이 아직 없는 지표는 '0건'이 아니라 '연동 전'임을 드러낸다. */
+.metric-tag { display: inline-flex; min-height: 18px; align-items: center; padding: 1px 7px; border: 1px dashed var(--admin-line-strong); border-radius: 99px; background: var(--admin-soft); color: var(--admin-muted); font-size: 9.5px; font-weight: 800; white-space: nowrap; }
+.metric-card.is-unlinked .metric-value { color: var(--admin-faint); }
+.metric-card.is-unlinked .metric-foot { color: var(--admin-muted); line-height: 1.5; }
+.unlinked-panel { display: grid; gap: 6px; margin: 14px 18px 16px; padding: 14px 16px; border: 1px dashed var(--admin-line-strong); border-radius: 10px; background: repeating-linear-gradient(135deg, #fafbfc 0 8px, #f5f6f8 8px 16px); }
+.unlinked-panel strong { color: var(--admin-ink-2); font-size: 12px; font-weight: 800; }
+.unlinked-panel p { margin: 0; color: var(--admin-muted); font-size: 11px; line-height: 1.65; }
 .activity-list { display: grid; padding: 7px 18px 15px; }
 .activity-item { display: flex; align-items: flex-start; gap: 10px; padding: 11px 2px; border-bottom: 1px solid var(--admin-line); }
 .activity-item:last-child { border-bottom: 0; }
@@ -498,6 +509,13 @@ button { color: inherit; }
   .field-control, .search-control { min-width: calc(50% - 5px); flex: 1; }
   .toolbar-spacer { display: none; }
   .toolbar .admin-button { flex: 1; }
+  /* 좁은 화면에서는 24칸이 한 칸 10px 남짓이라 막대를 더 좁혀도 서로 붙는다. 라벨은 3칸 간격만 남긴다. */
+  .bar-chart.is-day { gap: 1px; margin-right: 12px; margin-left: 12px; }
+  .bar-chart.is-day .bar-pair { gap: 1px; }
+  .bar-chart.is-day .bar { width: 4px; }
+  .bar-chart.is-day .bar-label { font-size: 9px; letter-spacing: -.04em; }
+  .chart-empty-note { margin-right: 12px; margin-left: 12px; }
+  .unlinked-panel { margin-right: 14px; margin-left: 14px; }
   .card-pad { padding: 15px; }
   .card-heading { padding: 15px 15px 0; }
   .schedule-panel { padding: 15px 12px; }
