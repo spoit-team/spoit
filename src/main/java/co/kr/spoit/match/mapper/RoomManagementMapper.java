@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import co.kr.spoit.match.dto.RoomManagementApplicationRow;
+import co.kr.spoit.match.dto.RoomManagementFacilitySport;
 import co.kr.spoit.match.dto.RoomManagementParticipantRow;
 import co.kr.spoit.match.dto.RoomManagementQuery;
 import co.kr.spoit.match.dto.RoomManagementRow;
@@ -28,6 +29,9 @@ public interface RoomManagementMapper {
 
     /** 담당 시설이 제공하는 종목 선택지 (매칭방이 없는 종목도 포함) */
     List<RoomManagementSport> findSports(@Param("managerUserId") Long managerUserId);
+
+    /** 담당 활성 시설별 제공 종목 (생성·수정 모달 선택지) */
+    List<RoomManagementFacilitySport> findFacilitySports(@Param("managerUserId") Long managerUserId);
 
     /**
      * 담당자가 관리하는 활성 시설 ID. 담당이 아니거나 삭제된 시설·없는 시설이면 null.

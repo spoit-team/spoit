@@ -120,6 +120,9 @@ public class FacilityAdminController {
         model.addAttribute("bookingFilters", bookings.getFilters());
         // 일정 화면의 종목 선택지(sports)를 덮어쓰지 않도록 매칭방 종목은 별도 모델 이름을 쓴다.
         model.addAttribute("bookingSports", bookings.getSports());
+        // 생성·수정 모달: 시설별 제공 종목과 1시간 블록. 운영 시간·한도 판단은 저장 때 서버가 한다.
+        model.addAttribute("roomEditorSports", bookings.getFacilitySports());
+        model.addAttribute("roomEditorHourSlots", bookings.getHourSlots());
         model.addAttribute("stats", null);
         model.addAttribute("requestMetrics", null);
         model.addAttribute("requestFilters", null);
@@ -129,7 +132,6 @@ public class FacilityAdminController {
         model.addAttribute("maintenance", EMPTY_LIST);
         model.addAttribute("notices", EMPTY_LIST);
         model.addAttribute("rules", EMPTY_LIST);
-        model.addAttribute("roomEditorHourSlots", EMPTY_LIST);
         return "admin/facility";
     }
 

@@ -21,4 +21,13 @@ public interface FacilityCapacityService {
      * @throws FacilityScheduleUnavailableException 한도를 넘거나 시설이 없을 때
      */
     void requireCapacity(long facilityId, LocalDateTime startAt, LocalDateTime endAt);
+
+    /**
+     * 기존 매칭방의 일정을 옮길 때 쓰는 검사다. {@code excludeMatchId} 방은 이미 점유 중인
+     * 자기 자신이므로 점유 계산에서 뺀 뒤 새 구간을 하나 더해 판단한다.
+     *
+     * @param excludeMatchId 점유 계산에서 제외할 매칭방 ID, null이면 {@link #requireCapacity(long, LocalDateTime, LocalDateTime)}와 같다
+     * @throws FacilityScheduleUnavailableException 한도를 넘거나 시설이 없을 때
+     */
+    void requireCapacity(long facilityId, LocalDateTime startAt, LocalDateTime endAt, Long excludeMatchId);
 }

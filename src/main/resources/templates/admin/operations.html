@@ -13,7 +13,7 @@
           <div class="page-eyebrow">시설 운영 / 매칭방 상세</div>
           <h1>매치 운영</h1>
           <p th:if="${match == null}">매칭방의 참가 신청과 참가자 내역을 확인합니다.</p>
-          <p th:if="${match != null}">선택한 매칭방의 참가 신청과 참가자 내역을 조회합니다. 이 화면은 조회 전용이며 값을 바꾸지 않습니다.</p>
+          <p th:if="${match != null}">선택한 매칭방의 참가 신청과 참가자 내역을 조회하고, 확정 참가자를 A팀과 B팀으로 배정합니다.</p>
         </div>
         <div class="heading-actions"><a class="admin-button small" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">← 매칭방 목록</a></div>
       </div>
@@ -58,9 +58,50 @@
         </section>
 
         <div class="notice-strip">
-          <strong>조회 전용 화면</strong>
-          <p>참가 신청 확정·반려, 팀 배정, 이용 완료 처리는 이 화면에서 할 수 없습니다. 아래 값은 서버에 저장된 상태를 그대로 보여 줍니다.</p>
+          <strong>운영 범위</strong>
+          <p>팀 배정은 경기 시작 전까지 할 수 있으며, 시작 시각까지 배정하지 않으면 인원이 찬 경우 자동 배정됩니다. 참가 신청 확정·반려와 이용 완료 처리는 이 화면에서 할 수 없습니다.</p>
         </div>
+
+        <!-- 팀 배정: match-assignment.js가 배정 화면 조회 API로 내용을 그린다. 변경은 폼 없이 fetch로 보낸다. -->
+        <section id="ops-assignment" class="ops-section ops-assignment" aria-labelledby="ops-assignment-heading"
+                 th:data-assignment-url="@{/admin/operations/matches/{matchId}(matchId=${match.matchId})}"
+                 th:data-csrf-header="${_csrf?.headerName}" th:data-csrf-token="${_csrf?.token}">
+          <div class="section-heading ops-section-heading">
+            <div class="section-title-wrap">
+              <h2 id="ops-assignment-heading">팀 배정</h2>
+              <p>확정 참가자를 끌어 놓거나 A·B 버튼으로 나눕니다. 팀장은 저장할 때 팀별 레이팅이 가장 높은 참가자로 정해집니다.</p>
+            </div>
+            <span class="status-badge neutral" data-assignment-state>불러오는 중</span>
+          </div>
+          <p class="ops-assignment-summary" data-assignment-summary aria-live="polite">팀 배정 정보를 불러오는 중입니다.</p>
+          <div class="ops-assignment-board" data-assignment-board hidden>
+            <div class="ops-assignment-column" data-side="">
+              <div class="ops-assignment-column-head"><h3>미배정</h3><span data-column-count></span></div>
+              <ul class="ops-assignment-list" data-column-list></ul>
+            </div>
+            <div class="ops-assignment-column is-team-a" data-side="A">
+              <div class="ops-assignment-column-head"><h3>A팀</h3><span data-column-count></span></div>
+              <p class="ops-assignment-stats" data-column-stats></p>
+              <ul class="ops-assignment-list" data-column-list></ul>
+            </div>
+            <div class="ops-assignment-column is-team-b" data-side="B">
+              <div class="ops-assignment-column-head"><h3>B팀</h3><span data-column-count></span></div>
+              <p class="ops-assignment-stats" data-column-stats></p>
+              <ul class="ops-assignment-list" data-column-list></ul>
+            </div>
+          </div>
+          <div class="ops-assignment-actions" data-assignment-actions hidden>
+            <p class="ops-assignment-difference" data-assignment-difference></p>
+            <div class="ops-assignment-buttons">
+              <button class="admin-button small" type="button" data-action="auto-preview">자동 배정</button>
+              <button class="admin-button small" type="button" data-action="clear">배치 초기화</button>
+              <button class="admin-button small primary" type="button" data-action="manual-confirm">수동 배정 승인</button>
+              <button class="admin-button small" type="button" data-action="preview-close">미리보기 닫기</button>
+              <button class="admin-button small primary" type="button" data-action="auto-confirm">자동 배정 확정</button>
+              <button class="admin-button small danger-ghost" type="button" data-action="reset">되돌리기</button>
+            </div>
+          </div>
+        </section>
 
         <section class="ops-section" aria-labelledby="ops-applications-heading">
           <div class="section-heading ops-section-heading">
@@ -131,5 +172,6 @@
 
 <script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/admin-shell.js}"></script>
+<script th:src="@{/js/match-assignment.js}"></script>
 </body>
 </html>

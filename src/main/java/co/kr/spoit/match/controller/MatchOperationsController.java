@@ -15,8 +15,8 @@ import co.kr.spoit.web.AdminShellModel;
  *
  * <p>{@code CorePageController}에서 시설 관리자 전용 운영 화면을 분리했다. {@code matchId}가 있으면
  * 인증 주체가 담당하는 시설의 매칭방만 상세로 보여 주고, 없거나 담당하지 않는 방·삭제된 방이면
- * {@code match=null}로 사용할 수 없음 안내를 렌더링한다. 승인·배정·완료 같은 변경 흐름은 아직
- * 구현되어 있지 않다.</p>
+ * {@code match=null}로 사용할 수 없음 안내를 렌더링한다. 팀 배정은 화면 스크립트가
+ * {@code TeamAssignmentController} API로 처리하고, 승인·완료 같은 변경 흐름은 아직 구현되어 있지 않다.</p>
  */
 @Controller
 public class MatchOperationsController {
