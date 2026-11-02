@@ -11,8 +11,10 @@ import co.kr.spoit.mat.dto.AssignmentResult.Outcome;
 import co.kr.spoit.mat.dto.TeamAssignmentView;
 import co.kr.spoit.mat.mapper.MatchAssignmentMapper;
 import co.kr.spoit.mat.mapper.MatchParticipantMapper;
+import co.kr.spoit.match.domain.ApplicationStatus;
 import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.domain.ParticipationStatus;
+import co.kr.spoit.notification.domain.NotificationType;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HashSet;
@@ -52,15 +54,18 @@ public class TeamAssignmentService {
     private final MatchParticipantMapper participantMapper;
     private final AutoAssignmentService autoAssignmentService;
     private final TeamCaptainSelector captainSelector;
+    private final MatchNotifier matchNotifier;
 
     public TeamAssignmentService(MatchAssignmentMapper assignmentMapper,
                                  MatchParticipantMapper participantMapper,
                                  AutoAssignmentService autoAssignmentService,
-                                 TeamCaptainSelector captainSelector) {
+                                 TeamCaptainSelector captainSelector,
+                                 MatchNotifier matchNotifier) {
         this.assignmentMapper = assignmentMapper;
         this.participantMapper = participantMapper;
         this.autoAssignmentService = autoAssignmentService;
         this.captainSelector = captainSelector;
+        this.matchNotifier = matchNotifier;
     }
 
     /** 경기가 없으면 empty */
@@ -166,21 +171,30 @@ public class TeamAssignmentService {
             return StartResult.SKIPPED;
         }
         if (!match.getEndAt().isAfter(now)) {
-            return cancel(match, now, "종료 시각 경과");
+            return cancel(match, now, "종료 시각 경과", "종료 시각이 지나 경기가 자동으로 취소되었습니다.");
         }
 
-        AssignmentResult result = autoAssignmentService.evaluate(match, participantMapper.findByMatchId(matchId));
+        List<MatchParticipant> participants = participantMapper.findByMatchId(matchId);
+        AssignmentResult result = autoAssignmentService.evaluate(match, participants);
         switch (result.outcome()) {
             case READY -> {
                 TeamAssignment assignment = result.assignment();
                 save(match, assignment.teamAParticipantIds(), assignment.teamBParticipantIds(),
                         assignment.captainAParticipantId(), assignment.captainBParticipantId(),
                         AssignmentMethod.AUTO, null, now);
+                List<Long> recipients = AutoAssignmentService.confirmedOf(participants).stream()
+                        .map(MatchParticipant::getUserId)
+                        .toList();
+                matchNotifier.notifyAfterCommit(recipients, matchId, NotificationType.MATCH_AUTO_ASSIGNED,
+                        "경기 팀 배정 완료", "경기 시작 시각이 되어 팀이 자동으로 배정되었습니다.");
                 log.info("경기 시작 자동 배정: matchId={}, 차이={}", matchId, assignment.mmrDifference());
                 return StartResult.ASSIGNED;
             }
-            case NOT_ENOUGH_PARTICIPANTS, UNSUPPORTED_CAPACITY -> {
-                return cancel(match, now, result.message());
+            case NOT_ENOUGH_PARTICIPANTS -> {
+                return cancel(match, now, result.message(), "참가 인원이 부족해 경기가 자동으로 취소되었습니다.");
+            }
+            case UNSUPPORTED_CAPACITY -> {
+                return cancel(match, now, result.message(), "정원 설정 문제로 팀을 배정할 수 없어 경기가 자동으로 취소되었습니다.");
             }
             default -> {
                 log.warn("경기 시작 처리 건너뜀: matchId={}, outcome={}, message={}",
@@ -190,12 +204,16 @@ public class TeamAssignmentService {
         }
     }
 
-    private StartResult cancel(AssignmentMatch match, LocalDateTime now, String reason) {
+    private StartResult cancel(AssignmentMatch match, LocalDateTime now, String reason, String noticeBody) {
         int updated = assignmentMapper.markCancelled(match.getMatchId(), now,
                 MatchStatus.CANCELLED.dbValue(), MatchStatus.RECRUITING.dbValue());
         if (updated != 1) {
             throw new IllegalStateException("경기 취소에 실패했습니다. matchId=" + match.getMatchId());
         }
+        List<Long> recipients = assignmentMapper.findAutoCancelRecipients(match.getMatchId(),
+                ParticipationStatus.CONFIRMED.dbValue(), ApplicationStatus.WAITING.dbValue());
+        matchNotifier.notifyAfterCommit(recipients, match.getMatchId(), NotificationType.MATCH_AUTO_CANCELLED,
+                "경기 자동 취소", noticeBody);
         log.info("경기 시작 자동 취소: matchId={}, 사유={}", match.getMatchId(), reason);
         return StartResult.CANCELLED;
     }
