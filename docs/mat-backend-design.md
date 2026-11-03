@@ -1,18 +1,20 @@
 # MAT 백엔드 설계와 MySQL Mapper 통합 테스트
 
+> **최신 상태 (2026-10-30):** 이 문서는 PR #17 시점의 초기 MAT 조회·매퍼 테스트 설계 기록에서 출발했다. 아래 초기 범위 설명은 당시 기준이며, 이후 팀 배정 저장 API와 경기 시작 스케줄러가 구현됐다. 현재 책임과 호출 흐름은 [`src/main/java/co/kr/spoit/mat/codemap.md`](../src/main/java/co/kr/spoit/mat/codemap.md)를 함께 참고한다.
+
 ## 1. 분석 근거와 작업 범위
 
-현재 기준은 MAT 최소 골격이 병합된 PR #17의 `1b205c1`이다. `README.md`, `CONTRIBUTING.md`, `db/schema.sql`, 기존 Java 소스와 빌드·CI 설정을 함께 확인했다.
+초기 분석 기준은 MAT 최소 골격이 병합된 PR #17의 `1b205c1`이다. 당시 `README.md`, `CONTRIBUTING.md`, `db/schema.sql`, 기존 Java 소스와 빌드·CI 설정을 함께 확인했다.
 
 - README는 MAT의 책임을 참가자 관리, A/B팀 배정, 경기 결과 제출, 팀장 기술평가, 종목별 MMR로 정의한다. 참가 신청·취소는 RES, 회원은 COM, 시설 운영은 FAC 영역이다.
 - Java 17, Spring Boot 3.5.16, MyBatis 3.0.5, MySQL, Gradle, Lombok을 사용한다. JPA 계층이나 신규 테스트 의존성은 추가하지 않는다.
 - 기본 패키지는 `co.kr.spoit`이다. PR #17의 `mat.domain`, `mat.dto`, `mat.mapper`, `mat.service` 구조와 기존 조회 계약을 그대로 검증한다.
-- `web.CorePageController`는 페이지 렌더링과 빈 모델 제공을 담당한다. `preview/`의 미리보기 데이터나 임시 레이팅 표시는 운영 정책으로 사용하지 않는다.
+- `admin.controller.SystemAdminController`는 페이지 렌더링과 빈 모델 제공을 담당한다. `preview/`의 미리보기 데이터나 임시 레이팅 표시는 운영 정책으로 사용하지 않는다.
 - 이전에 전체 컴파일을 막았던 공통 중복 클래스는 정리되었다. 현재 `HomeController`, `SecurityConfig`, `GlobalModelAdvice`의 패키지는 각각 `global.common`, `global.config`, `notification.service`와 일치한다. MAT 소스만 분리하는 임시 Gradle 스크립트 없이 기본 전체 소스를 컴파일하는 상태다.
 
-이번 작업은 기존 체크아웃의 `feature/mat-mapper-integration-test` 브랜치에서 수행한다. 별도 worktree 생성, 커밋·push·merge·PR 생성은 수행하지 않았다. RES·COM·FAC 및 MAT 프로덕션 코드, `build.gradle`, `db/schema.sql`, 애플리케이션 설정, 기존 테스트는 변경하지 않는다.
+이 문단은 원래 `feature/mat-mapper-integration-test` 작업의 범위를 기록한다. 그 작업에서는 별도 worktree 생성, 커밋·push·merge·PR 생성 없이 RES·COM·FAC 및 MAT 프로덕션 코드, `build.gradle`, `db/schema.sql`, 애플리케이션 설정, 기존 테스트를 변경하지 않았다.
 
-기존 최소 골격은 **경기 참가자 목록 조회와 회원·종목별 MMR 조회의 Domain / DTO / Mapper / Service 연결**이다. 이번에는 실제 MySQL에서 두 Mapper의 SQL·필드 매핑·복합 키 조건을 검증하는 테스트와 실행 환경을 추가한다. HTTP 엔드포인트, 화면 연결, 쓰기 작업, 자동 팀 배정, 결과 확정, 평가 집계, 레이팅 계산·반영은 범위에 포함하지 않는다.
+당시 최소 골격은 **경기 참가자 목록 조회와 회원·종목별 MMR 조회의 Domain / DTO / Mapper / Service 연결**이었다. 해당 단계에서는 실제 MySQL에서 두 Mapper의 SQL·필드 매핑·복합 키 조건을 검증했고, HTTP 엔드포인트·쓰기 작업·자동 팀 배정은 범위 밖이었다. 이후 추가된 팀 배정 구현은 8절에 정리한다.
 
 ## 2. 테이블과 담당 경계
 
@@ -60,7 +62,7 @@
 
 스키마 개선이 필요한 경우에는 담당자와 별도 협의하고 CONTRIBUTING에 따라 ERD와 SQL을 함께 변경한다. 이번 작업에서는 제약을 임의로 추가하지 않는다.
 
-## 5. 패키지 및 최소 구현 계약
+## 5. 초기 조회 골격의 패키지 및 계약 (당시 범위)
 
 기존 기본 패키지 아래에 MAT 책임을 모아 다른 담당 코드와의 변경 경계를 분명하게 한다.
 
@@ -121,7 +123,7 @@ Elo K/D, 배치 경기 수, 평가 보정식과 계수, 팀 평균 산정 대상
 | 기존 서비스 테스트 13개 | 잘못된 식별자, 저장값 보존, 미등록 레이팅 비합성 |
 | 기존 Spring 애플리케이션·화면 테스트 16개 | 전체 컨텍스트와 기존 화면 경로 회귀 검증 |
 
-전체 기본 테스트 실행 결과는 59개 통과다. DECIMAL 경계 데이터는 MySQL 저장 타입과 Java `BigDecimal` 매핑을 확인하기 위한 값이며, 허용 MMR의 상·하한 정책을 정하지 않는다.
+초기 작업 당시 전체 기본 테스트 실행 결과는 59개 통과였다(2026-10-22 기록). DECIMAL 경계 데이터는 MySQL 저장 타입과 Java `BigDecimal` 매핑을 확인하기 위한 값이며, 허용 MMR의 상·하한 정책을 정하지 않는다.
 
 Fixture는 `src/test/resources/mat/mapper-fixture.sql`에 있다. FK를 만족하는 최소 회원·종목·지역·시설·경기·신청·참가자·레이팅 데이터를 INSERT하고, 참가자는 `30, 10, 20, 5` 순으로 넣어 정렬 여부를 검증한다. `@Sql`에서 UTF-8을 명시하고 각 테스트의 Spring 트랜잭션이 종료될 때 롤백한다. Fixture와 테스트 Java 코드에는 DDL·TRUNCATE가 없다.
 
@@ -175,7 +177,23 @@ GitHub Actions는 설정만 변경했고 원격 실행은 하지 않았다. CI�
 
 이 검증은 두 조회 Mapper의 실제 SQL 실행·매핑 및 테스트 데이터 롤백을 대상으로 한다. 미구현 상태 전이, 동시성 제어, 쓰기 서비스, 레이팅 계산·반영의 정합성까지 검증하는 것은 아니다.
 
-## 8. 이번 변경 파일과 이유
+## 8. 이후 구현 상태 (2026-10-30)
+
+- `TeamAssignmentService`는 담당 시설과 매칭방 행을 잠근 뒤 상태·정원·확정 참가자를 재검증하고 자동 또는 수동 배정을 저장한다. 초기화는 팀·팀장·배정 방식 정보를 지우고 모집 상태로 되돌린다.
+- `MatchAssignmentMapper`는 `social_match`와 `match_participant`의 배정 조회·잠금·저장·초기화 SQL을 애노테이션으로 제공한다. `MatchAssignmentMapperIntegrationTest`의 8개 테스트가 실제 MySQL 쿼리 계약을 확인한다.
+- `MatchStartScheduler`는 서울 시간 기준 매분 시작 시각이 지난 모집 중 경기를 찾아 `TeamAssignmentService.startMatch`를 호출한다. 경기별 트랜잭션으로 자동 배정하거나, 이미 종료됐거나 참가 인원/정원이 맞지 않으면 취소한다. 한 경기 처리 실패가 다음 경기를 막지 않는다.
+- 스케줄러 설정은 `spoit.match-start-scheduler.enabled`이며 `matchIfMissing=true`로 기본 활성화된다. 로컬 데이터에 대한 자동 변경을 원하지 않으면 실행 설정에서 `false`로 끌 수 있다. 테스트에서는 Gradle 설정으로 스케줄링을 비활성화한다.
+- 배정 API는 2026-11-02에 관리자 HTML 화면과 연결됐다. `admin/operations.html`의 `#ops-assignment`가 `data-assignment-url`로 `/admin/operations/matches/{matchId}`를 넘기고, `match-assignment.js`가 같은 경로의 `mat` API(`TeamAssignmentController`)로 배정 조회·수동 확정·자동 배정·되돌리기를 호출한다. 초기 문서의 “팀 배정 미구현” 서술은 당시 상태 기록으로 읽어야 한다.
+- 2026-10-30 재base 검증 기록: `fix/optimeze`의 `b169040`에서 격리 MySQL을 사용한 `gradlew build`가 성공했고 516개 테스트가 통과했다. 이는 최적화 테스트 변경도 포함한 검증 결과이며, 개발 DB는 사용하지 않았다.
+
+### 2026-11-02 추가 구현 상태
+
+- 매칭방 생성·수정·취소가 관리자 화면에서 동작한다. `match.controller.RoomAdminController`의 `POST /admin/rooms`, `POST /admin/rooms/{matchId}`, `POST /admin/rooms/{matchId}/cancel`이 `RoomCommandService`로 위임하고, 생성 시와 신청자가 없어 시설·종목·일정까지 수정하는 경우 `FacilityReservationService`(운영 일정·휴관)와 `FacilityCapacityService`(동시 대관 한도)가 최신 값으로 다시 검증한다. 취소는 방 상태와 함께 활성 신청·참가자를 취소한다.
+- 팀 단위 신청(RES-04)이 구현됐다. 대표자가 고른 팀원마다 신청 행을 만들고 `match_application.group_application_id`(대표 행 ID)로 묶어 조회·취소를 함께 처리한다.
+- 시설 대시보드가 실제 집계를 사용한다. `RoomManagementService.findDashboard`가 담당 활성 시설의 매칭방 행을 상태·시각으로 집계해 `FacilityAdminController`의 화면 모델로 전달한다.
+- 시스템 관리자 페이지 컨트롤러는 `web.CorePageController`에서 `admin.controller.SystemAdminController`로 옮겨졌고, 모니터링 dashboard는 `SystemMonitoringService`의 실제 측정치를 쓰며 `POST /admin/system/monitoring`이 같은 모델을 JSON으로 돌려준다.
+
+## 9. 이번 변경 파일과 이유 (초기 조회 골격 작업)
 
 | 파일 | 이유 |
 |---|---|
