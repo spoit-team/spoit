@@ -35,7 +35,7 @@ public class MatchResultController {
     }
 
     @GetMapping("/{matchId}/result")
-    public ResponseEntity<?> view(@PathVariable long matchId,
+    public ResponseEntity<?> view(@PathVariable("matchId") long matchId,
                                   @AuthenticationPrincipal MemberPrincipal principal) {
         Optional<MatchResultView> view = matchResultService.getView(matchId, principal.getUserId(),
                 LocalDateTime.now(ZONE));
@@ -46,7 +46,7 @@ public class MatchResultController {
     }
 
     @PostMapping("/{matchId}/result")
-    public ResponseEntity<MatchResultResponse> submit(@PathVariable long matchId,
+    public ResponseEntity<MatchResultResponse> submit(@PathVariable("matchId") long matchId,
                                                       @RequestBody ResultSubmitRequest request,
                                                       @AuthenticationPrincipal MemberPrincipal principal) {
         return toResponse(matchResultService.submit(matchId, principal.getUserId(), request.result(),

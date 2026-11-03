@@ -28,7 +28,7 @@ public class MatchResultPageController {
     }
 
     @GetMapping("/{matchId}/result-form")
-    public String resultForm(@PathVariable long matchId,
+    public String resultForm(@PathVariable("matchId") long matchId,
                              @AuthenticationPrincipal MemberPrincipal principal,
                              Model model,
                              HttpServletResponse response) {
