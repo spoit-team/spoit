@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 import co.kr.spoit.mat.domain.ReminderTarget;
+import co.kr.spoit.mat.domain.ResultPageMatch;
 import co.kr.spoit.mat.domain.ResultSubmission;
+import co.kr.spoit.mat.domain.ResultTeamMember;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +48,35 @@ class MatchResultMapperIntegrationTest extends AbstractMySqlMapperTest {
         // 4는 삭제된 시설의 경기다. 종료 뒤 시설이 삭제돼도 결과는 처리해야 한다.
         assertThat(resultMapper.findResultMatch(4L)).isPresent();
         assertThat(resultMapper.lockResultMatch(999L)).isEmpty();
+    }
+
+    @Test
+    void findsMatchInfoForResultPageEvenIfFacilityIsDeleted() {
+        var match = resultMapper.findResultPageMatch(7L).orElseThrow();
+
+        assertThat(match.getMatchId()).isEqualTo(7L);
+        assertThat(match.getTitle()).isEqualTo("MAT 결과 제출 테스트 경기");
+        assertThat(match.getStartAt()).isEqualTo(LocalDateTime.of(2026, 10, 26, 10, 0));
+        assertThat(match.getEndAt()).isEqualTo(END_AT);
+        assertThat(match.getStatus()).isEqualTo("매칭 완료");
+        assertThat(match.getFacilityName()).isEqualTo("MAT 테스트 시설");
+        assertThat(match.getSportName()).isEqualTo("MAT 테스트 종목 1");
+        assertThat(match.getCaptainAParticipantId()).isEqualTo(70L);
+        assertThat(match.getCaptainBParticipantId()).isEqualTo(71L);
+        assertThat(resultMapper.findResultPageMatch(4L)).map(ResultPageMatch::getFacilityName)
+                .contains("MAT 삭제된 테스트 시설");
+        assertThat(resultMapper.findResultPageMatch(999L)).isEmpty();
+    }
+
+    @Test
+    void findsOnlyConfirmedTeamMembersWithNicknames() {
+        // 72(회원 5)는 같은 경기의 취소 참가자라 빠진다.
+        assertThat(resultMapper.findConfirmedTeamMembers(7L, "확정"))
+                .extracting(ResultTeamMember::getParticipantId, ResultTeamMember::getUserId,
+                        ResultTeamMember::getNickname, ResultTeamMember::getMatchSide)
+                .containsExactly(tuple(70L, 3L, "MAT 테스트 회원 3", "A"),
+                        tuple(71L, 4L, "MAT 테스트 회원 4", "B"));
+        assertThat(resultMapper.findConfirmedTeamMembers(999L, "확정")).isEmpty();
     }
 
     @Test
