@@ -220,5 +220,43 @@
         WHERE club_id = #{clubId} AND user_id = #{userId}
             AND role = '동호회장' AND left_at IS NULL
     </update>
+
+    <select id="existsRecruitingTeamMatch" resultType="boolean">
+        SELECT COUNT(*) > 0
+        FROM match_application ma
+        JOIN social_match sm ON sm.match_id = ma.match_id
+        WHERE ma.club_id = #{clubId} 
+            AND ma.status IN ('대기', '확정')
+            AND sm.status = '모집 중'
+            <if test="userId != null">
+                AND (ma.applicant_user_id = #{userId} 
+                    OR EXISTS (SELECT 1 FROM match_participant mp
+                    WHERE mp.application_id = ma.application_id
+                    AND mp.user_id = #{userId}
+                    AND mp.participation_status IN ('대기', '확정')))
+            </if>
+    </select>
+
+    <update id="updateMemberLeave">
+        UPDATE club_member
+        SET left_at = NOW(), leave_type = '탈퇴'
+        WHERE club_id = #{clubId} AND user_id = #{userId} 
+            AND role = '동호회원' AND left_at IS NULL
+    </update>
     
-    </mapper>
+    <select id="selectActiveMemberById" resultType="co.kr.spoit.club.domain.ClubMember">
+        SELECT club_member_id AS clubMemberId
+            ,user_id AS userId
+        FROM club_member
+        WHERE club_id = #{clubId} AND club_member_id = #{clubMemberId} 
+            AND role = '동호회원' AND left_at IS NULL
+    </select>
+
+    <update id="updateMemberKick">
+        UPDATE club_member
+        SET left_at = NOW(), leave_type = '내보내기', kick_reason = #{kickReason}
+        WHERE club_id = #{clubId} AND club_member_id = #{clubMemberId} 
+            AND left_at IS NULL
+    </update>
+        
+</mapper>

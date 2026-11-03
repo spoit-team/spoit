@@ -51,4 +51,10 @@ public interface ClubService {
 
     // 동호회장 위임
     void transferLeader(Long userId, Long clubId, Long clubMemberId);
+
+    // 동호회 탈퇴
+    void leaveClub(Long userId, Long clubId);
+
+    // 동호회원 추방
+    void kickMember(Long userId, Long clubId, Long clubMemberId, String kickReason);
 }

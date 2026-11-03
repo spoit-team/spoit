@@ -379,6 +379,102 @@ class ClubServiceTest {
         verify(clubMapper, never()).updateRoleToLeader(any(), any());
     }
 
+    @Test
+    @DisplayName("동호회원이 탈퇴하면 탈퇴로 기록한다")
+    void 동호회_탈퇴_성공() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.updateMemberLeave(1L, 7L)).thenReturn(1);
+
+        service.leaveClub(7L, 1L);
+
+        verify(clubMapper).updateMemberLeave(1L, 7L);
+    }
+
+    @Test
+    @DisplayName("동호회장은 탈퇴하지 못한다")
+    void 동호회장은_탈퇴를_거부한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.leaveClub(7L, 1L));
+
+        assertThat(exception.getMessage()).isEqualTo("팀장은 탈퇴할 수 없습니다. 팀장을 위임한 뒤 탈퇴해 주세요.");
+        verify(clubMapper, never()).updateMemberLeave(any(), any());
+    }
+
+    @Test
+    @DisplayName("모집 중인 팀 매치에 신청되어 있으면 탈퇴하지 못한다")
+    void 팀_매치_신청중이면_탈퇴를_거부한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsRecruitingTeamMatch(1L, 7L)).thenReturn(true);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.leaveClub(7L, 1L));
+
+        assertThat(exception.getMessage()).isEqualTo("모집 중인 팀 매치에 신청되어 있어 탈퇴할 수 없습니다.");
+        verify(clubMapper, never()).updateMemberLeave(any(), any());
+    }
+
+    @Test
+    @DisplayName("팀원을 추방하면 앞뒤 공백을 지운 사유로 기록한다")
+    void 동호회원_내보내기_성공() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectActiveMemberById(1L, 3L)).thenReturn(kickTarget(8L));
+
+        service.kickMember(7L, 1L, 3L, "  연락 없이 3회 불참  ");
+
+        verify(clubMapper).updateMemberKick(1L, 3L, "연락 없이 3회 불참");
+    }
+
+    @Test
+    @DisplayName("추방 사유가 공백뿐이면 잠그기 전에 거부한다")
+    void 공백_사유는_내보내기를_거부한다() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.kickMember(7L, 1L, 3L, "   "));
+
+        assertThat(exception.getMessage()).isEqualTo("추방 사유를 1~200자로 입력해 주세요.");
+        verify(clubMapper, never()).selectActiveClubForUpdate(any());
+        verify(clubMapper, never()).updateMemberKick(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("동호회장이 아니면 팀원을 추방하지 못한다")
+    void 동호회장이_아니면_내보내기를_거부한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(false);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.kickMember(7L, 1L, 3L, "불참"));
+
+        assertThat(exception.getMessage()).isEqualTo("팀장만 팀원을 추방할 수 있습니다.");
+        verify(clubMapper, never()).updateMemberKick(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("모집 중인 팀 매치에 신청된 팀원은 추방하지 못한다")
+    void 팀_매치_신청중인_팀원은_내보내기를_거부한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectActiveMemberById(1L, 3L)).thenReturn(kickTarget(8L));
+        when(clubMapper.existsRecruitingTeamMatch(1L, 8L)).thenReturn(true);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.kickMember(7L, 1L, 3L, "불참"));
+
+        assertThat(exception.getMessage()).isEqualTo("모집 중인 팀 매치에 신청된 팀원은 추방할 수 없습니다.");
+        verify(clubMapper, never()).updateMemberKick(any(), any(), any());
+    }
+
+    // 추방할 동호회원(동호회원 번호 3, 회원 번호만)
+    private ClubMember kickTarget(Long userId) {
+        ClubMember member = new ClubMember();
+        member.setClubMemberId(3L);
+        member.setUserId(userId);
+        return member;
+    }
+
     private ClubSummary club(String recruitStatus, String activityDays, int startHour, int endHour) {
         ClubSummary club = new ClubSummary();
         club.setClubId(1L);

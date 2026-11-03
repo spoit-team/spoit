@@ -37,6 +37,7 @@ public class ClubServiceImpl implements ClubService {
     private static final int MIN_MEMBERS = 2;
     private static final int MAX_MEMBERS = 30;
     private static final int MESSAGE_MAX_LENGTH = 200;
+    private static final int KICK_REASON_MAX_LENGTH = 200;
 
     // 최신순 전체 조회(검색 미구현)
     @Override
@@ -314,5 +315,45 @@ public class ClubServiceImpl implements ClubService {
         }
         clubMapper.updateRoleToMember(clubId, userId);
         log.info("동호회장 위임: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
+    }
+
+    // 동호회 탈퇴
+    @Override
+    @Transactional
+    public void leaveClub(Long userId, Long clubId) {
+        getActiveClubForUpdate(clubId);
+        if (clubMapper.existsActiveLeader(clubId, userId)) {
+            throw new IllegalArgumentException("팀장은 탈퇴할 수 없습니다. 팀장을 위임한 뒤 탈퇴해 주세요.");
+        }
+        if (clubMapper.existsRecruitingTeamMatch(clubId, userId)) {
+            throw new IllegalArgumentException("모집 중인 팀 매치에 신청되어 있어 탈퇴할 수 없습니다.");
+        }
+        if (clubMapper.updateMemberLeave(clubId, userId) == 0) {
+            throw new IllegalArgumentException("이미 탈퇴했거나 소속되지 않은 팀입니다.");
+        }
+        log.info("동호회 탈퇴: clubId={}, userId={}", clubId, userId);
+    }   
+
+    // 동호회원 추방
+    @Override
+    @Transactional
+    public void kickMember(Long userId, Long clubId, Long clubMemberId, String kickReason){
+        String reason = trim(kickReason);
+        if(reason.isEmpty() || reason.length() > KICK_REASON_MAX_LENGTH){
+            throw new IllegalArgumentException("추방 사유를 1~200자로 입력해 주세요.");
+        }
+        getActiveClubForUpdate(clubId);
+        if (!clubMapper.existsActiveLeader(clubId, userId)) {
+            throw new IllegalArgumentException("팀장만 팀원을 추방할 수 있습니다.");
+        }
+        ClubMember target = clubMapper.selectActiveMemberById(clubId, clubMemberId);
+        if (target == null) {
+            throw new IllegalArgumentException("추방할 수 없는 팀원입니다.");
+        }
+        if (clubMapper.existsRecruitingTeamMatch(clubId, target.getUserId())) {
+            throw new IllegalArgumentException("모집 중인 팀 매치에 신청된 팀원은 추방할 수 없습니다.");
+        }
+        clubMapper.updateMemberKick(clubId, clubMemberId, reason);
+        log.info("동호회원 추방: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
     }
 }

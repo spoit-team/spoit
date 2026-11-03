@@ -201,4 +201,37 @@ public class ClubController {
         return "redirect:/teams/manage?clubId=" + clubId + "&tab=members";
     }
 
+    // 동호회 탈퇴
+    @PostMapping("/{clubId}/leave")
+    public String leave(@PathVariable("clubId") Long clubId,
+            @AuthenticationPrincipal MemberPrincipal principal, RedirectAttributes redirectAttributes) {
+        Long userId = principal.getUserId();
+        log.info("동호회 탈퇴 요청: clubId={}, userId={}", clubId, userId);
+        try {
+            clubService.leaveClub(userId, clubId);
+        } catch (IllegalArgumentException exception) {
+            log.warn("동호회 탈퇴 거부: clubId={}, userId={}, {}", clubId, userId, exception.getMessage());
+            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+            return "redirect:/teams/manage?clubId=" + clubId;
+        }
+        redirectAttributes.addFlashAttribute("message", "팀을 탈퇴했습니다.");
+        return "redirect:/teams/manage";
+    }
+
+    // 동호회원 추방
+    @PostMapping("/{clubId}/members/remove")
+    public String kick(@PathVariable("clubId") Long clubId, @RequestParam("clubMemberId") Long clubMemberId,
+            @RequestParam(value = "kickReason", required = false) String kickReason, @AuthenticationPrincipal MemberPrincipal principal,
+            RedirectAttributes redirectAttributes) {
+        Long userId = principal.getUserId();
+        log.info("동호회원 추방 요청: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
+        try {
+            clubService.kickMember(userId, clubId, clubMemberId, kickReason);
+            redirectAttributes.addFlashAttribute("message", "팀원을 추방했습니다.");
+        } catch (IllegalArgumentException exception) {
+            log.warn("동호회원 추방 거부: clubId={}, clubMemberId={}, {}", clubId, clubMemberId, exception.getMessage());
+            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+        }
+        return "redirect:/teams/manage?clubId=" + clubId + "&tab=members";
+    }
 }
