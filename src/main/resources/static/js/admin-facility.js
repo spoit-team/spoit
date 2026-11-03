@@ -276,9 +276,92 @@
       locked: dataset.roomLocked === 'true',
       reserved: Number(dataset.roomReserved || 0)
     });
+    resetRoomPhoto(dataset.roomPhoto);
     updateRoomEditorSummary();
     updateRoomEditorCapacity();
   }
+
+  /* ---------------- 매칭방 시설 사진 ---------------- */
+
+  const ROOM_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+  const ROOM_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  const roomPhotoInput = document.getElementById('room-editor-photo');
+  const roomPhotoImage = document.getElementById('room-editor-photo-image');
+  const roomPhotoEmpty = document.getElementById('room-editor-photo-empty');
+  const roomPhotoRemove = document.getElementById('room-editor-photo-remove');
+  const roomPhotoRemoveWrap = document.getElementById('room-editor-photo-remove-wrap');
+  const roomPhotoError = document.getElementById('room-editor-photo-error');
+  let roomPhotoCurrent = '';
+  let roomPhotoObjectUrl = '';
+
+  function showRoomPhoto(url, emptyText) {
+    if (roomPhotoImage) {
+      roomPhotoImage.hidden = !url;
+      if (url) roomPhotoImage.src = url;
+      else roomPhotoImage.removeAttribute('src');
+    }
+    if (roomPhotoEmpty) {
+      roomPhotoEmpty.hidden = Boolean(url);
+      roomPhotoEmpty.textContent = emptyText || '사진 없음';
+    }
+  }
+
+  function setRoomPhotoError(message) {
+    if (!roomPhotoError) return;
+    roomPhotoError.hidden = !message;
+    roomPhotoError.textContent = message || '';
+  }
+
+  function releaseRoomPhotoObjectUrl() {
+    if (roomPhotoObjectUrl) URL.revokeObjectURL(roomPhotoObjectUrl);
+    roomPhotoObjectUrl = '';
+  }
+
+  /** 모달을 열 때 현재 사진(수정) 또는 빈 상태(생성)로 맞춘다. 폼 reset 뒤에 부른다. */
+  function resetRoomPhoto(currentUrl) {
+    releaseRoomPhotoObjectUrl();
+    roomPhotoCurrent = currentUrl || '';
+    if (roomPhotoInput) roomPhotoInput.value = '';
+    if (roomPhotoRemove) roomPhotoRemove.checked = false;
+    if (roomPhotoRemoveWrap) roomPhotoRemoveWrap.hidden = !roomPhotoCurrent;
+    setRoomPhotoError('');
+    showRoomPhoto(roomPhotoCurrent);
+  }
+
+  /** 선택한 파일의 형식·크기 오류 문구. 문제가 없거나 파일이 없으면 빈 문자열 */
+  function roomPhotoProblem() {
+    const file = roomPhotoInput?.files?.[0];
+    if (!file) return '';
+    if (!ROOM_PHOTO_TYPES.includes(file.type)) return '사진은 JPG·PNG·WEBP 파일만 올릴 수 있습니다.';
+    if (file.size > ROOM_PHOTO_MAX_BYTES) return '사진은 5MB 이하로 올려 주세요.';
+    return '';
+  }
+
+  roomPhotoInput?.addEventListener('change', function () {
+    releaseRoomPhotoObjectUrl();
+    const file = roomPhotoInput.files?.[0];
+    const problem = roomPhotoProblem();
+    setRoomPhotoError(problem);
+    if (!file || problem) {
+      if (problem) roomPhotoInput.value = '';
+      showRoomPhoto(roomPhotoRemove?.checked ? '' : roomPhotoCurrent);
+      return;
+    }
+    if (roomPhotoRemove) roomPhotoRemove.checked = false;
+    roomPhotoObjectUrl = URL.createObjectURL(file);
+    showRoomPhoto(roomPhotoObjectUrl);
+  });
+
+  roomPhotoRemove?.addEventListener('change', function () {
+    if (roomPhotoRemove.checked) {
+      releaseRoomPhotoObjectUrl();
+      if (roomPhotoInput) roomPhotoInput.value = '';
+      setRoomPhotoError('');
+      showRoomPhoto('', '저장하면 사진이 삭제됩니다');
+    } else {
+      showRoomPhoto(roomPhotoCurrent);
+    }
+  });
 
   function setFacilitySports(value) {
     const selected = new Set(String(value || '').split(',').map(function (sport) { return sport.trim(); }).filter(Boolean));
@@ -292,6 +375,7 @@
     roomEditorForm.reset();
     roomEditorForm.querySelectorAll('input[name="hours"]').forEach(function (input) { input.checked = false; });
     setRoomEditorMode('create');
+    resetRoomPhoto('');
     filterRoomEditorSports();
     updateRoomEditorSummary();
     updateRoomEditorCapacity();
@@ -514,6 +598,15 @@
     }
 
     if (form === roomEditorForm) {
+      /* 사진 형식·크기는 서버도 다시 검사한다. 여기서는 큰 파일을 보내기 전에 막는다. */
+      const photoProblem = roomPhotoProblem();
+      if (photoProblem) {
+        event.preventDefault();
+        setRoomPhotoError(photoProblem);
+        admin?.toast(photoProblem, true);
+        roomPhotoInput?.focus();
+        return;
+      }
       /* 일정이 잠긴 수정은 시간 블록을 보내지 않는다. */
       if (form.dataset.roomLocked === 'true') return;
       const grid = document.getElementById('room-editor-hour-grid');

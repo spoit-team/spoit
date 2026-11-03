@@ -19,4 +19,6 @@ public class RoomEditTarget {
     private LocalDateTime endAt;
     /** social_match.status */
     private String status;
+    /** 현재 시설 사진 URL. 교체·삭제 후 이전 파일을 지울 때 쓴다. */
+    private String photoUrl;
 }

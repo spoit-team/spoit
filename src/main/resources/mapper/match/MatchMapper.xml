@@ -56,7 +56,8 @@
                sm.max_participants,
                sm.fee_per_person,
                sm.required_skill,
-               sm.status
+               sm.status,
+               sm.photo_url
         <include refid="searchFrom"/>
         <include refid="searchWhere"/>
         ORDER BY sm.start_at, sm.match_id

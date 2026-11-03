@@ -118,10 +118,19 @@ public class RoomManagementPage {
         private final String requiredSkill;
         /** 참가자 행(대기·확정) + 대기 신청 인원 */
         private final int reservedCount;
+        /** 현재 시설 사진 URL. 없으면 null */
+        private final String photoUrl;
 
         public Edit(Long facilityId, Long sportId, String title, String date, String hours,
                 int teamCapacity, int feePerPerson,
                 String requiredSkill, int reservedCount) {
+            this(facilityId, sportId, title, date, hours, teamCapacity, feePerPerson, requiredSkill,
+                    reservedCount, null);
+        }
+
+        public Edit(Long facilityId, Long sportId, String title, String date, String hours,
+                int teamCapacity, int feePerPerson,
+                String requiredSkill, int reservedCount, String photoUrl) {
             this.facilityId = facilityId;
             this.sportId = sportId;
             this.title = title;
@@ -131,6 +140,7 @@ public class RoomManagementPage {
             this.feePerPerson = feePerPerson;
             this.requiredSkill = requiredSkill;
             this.reservedCount = reservedCount;
+            this.photoUrl = photoUrl == null || photoUrl.isBlank() ? null : photoUrl.strip();
         }
 
         public boolean isScheduleLocked() {

@@ -402,7 +402,8 @@ public class RoomManagementService {
                 row.getFeePerPerson() == null ? 0
                         : row.getFeePerPerson().setScale(0, RoundingMode.DOWN).intValue(),
                 row.getRequiredSkill() == null ? "" : row.getRequiredSkill().strip(),
-                Math.max(0, row.getReservedCount()));
+                Math.max(0, row.getReservedCount()),
+                row.getPhotoUrl());
     }
 
     /** [시작, 종료) 구간이 덮는 1시간 블록 시작 시각 목록. "10:00,11:00" */

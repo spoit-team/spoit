@@ -94,7 +94,8 @@
                sm.team_b_capacity,
                sm.fee_per_person,
                sm.required_skill,
-               <include refid="reservedCount"/> AS reserved_count
+               <include refid="reservedCount"/> AS reserved_count,
+               sm.photo_url
         <include refid="managedRoomFrom"/>
         JOIN app_user u ON u.user_id = sm.created_by
         <where>
