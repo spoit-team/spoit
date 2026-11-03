@@ -13,6 +13,9 @@ import co.kr.spoit.mat.service.TeamAssignmentService;
  * <p>{@code @EnableScheduling}은 전역 {@code global.config.SchedulingConfig}가 담당한다. 이 설정은
  * {@code spoit.match-start-scheduler.enabled=false}일 때 경기 시작 스케줄러 빈만 등록하지 않아,
  * 스케줄링 인프라가 켜져 있어도 경기 시작 작업이 실행되지 않게 한다(테스트는 build.gradle에서 끈다).</p>
+/**
+ * 경기 시작·종료·결과 마감 스케줄러. spoit.match-start-scheduler.enabled=false로 모두 끌 수 있다
+ * (테스트는 build.gradle에서 끈다).
  */
 @Configuration
 @ConditionalOnProperty(name = "spoit.match-start-scheduler.enabled", havingValue = "true", matchIfMissing = true)

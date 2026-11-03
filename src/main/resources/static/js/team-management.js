@@ -57,7 +57,8 @@
     if (remove) {
       document.getElementById('team-remove-member-id').value = remove.dataset.memberId || '';
       document.getElementById('team-remove-member-name').textContent = remove.dataset.memberName || '팀원';
-      openDialog(document.getElementById('team-remove-dialog'), '.team-dialog-close');
+      document.getElementById('team-remove-reason').value = '';
+      openDialog(document.getElementById('team-remove-dialog'), '#team-remove-reason');
       return;
     }
 
