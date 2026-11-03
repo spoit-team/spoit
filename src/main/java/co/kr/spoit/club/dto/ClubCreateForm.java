@@ -15,6 +15,7 @@ public class ClubCreateForm {
     private Integer maxMembers;
     private Long regionId;
     private String intro;
+    private String recruitStatus;
 
     private List<Integer> activityDays;
 

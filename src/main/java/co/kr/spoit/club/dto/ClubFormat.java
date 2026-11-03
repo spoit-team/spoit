@@ -8,7 +8,7 @@ import co.kr.spoit.club.domain.ClubSummary;
 class ClubFormat {
 
     // 요일 번호 1=월 ~ 7=일 (0은 비워둠)
-    private static final String[] DAYS = {"", "월", "화", "수", "목", "금", "토", "일"};
+    private static final String[] DAYS = { "", "월", "화", "수", "목", "금", "토", "일" };
 
     static boolean isRecruiting(ClubSummary club) {
         return "모집중".equals(club.getRecruitStatus())
@@ -20,7 +20,7 @@ class ClubFormat {
     }
 
     static String initials(String name) {
-        return name.length() <= 2? name : name.substring(0, 2);
+        return name.length() <= 2 ? name : name.substring(0, 2);
     }
 
     // "2,4" -> [2, 4] -> "화, 목"
@@ -31,7 +31,7 @@ class ClubFormat {
         }
         return days;
     }
-    
+
     // 종료가 시작보다 빠르면 "익일"
     static String time(ClubSummary club) {
         String[] numbers = club.getActivityDays().split(",");
@@ -44,7 +44,7 @@ class ClubFormat {
                 : String.valueOf(club.getActivityEndTime());
         return String.join(", ", names) + " " + club.getActivityStartTime() + " - " + endText;
     }
-    
+
     static String footerNote(boolean recruiting, ClubSummary club) {
         if (!recruiting) {
             return "모집이 마감된 팀입니다.";

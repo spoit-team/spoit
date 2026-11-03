@@ -116,6 +116,34 @@ public class ClubController {
         return "redirect:/teams/manage?clubId=" + clubId;
     }
 
+    // 동호회 수정
+    @PostMapping("/{clubId}")
+    public String update(@PathVariable("clubId") Long clubId, ClubCreateForm form, BindingResult bindingResult,
+            @AuthenticationPrincipal MemberPrincipal principal, RedirectAttributes redirectAttributes) {
+        Long userId = principal.getUserId();
+        log.info("동호회 수정 요청: clubId={}, userId={}, {}", clubId, userId, form);
+        // 형식이 맞지 않으면 관리 화면으로 보냄(숫자 칸에 글자가 오는 등)
+        if (bindingResult.hasErrors()) {
+            log.info("동호회 수정 입력 형식 오류: {}", bindingResult.getAllErrors());
+            redirectAttributes.addFlashAttribute("error", "입력 정보를 확인해 주세요.");
+            return "redirect:/teams/manage?clubId=" + clubId;
+        }
+
+        try {
+            clubService.updateClub(userId, clubId, form);
+        } catch (ClubService.ClubNameExistException exception) {
+            log.warn("동호회 수정 거부: 이름 중복 {}", form.getClubName());
+            redirectAttributes.addFlashAttribute("error", "이미 사용 중인 이름입니다.");
+            return "redirect:/teams/manage?clubId=" + clubId;
+        } catch (IllegalArgumentException exception) {
+            log.warn("동호회 수정 거부: {}, {}", clubId, exception.getMessage());
+            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+            return "redirect:/teams/manage?clubId=" + clubId;
+        }
+        redirectAttributes.addFlashAttribute("message", "팀 정보를 수정했습니다.");
+        return "redirect:/teams/manage?clubId=" + clubId;
+    }
+
     // 가입 신청: 결과는 상세 화면에서 보여줌
     @PostMapping("/{clubId}/applications")
     public String apply(@PathVariable("clubId") Long clubId,

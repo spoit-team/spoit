@@ -80,10 +80,31 @@ public class ClubServiceImpl implements ClubService {
         if (userId == null) {
             throw new IllegalArgumentException("로그인이 필요합니다.");
         }
+        // 1. 입력 정리/검사, 종목/지역 확인
+        Club club = toClub(null, form);
+        if (clubMapper.existsActiveClubName(club.getClubName())) {
+            throw new ClubNameExistException();
+        }
+        // 2. 저장(동호회,지역,동호회장 순서 모두 성공해야 함)
+        log.info("동호회 저장 직전: {}", club);
+        try {
+            clubMapper.insertClub(club);
+        } catch (DuplicateKeyException exception) {
+            // 동시에 같은 이름을 만들면 UK로 막음
+            log.warn("동호회 이름 동시 저장 충돌: {}", club.getClubName());
+            throw new ClubNameExistException();
+        }
+        clubMapper.insertClubRegion(club.getClubId(), form.getRegionId());
+        clubMapper.insertClubLeader(club.getClubId(), userId);
+        log.info("동호회 저장 완료: clubId={}, userId={}", club.getClubId(), userId);
+        return club.getClubId();
+    }
+
+    // 만들기-수정 공통: 입력 정리-검사, 종목-지역 확인 후 Club으로
+    private Club toClub(Long clubId, ClubCreateForm form) {
         if (form == null) {
             throw new IllegalArgumentException("입력 정보를 확인해 주세요.");
         }
-
         // 1. 브라우저 입력 정리, 검사
         String clubName = trim(form.getClubName());
         if (clubName.isEmpty() || clubName.length() > NAME_MAX_LENGTH) {
@@ -108,19 +129,15 @@ public class ClubServiceImpl implements ClubService {
             throw new IllegalArgumentException("활동 시작 시간과 종료시간이 같을 수 없습니다.");
         }
 
-        // 2. 종목,지역 조회 및 활성 동호회 이름 중복 검사
+        // 2. 종목,지역 확인
         if (form.getSportId() == null || !clubMapper.existsSport(form.getSportId())) {
             throw new IllegalArgumentException("선택한 종목을 찾을 수 없습니다.");
         }
         if (form.getRegionId() == null || !clubMapper.existsRegion(form.getRegionId())) {
             throw new IllegalArgumentException("선택한 지역을 찾을 수 없습니다.");
         }
-        if (clubMapper.existsActiveClubName(clubName)) {
-            throw new ClubNameExistException();
-        }
-
-        // 3. 저장(동호회,지역,동호회장 순서, 모두 성공해야 함)
-        Club club = Club.builder()
+        return Club.builder()
+                .clubId(clubId)
                 .sportId(form.getSportId())
                 .clubName(clubName)
                 .intro(intro)
@@ -128,20 +145,43 @@ public class ClubServiceImpl implements ClubService {
                 .activityDays(activityDays)
                 .activityStartTime(start)
                 .activityEndTime(end)
+                .recruitStatus(form.getRecruitStatus())
                 .build();
-        log.info("동호회 저장 직전: {}", club);
+    }
 
-        try {
-            clubMapper.insertClub(club);
-        } catch (DuplicateKeyException exception) {
-            // 동시에 같은 이름을 만들면 UK로 막음
-            log.warn("동호회 이름 동시 저장 충돌: {}", clubName);
+    // 동호회 정보 수정
+    @Override
+    @Transactional
+    public void updateClub(Long userId, Long clubId, ClubCreateForm form) throws ClubNameExistException {
+        Club club = toClub(clubId, form);
+        if (!"모집중".equals(club.getRecruitStatus()) && !"마감".equals(club.getRecruitStatus())) {
+            throw new IllegalArgumentException("모집 상태 값이 올바르지 않습니다.");
+        }
+        ClubSummary existingClub = getActiveClubForUpdate(clubId);
+        if (!clubMapper.existsActiveLeader(clubId, userId)) {
+            throw new IllegalArgumentException("팀장만 팀 정보를 수정할 수 있습니다.");
+        }
+        if (club.getMaxMembers() < clubMapper.countActiveMembers(clubId)) {
+            throw new IllegalArgumentException("최대 팀원 수는 현재 팀원 수보다 작을 수 없습니다.");
+        }
+        if (clubMapper.existsOtherActiveClubName(clubId, club.getClubName())) {
             throw new ClubNameExistException();
         }
-        clubMapper.insertClubRegion(club.getClubId(), form.getRegionId());
-        clubMapper.insertClubLeader(club.getClubId(), userId);
-        log.info("동호회 저장 완료: clubId={}, userId={}", club.getClubId(), userId);
-        return club.getClubId();
+        // 종목을 바꿀때만: 진행 중인 팀 매치와 종목이 어긋나지 않게
+        if (!club.getSportId().equals(existingClub.getSportId())) {
+            if (clubMapper.existsRecruitingTeamMatch(clubId, null)) {
+                throw new IllegalArgumentException("모집 중인 팀 매치가 있어 종목을 변경할 수 없습니다.");
+            }
+        }
+        try {
+            clubMapper.updateClub(club);
+        } catch (DuplicateKeyException exception) {
+            log.warn("동호회 이름 동시 수정 충돌: {}", club.getClubName());
+            throw new ClubNameExistException();
+        }
+        clubMapper.deleteClubRegions(clubId);
+        clubMapper.insertClubRegion(clubId, form.getRegionId());
+        log.info("동호회 정보 수정 완료: clubId={}, userId={}", clubId, userId);
     }
 
     // 요일 번호(1~7)를 "1,3" 형태로 만듬
