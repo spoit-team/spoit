@@ -67,6 +67,8 @@
                 FROM club_region cr
                 JOIN region rg ON cr.region_id = rg.region_id
                 WHERE cr.club_id = c.club_id) AS areaLabel
+                ,(SELECT MIN(cr.region_id) FROM club_region cr
+                WHERE cr.club_id = c.club_id) AS regionId
         FROM club c
         JOIN sport s ON c.sport_id = s.sport_id
         WHERE c.deleted_at IS NULL AND c.club_id = #{clubId}

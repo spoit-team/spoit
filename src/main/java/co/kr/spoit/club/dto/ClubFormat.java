@@ -1,5 +1,8 @@
 package co.kr.spoit.club.dto;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import co.kr.spoit.club.domain.ClubSummary;
 
 class ClubFormat {
@@ -20,6 +23,15 @@ class ClubFormat {
         return name.length() <= 2? name : name.substring(0, 2);
     }
 
+    // "2,4" -> [2, 4] -> "화, 목"
+    static List<Integer> days(String activityDays) {
+        List<Integer> days = new ArrayList<>();
+        for (String number : activityDays.split(",")) {
+            days.add(Integer.parseInt(number));
+        }
+        return days;
+    }
+    
     // 종료가 시작보다 빠르면 "익일"
     static String time(ClubSummary club) {
         String[] numbers = club.getActivityDays().split(",");
