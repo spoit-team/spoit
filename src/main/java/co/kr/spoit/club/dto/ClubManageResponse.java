@@ -27,6 +27,7 @@ public class ClubManageResponse {
     private final String time;
     private final String intro;
     private final boolean leader;
+    private final boolean otherMembersRemain;
     private final List<ClubMemberResponse> members;
     private final List<ClubJoinRequestResponse> applications;
     private final Integer pendingApplicationCount;
@@ -52,6 +53,8 @@ public class ClubManageResponse {
             applications.add(ClubJoinRequestResponse.from(r));
         }
 
+        boolean otherMembersRemain = members.size() > 1;
+
         return ClubManageResponse.builder()
                 .clubId(club.getClubId())
                 .clubName(club.getClubName())
@@ -69,6 +72,7 @@ public class ClubManageResponse {
                 .members(memberResponses)
                 .applications(applications)
                 .pendingApplicationCount(applications.size())
+                .otherMembersRemain(otherMembersRemain)
                 .build();
 
     }
