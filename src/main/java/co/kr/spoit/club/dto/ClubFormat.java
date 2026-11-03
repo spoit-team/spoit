@@ -7,8 +7,9 @@ class ClubFormat {
     // 요일 번호 1=월 ~ 7=일 (0은 비워둠)
     private static final String[] DAYS = {"", "월", "화", "수", "목", "금", "토", "일"};
 
-    static boolean isRecruiting(String recruitStatus) {
-        return "모집중".equals(recruitStatus);
+    static boolean isRecruiting(ClubSummary club) {
+        return "모집중".equals(club.getRecruitStatus())
+                && club.getMemberCount() < club.getMaxMembers();
     }
 
     static String areaLabel(String areaLabel) {

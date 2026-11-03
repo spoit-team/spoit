@@ -536,6 +536,20 @@ class ClubServiceTest {
         verify(clubMapper, never()).updateClubDisband(any());
     }
 
+    @Test
+    @DisplayName("정원이 찬 모집중 동호회는 모집 마감 카드로 바꾼다")
+    void 정원이_찬_모집중_동호회는_모집_마감으로_바꾼다() {
+        ClubSummary club = club("모집중", "2,4", 19, 21);
+        club.setMemberCount(10);
+        when(clubMapper.selectClubs(null, null, null, false, "recent")).thenReturn(List.of(club));
+
+        ClubCardResponse card = service.findClubCards().get(0);
+
+        assertThat(card.isRecruiting()).isFalse();
+        assertThat(card.getStatusLabel()).isEqualTo("모집 마감");
+        assertThat(card.getFooterNote()).isEqualTo("모집이 마감된 팀입니다.");
+    }
+
     // 추방할 동호회원(동호회원 번호 3, 회원 번호만)
     private ClubMember kickTarget(Long userId) {
         ClubMember member = new ClubMember();
