@@ -98,10 +98,6 @@
             </div>
             <div class="team-row-actions">
               <span class="team-member-role" th:text="${member.leader ? '팀장' : '팀원'}">팀원</span>
-              <!--추방 미구현:<span th:if="${member.leader or !managedClub.leader}" class="team-member-role" th:text="${member.leader ? '팀장' : '팀원'}">팀원</span>-->
-               <th:block th:if="${managedClub.leader and !member.leader}">
-                <button class="team-button team-button-quiet team-button-compact" type="button" data-team-transfer th:attr="data-member-id=${member.clubMemberId},data-member-name=${member.nickname}">팀장 위임</button>
-                <!--추방 미구현:<button class="team-button team-button-danger team-button-compact" type="button" data-team-remove-member th:attr="data-member-id=${member.clubMemberId},data-member-name=${member.nickname}">팀원 추방</button>-->
               <!-- <span th:if="${member.leader or !managedClub.leader}" class="team-member-role" th:text="${member.leader ? '팀장' : '팀원'}">팀원</span> -->
                <th:block th:if="${managedClub.leader and !member.leader}">
                 <button class="team-button team-button-quiet team-button-compact" type="button" data-team-transfer th:attr="data-member-id=${member.clubMemberId},data-member-name=${member.nickname}">팀장 위임</button>
