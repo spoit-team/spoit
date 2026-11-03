@@ -14,14 +14,18 @@ import co.kr.spoit.club.domain.Club;
 import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
 import co.kr.spoit.club.domain.ClubSummary;
+import co.kr.spoit.club.dto.ClubBlockRow;
 import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.ClubWithdrawalBlocks;
 import co.kr.spoit.club.dto.MyClubResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
 import co.kr.spoit.club.service.ClubServiceImpl;
 import co.kr.spoit.club.service.ClubService.ClubNameExistException;
+import co.kr.spoit.member.domain.Member;
+import co.kr.spoit.member.service.MemberAccountLockService;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -42,6 +46,9 @@ class ClubServiceTest {
 
     @Mock
     private ClubMapper clubMapper;
+
+    @Mock
+    private MemberAccountLockService accountLockService;
 
     @InjectMocks
     private ClubServiceImpl service;
@@ -127,6 +134,7 @@ class ClubServiceTest {
         when(clubMapper.existsSport(1L)).thenReturn(true);
         when(clubMapper.existsRegion(3L)).thenReturn(true);
         when(clubMapper.existsActiveClubName("강남 농구 크루")).thenReturn(false);
+        when(accountLockService.lockById(7L)).thenReturn(account(7L));
         doAnswer(invocation -> {
             Club club = invocation.getArgument(0);
             ReflectionTestUtils.setField(club, "clubId", 42L);
@@ -345,6 +353,8 @@ class ClubServiceTest {
     void 동호회장_위임_성공() {
         when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
         when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectActiveMemberById(1L, 3L)).thenReturn(kickTarget(8L));
+        when(accountLockService.lockById(8L)).thenReturn(account(8L));
         when(clubMapper.updateRoleToLeader(1L, 3L)).thenReturn(1);
 
         service.transferLeader(7L, 1L, 3L);
@@ -373,12 +383,13 @@ class ClubServiceTest {
     void 받을_동호회원이_없으면_위임을_거부한다() {
         when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
         when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
-        when(clubMapper.updateRoleToLeader(1L, 99L)).thenReturn(0);
+        when(clubMapper.selectActiveMemberById(1L, 99L)).thenReturn(null);
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.transferLeader(7L, 1L, 99L));
 
         assertThat(exception.getMessage()).isEqualTo("위임할 수 없는 팀원입니다.");
+        verify(clubMapper, never()).updateRoleToLeader(any(), any());
         verify(clubMapper, never()).updateRoleToMember(any(), any());
     }
 
@@ -662,6 +673,148 @@ class ClubServiceTest {
 
         assertThat(e.getMessage()).isEqualTo("모집 중인 팀 매치가 있어 종목을 변경할 수 없습니다.");
         verify(clubMapper, never()).updateClub(any(Club.class));
+    }
+
+    @Test
+    @DisplayName("탈퇴 차단 사유는 동호회장 목록과 팀 매치 목록을 각각 그대로 담는다")
+    void 탈퇴_차단_사유를_카테고리별로_담는다() {
+        when(clubMapper.selectLeaderClubBlocks(7L)).thenReturn(List.of(
+                clubBlock(1L, "강서 테니스회"), clubBlock(2L, "노원 농구회")));
+        when(clubMapper.selectRecruitingTeamMatchClubBlocks(7L)).thenReturn(List.of(
+                clubBlock(3L, "주말 풋살 클럽")));
+
+        ClubWithdrawalBlocks blocks = service.findWithdrawalBlocks(7L);
+
+        assertThat(blocks.getLeaderClubNames()).containsExactly("강서 테니스회", "노원 농구회");
+        assertThat(blocks.getTeamMatchClubNames()).containsExactly("주말 풋살 클럽");
+        assertThat(blocks.isBlocked()).isTrue();
+    }
+
+    @Test
+    @DisplayName("이름이 같은 서로 다른 동호회는 id별로 각각 한 번씩 유지한다")
+    void 이름이_같은_다른_동호회를_각각_유지한다() {
+        when(clubMapper.selectLeaderClubBlocks(7L)).thenReturn(List.of(
+                clubBlock(1L, "풋살 클럽"), clubBlock(2L, "풋살 클럽")));
+        when(clubMapper.selectRecruitingTeamMatchClubBlocks(7L)).thenReturn(List.of());
+
+        ClubWithdrawalBlocks blocks = service.findWithdrawalBlocks(7L);
+
+        assertThat(blocks.getLeaderClubNames()).containsExactly("풋살 클럽", "풋살 클럽");
+    }
+
+    @Test
+    @DisplayName("차단 사유가 없으면 비어 있는 목록과 blocked=false를 돌려준다")
+    void 탈퇴_차단_사유가_없으면_빈_목록이다() {
+        when(clubMapper.selectLeaderClubBlocks(7L)).thenReturn(List.of());
+        when(clubMapper.selectRecruitingTeamMatchClubBlocks(7L)).thenReturn(List.of());
+
+        ClubWithdrawalBlocks blocks = service.findWithdrawalBlocks(7L);
+
+        assertThat(blocks.getLeaderClubNames()).isEmpty();
+        assertThat(blocks.getTeamMatchClubNames()).isEmpty();
+        assertThat(blocks.isBlocked()).isFalse();
+    }
+
+    @Test
+    @DisplayName("회원 번호가 없으면 탈퇴 차단 사유를 조회하지 않는다")
+    void 회원_번호가_없으면_탈퇴_차단_사유를_조회하지_않는다() {
+        ClubWithdrawalBlocks blocks = service.findWithdrawalBlocks(null);
+
+        assertThat(blocks.isBlocked()).isFalse();
+        verify(clubMapper, never()).selectLeaderClubBlocks(any());
+        verify(clubMapper, never()).selectRecruitingTeamMatchClubBlocks(any());
+    }
+
+    private ClubBlockRow clubBlock(Long clubId, String clubName) {
+        ClubBlockRow row = new ClubBlockRow();
+        row.setClubId(clubId);
+        row.setClubName(clubName);
+        return row;
+    }
+
+    private Member account(Long userId) {
+        Member member = new Member();
+        member.setUserId(userId);
+        return member;
+    }
+
+    @Test
+    @DisplayName("동호회장 위임은 동호회를 잠근 뒤 받을 회원 계정을 잠그고, 잠근 값으로 탈퇴를 확인한다")
+    void 동호회장_위임은_동호회_다음에_계정을_잠근다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectActiveMemberById(1L, 3L)).thenReturn(kickTarget(8L));
+        when(accountLockService.lockById(8L)).thenReturn(account(8L));
+        when(clubMapper.updateRoleToLeader(1L, 3L)).thenReturn(1);
+
+        service.transferLeader(7L, 1L, 3L);
+
+        InOrder order = inOrder(clubMapper, accountLockService);
+        order.verify(clubMapper).selectActiveClubForUpdate(1L);
+        order.verify(accountLockService).lockById(8L);
+        order.verify(clubMapper).updateRoleToLeader(1L, 3L);
+        order.verify(clubMapper).updateRoleToMember(1L, 7L);
+    }
+
+    @Test
+    @DisplayName("받을 회원이 그 사이 탈퇴했으면 동호회장으로 바꾸지 않는다")
+    void 탈퇴한_회원에게는_위임하지_않는다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectActiveMemberById(1L, 3L)).thenReturn(kickTarget(8L));
+        Member withdrawn = account(8L);
+        withdrawn.setDeletedAt(java.time.LocalDateTime.now());
+        when(accountLockService.lockById(8L)).thenReturn(withdrawn);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.transferLeader(7L, 1L, 3L));
+
+        assertThat(exception.getMessage()).isEqualTo("위임할 수 없는 팀원입니다.");
+        verify(clubMapper, never()).updateRoleToLeader(any(), any());
+        verify(clubMapper, never()).updateRoleToMember(any(), any());
+    }
+
+    @Test
+    @DisplayName("동호회를 만들면 동호회장 등록 전에 생성자 계정을 잠근다")
+    void 동호회_만들기는_회장_등록_전에_계정을_잠근다() throws Exception {
+        when(clubMapper.existsSport(1L)).thenReturn(true);
+        when(clubMapper.existsRegion(3L)).thenReturn(true);
+        when(clubMapper.existsActiveClubName("강남 농구 크루")).thenReturn(false);
+        when(accountLockService.lockById(7L)).thenReturn(account(7L));
+        doAnswer(invocation -> {
+            Club club = invocation.getArgument(0);
+            ReflectionTestUtils.setField(club, "clubId", 42L);
+            return null;
+        }).when(clubMapper).insertClub(any(Club.class));
+
+        service.createClub(7L, validForm());
+
+        InOrder order = inOrder(clubMapper, accountLockService);
+        order.verify(clubMapper).insertClub(any(Club.class));
+        order.verify(accountLockService).lockById(7L);
+        order.verify(clubMapper).insertClubLeader(42L, 7L);
+    }
+
+    @Test
+    @DisplayName("생성자가 그 사이 탈퇴했으면 잠근 값으로 판단해 동호회장으로 등록하지 않는다")
+    void 동호회_만들기는_탈퇴한_생성자를_회장으로_등록하지_않는다() throws Exception {
+        when(clubMapper.existsSport(1L)).thenReturn(true);
+        when(clubMapper.existsRegion(3L)).thenReturn(true);
+        when(clubMapper.existsActiveClubName("강남 농구 크루")).thenReturn(false);
+        Member withdrawn = account(7L);
+        withdrawn.setDeletedAt(java.time.LocalDateTime.now());
+        when(accountLockService.lockById(7L)).thenReturn(withdrawn);
+        doAnswer(invocation -> {
+            Club club = invocation.getArgument(0);
+            ReflectionTestUtils.setField(club, "clubId", 42L);
+            return null;
+        }).when(clubMapper).insertClub(any(Club.class));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.createClub(7L, validForm()));
+
+        assertThat(exception.getMessage()).isEqualTo("로그인이 필요합니다.");
+        verify(clubMapper, never()).insertClubLeader(any(), any());
     }
 
     // 추방할 동호회원(동호회원 번호 3, 회원 번호만)

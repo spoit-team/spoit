@@ -183,6 +183,76 @@ for (const file of scripts) {
   }
 }
 
+/* ── 회원 탈퇴 확인창 계약 ────────────────────────────────────────────────
+   서버는 withdrawalBlocks(blocked·leaderClubNames·teamMatchClubNames·individualMatchNames)를
+   항상 내려주고, 화면은 그 값으로만 비밀번호 입력과 확인 버튼을 잠근다. 사유가 늘거나
+   잠금 조건이 화면에서 임의로 풀리면 사용자가 막힌 줄 모르고 탈퇴를 시도하므로 여기서 고정한다. */
+const profileSource = await readFile(path.join(resources, 'templates/mypage/profile.html'), 'utf8');
+const withdrawalDialog = profileSource.slice(
+  profileSource.indexOf('id="profile-withdrawal-dialog"'),
+  profileSource.indexOf('<script', profileSource.indexOf('id="profile-withdrawal-dialog"')));
+check(withdrawalDialog.length > 0, 'profile.html: withdrawal dialog missing');
+// 잠금은 서버 값 하나로만 정해진다. 클라이언트 임의 판단이나 사유별 분기를 두지 않는다.
+check(/th:attr="data-withdrawal-blocked=\$\{withdrawalBlocks != null and withdrawalBlocks\.blocked\} \? 'true' : null"/.test(withdrawalDialog),
+  'withdrawal dialog: lock state must come from withdrawalBlocks.blocked');
+check(/id="withdrawal-blocks"[\s\S]*?role="group"[\s\S]*?aria-labelledby="withdrawal-blocks-title"/.test(withdrawalDialog),
+  'withdrawal blocks: the blocker list must be a labelled group');
+check(/id="withdrawal-blocks"[\s\S]*?tabindex="-1"/.test(withdrawalDialog),
+  'withdrawal blocks: the blocker list must be able to take focus when the input is disabled');
+for (const [field, phrase] of [
+  ['leaderClubNames', '동호회장인 팀은 위임하거나 해체해 주세요'],
+  ['teamMatchClubNames', '모집 중인 팀 매치에 신청되어 있어요'],
+  ['individualMatchNames', '종료 상태가 아닌 매치에 신청되어 있어요']
+]) {
+  check(withdrawalDialog.includes(`withdrawalBlocks.${field}`),
+    `withdrawal blocks: ${field} must be rendered`);
+  check(withdrawalDialog.includes(`#lists.size(withdrawalBlocks.${field})`),
+    `withdrawal blocks: ${field} must show its count`);
+  check(withdrawalDialog.includes(`#strings.listJoin(withdrawalBlocks.${field}, ' · ')`),
+    `withdrawal blocks: ${field} must list the names`);
+  check(withdrawalDialog.includes(phrase), `withdrawal blocks: ${field} needs its guidance phrase`);
+}
+// 사실 관계: 실제 경기가 끝났어도 결과·평가 처리 전에는 저장 상태가 '매칭 완료'로 남는다.
+// 저장 상태는 '종료'만 허용 기준이고, 종료 시각·자동 처리·기간 보장은 화면에서 약속하지 않는다.
+check(/경기가 끝났더라도 결과 처리 전에는 <strong>매칭 완료<\/strong> 상태일 수 있습니다/.test(withdrawalDialog),
+  'withdrawal blocks: 매칭 완료 must be described as possibly-already-played');
+check(!/아직 끝나지 않은 상태|아직 종료되지 않은 매치/.test(withdrawalDialog),
+  'withdrawal blocks: must not claim the match has not finished');
+check(!/종료 시각이 지나면|자동으로 종료|스케줄|24시간|이내에|즉시 종료/.test(withdrawalDialog),
+  'withdrawal blocks: no scheduler/end-time/duration promise in the guidance');
+// 종료 상태 안내는 개인 매치 사유에만 참이다. 팀 사유만 있으면 위임·취소로 풀 수 있다.
+const withdrawalNoteTag = withdrawalDialog.match(/<p class="profile-withdrawal-block-note"[^>]*>/)?.[0] ?? '';
+check(withdrawalNoteTag.includes('th:if="${!#lists.isEmpty(withdrawalBlocks.individualMatchNames)}"'),
+  'withdrawal blocks: the 종료 guidance must render only for the individual blocker');
+check(/해당 매치가 종료 상태가 되거나 신청이 취소되면 이 제한이 해제됩니다/.test(withdrawalDialog),
+  'withdrawal blocks: the note must scope itself to the individual applications');
+check(/id="withdrawal-password"[^>]*th:disabled="\$\{withdrawalBlocks != null and withdrawalBlocks\.blocked\}"/.test(withdrawalDialog),
+  'withdrawal dialog: the password input must be disabled while blocked');
+check(/id="withdrawal-error"[^>]*role="alert"/.test(withdrawalDialog),
+  'withdrawal dialog: the password error must stay a live region');
+check(/th:href="@\{\/teams\/manage\}"/.test(withdrawalDialog)
+  && /th:href="@\{\/mypage#reservations\}"/.test(withdrawalDialog),
+  'withdrawal blocks: team and individual blockers must link to their own fix screens');
+// 필드를 숫자로 되돌리거나 임의로 늘리지 않는다.
+check(namedForms.get('profile-withdrawal-form')?.inputs.some(input => input.name === 'password'),
+  'profile-withdrawal-form: the password field must stay the only payload');
+const withdrawalScript = await readFile(path.join(resources, 'static/js/profile-edit.js'), 'utf8');
+check(withdrawalScript.includes('withdrawalIsBlocked'),
+  'profile-edit.js: the blocked state must gate the dialog');
+check(!/withdrawalConfirm\.disabled\s*=\s*false/.test(withdrawalScript),
+  'profile-edit.js: the confirm button must never be force-enabled');
+check(withdrawalScript.includes('withdrawalBlocks?.focus'),
+  'profile-edit.js: a blocked dialog must move focus to the blocker list');
+
+// 레이아웃: 비밀번호 입력이 대화상자 안쪽 여백을 넘지 않고, 사유가 길어져도 버튼이 보여야 한다.
+const mypageCss = await readFile(path.join(resources, 'static/css/mypage.css'), 'utf8');
+check(/\.profile-withdrawal-dialog-content \.auth-input\s*\{[^}]*box-sizing:\s*border-box/.test(mypageCss),
+  'mypage.css: the withdrawal password input must not overflow the dialog padding');
+check(/\.profile-withdrawal-actions\s*\{[^}]*position:\s*sticky/.test(mypageCss),
+  'mypage.css: the withdrawal actions must stay reachable while the dialog scrolls');
+check(/\.profile-withdrawal-block-label\s*\{[^}]*word-break:\s*keep-all/.test(mypageCss),
+  'mypage.css: Korean blocker labels must not break mid-word');
+
 /* ── 예약 운영 일정 화면 계약 ──────────────────────────────────────────────
    시설 관리 일정 화면은 백엔드 lane과 모델 키/폼 필드/경로를 공유한다.
    마크업이 조용히 어긋나면 저장 요청이 빈 값으로 나가므로 여기서 명시적으로 고정한다. */

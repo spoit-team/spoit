@@ -3,6 +3,7 @@ package co.kr.spoit.club.service;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.TreeSet;
 
@@ -16,12 +17,16 @@ import co.kr.spoit.club.domain.ClubMember;
 import co.kr.spoit.club.domain.ClubRegionOption;
 import co.kr.spoit.club.domain.ClubSportOption;
 import co.kr.spoit.club.domain.ClubSummary;
+import co.kr.spoit.club.dto.ClubBlockRow;
 import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.ClubWithdrawalBlocks;
 import co.kr.spoit.club.dto.MyClubResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
+import co.kr.spoit.member.domain.Member;
+import co.kr.spoit.member.service.MemberAccountLockService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,6 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ClubServiceImpl implements ClubService {
 
     private final ClubMapper clubMapper;
+    private final MemberAccountLockService accountLockService;
     private static final int NAME_MAX_LENGTH = 30;
     private static final int INTRO_MAX_LENGTH = 240;
     private static final int MIN_MEMBERS = 2;
@@ -95,6 +101,13 @@ public class ClubServiceImpl implements ClubService {
             throw new ClubNameExistException();
         }
         clubMapper.insertClubRegion(club.getClubId(), form.getRegionId());
+        // 동호회장 등록 전에 생성자 계정을 잠근다. 회장 소속이 생기는 순간 탈퇴가 커밋되지 않도록
+        // 탈퇴 경로와 같은 회원 행에서 직렬화한다(잠금 순서: 동호회 → 계정).
+        // 잠근 뒤 최신 값으로 탈퇴를 확인해야 이미 탈퇴한 회원이 회장으로 등록되지 않는다.
+        Member creator = accountLockService.lockById(userId);
+        if (creator == null || creator.getDeletedAt() != null) {
+            throw new IllegalArgumentException("로그인이 필요합니다.");
+        }
         clubMapper.insertClubLeader(club.getClubId(), userId);
         log.info("동호회 저장 완료: clubId={}, userId={}", club.getClubId(), userId);
         return club.getClubId();
@@ -350,6 +363,16 @@ public class ClubServiceImpl implements ClubService {
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
             throw new IllegalArgumentException("팀장만 위임할 수 있습니다.");
         }
+        // 위임 대상의 회원 행을 동호회 다음에 잠근다. 잠금 순서(동호회 → 계정)를 지키고,
+        // 잠근 뒤 최신 값으로 탈퇴를 확인해야 탈퇴한 회원이 회장이 되는 일이 없다.
+        ClubMember target = clubMapper.selectActiveMemberById(clubId, clubMemberId);
+        if (target == null) {
+            throw new IllegalArgumentException("위임할 수 없는 팀원입니다.");
+        }
+        Member recipient = accountLockService.lockById(target.getUserId());
+        if (recipient == null || recipient.getDeletedAt() != null) {
+            throw new IllegalArgumentException("위임할 수 없는 팀원입니다.");
+        }
         if (clubMapper.updateRoleToLeader(clubId, clubMemberId) == 0) {
             throw new IllegalArgumentException("위임할 수 없는 팀원입니다.");
         }
@@ -420,5 +443,40 @@ public class ClubServiceImpl implements ClubService {
         clubMapper.updateLeaderDisband(clubId, userId);
         clubMapper.updateClubDisband(clubId);
         log.info("동호회 해체: clubId={}, userId={}", clubId, userId);
+    }
+
+    /**
+     * 동호회 행을 잠그고 최신 값을 돌려준다. 없거나 해체됐으면 null.
+     *
+     * <p>팀 매치 신청처럼 다른 도메인이 동호회 행을 먼저 잠가야 할 때 쓴다. 쓰기 트랜잭션 전용이다.</p>
+     */
+    @Override
+    public ClubSummary lockActiveClub(Long clubId) {
+        if (clubId == null || clubId <= 0) {
+            return null;
+        }
+        return clubMapper.selectActiveClubForUpdate(clubId);
+    }
+
+    // 회원 탈퇴 차단 사유: 동호회장 소속과 모집 중 팀 매치 신청·참가 동호회를 동호회별로 한 번씩 모은다
+    @Override
+    public ClubWithdrawalBlocks findWithdrawalBlocks(Long userId) {
+        if (userId == null || userId <= 0) {
+            return ClubWithdrawalBlocks.empty();
+        }
+        return ClubWithdrawalBlocks.of(
+                clubNames(clubMapper.selectLeaderClubBlocks(userId)),
+                clubNames(clubMapper.selectRecruitingTeamMatchClubBlocks(userId)));
+    }
+
+    /** 조회 결과를 화면 표시용 동호회 이름 목록으로 바꾼다. 조회가 id 기준으로 이미 고유하므로 그대로 둔다. */
+    private static List<String> clubNames(List<ClubBlockRow> blocks) {
+        if (blocks == null || blocks.isEmpty()) {
+            return List.of();
+        }
+        return blocks.stream()
+                .map(ClubBlockRow::getClubName)
+                .filter(Objects::nonNull)
+                .toList();
     }
 }

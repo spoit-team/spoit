@@ -31,6 +31,12 @@ public interface MemberMapper {
     int recordWithdrawal(@Param("userId") Long userId, @Param("deletedAt") LocalDateTime deletedAt,
             @Param("now") LocalDateTime now);
 
+    /**
+     * 회원 행을 잠그고 최신 값을 읽는다. 탈퇴·신청·회장 위임이 같은 회원 행에서 직렬화되도록
+     * 쓰기 트랜잭션 안에서만 호출한다(잠금 없이 읽는 {@link #findById}와 달리 스냅샷이 아닌 최신 값을 준다).
+     */
+    Member lockById(@Param("userId") Long userId);
+
     /** 회원을 저장하고 {@code useGeneratedKeys}로 {@code userId}를 돌려준다. */
     int insert(Member member);
 

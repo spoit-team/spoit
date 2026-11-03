@@ -9,11 +9,11 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -25,10 +25,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import co.kr.spoit.facility.service.FacilityReservationService;
+import co.kr.spoit.club.service.ClubService;
 import co.kr.spoit.mat.mapper.SportRatingMapper;
 import co.kr.spoit.match.domain.MatchApplication;
+import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.match.dto.GroupMemberRow;
 import co.kr.spoit.match.dto.MatchRow;
 import co.kr.spoit.match.dto.TeamClubRow;
@@ -36,6 +39,7 @@ import co.kr.spoit.match.dto.TeamMemberRow;
 import co.kr.spoit.match.mapper.MatchApplicationMapper;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.mapper.MemberMapper;
+import co.kr.spoit.member.service.MemberAccountLockService;
 
 /**
  * RES-04 팀 단위 신청: 대표가 고른 팀원마다 대기 신청 행을 만들고 대표 행 id로 묶는다.
@@ -53,6 +57,8 @@ class MatchApplicationServiceTeamTest {
     private MatchApplicationMapper mapper;
     private MemberMapper memberMapper;
     private SportRatingMapper sportRatingMapper;
+    private MemberAccountLockService accountLockService;
+    private ClubService clubService;
     private MatchApplicationService service;
 
     private final List<MatchApplication> inserted = new ArrayList<>();
@@ -62,12 +68,17 @@ class MatchApplicationServiceTeamTest {
         mapper = mock(MatchApplicationMapper.class);
         memberMapper = mock(MemberMapper.class);
         sportRatingMapper = mock(SportRatingMapper.class);
+        accountLockService = mock(MemberAccountLockService.class);
+        clubService = mock(ClubService.class);
         service = new MatchApplicationService(mapper, memberMapper, sportRatingMapper,
-                mock(MatchService.class), mock(FacilityReservationService.class));
+                mock(MatchService.class), mock(FacilityReservationService.class), accountLockService,
+                clubService);
 
         Member leader = new Member();
         leader.setUserId(LEADER_ID);
         given(memberMapper.findById(LEADER_ID)).willReturn(Optional.of(leader));
+        given(accountLockService.lockById(anyLong())).willReturn(leader);
+        given(clubService.lockActiveClub(CLUB_ID)).willReturn(activeClub());
         given(mapper.findFacilityId(MATCH_ID)).willReturn(FACILITY_ID);
         given(mapper.lockMatch(MATCH_ID)).willReturn(match(10));
         given(mapper.findTeamClub(CLUB_ID, LEADER_ID)).willReturn(club(SPORT_ID));
@@ -83,6 +94,16 @@ class MatchApplicationServiceTeamTest {
             inserted.add(a);
             return 1;
         }).given(mapper).insert(any(MatchApplication.class));
+        // 계정 잠금은 기본적으로 대표·팀원 모두 미탈퇴·무정지 상태를 돌려준다.
+        // (재스텁 시 Mockito가 null 인자로 호출하므로 null을 먼저 걸러낸다.)
+        given(accountLockService.lockAllById(any()))
+                .willAnswer(invocation -> {
+                    List<Long> requested = invocation.getArgument(0);
+                    if (requested == null) {
+                        return List.of();
+                    }
+                    return requested.stream().map(MatchApplicationServiceTeamTest::account).toList();
+                });
     }
 
     @Test
@@ -194,6 +215,94 @@ class MatchApplicationServiceTeamTest {
         assertThat(inserted).extracting(MatchApplication::getStatus).containsOnly("대기");
         verify(mapper, never()).markConfirmed(anyLong(), anyString(), anyString(), any());
         verify(mapper, never()).insertParticipant(anyLong(), anyLong(), anyLong(), anyString(), any(), any());
+    }
+
+    @Test
+    @DisplayName("시설 → 매칭방 → 동호회 → 포함 계정 전체(식별자 오름차순) 순으로 잠근다")
+    void locksFacilityMatchClubThenAllIncludedAccounts() {
+        given(mapper.countOccupiedSeats(anyLong(), anyList(), anyString())).willReturn(0);
+        given(accountLockService.lockAllById(any()))
+                .willReturn(List.of(account(LEADER_ID), account(21L), account(22L)));
+
+        service.applyTeam(MATCH_ID, LEADER_ID, CLUB_ID, List.of(101L, 102L));
+
+        ArgumentCaptor<List<Long>> lockedIds = ArgumentCaptor.forClass(List.class);
+        verify(accountLockService).lockAllById(lockedIds.capture());
+        // 대표와 선택한 팀원이 모두 잠금 대상이다(대표 본인 포함).
+        assertThat(lockedIds.getValue()).containsExactlyInAnyOrder(LEADER_ID, 21L, 22L);
+
+        InOrder order = inOrder(mapper, clubService, accountLockService);
+        order.verify(mapper).lockMatch(MATCH_ID);
+        // 동호회 행 잠금이 계정 잠금보다 먼저여야 회장 위임(동호회 → 계정)과 순서가 같아 교착이 없다.
+        order.verify(clubService).lockActiveClub(CLUB_ID);
+        order.verify(accountLockService).lockAllById(any());
+        order.verify(mapper).insert(any(MatchApplication.class));
+    }
+
+    @Test
+    @DisplayName("팀 매치 신청은 매칭방을 잠근 뒤 동호회를 잠가 매칭방 → 동호회 역순이 생기지 않는다")
+    void doesNotLockClubBeforeMatch() {
+        given(mapper.countOccupiedSeats(anyLong(), anyList(), anyString())).willReturn(0);
+
+        service.applyTeam(MATCH_ID, LEADER_ID, CLUB_ID, List.of(101L));
+
+        InOrder order = inOrder(mapper, clubService);
+        order.verify(mapper).lockMatch(MATCH_ID);
+        order.verify(clubService).lockActiveClub(CLUB_ID);
+    }
+
+    @Test
+    @DisplayName("잠근 동호회가 없거나 해체됐으면 팀 신청을 만들지 않는다")
+    void rejectsDissolvedClubAtLock() {
+        given(clubService.lockActiveClub(CLUB_ID)).willReturn(null);
+
+        assertThatThrownBy(() -> service.applyTeam(MATCH_ID, LEADER_ID, CLUB_ID, List.of(101L)))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("팀으로 신청할 수 있는 동호회가 아닙니다.");
+        verify(accountLockService, never()).lockAllById(any());
+        verify(mapper, never()).insert(any(MatchApplication.class));
+    }
+
+    @Test
+    @DisplayName("동호회를 잠근 뒤 소속·종목을 다시 확인하고, 탈퇴한 동호회원은 신청하지 않는다")
+    void revalidatesMembershipAfterClubLock() {
+        given(mapper.findTeamClub(CLUB_ID, LEADER_ID)).willReturn(null);
+
+        assertThatThrownBy(() -> service.applyTeam(MATCH_ID, LEADER_ID, CLUB_ID, List.of(101L)))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("팀으로 신청할 수 있는 동호회가 아닙니다.");
+        verify(clubService).lockActiveClub(CLUB_ID);
+        verify(mapper, never()).insert(any(MatchApplication.class));
+    }
+
+    @Test
+    @DisplayName("포함된 팀원이 그 사이 탈퇴했으면 잠근 값으로 판단해 팀 신청 행을 만들지 않는다")
+    void rejectsMemberWithdrawnBeforeAccountLock() {
+        given(mapper.countOccupiedSeats(anyLong(), anyList(), anyString())).willReturn(0);
+        Member withdrawn = account(21L);
+        withdrawn.setDeletedAt(LocalDateTime.now(KST));
+        given(accountLockService.lockAllById(any()))
+                .willReturn(List.of(account(LEADER_ID), withdrawn, account(22L)));
+
+        assertThatThrownBy(() -> service.applyTeam(MATCH_ID, LEADER_ID, CLUB_ID, List.of(101L, 102L)))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("선택한 팀원 정보를 확인할 수 없습니다. 매치 상세에서 다시 선택해 주세요.");
+        verify(mapper, never()).insert(any(MatchApplication.class));
+    }
+
+    @Test
+    @DisplayName("대표 본인이 그 사이 탈퇴했으면 잠근 값으로 판단해 팀 신청 행을 만들지 않는다")
+    void rejectsLeaderWithdrawnBeforeAccountLock() {
+        given(mapper.countOccupiedSeats(anyLong(), anyList(), anyString())).willReturn(0);
+        Member withdrawn = account(LEADER_ID);
+        withdrawn.setDeletedAt(LocalDateTime.now(KST));
+        given(accountLockService.lockAllById(any()))
+                .willReturn(List.of(withdrawn, account(21L), account(22L)));
+
+        assertThatThrownBy(() -> service.applyTeam(MATCH_ID, LEADER_ID, CLUB_ID, List.of(101L, 102L)))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("탈퇴한 회원은 신청할 수 없습니다.");
+        verify(mapper, never()).insert(any(MatchApplication.class));
     }
 
     /* ---------------- 확정 (시설 관리자 승인) ---------------- */
@@ -335,5 +444,19 @@ class MatchApplicationServiceTeamTest {
                 "RCPT-" + applicationId, LocalDateTime.now(KST));
         a.setApplicationId(applicationId);
         return a;
+    }
+
+    private static Member account(long userId) {
+        Member m = new Member();
+        m.setUserId(userId);
+        return m;
+    }
+
+    private static ClubSummary activeClub() {
+        ClubSummary club = new ClubSummary();
+        club.setClubId(CLUB_ID);
+        club.setSportId(SPORT_ID);
+        club.setRecruitStatus("모집중");
+        return club;
     }
 }

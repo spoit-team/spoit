@@ -15,7 +15,13 @@
   const withdrawalInput = document.getElementById('withdrawal-password');
   const withdrawalError = document.getElementById('withdrawal-error');
   const withdrawalConfirm = document.getElementById('confirm-withdrawal');
+  const withdrawalBlocks = document.getElementById('withdrawal-blocks');
   let withdrawalOpener = null;
+
+  /* 서버가 내려준 탈퇴 차단 여부. 화면에서 임의로 풀지 않고, 열 때마다 서버 렌더링 값을 다시 읽는다. */
+  function withdrawalIsBlocked() {
+    return withdrawalDialog?.dataset.withdrawalBlocked === 'true';
+  }
 
   function syncRatingPreview() {
     if (!sportSelect || !ratingPreview) return;
@@ -63,7 +69,10 @@
     withdrawalConfirm.disabled = true;
     if (withdrawalError) withdrawalError.hidden = true;
     withdrawalDialog.showModal();
-    withdrawalInput.focus();
+    // 막힌 상태에서는 비밀번호를 받을 수 없으므로 사유 목록으로 초점을 옮긴다.
+    // (비활성 입력으로 초점을 보내면 대화상자 안에서 초점을 잃는다.)
+    if (withdrawalIsBlocked()) withdrawalBlocks?.focus?.();
+    else withdrawalInput.focus();
   }
 
   function closeWithdrawal() {
@@ -98,6 +107,11 @@
   });
 
   withdrawalInput?.addEventListener('input', function () {
+    // 서버가 막아 둔 상태에서는 입력값이 있어도 확인 버튼을 되살리지 않는다.
+    if (withdrawalIsBlocked()) {
+      withdrawalConfirm.disabled = true;
+      return;
+    }
     const filled = Boolean(withdrawalInput.value.trim());
     withdrawalConfirm.disabled = !filled;
     if (withdrawalError) withdrawalError.hidden = filled;
@@ -105,6 +119,10 @@
   });
 
   withdrawalForm?.addEventListener('submit', function (event) {
+    if (withdrawalIsBlocked() || withdrawalInput.disabled) {
+      event.preventDefault();
+      return;
+    }
     if (!withdrawalInput.value.trim()) {
       event.preventDefault();
       if (withdrawalError) withdrawalError.hidden = false;
