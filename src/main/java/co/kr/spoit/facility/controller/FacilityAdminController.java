@@ -22,13 +22,14 @@ import co.kr.spoit.facility.dto.FacilityForm;
 import co.kr.spoit.facility.dto.SchedulePage;
 import co.kr.spoit.facility.service.FacilityAccessDeniedException;
 import co.kr.spoit.facility.service.FacilityDeleteBlockedException;
+import co.kr.spoit.admin.common.AdminShellModel;
 import co.kr.spoit.facility.service.FacilityNotFoundException;
 import co.kr.spoit.facility.service.FacilityScheduleService;
 import co.kr.spoit.facility.service.FacilityService;
+import co.kr.spoit.match.dto.FacilityDashboard;
 import co.kr.spoit.match.dto.RoomManagementPage;
 import co.kr.spoit.match.service.RoomManagementService;
 import co.kr.spoit.member.domain.MemberPrincipal;
-import co.kr.spoit.web.AdminShellModel;
 
 /**
  * 시설 관리자 화면의 담당 시설 조회·등록·수정·삭제 요청과 예약 운영 일정·매칭방 목록 화면을 처리한다.
@@ -99,11 +100,15 @@ public class FacilityAdminController {
         boolean scheduleView = "schedule".equals(view);
         boolean bookingsView = "bookings".equals(view);
         model.addAttribute("view", scheduleView ? "schedule" : bookingsView ? "bookings" : "dashboard");
-        model.addAttribute("scopeName", null);
-        model.addAttribute("todayLabel", null);
-        model.addAttribute("chartCollectedAt", null);
-        model.addAttribute("dashboard", null);
         Long userId = principal == null ? null : principal.getUserId();
+
+        // 대시보드는 해시로 섹션을 바꾸는 화면 계약상 모든 view에서 실제 값으로 채운다.
+        // 집계는 검색·상태·종목·시설 필터와 무관하게 담당 활성 시설 전체를 대상으로 한다.
+        FacilityDashboard dashboard = roomManagementService.findDashboard(userId);
+        model.addAttribute("dashboard", dashboard);
+        model.addAttribute("scopeName", dashboard.getScopeName());
+        model.addAttribute("todayLabel", dashboard.getTodayLabel());
+        model.addAttribute("chartCollectedAt", dashboard.getCollectedAt());
         model.addAttribute("facilities", facilityService.findManagedFacilities(userId));
 
         applyScheduleModel(model, scheduleView

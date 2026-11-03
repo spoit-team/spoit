@@ -1,5 +1,6 @@
 package co.kr.spoit.mat.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -20,6 +21,7 @@ import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.member.security.MemberLoginFailureHandler;
 import co.kr.spoit.member.security.MemberLoginSuccessHandler;
 import co.kr.spoit.member.service.MemberUserDetailsService;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -31,6 +33,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.PathVariable;
 
 @WebMvcTest(controllers = AutoAssignmentController.class)
 @Import(SecurityConfig.class)
@@ -115,6 +118,17 @@ class AutoAssignmentControllerTest {
 
         mockMvc.perform(get(URL).with(user(principal("시설 관리자"))))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void declaresPathVariableNameSoBindingDoesNotNeedCompilerParameterNames() {
+        Method preview = java.util.Arrays.stream(AutoAssignmentController.class.getDeclaredMethods())
+                .filter(method -> method.getName().equals("preview"))
+                .findFirst()
+                .orElseThrow();
+        PathVariable pathVariable = preview.getParameters()[0].getAnnotation(PathVariable.class);
+        assertThat(pathVariable).isNotNull();
+        assertThat(pathVariable.value()).isEqualTo("matchId");
     }
 
     private static MemberPrincipal principal(String role) {

@@ -3,6 +3,7 @@ package co.kr.spoit.match.mapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -20,10 +21,12 @@ import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.context.jdbc.SqlConfig;
 import org.springframework.test.context.transaction.BeforeTransaction;
 
+import co.kr.spoit.match.dto.FacilityDashboard;
 import co.kr.spoit.match.dto.RoomManagementApplicationRow;
 import co.kr.spoit.match.dto.RoomManagementPage;
 import co.kr.spoit.match.dto.RoomManagementParticipantRow;
 import co.kr.spoit.match.dto.RoomManagementQuery;
+import co.kr.spoit.match.dto.RoomManagementRecentRequestRow;
 import co.kr.spoit.match.dto.RoomManagementRow;
 import co.kr.spoit.match.dto.RoomManagementSport;
 import co.kr.spoit.match.service.RoomManagementService;
@@ -228,6 +231,120 @@ class RoomManagementMapperIntegrationTest {
         assertThat(detail.getApplications().get(0).getCreatedAtLabel()).isEqualTo("2026-11-01 10:00");
         assertThat(detail.getApplications().get(3).getApplicantName()).isEqualTo("Match 테스트 동호회");
         assertThat(detail.getApplications().get(3).getKindLabel()).isEqualTo("동호회 신청");
+    }
+
+    @Test
+    @DisplayName("최근 신청은 담당 활성 시설의 모든 상태를 최신 접수순·동률 ID 내림차순으로 조회한다")
+    void findsRecentApplicationsScopedToManagedFacilities() {
+        insertRecentRequestRows();
+
+        var requests = roomManagementMapper.findRecentApplications(MANAGER_A, 5);
+
+        // 담당 범위 밖(삭제 시설 9405·타 관리자 시설 9406)은 접수 시각이 더 최근이어도 빠진다.
+        assertThat(requests)
+                .extracting(RoomManagementRecentRequestRow::getApplicationId)
+                .containsExactly(9511L, 9507L, 9506L, 9505L, 9504L);
+
+        RoomManagementRecentRequestRow latest = requests.get(0);
+        assertThat(latest.getMatchId()).isEqualTo(9403L);
+        assertThat(latest.getMatchTitle()).isEqualTo("일요 축구 종료");
+        assertThat(latest.getFacilityName()).isEqualTo("관리 시설 베타");
+        assertThat(latest.getCreatedAt()).isEqualTo(LocalDateTime.of(2026, 11, 2, 10, 20));
+
+        // 모든 신청 상태를 포함한다(취소·확정·대기).
+        assertThat(roomManagementMapper.findRecentApplications(MANAGER_A, 8))
+                .extracting(RoomManagementRecentRequestRow::getStatus)
+                .contains("대기", "확정", "취소");
+
+        // 담당 방이 없는 관리자와 담당 시설이 없는 식별자는 빈 목록이다.
+        assertThat(roomManagementMapper.findRecentApplications(MANAGER_EMPTY, 5)).isEmpty();
+        assertThat(roomManagementMapper.findRecentApplications(9999L, 5)).isEmpty();
+
+        // 최대 건수 제한이 SQL에서 적용된다.
+        assertThat(roomManagementMapper.findRecentApplications(MANAGER_A, 2)).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("팀 신청은 팀원 행이 여러 개여도 대표 행 하나만 최근 신청에 나온다")
+    void collapsesTeamApplicationsToLeaderRow() {
+        insertRecentRequestRows();
+
+        var requests = roomManagementMapper.findRecentApplications(MANAGER_A, 5);
+
+        assertThat(requests).extracting(RoomManagementRecentRequestRow::getApplicationId)
+                .as("9507(대표)·9508(팀원) 중 대표 행만 남는다")
+                .contains(9507L)
+                .doesNotContain(9508L);
+
+        RoomManagementRecentRequestRow team = requests.get(1);
+        assertThat(team.getApplicationType()).isEqualTo("동호회");
+        assertThat(team.getClubName()).isEqualTo("Match 테스트 동호회");
+        assertThat(team.getApplicantName()).isEqualTo("호스트비");
+    }
+
+    @Test
+    @DisplayName("서비스 대시보드 최근 요청은 담당 범위·최신순·팀 신청 단일화를 화면 문구로 만든다")
+    void dashboardExposesRecentRequestLabels() {
+        insertRecentRequestRows();
+
+        var requests = roomManagementService.findDashboard(MANAGER_A).getRecentRequests();
+
+        assertThat(requests).hasSize(5);
+        assertThat(requests).extracting(FacilityDashboard.RecentRequest::getMatchId)
+                .containsExactly(9403L, 9402L, 9402L, 9402L, 9401L);
+        assertThat(requests.get(0).getStatusLabel()).isEqualTo("참가 확정");
+        assertThat(requests.get(0).getStatusTone()).isEqualTo("good");
+        assertThat(requests.get(0).getFacilityName()).isEqualTo("관리 시설 베타");
+        assertThat(requests.get(1).getApplicantName()).isEqualTo("Match 테스트 동호회");
+        assertThat(requests.get(1).getStatusLabel()).isEqualTo("확정 대기");
+        assertThat(requests.get(1).getStatusTone()).isEqualTo("warn");
+        assertThat(requests.get(1).getCreatedAtLabel()).isEqualTo("2026-11-02 10:20");
+        assertThat(requests.get(4).getApplicantName()).isEqualTo("Match 테스트 동호회");
+
+        assertThat(roomManagementService.findDashboard(MANAGER_EMPTY).getRecentRequests()).isEmpty();
+        assertThat(roomManagementService.findDashboard(null).getRecentRequests()).isEmpty();
+    }
+
+    /**
+     * 최근 신청 정렬·팀 묶음·담당 범위 검증용 행을 테스트 트랜잭션 안에서만 넣는다.
+     *
+     * <p>공유 fixture에 넣으면 다른 매퍼 테스트의 점유/예약 인원 기대값을 바꾸므로 이 테스트에서만
+     * 추가하고 롤백에 맡긴다.</p>
+     */
+    private void insertRecentRequestRows() {
+        // 담당 시설(베타) 방의 최신 접수 신청: 9507(동률)보다 ID가 커서 먼저 온다.
+        jdbcTemplate.update("""
+                INSERT INTO match_application (application_id, match_id, applicant_user_id, club_id,
+                    application_type, status, receipt_no, created_at)
+                VALUES (9511, 9403, 9205, NULL, '개인', '확정', 'ROOM-TEST-9511', '2026-11-02 10:20:00')
+                """);
+        // 팀 신청 대표 행: group_application_id는 같은 행을 가리키므로 INSERT 뒤에 채운다.
+        jdbcTemplate.update("""
+                INSERT INTO match_application (application_id, match_id, applicant_user_id, club_id,
+                    application_type, status, receipt_no, created_at, group_application_id)
+                VALUES (9507, 9402, 9203, 9601, '동호회', '대기', 'ROOM-TEST-9507',
+                    '2026-11-02 10:20:00', NULL)
+                """);
+        jdbcTemplate.update("UPDATE match_application SET group_application_id = 9507"
+                + " WHERE application_id = 9507");
+        // 팀원 행: 대표와 같은 시각이지만 최근 신청에는 나오면 안 된다.
+        jdbcTemplate.update("""
+                INSERT INTO match_application (application_id, match_id, applicant_user_id, club_id,
+                    application_type, status, receipt_no, created_at, group_application_id)
+                VALUES (9508, 9402, 9205, 9601, '동호회', '대기', 'ROOM-TEST-9508',
+                    '2026-11-02 10:20:00', 9507)
+                """);
+        // 담당 범위 밖: 삭제된 시설(9405)·다른 관리자 시설(9406)의 방이다.
+        jdbcTemplate.update("""
+                INSERT INTO match_application (application_id, match_id, applicant_user_id, club_id,
+                    application_type, status, receipt_no, created_at)
+                VALUES (9509, 9405, 9204, NULL, '개인', '대기', 'ROOM-TEST-9509', '2026-11-03 09:00:00')
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO match_application (application_id, match_id, applicant_user_id, club_id,
+                    application_type, status, receipt_no, created_at)
+                VALUES (9510, 9406, 9204, NULL, '개인', '확정', 'ROOM-TEST-9510', '2026-11-03 09:30:00')
+                """);
     }
 
     private List<Long> ids(RoomManagementQuery query) {

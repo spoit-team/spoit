@@ -79,6 +79,8 @@ class FacilityScheduleRouteTest {
     void rendersScheduleViewWithSelectedFacilityAndTab() throws Exception {
         when(facilityService.findManagedFacilities(7L)).thenReturn(List.of(facility()));
         when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(rooms());
+        when(roomManagementService.findDashboard(7L)).thenReturn(
+                co.kr.spoit.match.dto.FacilityDashboard.empty("2026-11-02(월)", "2026-11-02 14:05"));
         when(scheduleService.findSchedulePage(eq(7L), eq(10L), eq(LocalDate.of(2026, 11, 3)),
                 eq(3L), eq("schedule-changes"), any()))
                 .thenReturn(page());

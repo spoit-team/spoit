@@ -28,7 +28,7 @@ public class TeamAssignmentController {
     }
 
     @GetMapping("/{matchId}/assignment")
-    public ResponseEntity<?> view(@PathVariable long matchId,
+    public ResponseEntity<?> view(@PathVariable("matchId") long matchId,
                                   @AuthenticationPrincipal MemberPrincipal principal) {
         Optional<TeamAssignmentView> view = teamAssignmentService.getView(matchId, principal.getUserId());
         if (view.isEmpty()) {
@@ -38,13 +38,13 @@ public class TeamAssignmentController {
     }
 
     @PostMapping("/{matchId}/auto-assignment")
-    public ResponseEntity<AssignmentResult> confirmAuto(@PathVariable long matchId,
+    public ResponseEntity<AssignmentResult> confirmAuto(@PathVariable("matchId") long matchId,
                                                         @AuthenticationPrincipal MemberPrincipal principal) {
         return toResponse(teamAssignmentService.confirmAuto(matchId, principal.getUserId()));
     }
 
     @PostMapping("/{matchId}/assignment")
-    public ResponseEntity<AssignmentResult> confirmManual(@PathVariable long matchId,
+    public ResponseEntity<AssignmentResult> confirmManual(@PathVariable("matchId") long matchId,
                                                           @RequestBody ManualAssignmentRequest request,
                                                           @AuthenticationPrincipal MemberPrincipal principal) {
         return toResponse(teamAssignmentService.confirmManual(matchId, principal.getUserId(),
@@ -52,7 +52,7 @@ public class TeamAssignmentController {
     }
 
     @DeleteMapping("/{matchId}/assignment")
-    public ResponseEntity<AssignmentResult> reset(@PathVariable long matchId,
+    public ResponseEntity<AssignmentResult> reset(@PathVariable("matchId") long matchId,
                                                   @AuthenticationPrincipal MemberPrincipal principal) {
         return toResponse(teamAssignmentService.reset(matchId, principal.getUserId()));
     }

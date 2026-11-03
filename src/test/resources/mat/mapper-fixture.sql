@@ -171,3 +171,38 @@ INSERT INTO sport_rating (
     user_id, sport_id, current_mmr, rated_match_count, updated_at
 ) VALUES
     (3, 1, 1000.00, 7, '2026-10-21 09:30:00');
+
+-- MatchResultMapper: 결과 제출 경기 7과 레이팅에서 이미 제외된 취소 경기 8
+-- 경기 7의 팀장(70, 71)은 참가자 FK 때문에 INSERT로 지정할 수 없어 테스트에서 지정한다.
+-- 팀장 70은 무효가 된 행과 활성 행이 하나씩 있고, 팀장 71은 제출 행이 없다.
+INSERT INTO social_match (
+    match_id, facility_id, sport_id, created_by, title, start_at, end_at,
+    min_participants, max_participants, team_a_capacity, team_b_capacity,
+    fee_per_person, required_skill, status, assignment_method, rating_status, cancelled_at
+) VALUES
+    (7, 1, 1, 1, 'MAT 결과 제출 테스트 경기', '2026-10-26 10:00:00', '2026-10-26 12:00:00',
+     2, 2, 1, 1, 0.00, '무관', '매칭 완료', 'AUTO', 'WAITING', NULL),
+    (8, 1, 1, 1, 'MAT 취소 테스트 경기', '2026-10-20 10:00:00', '2026-10-20 12:00:00',
+     2, 2, 1, 1, 0.00, '무관', '취소', 'MANUAL', 'EXCLUDED', '2026-10-20 10:00:00');
+
+INSERT INTO match_application (
+    application_id, match_id, applicant_user_id, club_id, application_type,
+    status, receipt_no, created_at, confirmed_at, cancelled_at, cancelled_by
+) VALUES
+    (70, 7, 3, NULL, '개인', '확정', 'MAT-TEST-RECEIPT-70',
+     '2026-10-20 09:00:00', '2026-10-20 09:00:00', NULL, NULL),
+    (71, 7, 4, NULL, '개인', '확정', 'MAT-TEST-RECEIPT-71',
+     '2026-10-20 09:00:00', '2026-10-20 09:00:00', NULL, NULL);
+
+INSERT INTO match_participant (
+    participant_id, application_id, match_id, user_id, participation_status,
+    match_side, entry_mmr, joined_at, cancelled_at
+) VALUES
+    (70, 70, 7, 3, '확정', 'A', 1000.00, '2026-10-20 09:00:00', NULL),
+    (71, 71, 7, 4, '확정', 'B', 1000.00, '2026-10-20 09:00:00', NULL);
+
+INSERT INTO match_result_submission (
+    submission_id, match_id, captain_participant_id, reported_result, submission_status, submitted_at
+) VALUES
+    (700, 7, 70, 'A_WIN', 'REPLACED', '2026-10-26 12:10:00'),
+    (701, 7, 70, 'B_WIN', 'SUBMITTED', '2026-10-26 12:20:00');

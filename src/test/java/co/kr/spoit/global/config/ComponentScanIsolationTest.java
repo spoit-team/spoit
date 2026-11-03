@@ -11,7 +11,7 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.io.DefaultResourceLoader;
 
-import co.kr.spoit.web.CorePageController;
+import co.kr.spoit.admin.controller.SystemAdminController;
 
 /**
  * 테스트 클래스가 런타임 클래스패스에 포함된 상태에서도 애플리케이션의 일반 컴포넌트 스캔이
@@ -34,7 +34,7 @@ class ComponentScanIsolationTest {
                 .collect(Collectors.toSet());
 
         // 스캔 자체가 동작하는지 확인하는 양성 대조군이다.
-        assertThat(scannedClassNames).contains(CorePageController.class.getName());
+        assertThat(scannedClassNames).contains(SystemAdminController.class.getName());
         // 테스트 클래스패스에 테스트 전용 구성이 존재해도 애플리케이션 스캔 후보에는 없어야 한다.
         assertThat(scannedClassNames)
                 .noneMatch(name -> name.startsWith(SecurityConfigTest.class.getName()));
