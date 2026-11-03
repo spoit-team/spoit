@@ -78,7 +78,9 @@ public class TeamAssignmentService {
         checkManager(match, managerUserId);
 
         boolean started = isStarted(match);
-        boolean assigned = MatchStatus.MATCHED.dbValue().equals(match.getStatus());
+        // 종료는 매칭 완료에서만 바뀌므로 종료된 경기도 배정이 끝난 경기로 보여 준다.
+        boolean assigned = MatchStatus.MATCHED.dbValue().equals(match.getStatus())
+                || MatchStatus.CLOSED.dbValue().equals(match.getStatus());
         boolean canAssign = !started && autoAssignmentService
                 .checkAssignable(match, participantMapper.findByMatchId(matchId)).isEmpty();
         List<TeamAssignmentView.Participant> participants = assignmentMapper

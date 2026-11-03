@@ -170,6 +170,18 @@ class TeamAssignmentServiceTest {
     }
 
     @Test
+    void viewsClosedMatchAsAssigned() {
+        when(assignmentMapper.findAssignmentMatch(MATCH_ID)).thenReturn(Optional.of(match("종료", NOW)));
+        when(assignmentMapper.isFacilityManager(FACILITY_ID, MANAGER_ID)).thenReturn(true);
+
+        var view = service.getView(MATCH_ID, MANAGER_ID).orElseThrow();
+
+        assertThat(view.assigned()).isTrue();
+        assertThat(view.canAssign()).isFalse();
+        assertThat(view.canReset()).isFalse();
+    }
+
+    @Test
     void returnsEmptyViewForMissingMatch() {
         when(assignmentMapper.findAssignmentMatch(MATCH_ID)).thenReturn(Optional.empty());
 
