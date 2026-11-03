@@ -26,24 +26,35 @@ public class FacilityDashboard {
     private final List<HourlyBar> hourlyBars;
     /** 매칭방 번호 내림차순 최근 등록 순. 항목 타입은 매칭방 목록과 같은 표시 모델이다. */
     private final List<RoomManagementPage.Match> recentMatches;
+    /** 담당 시설 매칭방의 최신 접수 신청(모든 상태, 접수 시각 내림차순 최대 5건) */
+    private final List<RecentRequest> recentRequests;
     /** "2026-11-02(월)" 형식의 오늘 날짜 */
     private final String todayLabel;
     /** "2026-11-02 14:05" 형식의 조회 시각 */
     private final String collectedAt;
 
+    /** 최근 요청 없이 만드는 생성자. 기존 호출처 호환용이다. */
     public FacilityDashboard(int matchCount, int recruitingCount, List<HourlyBar> hourlyBars,
             List<RoomManagementPage.Match> recentMatches, String todayLabel, String collectedAt) {
+        this(matchCount, recruitingCount, hourlyBars, recentMatches, List.of(), todayLabel, collectedAt);
+    }
+
+    public FacilityDashboard(int matchCount, int recruitingCount, List<HourlyBar> hourlyBars,
+            List<RoomManagementPage.Match> recentMatches, List<RecentRequest> recentRequests,
+            String todayLabel, String collectedAt) {
         this.matchCount = matchCount;
         this.recruitingCount = recruitingCount;
         this.hourlyBars = List.copyOf(hourlyBars);
         this.recentMatches = List.copyOf(recentMatches);
+        this.recentRequests = List.copyOf(recentRequests);
         this.todayLabel = todayLabel;
         this.collectedAt = collectedAt;
     }
 
     /** 담당 시설이 없거나 관리자 식별자가 없을 때 쓰는 0건 집계. */
     public static FacilityDashboard empty(String todayLabel, String collectedAt) {
-        return new FacilityDashboard(0, 0, HourlyBar.zeroBars(), List.of(), todayLabel, collectedAt);
+        return new FacilityDashboard(0, 0, HourlyBar.zeroBars(), List.of(), List.of(), todayLabel,
+                collectedAt);
     }
 
     /** 집계 범위 문구. 필터와 무관하게 항상 담당 시설 전체다. */
@@ -61,9 +72,38 @@ public class FacilityDashboard {
         return null;
     }
 
-    /** 최근 요청 피드는 이번 범위가 아니므로 빈 목록이다. */
-    public List<Object> getRecentRequests() {
-        return List.of();
+    /** 최근 접수 신청 피드. 항목이 없으면 빈 목록이다. */
+    public List<RecentRequest> getRecentRequests() {
+        return recentRequests;
+    }
+
+    /**
+     * 최근 접수 신청 한 건의 표시 모델이다. 상세는 기존 운영 화면
+     * ({@code /admin/operations?matchId=})으로 연결하므로 {@code matchId}를 함께 담는다.
+     */
+    @Getter
+    public static class RecentRequest {
+
+        private final Long matchId;
+        private final String matchTitle;
+        private final String facilityName;
+        private final String applicantName;
+        /** "2026-11-01 10:00" 형식의 접수 시각. 없으면 "접수 시각 미설정" */
+        private final String createdAtLabel;
+        private final String statusLabel;
+        /** good / warn / bad / neutral */
+        private final String statusTone;
+
+        public RecentRequest(Long matchId, String matchTitle, String facilityName, String applicantName,
+                String createdAtLabel, String statusLabel, String statusTone) {
+            this.matchId = matchId;
+            this.matchTitle = matchTitle;
+            this.facilityName = facilityName;
+            this.applicantName = applicantName;
+            this.createdAtLabel = createdAtLabel;
+            this.statusLabel = statusLabel;
+            this.statusTone = statusTone;
+        }
     }
 
     /**

@@ -27,6 +27,7 @@ import co.kr.spoit.match.dto.RoomManagementFacilitySport;
 import co.kr.spoit.match.dto.RoomManagementPage;
 import co.kr.spoit.match.dto.RoomManagementParticipantRow;
 import co.kr.spoit.match.dto.RoomManagementQuery;
+import co.kr.spoit.match.dto.RoomManagementRecentRequestRow;
 import co.kr.spoit.match.dto.RoomManagementRow;
 import co.kr.spoit.match.dto.RoomManagementSport;
 import co.kr.spoit.match.mapper.RoomManagementMapper;
@@ -65,6 +66,9 @@ public class RoomManagementService {
 
     /** 대시보드 최근 매칭방 표시 건수 */
     static final int RECENT_MATCH_LIMIT = 5;
+
+    /** 대시보드 최근 요청(참가 신청) 표시 건수 */
+    static final int RECENT_REQUEST_LIMIT = 5;
 
     private final RoomManagementMapper roomManagementMapper;
     private final Clock clock;
@@ -139,6 +143,9 @@ public class RoomManagementService {
      *
      * <p>관리자 식별자가 없으면 매퍼를 호출하지 않고 0건 집계를 돌려준다. 차트의 '이용 완료'는
      * DB 종료({@link MatchStatus#CLOSED}) 상태만 뜻하고 취소는 포함하지 않는다.</p>
+     *
+     * <p>최근 요청은 담당 시설 매칭방에 접수된 신청을 상태와 무관하게 최신 접수순으로 최대
+     * {@link #RECENT_REQUEST_LIMIT}건 담는다. 팀 신청은 대표 행만 조회해 하나의 신청으로 표현한다.</p>
      */
     public FacilityDashboard findDashboard(Long managerUserId) {
         LocalDateTime now = LocalDateTime.now(clock);
@@ -194,8 +201,39 @@ public class RoomManagementService {
                 .map(row -> toListMatch(row, now))
                 .toList();
 
+        List<FacilityDashboard.RecentRequest> recentRequests = new ArrayList<>();
+        for (RoomManagementRecentRequestRow request : nullSafe(
+                roomManagementMapper.findRecentApplications(managerUserId, RECENT_REQUEST_LIMIT))) {
+            if (request != null) {
+                recentRequests.add(toRecentRequest(request));
+            }
+        }
+
         return new FacilityDashboard(matchCount, recruitingCount, hourlyBars, recentMatches,
-                todayLabel, collectedAt);
+                recentRequests, todayLabel, collectedAt);
+    }
+
+    /**
+     * 대시보드 최근 요청 한 건을 화면 문구로 만든다. 상세는 기존 운영 화면
+     * ({@code /admin/operations?matchId=})이 그대로 맡으므로 매칭방 ID만 넘긴다.
+     */
+    private static FacilityDashboard.RecentRequest toRecentRequest(RoomManagementRecentRequestRow row) {
+        return new FacilityDashboard.RecentRequest(
+                row.getMatchId(),
+                label(row.getMatchTitle(), "제목 없음"),
+                label(row.getFacilityName(), "시설 미설정"),
+                recentApplicantName(row),
+                createdAtLabel(row.getCreatedAt()),
+                applicationStatusLabel(row.getStatus()),
+                applicationStatusTone(row.getStatus()));
+    }
+
+    /** 동호회 신청은 신청자(동호회장) 대신 동호회명을 우선 보여 준다. */
+    private static String recentApplicantName(RoomManagementRecentRequestRow row) {
+        if (ApplicationType.CLUB.dbValue().equals(row.getApplicationType()) && !isBlank(row.getClubName())) {
+            return row.getClubName().strip();
+        }
+        return label(row.getApplicantName(), "신청자 미상");
     }
 
     /** 24칸 중 최대값에 대한 상대 백분율. 모두 0이면 0이다. */
@@ -420,6 +458,20 @@ public class RoomManagementService {
             case "반려" -> "신청 반려";
             default -> status;
         };
+    }
+
+    /** 최근 요청의 상태 톤. 대기는 확인이 필요한 상태라 warn, 확정은 good, 반려는 bad다. */
+    private static String applicationStatusTone(String status) {
+        if (ApplicationStatus.WAITING.dbValue().equals(status)) {
+            return TONE_WARN;
+        }
+        if (ApplicationStatus.CONFIRMED.dbValue().equals(status)) {
+            return TONE_GOOD;
+        }
+        if (ApplicationStatus.REJECTED.dbValue().equals(status)) {
+            return TONE_BAD;
+        }
+        return TONE_NEUTRAL;
     }
 
     private static String participationStatusLabel(String status) {

@@ -49,23 +49,34 @@
             <div class="chart-foot"><span>막대 높이 = 가장 많은 시각 대비 상대값 · 이용 완료는 종료 상태</span><span th:text="${chartCollectedAt != null ? '마지막 집계 ' + chartCollectedAt : '집계 시각 없음'}">집계 시각 없음</span></div>
           </article>
 
-          <!-- 요청 피드는 아직 서버와 연결되지 않았다. 0건으로 읽히는 빈 목록 대신 연동 전 상태를 그대로 알리고,
-               동작하지 않는 '전체 보기' 링크로 요청 화면을 약속하지 않는다. -->
+          <!-- 최근 요청 피드: 담당 시설 매칭방에 접수된 참가 신청을 상태와 무관하게 최신순 5건만 보여 준다.
+               팀 신청 1건은 1건으로 세고, 각 항목은 조회 전용 매칭방 상세로만 이어진다.
+               승인·처리 버튼은 두지 않는다(이 카드에서 처리할 수 있는 기능이 없다). -->
           <article class="card">
-            <div class="card-heading"><div><h2>최근 요청</h2><p>확인이 필요한 시설 이용 요청</p></div><span class="metric-tag">연동 전</span></div>
-            <div class="unlinked-panel">
-              <strong>요청 데이터가 아직 연결되지 않았습니다.</strong>
-              <p>민원·점검 요청을 불러오는 기능이 준비되면 이 카드에 최근 접수 내역이 표시됩니다. 지금은 요청이 0건이라는 뜻이 아니며, 요청 화면으로 이동하는 링크도 제공하지 않습니다.</p>
-            </div>
+            <div class="card-heading"><div><h2>최근 요청</h2><p>담당 시설 매칭방 참가 신청 · 모든 상태 최신 5건</p></div></div>
+            <ol class="request-feed" th:if="${!#lists.isEmpty(dashboard?.recentRequests)}">
+              <li th:each="recentRequest : ${dashboard?.recentRequests}">
+                <a class="request-feed-item" th:href="@{/admin/operations(matchId=${recentRequest.matchId})}" th:aria-label="${recentRequest.applicantName + ' · ' + recentRequest.matchTitle + ' · ' + recentRequest.statusLabel + ' · 매칭방 상세에서 신청 내역 보기'}">
+                  <span class="request-feed-head">
+                    <b class="request-feed-applicant" th:text="${recentRequest.applicantName}">신청자</b>
+                    <span class="status-badge" th:classappend="${recentRequest.statusTone}" th:text="${recentRequest.statusLabel}">신청 상태</span>
+                  </span>
+                  <span class="request-feed-match" th:text="${recentRequest.matchTitle}">매칭방 이름</span>
+                  <span class="request-feed-meta"><span th:text="${recentRequest.facilityName}">시설</span><span class="request-feed-time" th:text="${recentRequest.createdAtLabel}">신청 시각</span></span>
+                </a>
+              </li>
+            </ol>
+            <p class="request-feed-empty" th:if="${#lists.isEmpty(dashboard?.recentRequests)}">담당 시설 매칭방에 접수된 참가 신청이 없습니다. 새 신청이 접수되면 최신 5건이 여기에 표시됩니다.</p>
+            <p class="request-feed-foot" th:if="${!#lists.isEmpty(dashboard?.recentRequests)}">팀 신청은 1건으로 셉니다 · 담당 시설 매칭방 한정 · 승인·처리는 이 카드에서 할 수 없으며 신청 내용은 매칭방 상세에서 확인합니다.</p>
           </article>
         </div>
 
         <div class="section-heading"><div class="section-title-wrap"><h2>최근 매칭방</h2><p>방 번호 내림차순 최근 등록 5건 · 담당 시설 전체의 모든 상태</p></div><a class="admin-button small" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">매칭방 전체 보기 →</a></div>
         <div class="card">
           <div class="result-meta" th:unless="${#lists.isEmpty(dashboard?.recentMatches)}"><b th:text="${#lists.size(dashboard?.recentMatches)}">0</b>건 표시 · 최근 등록 순</div>
-          <div class="table-scroll"><table class="admin-table"><caption class="sr-only">담당 시설 전체에서 최근 등록된 매칭방 5건</caption><thead><tr><th>방 번호·이름</th><th>시설·종목</th><th>참여 현황</th><th>이용 일시</th><th>방 상태</th><th>상세</th></tr></thead><tbody>
+          <div class="table-scroll"><table class="admin-table"><caption class="sr-only">담당 시설 전체에서 최근 등록된 매칭방 5건</caption><thead><tr><th>방 이름·번호</th><th>시설·종목</th><th>참여 현황</th><th>이용 일시</th><th>방 상태</th><th>상세</th></tr></thead><tbody>
           <tr th:each="match : ${dashboard?.recentMatches}">
-            <td><span class="cell-primary" th:text="${match.matchId}">방 번호</span><span class="cell-secondary" th:text="${match.title}">방 이름</span></td>
+            <td><span class="cell-primary" th:text="${match.title}">방 이름</span><span class="cell-secondary" th:text="${match.matchId}">방 번호</span></td>
             <td><span th:text="${match.facilityName}">시설</span><small class="cell-secondary" th:text="${match.sportName}">종목</small></td>
             <td th:text="${match.participation}">0 / 0명</td>
             <td th:text="${match.dateLabel}">일시</td>
@@ -146,24 +157,29 @@
             <!-- 전체 시설도 같은 이유로 빈 값이고, 목록은 담당 시설만 노출한다. -->
             <select class="field-control" id="booking-facility-filter" name="facilityId" aria-label="시설 필터"><option value="" th:selected="${bookingFilters?.facilityId == null}">전체 시설</option><option th:each="facility : ${facilities}" th:value="${facility.facilityId}" th:text="${facility.name}" th:selected="${bookingFilters?.facilityId == facility.facilityId}">시설</option></select>
             <span class="toolbar-spacer"></span>
-            <button class="admin-button small" type="submit">검색</button>
-            <a class="admin-button small" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">초기화</a>
+            <!-- 검색·초기화는 옆 드롭다운과 높이·글자 크기를 맞춘다. 32px 버튼을 40px로 키우되
+                 글자는 드롭다운과 같은 12px을 쓰는 booking-filter-action이 두 버튼에만 붙고,
+                 다른 .admin-button.small은 그대로 32px이다. -->
+            <button class="admin-button small booking-filter-action" type="submit">검색</button>
+            <a class="admin-button small booking-filter-action" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">초기화</a>
           </form>
           <div class="result-meta"><b th:text="${#lists.size(matches)}">0</b>개의 매칭방</div>
-          <div class="table-scroll"><table class="admin-table"><thead><tr><th>방 번호·이름</th><th>시설·종목</th><th>참여 현황</th><th>이용 일시</th><th>방 상태</th><th>관리</th></tr></thead><tbody>
+          <div class="table-scroll"><table class="admin-table"><thead><tr><th>방 이름·번호</th><th>시설·종목</th><th>참여 현황</th><th>이용 일시</th><th>방 상태</th><th>관리</th></tr></thead><tbody>
             <tr th:each="match : ${matches}">
-              <td><span class="cell-primary" th:text="${match.matchId}">방 번호</span><span class="cell-secondary" th:text="${match.title}">방 이름</span></td>
+              <td><span class="cell-primary" th:text="${match.title}">방 이름</span><span class="cell-secondary" th:text="${match.matchId}">방 번호</span></td>
               <td><span th:text="${match.facilityName}">시설</span><small class="cell-secondary" th:text="${match.sportName}">종목</small></td>
               <td th:text="${match.participation}">0 / 0명</td>
               <td th:text="${match.dateLabel}">일시</td>
               <td><span class="status-badge" th:classappend="${match.statusTone}" th:text="${match.statusLabel}">상태</span></td>
               <td class="room-row-actions">
-                <a class="table-link" th:href="@{/admin/operations(matchId=${match.matchId})}" th:aria-label="${match.matchId + '번 매칭방 상세 보기'}">상세</a>
+                <!-- 상세는 화면 이동이라 <a>를 유지하고, 세 동작 모두 같은 admin-button.small 모양을 쓴다.
+                     되돌릴 수 없는 취소만 danger-ghost로 위험을 구분한다. -->
+                <a class="admin-button small" th:href="@{/admin/operations(matchId=${match.matchId})}" th:aria-label="${match.matchId + '번 매칭방 상세 보기'}">상세</a>
                 <th:block th:if="${match.edit != null}">
-                  <button class="table-link" type="button" data-edit-room th:aria-label="${match.matchId + '번 매칭방 수정'}" th:attr="data-room-id=${match.matchId},data-room-facility=${match.edit.facilityId},data-room-sport=${match.edit.sportId},data-room-title=${match.edit.title},data-room-date=${match.edit.date},data-room-hours=${match.edit.hours},data-room-team=${match.edit.teamCapacity},data-room-fee=${match.edit.feePerPerson},data-room-skill=${match.edit.requiredSkill},data-room-reserved=${match.edit.reservedCount},data-room-locked=${match.edit.scheduleLocked}">수정</button>
+                  <button class="admin-button small" type="button" data-edit-room th:aria-label="${match.matchId + '번 매칭방 수정'}" th:attr="data-room-id=${match.matchId},data-room-facility=${match.edit.facilityId},data-room-sport=${match.edit.sportId},data-room-title=${match.edit.title},data-room-date=${match.edit.date},data-room-hours=${match.edit.hours},data-room-team=${match.edit.teamCapacity},data-room-fee=${match.edit.feePerPerson},data-room-skill=${match.edit.requiredSkill},data-room-reserved=${match.edit.reservedCount},data-room-locked=${match.edit.scheduleLocked}">수정</button>
                   <form class="room-cancel-form" method="post" th:action="@{/admin/rooms/{matchId}/cancel(matchId=${match.matchId})}">
                     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-                    <button class="table-link danger-link" type="submit" data-cancel-room th:aria-label="${match.matchId + '번 매칭방 취소'}" th:attr="data-room-title=${match.title},data-room-reserved=${match.edit.reservedCount}">취소</button>
+                    <button class="admin-button small danger-ghost" type="submit" data-cancel-room th:aria-label="${match.matchId + '번 매칭방 취소'}" th:attr="data-room-title=${match.title},data-room-reserved=${match.edit.reservedCount}">취소</button>
                   </form>
                 </th:block>
               </td>

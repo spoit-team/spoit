@@ -9,6 +9,7 @@ import co.kr.spoit.match.dto.RoomManagementApplicationRow;
 import co.kr.spoit.match.dto.RoomManagementFacilitySport;
 import co.kr.spoit.match.dto.RoomManagementParticipantRow;
 import co.kr.spoit.match.dto.RoomManagementQuery;
+import co.kr.spoit.match.dto.RoomManagementRecentRequestRow;
 import co.kr.spoit.match.dto.RoomManagementRow;
 import co.kr.spoit.match.dto.RoomManagementSport;
 
@@ -46,4 +47,12 @@ public interface RoomManagementMapper {
 
     /** 매칭방 참가자 명단 (참가 순) */
     List<RoomManagementParticipantRow> findParticipants(RoomManagementQuery query);
+
+    /**
+     * 담당 시설 매칭방에 접수된 최근 신청 (모든 상태, 최신 접수순).
+     *
+     * <p>팀 신청은 팀원마다 행이 있으므로 대표 행만 조회해 신청 하나로 표현한다.</p>
+     */
+    List<RoomManagementRecentRequestRow> findRecentApplications(
+            @Param("managerUserId") Long managerUserId, @Param("limit") int limit);
 }

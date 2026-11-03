@@ -22,6 +22,7 @@ import co.kr.spoit.match.dto.RoomManagementDetail;
 import co.kr.spoit.match.dto.RoomManagementPage;
 import co.kr.spoit.match.dto.RoomManagementParticipantRow;
 import co.kr.spoit.match.dto.RoomManagementQuery;
+import co.kr.spoit.match.dto.RoomManagementRecentRequestRow;
 import co.kr.spoit.match.dto.RoomManagementRow;
 import co.kr.spoit.match.dto.RoomManagementSport;
 import co.kr.spoit.match.mapper.RoomManagementMapper;
@@ -385,9 +386,58 @@ class RoomManagementServiceTest {
         assertThat(dashboard.getRecruitingCount()).isZero();
         assertThat(dashboard.getHourlyBars()).hasSize(24);
         assertThat(dashboard.getRecentMatches()).isEmpty();
+        assertThat(dashboard.getRecentRequests()).isEmpty();
         assertThat(dashboard.getScopeName()).isEqualTo("담당 시설 전체");
         assertThat(dashboard.getTodayLabel()).isNotBlank();
         verifyNoInteractions(mapper);
+    }
+
+    @Test
+    @DisplayName("최근 요청은 매퍼가 돌려준 순서대로 문구를 만들고 동호회 신청은 동호회명을 쓴다")
+    void dashboardMapsRecentRequests() {
+        RoomManagementService roomService = serviceAt(LocalDateTime.of(2026, 11, 2, 14, 5));
+        given(mapper.findRooms(any())).willReturn(List.of());
+        given(mapper.findRecentApplications(MANAGER_ID, RoomManagementService.RECENT_REQUEST_LIMIT))
+                .willReturn(List.of(
+                        recentRequest(9511L, 9403L, "개인", "확정", "신청자하나", null),
+                        recentRequest(9507L, 9402L, "동호회", "대기", "호스트비", "Match 테스트 동호회"),
+                        recentRequest(9503L, 9401L, "개인", "취소", "  ", null)));
+
+        List<FacilityDashboard.RecentRequest> requests = roomService.findDashboard(MANAGER_ID)
+                .getRecentRequests();
+
+        assertThat(requests).hasSize(3);
+        assertThat(requests).extracting(FacilityDashboard.RecentRequest::getMatchId)
+                .containsExactly(9403L, 9402L, 9401L);
+        assertThat(requests).extracting(FacilityDashboard.RecentRequest::getStatusLabel)
+                .containsExactly("참가 확정", "확정 대기", "신청 취소");
+        assertThat(requests).extracting(FacilityDashboard.RecentRequest::getStatusTone)
+                .containsExactly("good", "warn", "neutral");
+        assertThat(requests).extracting(FacilityDashboard.RecentRequest::getApplicantName)
+                .containsExactly("신청자하나", "Match 테스트 동호회", "신청자 미상");
+        assertThat(requests.get(0).getMatchTitle()).isEqualTo("금요 농구 모집");
+        assertThat(requests.get(0).getFacilityName()).isEqualTo("관리 시설 알파");
+        assertThat(requests.get(0).getCreatedAtLabel()).isEqualTo("2026-11-01 10:00");
+    }
+
+    @Test
+    @DisplayName("최근 요청이 없으면 빈 목록이고 조회는 담당자·최대 5건으로 제한한다")
+    void dashboardRecentRequestsDefaultToEmptyList() {
+        RoomManagementService roomService = serviceAt(LocalDateTime.of(2026, 11, 2, 14, 5));
+        given(mapper.findRooms(any())).willReturn(List.of());
+        given(mapper.findRecentApplications(MANAGER_ID, RoomManagementService.RECENT_REQUEST_LIMIT))
+                .willReturn(List.of());
+
+        assertThat(roomService.findDashboard(MANAGER_ID).getRecentRequests()).isEmpty();
+
+        org.mockito.Mockito.verify(mapper).findRecentApplications(MANAGER_ID,
+                RoomManagementService.RECENT_REQUEST_LIMIT);
+        assertThat(RoomManagementService.RECENT_REQUEST_LIMIT).isEqualTo(5);
+
+        // 매퍼가 null을 돌려줘도 화면 모델은 빈 목록을 유지한다.
+        given(mapper.findRecentApplications(MANAGER_ID, RoomManagementService.RECENT_REQUEST_LIMIT))
+                .willReturn(null);
+        assertThat(roomService.findDashboard(MANAGER_ID).getRecentRequests()).isEmpty();
     }
 
     private RoomManagementQuery capturedQuery() {
@@ -444,6 +494,21 @@ class RoomManagementServiceTest {
         row.setParticipationStatus(status);
         row.setMatchSide(side);
         row.setJoinedAt(LocalDateTime.of(2026, 11, 1, 10, 30));
+        return row;
+    }
+
+    private static RoomManagementRecentRequestRow recentRequest(long applicationId, long matchId,
+            String type, String status, String applicantName, String clubName) {
+        RoomManagementRecentRequestRow row = new RoomManagementRecentRequestRow();
+        row.setApplicationId(applicationId);
+        row.setMatchId(matchId);
+        row.setMatchTitle("금요 농구 모집");
+        row.setFacilityName("관리 시설 알파");
+        row.setApplicationType(type);
+        row.setStatus(status);
+        row.setApplicantName(applicantName);
+        row.setClubName(clubName);
+        row.setCreatedAt(LocalDateTime.of(2026, 11, 1, 10, 0));
         return row;
     }
 }
