@@ -85,6 +85,19 @@ class RoomManagementMapperXmlBindingTest {
         assertThat(findSports.getTextContent()).doesNotContain("social_match");
     }
 
+    @Test
+    @DisplayName("최근 신청 조회는 팀 신청을 대표 행으로 접고 최신 접수순·건수 제한을 건다")
+    void recentApplicationsCollapseTeamRowsAndOrderNewest() throws Exception {
+        Element findRecentApplications = statement(readDocument(), "findRecentApplications");
+        String sql = findRecentApplications.getTextContent();
+
+        assertThat(sql).contains("ma.group_application_id = ma.application_id");
+        assertThat(sql).contains("ORDER BY ma.created_at DESC, ma.application_id DESC");
+        assertThat(sql).contains("LIMIT #{limit}");
+        // 모든 신청 상태를 포함해야 하므로 상태 조건을 두지 않는다.
+        assertThat(sql).doesNotContain("ma.status =");
+    }
+
     private static Set<String> statementIds() throws Exception {
         Set<String> ids = new LinkedHashSet<>();
         NodeList all = readDocument().getElementsByTagName("*");

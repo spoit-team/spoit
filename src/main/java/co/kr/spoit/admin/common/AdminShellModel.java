@@ -1,4 +1,4 @@
-package co.kr.spoit.web;
+package co.kr.spoit.admin.common;
 
 import java.util.Collections;
 import java.util.List;

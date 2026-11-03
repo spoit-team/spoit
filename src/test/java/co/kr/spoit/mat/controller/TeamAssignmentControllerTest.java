@@ -1,5 +1,6 @@
 package co.kr.spoit.mat.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -33,6 +34,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.PathVariable;
 
 @WebMvcTest(controllers = TeamAssignmentController.class)
 @Import(SecurityConfig.class)
@@ -150,6 +152,22 @@ class TeamAssignmentControllerTest {
                 .andExpect(status().isForbidden());
 
         verify(teamAssignmentService, never()).confirmAuto(anyLong(), anyLong());
+    }
+
+    @Test
+    void declaresPathVariableNamesSoBindingDoesNotNeedCompilerParameterNames() {
+        int checked = 0;
+        for (java.lang.reflect.Method method : TeamAssignmentController.class.getDeclaredMethods()) {
+            for (java.lang.reflect.Parameter parameter : method.getParameters()) {
+                PathVariable pathVariable = parameter.getAnnotation(PathVariable.class);
+                if (pathVariable == null) {
+                    continue;
+                }
+                assertThat(pathVariable.value()).isEqualTo("matchId");
+                checked++;
+            }
+        }
+        assertThat(checked).isEqualTo(4);
     }
 
     private static MemberPrincipal manager() {

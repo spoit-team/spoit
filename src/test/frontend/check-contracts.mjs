@@ -346,6 +346,72 @@ check(facilityScript.includes("closest('a.date-calendar-day, .calendar-month-nav
 check(facilityScript.includes("target?.closest('#date-schedule-hour-grid')"),
   'admin-facility.js: date slot summary must be delegated so fragment swaps keep it working');
 
+/* ── 대시보드 시설 현황 계약 ──────────────────────────────────────────────
+   대시보드에서 실제로 연결된 것은 담당 시설 전체의 매칭방 현황뿐이다.
+   요청·점검은 서버 값이 없으므로 0건처럼 보이는 표시나 동작하지 않는 링크를 두지 않는다. */
+const dashboardSource = fragmentSlice(facilitySource, 'id="facility-dashboard"', 'id="facility-assets"');
+check(Boolean(dashboardSource), 'facility.html: dashboard view missing');
+for (const field of ['dashboard?.matchCount', 'dashboard?.recruitingCount',
+  'dashboard?.hourlyBars', 'dashboard?.recentMatches', 'todayLabel', 'scopeName']) {
+  check(dashboardSource?.includes(field), `facility.html: dashboard must render ${field}`);
+}
+// 24칸 차트는 시각별 실제 방 수를 title·aria-label로 알린다(상대 높이만으로는 값을 알 수 없다).
+check(dashboardSource?.includes('bar.matchCount') && dashboardSource?.includes('bar.completedCount'),
+  'facility.html: each hourly bar must expose its real match/completed counts');
+check(/th:aria-label="\$\{bar\.label[^"]*bar\.matchCount/.test(dashboardSource ?? ''),
+  'facility.html: hourly bars need an aria-label with the hour and counts');
+// 연동 전 지표는 '연동 전'으로만 남기고 0건으로 렌더링하지 않는다.
+// 미처리 요청 카드는 민원·요청 화면과 함께 여전히 미연동이므로 값 대신 '연동 전'을 고정한다.
+for (const unlinked of ['openRequestCount', 'maintenanceCount']) {
+  check(!dashboardSource?.includes(unlinked),
+    `facility.html: unlinked dashboard field ${unlinked} must not be rendered`);
+}
+check((dashboardSource?.match(/연동 전/g) ?? []).length >= 2,
+  'facility.html: unlinked request/maintenance cards must say 연동 전 instead of 0건');
+check(!/@\{[^}]*view='requests'/.test(dashboardSource ?? ''),
+  'facility.html: the dashboard must not link to the unbuilt requests view');
+// 최근 요청 카드는 담당 시설 매칭방의 참가 신청(모든 상태, 최신 5건)으로 채운다.
+// 서버 계약은 dashboard.recentRequests의 여섯 필드이며, 이 카드는 조회 전용 상세로만 이어진다.
+const recentRequestFields = ['matchId', 'matchTitle', 'facilityName', 'applicantName',
+  'createdAtLabel', 'statusLabel', 'statusTone'];
+check(dashboardSource?.includes('th:each="recentRequest : ${dashboard?.recentRequests}"'),
+  'facility.html: recent requests must be listed from dashboard.recentRequests');
+for (const field of recentRequestFields) {
+  check(dashboardSource?.includes(`recentRequest.${field}`),
+    `facility.html: recent request item must render recentRequest.${field}`);
+}
+check(dashboardSource?.includes('#lists.isEmpty(dashboard?.recentRequests)'),
+  'facility.html: the recent request feed needs an honest empty state');
+check(/최신 5건/.test(dashboardSource ?? ''),
+  'facility.html: the recent request card must state that it shows at most 5 items');
+check(/모든 상태/.test(dashboardSource ?? ''),
+  'facility.html: the recent request card must state that every application status is included');
+check(/팀 신청[^<]*1건/.test(dashboardSource ?? ''),
+  'facility.html: the recent request card must state that a team application counts as one');
+check(/담당 시설[^<]{0,20}한정|담당 시설 매칭방/.test(dashboardSource ?? ''),
+  'facility.html: the recent request card must state the manager-scoped range');
+// 승인·처리가 구현된 것처럼 보이지 않게 한다: 이 카드에는 폼·제출 버튼이 없다.
+const recentRequestCard = dashboardSource?.slice(
+  dashboardSource.indexOf('<h2>최근 요청</h2>'),
+  dashboardSource.indexOf('</article>', dashboardSource.indexOf('<h2>최근 요청</h2>'))) ?? '';
+check(recentRequestCard.length > 0, 'facility.html: recent request card missing');
+check(!/<form\b/.test(recentRequestCard) && !/type="submit"/.test(recentRequestCard),
+  'facility.html: the recent request card must not offer approve/process actions');
+check((recentRequestCard.match(/@{/g) ?? []).length === 1
+  && recentRequestCard.includes('@{/admin/operations(matchId=${recentRequest.matchId})}'),
+  'facility.html: each recent request must deep-link to its read-only room detail only');
+check(dashboardSource?.includes('@{/admin/operations(matchId=${match.matchId})}'),
+  'facility.html: recent matches must keep their detail link');
+check(dashboardSource?.includes('data-open-room-editor'),
+  'facility.html: the dashboard must keep the room editor button');
+// 두 목록의 첫 열은 방 제목이 먼저·크게(cell-primary), 방 번호는 아래 보조 정보(cell-secondary)다.
+const roomIdentityCell = '<span class="cell-primary" th:text="${match.title}">방 이름</span>'
+  + '<span class="cell-secondary" th:text="${match.matchId}">방 번호</span>';
+check(dashboardSource?.includes(roomIdentityCell),
+  'facility.html: recent matches must list the room title first and the room number as secondary text');
+check(!dashboardSource?.includes('<span class="cell-primary" th:text="${match.matchId}">'),
+  'facility.html: recent matches must not lead with the room number');
+
 /* ── 매칭방 조회·상세 화면 계약 ────────────────────────────────────────────
    시설 관리자는 담당 시설의 매칭방을 조회하고, 상세 화면에서 신청·참가자만 읽습니다.
    필터 값이 어긋나면 Spring Long 바인딩이 실패하고, 상세 화면에 없는 변경 조작이
@@ -410,12 +476,76 @@ check(bookingsSource?.includes('view=\'bookings\''),
   'facility.html: the reset link must keep view=bookings');
 check(bookingsSource?.includes('#facility-bookings'),
   'facility.html: the reset link must restore the bookings anchor');
+// 검색·초기화는 옆 드롭다운(.field-control 40px)과 높이·글자 크기를 맞춘다. 높이와 좌우 여백은
+// 전용 클래스로 키우되 글자는 드롭다운과 같은 크기를 쓰고, 다른 .admin-button.small은 32px로 둔다.
+const bookingsToolbar = fragmentSlice(bookingsSource ?? '', '<form class="toolbar"', '</form>') ?? '';
+check(bookingsToolbar.length > 0, 'facility.html: the bookings filter toolbar is missing');
+const filterActionUses = Array.from(bookingsToolbar.matchAll(/class="([^"]*)"/g))
+  .filter(match => match[1].split(/\s+/).includes('booking-filter-action')).length;
+check(filterActionUses === 2,
+  `facility.html: the taller filter sizing must land on exactly the 검색·초기화 controls (found ${filterActionUses})`);
+for (const [label, pattern] of [
+  ['검색', /<button class="([^"]*)" type="submit">검색<\/button>/],
+  ['초기화', /<a class="([^"]*)"[^>]*>초기화<\/a>/]
+]) {
+  const matched = bookingsToolbar.match(pattern);
+  check(Boolean(matched) && matched[1].split(/\s+/).includes('booking-filter-action'),
+    `facility.html: the bookings ${label} control must opt into the taller filter sizing`);
+}
+const filterActionRule = adminCss.match(/\.toolbar\s+\.admin-button\.small\.booking-filter-action\s*\{([^}]*)\}/);
+const filterActionBody = filterActionRule?.[1] ?? '';
+check(Boolean(filterActionRule),
+  'admin.css: the bookings filter buttons need their own sizing rule');
+// 값은 CSS에서 직접 읽는다. 드롭다운 높이가 바뀌면 버튼 높이·좌우 여백도 같은 비율로 다시 키워야 한다.
+// 글자 크기는 비율이 아니라 드롭다운 값을 그대로 따라가므로 아래에서 별도로 비교한다.
+const baseSmall = adminCss.match(/\.admin-button\.small\s*\{([^}]*)\}/)?.[1] ?? '';
+const dropdownHeight = Number(adminCss.match(/\.field-control\s*\{[^}]*height:\s*([\d.]+)px/)?.[1]);
+const baseHeight = Number(baseSmall.match(/min-height:\s*([\d.]+)px/)?.[1]);
+const basePadding = Number(baseSmall.match(/padding:\s*0\s+([\d.]+)px/)?.[1]);
+const filterHeight = Number(filterActionBody.match(/min-height:\s*([\d.]+)px/)?.[1]);
+const filterPadding = Number(filterActionBody.match(/padding:\s*0\s+([\d.]+)px/)?.[1]);
+const filterFont = Number(filterActionBody.match(/font-size:\s*([\d.]+)px/)?.[1]);
+check(baseHeight === 32 && dropdownHeight === 40,
+  'admin.css: the filter buttons grow from the 32px small button to the 40px dropdown height');
+check(filterHeight === dropdownHeight,
+  `admin.css: the bookings filter buttons must be ${dropdownHeight}px tall to line up with the dropdowns (got ${filterHeight})`);
+check(Math.abs(filterPadding - basePadding * (dropdownHeight / baseHeight)) < 0.01,
+  `admin.css: horizontal padding must scale ${dropdownHeight / baseHeight}× with the height to keep the button ratio`);
+// 글자는 확대하지 않는다. 옆 드롭다운(.field-control)과 같은 크기여야 나란히 놓았을 때 어긋나지 않는다.
+const dropdownFont = Number(adminCss.match(/\.field-control\s*\{[^}]*font-size:\s*([\d.]+)px/)?.[1]);
+check(dropdownFont > 0,
+  'admin.css: the dropdown font size must be readable from the .field-control rule');
+check(Math.abs(filterFont - dropdownFont) < 0.01,
+  `admin.css: the bookings filter label must use the same ${dropdownFont}px as the adjacent dropdown (got ${filterFont})`);
+check(/\.admin-button\.small\s*\{[^}]*min-height:\s*32px/.test(adminCss),
+  'admin.css: every other small admin button must stay 32px tall');
 for (const field of ['match.matchId', 'match.title', 'match.facilityName', 'match.sportName',
   'match.participation', 'match.dateLabel', 'match.statusLabel', 'match.statusTone']) {
   check(bookingsSource?.includes(field), `facility.html: bookings table must render ${field}`);
 }
 check(bookingsSource?.includes('@{/admin/operations(matchId=${match.matchId})}'),
   'facility.html: each booking must deep-link to its read-only detail');
+check(bookingsSource?.includes(roomIdentityCell),
+  'facility.html: each booking must list the room title first and the room number as secondary text');
+check(!bookingsSource?.includes('<span class="cell-primary" th:text="${match.matchId}">'),
+  'facility.html: each booking must not lead with the room number');
+// 행 관리 열: 상세·수정·취소가 같은 버튼 모양을 쓰되, 상세는 화면 이동이라 링크(<a>)로 남긴다.
+// 취소는 확인 모달을 거치는 POST 폼이어야 하고, 되돌릴 수 없는 동작이라 위험 색을 유지한다.
+const roomRowActions = bookingsSource?.slice(
+  bookingsSource.indexOf('<td class="room-row-actions">'),
+  bookingsSource.indexOf('</td>', bookingsSource.indexOf('<td class="room-row-actions">'))) ?? '';
+check(roomRowActions.length > 0, 'facility.html: the booking row action cell is missing');
+check(/<a class="admin-button small" th:href="@\{\/admin\/operations\(matchId=\$\{match\.matchId\}\)\}"/.test(roomRowActions),
+  'facility.html: the room detail action must stay a link but look like the row buttons');
+check(/<button class="admin-button small" type="button" data-edit-room/.test(roomRowActions),
+  'facility.html: the room edit action must use the same button style');
+check(/<form class="room-cancel-form" method="post"/.test(roomRowActions),
+  'facility.html: the room cancel action must stay a POST form');
+check(/data-cancel-room/.test(roomRowActions)
+  && /class="admin-button small danger-ghost"[^>]*type="submit"[^>]*data-cancel-room/.test(roomRowActions),
+  'facility.html: the destructive room cancel must keep its danger styling');
+check(!/class="table-link/.test(roomRowActions),
+  'facility.html: row actions must not fall back to plain text links');
 
 const operationsSource = await readFile(path.join(resources, 'templates/admin/operations.html'), 'utf8');
 check(operationsSource.includes('th:if="${match == null}"'),

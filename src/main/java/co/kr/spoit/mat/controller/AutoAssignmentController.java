@@ -27,7 +27,7 @@ public class AutoAssignmentController {
 
     /** 저장하지 않는 미리보기라 GET으로 둔다. 저장 API가 생기면 같은 경로의 POST로 붙인다. */
     @GetMapping("/{matchId}/auto-assignment")
-    public ResponseEntity<AssignmentResult> preview(@PathVariable long matchId,
+    public ResponseEntity<AssignmentResult> preview(@PathVariable("matchId") long matchId,
                                                         @AuthenticationPrincipal MemberPrincipal principal) {
         AssignmentResult result = autoAssignmentService.preview(matchId, principal.getUserId());
         HttpStatus status = switch (result.outcome()) {

@@ -29,10 +29,11 @@ import co.kr.spoit.facility.service.FacilityService;
 import co.kr.spoit.member.security.MemberLoginFailureHandler;
 import co.kr.spoit.member.security.MemberLoginSuccessHandler;
 import co.kr.spoit.member.service.MemberUserDetailsService;
-import co.kr.spoit.web.CorePageController;
+import co.kr.spoit.admin.controller.SystemAdminController;
+import co.kr.spoit.admin.service.SystemMonitoringService;
 
 /** 실제 보안 필터 체인에서 마이페이지는 인증을 요구하고 관리자 화면은 역할별로 분리되는지 검증한다. */
-@WebMvcTest(controllers = CorePageController.class)
+@WebMvcTest(controllers = SystemAdminController.class)
 @Import({SecurityConfig.class, SecurityConfigTest.StubRoutes.class})
 class SecurityConfigTest {
 
@@ -50,6 +51,9 @@ class SecurityConfigTest {
 
     @MockitoBean
     private FacilityService facilityService;
+
+    @MockitoBean
+    private SystemMonitoringService systemMonitoringService;
 
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {
@@ -169,6 +173,37 @@ class SecurityConfigTest {
     void adminCanAccessSystemPages(String path) throws Exception {
         mockMvc.perform(get(path).with(user(admin())))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("비로그인 모니터링 POST는 CSRF 토큰이 있어도 로그인 화면으로 보낸다")
+    void anonymousMonitoringPostRedirectsToLogin() throws Exception {
+        mockMvc.perform(post("/admin/system/monitoring").with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrlPattern("**/login"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"member", "facilityManager"})
+    @DisplayName("시스템 관리자가 아닌 사용자는 모니터링 POST를 호출할 수 없다")
+    void nonAdminCannotPostMonitoring(String role) throws Exception {
+        var principal = "member".equals(role) ? member() : facilityManager();
+        mockMvc.perform(post("/admin/system/monitoring").with(user(principal)).with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("시스템 관리자의 모니터링 POST는 통과한다")
+    void adminCanPostMonitoring() throws Exception {
+        mockMvc.perform(post("/admin/system/monitoring").with(user(admin())).with(csrf()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("모니터링 POST에서 CSRF 토큰이 없으면 거부한다")
+    void monitoringPostRequiresCsrf() throws Exception {
+        mockMvc.perform(post("/admin/system/monitoring").with(user(admin())))
+                .andExpect(status().isForbidden());
     }
 
     @ParameterizedTest(name = "{0}")

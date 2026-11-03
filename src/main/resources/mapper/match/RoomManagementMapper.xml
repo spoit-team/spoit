@@ -209,4 +209,34 @@
          ORDER BY mp.joined_at, mp.participant_id
     </select>
 
+    <!--
+      최근 접수 신청: 담당 활성 시설의 매칭방에 쌓인 모든 상태의 신청을 최신 접수순으로 조회한다.
+      팀 신청은 팀원마다 행이 있으므로 대표 행(group_application_id = application_id)만 남겨
+      신청 하나를 한 번만 표현한다. 개인 신청은 group_application_id가 NULL이라 그대로 포함된다.
+    -->
+    <select id="findRecentApplications"
+            resultType="co.kr.spoit.match.dto.RoomManagementRecentRequestRow">
+        SELECT ma.application_id,
+               ma.match_id,
+               sm.title AS match_title,
+               f.name AS facility_name,
+               u.nickname AS applicant_name,
+               c.club_name,
+               ma.application_type,
+               ma.status,
+               ma.created_at
+          FROM match_application ma
+          JOIN social_match sm ON sm.match_id = ma.match_id
+          JOIN facility f      ON f.facility_id = sm.facility_id
+                              AND f.deleted_at IS NULL
+          JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                  AND fm.user_id = #{managerUserId}
+          JOIN app_user u      ON u.user_id = ma.applicant_user_id
+          LEFT JOIN club c     ON c.club_id = ma.club_id
+         WHERE (ma.group_application_id IS NULL
+                OR ma.group_application_id = ma.application_id)
+         ORDER BY ma.created_at DESC, ma.application_id DESC
+         LIMIT #{limit}
+    </select>
+
 </mapper>

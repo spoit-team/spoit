@@ -38,6 +38,15 @@ class CorePageRouteTest {
     @ParameterizedTest(name = "{0} renders {1}")
     @MethodSource("pageRoutes")
     void existingPageTemplateRenders(String path, String viewName, String visibleContent) throws Exception {
+        assertPageTemplateRenders(path, viewName, visibleContent);
+    }
+
+    @Test
+    void loginPageTemplateRenders() throws Exception {
+        assertPageTemplateRenders("/login", "auth/login", "로그인");
+    }
+
+    private void assertPageTemplateRenders(String path, String viewName, String visibleContent) throws Exception {
         mockMvc.perform(get(path))
                 .andExpect(status().isOk())
                 .andExpect(view().name(viewName))
@@ -94,7 +103,6 @@ class CorePageRouteTest {
 
     private static Stream<Arguments> pageRoutes() {
         return Stream.of(
-                Arguments.of("/login", "auth/login", "로그인"),
                 Arguments.of("/signup", "auth/signup", "회원가입"),
                 Arguments.of("/matches", "matches/cards", "참여 가능한 매칭방"),
                 Arguments.of("/matches/1", "matches/detail", "매칭방 목록"),
