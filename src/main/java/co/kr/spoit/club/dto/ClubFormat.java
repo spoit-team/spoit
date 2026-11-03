@@ -15,6 +15,17 @@ class ClubFormat {
                 && club.getMemberCount() < club.getMaxMembers();
     }
 
+    // 관리 화면 모집 문구: 팀장이 닫음 / 정원 참 구분
+    static String manageRecruitLabel(ClubSummary club) {
+        if (isRecruiting(club)) {
+            return "모집 중";
+        }
+        if ("마감".equals(club.getRecruitStatus())) {
+            return "모집 마감";
+        }
+        return "모집 마감 (정원이 찼어요)";
+    }
+
     static String areaLabel(String areaLabel) {
         return areaLabel != null ? areaLabel : "지역 미정";
     }

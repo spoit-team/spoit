@@ -61,7 +61,7 @@
           <div class="team-summary-item"><div class="team-summary-label">팀장</div><div class="team-summary-value" th:text="${managedClub.leaderName}">미정</div></div>
           <div class="team-summary-item"><div class="team-summary-label">창단일</div><div class="team-summary-value" th:text="${managedClub.founded}">창단일</div></div>
           <div class="team-summary-item"><div class="team-summary-label">활동 시간</div><div class="team-summary-value" th:text="${managedClub.time}">활동 시간</div></div>
-          <div class="team-summary-item"><div class="team-summary-label">모집 상태</div><div class="team-summary-value" th:text="${managedClub.recruiting ? '모집 중' : (managedClub.recruitStatus == '마감' ? '모집 마감' : '모집 마감 (정원이 찼어요)')}">모집 상태</div></div>
+          <div class="team-summary-item"><div class="team-summary-label">모집 상태</div><div class="team-summary-value" th:text="${managedClub.recruitLabel}">모집 상태</div></div>
         </div>
         <div class="team-management-note">팀 정보와 일정은 서버에 저장된 값입니다. 평균 레이팅은 팀원 레이팅을 기준으로 서버가 계산하며 이 화면에서 직접 변경할 수 없습니다.</div>
         <!-- 예정 일정 미구현: <div class="team-management-overview-block">

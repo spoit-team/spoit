@@ -218,6 +218,21 @@ class ClubServiceTest {
     }
 
     @Test
+    @DisplayName("모집중이어도 정원이 차면 관리 화면에 정원이 찼다고 표시한다")
+    void 정원이_찬_동호회는_관리_화면에_정원_마감으로_표시한다() {
+        ClubSummary club = detailClub();
+        // 정원 10명 = 현재 인원 10명
+        club.setMemberCount(10);
+        when(clubMapper.existsActiveMember(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectClubDetail(1L)).thenReturn(club);
+        when(clubMapper.selectClubMembers(1L)).thenReturn(List.of(member("이슛터", "동호회장")));
+
+        ClubManageResponse managed = service.findManagedClub(7L, 1L);
+
+        assertThat(managed.getRecruitLabel()).isEqualTo("모집 마감 (정원이 찼어요)");
+    }
+
+    @Test
     @DisplayName("내 동호회 목록에서 선택된 동호회만 강조한다")
     void 선택된_동호회만_강조한다() {
         ClubSummary second = club("모집중", "2,4", 19, 21);

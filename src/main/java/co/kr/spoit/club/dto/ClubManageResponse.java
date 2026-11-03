@@ -37,7 +37,7 @@ public class ClubManageResponse {
     private final List<ClubMemberResponse> members;
     private final List<ClubJoinRequestResponse> applications;
     private final Integer pendingApplicationCount;
-    private final boolean recruiting;
+    private final String recruitLabel;
 
     public static ClubManageResponse from(ClubSummary club, List<ClubMember> members, Long userId,
             List<ClubJoinRequest> joinRequests) {
@@ -85,7 +85,7 @@ public class ClubManageResponse {
                 .applications(applications)
                 .pendingApplicationCount(applications.size())
                 .otherMembersRemain(otherMembersRemain)
-                .recruiting(ClubFormat.isRecruiting(club))
+                .recruitLabel(ClubFormat.manageRecruitLabel(club))
                 .build();
 
     }
