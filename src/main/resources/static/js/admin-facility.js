@@ -285,26 +285,21 @@
 
   const ROOM_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
   const ROOM_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  const roomPhotoDrop = document.getElementById('room-editor-photo-drop');
   const roomPhotoInput = document.getElementById('room-editor-photo');
   const roomPhotoImage = document.getElementById('room-editor-photo-image');
   const roomPhotoEmpty = document.getElementById('room-editor-photo-empty');
+  const roomPhotoEmptyTitle = document.getElementById('room-editor-photo-empty-title');
+  const roomPhotoEmptyHint = document.getElementById('room-editor-photo-empty-hint');
+  const roomPhotoUndo = document.getElementById('room-editor-photo-undo');
+  const roomPhotoClear = document.getElementById('room-editor-photo-clear');
   const roomPhotoRemove = document.getElementById('room-editor-photo-remove');
-  const roomPhotoRemoveWrap = document.getElementById('room-editor-photo-remove-wrap');
   const roomPhotoError = document.getElementById('room-editor-photo-error');
+  /** 수정 중인 방의 기존 사진 URL */
   let roomPhotoCurrent = '';
+  /** 기존 사진을 지우기로 했는지 */
+  let roomPhotoRemoved = false;
   let roomPhotoObjectUrl = '';
-
-  function showRoomPhoto(url, emptyText) {
-    if (roomPhotoImage) {
-      roomPhotoImage.hidden = !url;
-      if (url) roomPhotoImage.src = url;
-      else roomPhotoImage.removeAttribute('src');
-    }
-    if (roomPhotoEmpty) {
-      roomPhotoEmpty.hidden = Boolean(url);
-      roomPhotoEmpty.textContent = emptyText || '사진 없음';
-    }
-  }
 
   function setRoomPhotoError(message) {
     if (!roomPhotoError) return;
@@ -317,15 +312,34 @@
     roomPhotoObjectUrl = '';
   }
 
+  /** 새로 고른 파일 → 기존 사진 → 빈 안내 순서로 박스를 그린다. */
+  function renderRoomPhoto() {
+    const url = roomPhotoObjectUrl || (roomPhotoCurrent && !roomPhotoRemoved ? roomPhotoCurrent : '');
+    if (roomPhotoImage) {
+      roomPhotoImage.hidden = !url;
+      if (url) roomPhotoImage.src = url;
+      else roomPhotoImage.removeAttribute('src');
+    }
+    roomPhotoDrop?.classList.toggle('has-photo', Boolean(url));
+    if (roomPhotoEmpty) roomPhotoEmpty.hidden = Boolean(url);
+    if (roomPhotoClear) roomPhotoClear.hidden = !url;
+    const removing = Boolean(roomPhotoCurrent && roomPhotoRemoved && !roomPhotoObjectUrl);
+    if (roomPhotoEmptyTitle) {
+      roomPhotoEmptyTitle.textContent = removing ? '저장하면 기존 사진이 삭제됩니다' : '사진을 끌어다 놓거나 클릭해 선택하세요';
+    }
+    if (roomPhotoEmptyHint) roomPhotoEmptyHint.textContent = removing ? '새 사진을 끌어다 놓으면 교체됩니다' : 'JPG·PNG·WEBP, 5MB 이하';
+    if (roomPhotoUndo) roomPhotoUndo.hidden = !removing;
+    if (roomPhotoRemove) roomPhotoRemove.value = removing ? 'true' : 'false';
+  }
+
   /** 모달을 열 때 현재 사진(수정) 또는 빈 상태(생성)로 맞춘다. 폼 reset 뒤에 부른다. */
   function resetRoomPhoto(currentUrl) {
     releaseRoomPhotoObjectUrl();
     roomPhotoCurrent = currentUrl || '';
+    roomPhotoRemoved = false;
     if (roomPhotoInput) roomPhotoInput.value = '';
-    if (roomPhotoRemove) roomPhotoRemove.checked = false;
-    if (roomPhotoRemoveWrap) roomPhotoRemoveWrap.hidden = !roomPhotoCurrent;
     setRoomPhotoError('');
-    showRoomPhoto(roomPhotoCurrent);
+    renderRoomPhoto();
   }
 
   /** 선택한 파일의 형식·크기 오류 문구. 문제가 없거나 파일이 없으면 빈 문자열 */
@@ -337,30 +351,42 @@
     return '';
   }
 
+  /* 클릭 선택과 드롭 모두 투명한 파일 입력이 받으므로 change 한 곳에서 처리한다. */
   roomPhotoInput?.addEventListener('change', function () {
     releaseRoomPhotoObjectUrl();
     const file = roomPhotoInput.files?.[0];
     const problem = roomPhotoProblem();
     setRoomPhotoError(problem);
-    if (!file || problem) {
-      if (problem) roomPhotoInput.value = '';
-      showRoomPhoto(roomPhotoRemove?.checked ? '' : roomPhotoCurrent);
-      return;
+    if (problem) roomPhotoInput.value = '';
+    if (file && !problem) {
+      roomPhotoRemoved = false;
+      roomPhotoObjectUrl = URL.createObjectURL(file);
     }
-    if (roomPhotoRemove) roomPhotoRemove.checked = false;
-    roomPhotoObjectUrl = URL.createObjectURL(file);
-    showRoomPhoto(roomPhotoObjectUrl);
+    renderRoomPhoto();
   });
 
-  roomPhotoRemove?.addEventListener('change', function () {
-    if (roomPhotoRemove.checked) {
+  roomPhotoClear?.addEventListener('click', function () {
+    setRoomPhotoError('');
+    if (roomPhotoObjectUrl) {
+      /* 새로 고른 파일만 취소하고 기존 사진(있으면)으로 돌아간다. */
       releaseRoomPhotoObjectUrl();
       if (roomPhotoInput) roomPhotoInput.value = '';
-      setRoomPhotoError('');
-      showRoomPhoto('', '저장하면 사진이 삭제됩니다');
     } else {
-      showRoomPhoto(roomPhotoCurrent);
+      roomPhotoRemoved = true;
     }
+    renderRoomPhoto();
+  });
+
+  roomPhotoUndo?.addEventListener('click', function () {
+    roomPhotoRemoved = false;
+    renderRoomPhoto();
+  });
+
+  ['dragenter', 'dragover'].forEach(function (type) {
+    roomPhotoDrop?.addEventListener(type, function () { roomPhotoDrop.classList.add('is-dragover'); });
+  });
+  ['dragleave', 'drop'].forEach(function (type) {
+    roomPhotoDrop?.addEventListener(type, function () { roomPhotoDrop.classList.remove('is-dragover'); });
   });
 
   function setFacilitySports(value) {

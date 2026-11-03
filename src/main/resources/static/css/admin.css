@@ -681,14 +681,23 @@ button { color: inherit; }
 .room-editor-empty { grid-column: 1/-1; margin: 0; padding: 16px 0; border-top: 1px solid var(--admin-line); color: var(--admin-muted); font-size: 10px; }
 .room-editor-time-summary { margin: 8px 0 0; color: var(--admin-blue-ink); font-size: 10px; font-weight: 700; }
 .room-editor-time-summary.has-error { color: #b54141; }
-.room-photo-body { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; padding-top: 11px; border-top: 1px solid var(--admin-line); }
-.room-photo-preview { position: relative; display: grid; width: 176px; aspect-ratio: 16 / 9; margin: 0; overflow: hidden; place-items: center; border: 1px solid var(--admin-line-strong); border-radius: 5px; background: #f7f8fa; }
-.room-photo-preview img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.room-photo-empty { color: var(--admin-muted); font-size: 10px; font-weight: 600; }
-.room-photo-controls { display: grid; flex: 1 1 200px; gap: 8px; min-width: 0; font-size: 10.5px; }
-.room-photo-controls input[type="file"] { max-width: 100%; font-size: 10.5px; }
-.room-photo-remove { display: inline-flex; align-items: center; gap: 5px; color: var(--admin-ink-2); font-weight: 600; cursor: pointer; }
+.room-photo-drop { position: relative; display: grid; height: 168px; overflow: hidden; place-items: center; border: 1.5px dashed var(--admin-line-strong); border-radius: 8px; background: #f7f8fa; transition: border-color .15s, background-color .15s; }
+.room-photo-drop:hover, .room-photo-drop.is-dragover { border-color: var(--admin-blue); background: var(--admin-blue-soft); }
+.room-photo-drop:focus-within { border-color: var(--admin-blue); box-shadow: 0 0 0 3px var(--admin-blue-soft); }
+.room-photo-drop.has-photo { border-style: solid; background: #fff; }
+/* 공통 .form-field input 스타일을 덮고, 박스 전체를 클릭·드롭 영역으로 쓴다. */
+.room-photo-drop .room-photo-input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+.room-photo-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.room-photo-placeholder { display: grid; justify-items: center; gap: 5px; padding: 0 16px; text-align: center; pointer-events: none; }
+.room-photo-placeholder strong { color: var(--admin-ink-2); font-size: 11.5px; }
+.room-photo-placeholder span { color: var(--admin-muted); font-size: 10px; font-weight: 500; }
+.room-photo-undo, .room-photo-clear { position: relative; z-index: 2; pointer-events: auto; cursor: pointer; }
+.room-photo-undo { margin-top: 4px; padding: 5px 10px; border: 1px solid var(--admin-line-strong); border-radius: 5px; background: #fff; color: var(--admin-ink-2); font-size: 10.5px; font-weight: 700; }
+.room-photo-undo:hover { border-color: var(--admin-blue); color: var(--admin-blue-ink); }
+.room-photo-clear { position: absolute; top: 8px; right: 8px; display: grid; width: 26px; height: 26px; place-items: center; border: 0; border-radius: 50%; background: rgba(17, 24, 39, .65); color: #fff; font-size: 16px; line-height: 1; }
+.room-photo-clear:hover { background: rgba(17, 24, 39, .85); }
 .room-photo-error { margin: 0; color: #b54141; font-size: 10px; font-weight: 700; }
+.room-photo-drop [hidden], .room-photo-error[hidden] { display: none; }
 .room-editor-footnote { margin: 15px 0 0; padding-top: 12px; border-top: 1px solid var(--admin-line); color: var(--admin-muted); font-size: 9.5px; line-height: 1.5; }
 .room-editor-locked-note { margin: 0 0 14px; padding: 9px 12px; border-radius: 8px; background: var(--admin-amber-soft); color: #754b0d; font-size: 10.5px; line-height: 1.45; }
 .room-editor-capacity-hint { margin: -5px 0 0; color: var(--admin-muted); font-size: 9.5px; line-height: 1.45; }

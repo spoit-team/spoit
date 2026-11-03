@@ -147,7 +147,8 @@
                sm.required_skill,
                sm.status,
                sm.captain_a_participant_id,
-               sm.captain_b_participant_id
+               sm.captain_b_participant_id,
+               sm.photo_url
         <include refid="searchFrom"/>
          WHERE sm.match_id = #{matchId}
     </select>
