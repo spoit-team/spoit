@@ -332,14 +332,14 @@ public class ClubServiceImpl implements ClubService {
             throw new IllegalArgumentException("이미 탈퇴했거나 소속되지 않은 팀입니다.");
         }
         log.info("동호회 탈퇴: clubId={}, userId={}", clubId, userId);
-    }   
+    }
 
     // 동호회원 추방
     @Override
     @Transactional
-    public void kickMember(Long userId, Long clubId, Long clubMemberId, String kickReason){
+    public void kickMember(Long userId, Long clubId, Long clubMemberId, String kickReason) {
         String reason = trim(kickReason);
-        if(reason.isEmpty() || reason.length() > KICK_REASON_MAX_LENGTH){
+        if (reason.isEmpty() || reason.length() > KICK_REASON_MAX_LENGTH) {
             throw new IllegalArgumentException("추방 사유를 1~200자로 입력해 주세요.");
         }
         getActiveClubForUpdate(clubId);
@@ -355,5 +355,30 @@ public class ClubServiceImpl implements ClubService {
         }
         clubMapper.updateMemberKick(clubId, clubMemberId, reason);
         log.info("동호회원 추방: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
+    }
+
+    // 동호회 해체
+    @Override
+    @Transactional
+    public void disbandClub(Long userId, Long clubId, String clubNameConfirmation) {
+        ClubSummary club = getActiveClubForUpdate(clubId);
+        if (!clubMapper.existsActiveLeader(clubId, userId)) {
+            throw new IllegalArgumentException("팀장만 팀을 해체할 수 있습니다.");
+        }
+        // 잠근 행의 이름과 비교
+        if (!trim(clubNameConfirmation).equals(club.getClubName())) {
+            throw new IllegalArgumentException("입력한 팀 이름이 일치하지 않습니다.");
+        }
+        if (clubMapper.countActiveMembers(clubId) > 1) {
+            throw new IllegalArgumentException("팀장 외 다른 팀원이 남아 있어 해체할 수 없습니다. 팀원을 먼저 정리해 주세요.");
+        }
+        // userId 없이 동호회 전체 확인
+        if (clubMapper.existsRecruitingTeamMatch(clubId, null)) {
+            throw new IllegalArgumentException("모집 중인 팀 매치에 신청되어 있어 해체할 수 없습니다.");
+        }
+        clubMapper.cancelPendingJoinRequests(clubId);
+        clubMapper.updateLeaderDisband(clubId, userId);
+        clubMapper.updateClubDisband(clubId);
+        log.info("동호회 해체: clubId={}, userId={}", clubId, userId);
     }
 }

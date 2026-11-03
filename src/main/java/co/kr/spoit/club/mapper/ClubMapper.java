@@ -96,4 +96,13 @@ public interface ClubMapper {
 
     // 동호회원 추방
     int updateMemberKick(@Param ("clubId") Long clubId, @Param ("clubMemberId") Long clubMemberId, @Param ("kickReason") String kickReason);
+
+    // 동호회 해체: 대기 중 가입 신청 취소
+    int cancelPendingJoinRequests(@Param ("clubId") Long clubId);
+
+    // 동호회 해체: 동회회장 이탈
+    int updateLeaderDisband(@Param ("clubId") Long clubId, @Param ("userId") Long userId);
+
+    // 동호회 해체: 동호회 해체 시각 기록
+    int updateClubDisband(@Param ("clubId") Long clubId);
 }

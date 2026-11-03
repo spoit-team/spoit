@@ -57,4 +57,7 @@ public interface ClubService {
 
     // 동호회원 추방
     void kickMember(Long userId, Long clubId, Long clubMemberId, String kickReason);
+
+    // 동호회 해체
+    void disbandClub(Long userId, Long clubId, String clubNameConfirmation);
 }

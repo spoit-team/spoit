@@ -152,6 +152,7 @@
 
     <select id="selectActiveClubForUpdate" resultType="co.kr.spoit.club.domain.ClubSummary">
         SELECT club_id AS clubId
+        ,club_name AS clubName
         ,max_members AS maxMembers
         ,recruit_status AS recruitStatus
         FROM club
@@ -259,4 +260,23 @@
             AND left_at IS NULL
     </update>
         
+    <update id="cancelPendingJoinRequests">
+        UPDATE club_join_request
+        SET status = '취소', processed_at = NOW()
+        WHERE club_id = #{clubId} AND status = '대기중'
+    </update>
+
+    <update id="updateLeaderDisband">
+        UPDATE club_member
+        SET left_at = NOW(), leave_type = '해체'
+        WHERE club_id = #{clubId} AND user_id = #{userId} 
+            AND role = '동호회장' AND left_at IS NULL
+    </update>
+
+    <update id="updateClubDisband">
+        UPDATE club
+        SET deleted_at = NOW()
+        WHERE club_id = #{clubId} AND deleted_at IS NULL
+    </update>
+
 </mapper>

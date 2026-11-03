@@ -467,6 +467,75 @@ class ClubServiceTest {
         verify(clubMapper, never()).updateMemberKick(any(), any(), any());
     }
 
+    @Test
+    @DisplayName("동호회장 혼자면 대기 신청을 취소하고 해체로 기록한다")
+    void 동호회_해체_성공() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(disbandTarget());
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.countActiveMembers(1L)).thenReturn(1);
+
+        service.disbandClub(7L, 1L, "  노원 농구회  ");
+
+        verify(clubMapper).cancelPendingJoinRequests(1L);
+        verify(clubMapper).updateLeaderDisband(1L, 7L);
+        verify(clubMapper).updateClubDisband(1L);
+    }
+
+    @Test
+    @DisplayName("동호회장이 아니면 해체하지 않는다")
+    void 동호회장이_아니면_해체를_거부한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(disbandTarget());
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(false);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.disbandClub(7L, 1L, "노원 농구회"));
+
+        assertThat(exception.getMessage()).isEqualTo("팀장만 팀을 해체할 수 있습니다.");
+        verify(clubMapper, never()).updateClubDisband(any());
+    }
+
+    @Test
+    @DisplayName("입력한 이름이 다르면 해체하지 않는다")
+    void 이름이_다르면_해체를_거부한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(disbandTarget());
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.disbandClub(7L, 1L, "노원농구회"));
+
+        assertThat(exception.getMessage()).isEqualTo("입력한 팀 이름이 일치하지 않습니다.");
+        verify(clubMapper, never()).updateClubDisband(any());
+    }
+
+    @Test
+    @DisplayName("동호회장 외 팀원이 남아 있으면 해체하지 않는다")
+    void 팀원이_남아_있으면_해체를_거부한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(disbandTarget());
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.countActiveMembers(1L)).thenReturn(2);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.disbandClub(7L, 1L, "노원 농구회"));
+
+        assertThat(exception.getMessage()).isEqualTo("팀장 외 다른 팀원이 남아 있어 해체할 수 없습니다. 팀원을 먼저 정리해 주세요.");
+        verify(clubMapper, never()).updateClubDisband(any());
+    }
+
+    @Test
+    @DisplayName("모집 중인 팀 매치가 있으면 해체하지 않는다")
+    void 팀_매치_신청중이면_해체를_거부한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(disbandTarget());
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.countActiveMembers(1L)).thenReturn(1);
+        when(clubMapper.existsRecruitingTeamMatch(1L, null)).thenReturn(true);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.disbandClub(7L, 1L, "노원 농구회"));
+
+        assertThat(exception.getMessage()).isEqualTo("모집 중인 팀 매치에 신청되어 있어 해체할 수 없습니다.");
+        verify(clubMapper, never()).updateClubDisband(any());
+    }
+
     // 추방할 동호회원(동호회원 번호 3, 회원 번호만)
     private ClubMember kickTarget(Long userId) {
         ClubMember member = new ClubMember();
@@ -533,6 +602,13 @@ class ClubServiceTest {
         request.setJoinRequestId(5L);
         request.setUserId(userId);
         return request;
+    }
+
+    // 해체할 동호회(잠근 행에 이름까지)
+    private ClubSummary disbandTarget() {
+        ClubSummary club = lockedClub("모집중", 10);
+        club.setClubName("노원 농구회");
+        return club;
     }
 
 }

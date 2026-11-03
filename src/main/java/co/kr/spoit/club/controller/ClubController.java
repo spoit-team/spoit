@@ -221,7 +221,8 @@ public class ClubController {
     // 동호회원 추방
     @PostMapping("/{clubId}/members/remove")
     public String kick(@PathVariable("clubId") Long clubId, @RequestParam("clubMemberId") Long clubMemberId,
-            @RequestParam(value = "kickReason", required = false) String kickReason, @AuthenticationPrincipal MemberPrincipal principal,
+            @RequestParam(value = "kickReason", required = false) String kickReason,
+            @AuthenticationPrincipal MemberPrincipal principal,
             RedirectAttributes redirectAttributes) {
         Long userId = principal.getUserId();
         log.info("동호회원 추방 요청: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
@@ -233,5 +234,23 @@ public class ClubController {
             redirectAttributes.addFlashAttribute("error", exception.getMessage());
         }
         return "redirect:/teams/manage?clubId=" + clubId + "&tab=members";
+    }
+
+    // 동호회 해체
+    @PostMapping("/{clubId}/disband")
+    public String disband(@PathVariable("clubId") Long clubId,
+            @RequestParam(value = "clubNameConfirmation", required = false) String clubNameConfirmation,
+            @AuthenticationPrincipal MemberPrincipal principal, RedirectAttributes redirectAttributes) {
+        Long userId = principal.getUserId();
+        log.info("동호회 해체 요청: clubId={}, userId={}", clubId, userId);
+        try {
+            clubService.disbandClub(userId, clubId, clubNameConfirmation);
+        } catch (IllegalArgumentException exception) {
+            log.warn("동호회 해체 거부: clubId={}, userId={}, {}", clubId, userId, exception.getMessage());
+            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+            return "redirect:/teams/manage?clubId=" + clubId;
+        }
+        redirectAttributes.addFlashAttribute("message", "팀을 해체했습니다.");
+        return "redirect:/teams/manage";
     }
 }
