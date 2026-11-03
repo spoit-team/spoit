@@ -30,7 +30,7 @@ public class RatingExclusionController {
     }
 
     @PostMapping("/{matchId}/rating-exclusion")
-    public ResponseEntity<MatchResultResponse> exclude(@PathVariable long matchId,
+    public ResponseEntity<MatchResultResponse> exclude(@PathVariable("matchId") long matchId,
                                                        @AuthenticationPrincipal MemberPrincipal principal) {
         MatchResultResponse response = matchResultService.excludeRating(matchId, principal.getUserId(),
                 LocalDateTime.now(ZONE));

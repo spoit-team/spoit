@@ -12,7 +12,9 @@ import org.apache.ibatis.annotations.Update;
 
 import co.kr.spoit.mat.domain.ReminderTarget;
 import co.kr.spoit.mat.domain.ResultMatch;
+import co.kr.spoit.mat.domain.ResultPageMatch;
 import co.kr.spoit.mat.domain.ResultSubmission;
+import co.kr.spoit.mat.domain.ResultTeamMember;
 
 @Mapper
 public interface MatchResultMapper {
@@ -41,6 +43,38 @@ public interface MatchResultMapper {
     // 제출 행과 결과·레이팅 상태는 이 잠금 아래에서만 바뀐다.
     @Select(RESULT_MATCH_QUERY + "FOR UPDATE")
     Optional<ResultMatch> lockResultMatch(@Param("matchId") Long matchId);
+
+    // 결과 조회 API와 같은 이유로 삭제된 시설의 경기도 보여 준다.
+    @Select("""
+            SELECT sm.match_id AS matchId,
+                   sm.title AS title,
+                   sm.start_at AS startAt,
+                   sm.end_at AS endAt,
+                   sm.status AS status,
+                   f.name AS facilityName,
+                   s.name AS sportName,
+                   sm.captain_a_participant_id AS captainAParticipantId,
+                   sm.captain_b_participant_id AS captainBParticipantId
+            FROM social_match sm
+            JOIN facility f ON f.facility_id = sm.facility_id
+            JOIN sport s ON s.sport_id = sm.sport_id
+            WHERE sm.match_id = #{matchId}
+            """)
+    Optional<ResultPageMatch> findResultPageMatch(@Param("matchId") Long matchId);
+
+    @Select("""
+            SELECT mp.participant_id AS participantId,
+                   mp.user_id AS userId,
+                   u.nickname AS nickname,
+                   mp.match_side AS matchSide
+            FROM match_participant mp
+            JOIN app_user u ON u.user_id = mp.user_id
+            WHERE mp.match_id = #{matchId}
+              AND mp.participation_status = #{confirmedStatus}
+            ORDER BY mp.match_side, mp.participant_id
+            """)
+    List<ResultTeamMember> findConfirmedTeamMembers(@Param("matchId") Long matchId,
+                                                    @Param("confirmedStatus") String confirmedStatus);
 
     @Select("""
             SELECT match_id
