@@ -34,7 +34,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 경기 종료 뒤 처리: 종료 전환, 팀장 결과 제출, 제출 마감, 리마인더, 레이팅 제외.
+ * 종료 시각 뒤 처리: 팀장 결과 제출, 제출 마감, 리마인더, 레이팅 제외, 처리가 끝난 경기의 종료 전환.
  *
  * <p>제출·마감·제외는 매칭방 행을 잠근 뒤 다시 읽은 값으로 검사한다. 같은 경기의 요청이 겹쳐도
  * 하나씩 처리되므로 팀장마다 활성 제출 행은 하나만 남는다.</p>
@@ -49,7 +49,8 @@ public class MatchResultService {
         SKIPPED
     }
 
-    // 종료 전환은 매분 실행이라 종료 시각 직후에는 아직 매칭 완료일 수 있다.
+    // 결과 처리는 매칭 완료 경기에서 한다. 종료 경기는 레이팅 처리가 끝났으므로, 상태 오류 대신
+    // RATING_CLOSED·ALREADY_APPLIED·ALREADY_EXCLUDED로 답하려고 함께 둔다.
     private static final List<String> PLAYED_STATUSES =
             List.of(MatchStatus.MATCHED.dbValue(), MatchStatus.CLOSED.dbValue());
     private static final String SIDE_A = "A";
@@ -172,16 +173,19 @@ public class MatchResultService {
 
     @Transactional(readOnly = true)
     public List<Long> findEndedMatchIds(LocalDateTime now) {
-        return resultMapper.findEndedMatchIds(MatchStatus.MATCHED.dbValue(), now);
+        return resultMapper.findEndedMatchIds(MatchStatus.MATCHED.dbValue(), RatingStatus.APPLIED.name(),
+                RatingStatus.EXCLUDED.name(), now);
     }
 
     /**
-     * 종료 시각이 지난 매칭 완료 경기를 종료로 바꾼다. 다른 기능이 매칭 완료를 진행 중으로 보기 때문이다.
-     * 조건부 UPDATE가 상태와 종료 시각을 다시 확인하므로 따로 잠그지 않는다.
+     * 종료 시각이 지나고 레이팅 반영·제외까지 끝난 매칭 완료 경기를 종료로 바꾼다. 결과·평가 처리 중인 경기는
+     * 아직 진행 중으로 보고 매칭 완료로 둔다. 평가 완료 조건은 isRatingReady에 더해지므로 여기서는 레이팅 상태만 본다.
+     * 레이팅 상태는 WAITING에서 한 번만 바뀌고, 조건부 UPDATE가 세 조건을 다시 확인하므로 따로 잠그지 않는다.
      */
     @Transactional
     public boolean markEnded(long matchId, LocalDateTime now) {
-        return resultMapper.markEnded(matchId, MatchStatus.CLOSED.dbValue(), MatchStatus.MATCHED.dbValue(), now) == 1;
+        return resultMapper.markEnded(matchId, MatchStatus.CLOSED.dbValue(), MatchStatus.MATCHED.dbValue(),
+                RatingStatus.APPLIED.name(), RatingStatus.EXCLUDED.name(), now) == 1;
     }
 
     @Transactional(readOnly = true)

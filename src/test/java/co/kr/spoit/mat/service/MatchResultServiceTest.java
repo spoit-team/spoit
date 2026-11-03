@@ -77,7 +77,7 @@ class MatchResultServiceTest {
 
     @Test
     void confirmsMatchingResultsAndAppliesRating() {
-        givenLockedMatch(match("종료", "SUBMITTED", "WAITING"));
+        givenLockedMatch(match("매칭 완료", "SUBMITTED", "WAITING"));
         givenParticipants();
         givenActiveSubmissions(submission(20L, 2L, "A_WIN", "SUBMITTED"));
 
@@ -96,7 +96,7 @@ class MatchResultServiceTest {
     void confirmsResubmissionAfterConflict() {
         when(resultMapper.lockResultMatch(MATCH_ID))
                 .thenReturn(Optional.of(match("매칭 완료", "SUBMITTED", "WAITING")))
-                .thenReturn(Optional.of(match("종료", "CONFLICT", "WAITING")));
+                .thenReturn(Optional.of(match("매칭 완료", "CONFLICT", "WAITING")));
         givenParticipants();
         when(resultMapper.findActiveSubmissions(MATCH_ID, "REPLACED"))
                 .thenReturn(List.of(submission(20L, 2L, "A_WIN", "SUBMITTED")))
@@ -124,7 +124,7 @@ class MatchResultServiceTest {
 
     @Test
     void rejectsResubmissionUnlessConflict() {
-        givenLockedMatch(match("종료", "SUBMITTED", "WAITING"));
+        givenLockedMatch(match("매칭 완료", "SUBMITTED", "WAITING"));
         givenParticipants();
         givenActiveSubmissions(submission(21L, 1L, "A_WIN", "SUBMITTED"));
 
@@ -136,7 +136,7 @@ class MatchResultServiceTest {
 
     @Test
     void deniesSubmissionFromNonCaptain() {
-        givenLockedMatch(match("종료", null, "WAITING"));
+        givenLockedMatch(match("매칭 완료", null, "WAITING"));
         givenParticipants();
 
         assertThatThrownBy(() -> service.submit(MATCH_ID, 13L, MatchResult.DRAW, NOW))
@@ -156,9 +156,21 @@ class MatchResultServiceTest {
         verify(resultMapper, never()).insertSubmission(any(), any(), any(), any(), any());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"APPLIED", "EXCLUDED"})
+    void rejectsSubmissionToEndedMatch(String ratingStatus) {
+        givenLockedMatch(match("종료", null, ratingStatus));
+        givenParticipants();
+        givenActiveSubmissions();
+
+        assertThat(service.submit(MATCH_ID, CAPTAIN_B_USER, MatchResult.DRAW, NOW).outcome())
+                .isEqualTo(Outcome.RATING_CLOSED);
+        verify(resultMapper, never()).insertSubmission(any(), any(), any(), any(), any());
+    }
+
     @Test
     void showsOpponentResultOnlyOnConflict() {
-        when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.of(match("종료", "SUBMITTED", "WAITING")));
+        when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.of(match("매칭 완료", "SUBMITTED", "WAITING")));
         givenParticipants();
         when(resultMapper.findActiveSubmissions(MATCH_ID, "REPLACED"))
                 .thenReturn(List.of(submission(20L, 2L, "A_WIN", "SUBMITTED")))
@@ -185,7 +197,7 @@ class MatchResultServiceTest {
     @NullSource
     @ValueSource(strings = {"SUBMITTED", "CONFLICT"})
     void excludesUnconfirmedMatchAtDeadline(String resultStatus) {
-        givenLockedMatch(match("종료", resultStatus, "WAITING"));
+        givenLockedMatch(match("매칭 완료", resultStatus, "WAITING"));
 
         assertThat(service.closeResult(MATCH_ID, DEADLINE)).isEqualTo(DeadlineResult.EXCLUDED);
         verify(resultMapper).markRatingProcessed(MATCH_ID, "EXCLUDED", DEADLINE, null, "WAITING");
@@ -194,13 +206,22 @@ class MatchResultServiceTest {
 
     @Test
     void appliesConfirmedResultAtDeadline() {
-        ResultMatch match = match("종료", "CONFIRMED", "WAITING");
+        ResultMatch match = match("매칭 완료", "CONFIRMED", "WAITING");
         match.setFinalResult("B_WIN");
         givenLockedMatch(match);
 
         assertThat(service.closeResult(MATCH_ID, DEADLINE)).isEqualTo(DeadlineResult.APPLIED);
         verify(ratingApplyService).apply(MATCH_ID, SPORT_ID, MatchResult.B_WIN, DEADLINE);
         verify(resultMapper).markRatingProcessed(MATCH_ID, "APPLIED", DEADLINE, null, "WAITING");
+    }
+
+    @Test
+    void endsOnlyMatchesWhoseRatingIsProcessed() {
+        when(resultMapper.findEndedMatchIds("매칭 완료", "APPLIED", "EXCLUDED", NOW)).thenReturn(List.of(MATCH_ID));
+        when(resultMapper.markEnded(MATCH_ID, "종료", "매칭 완료", "APPLIED", "EXCLUDED", NOW)).thenReturn(1);
+
+        assertThat(service.findEndedMatchIds(NOW)).containsExactly(MATCH_ID);
+        assertThat(service.markEnded(MATCH_ID, NOW)).isTrue();
     }
 
     @Test
@@ -221,7 +242,7 @@ class MatchResultServiceTest {
 
     @Test
     void excludesStartedMatchForFacilityManager() {
-        givenLockedMatch(match("종료", "CONFLICT", "WAITING"));
+        givenLockedMatch(match("매칭 완료", "CONFLICT", "WAITING"));
         when(assignmentMapper.isFacilityManager(FACILITY_ID, MANAGER_ID)).thenReturn(true);
 
         assertThat(service.excludeRating(MATCH_ID, MANAGER_ID, NOW).outcome()).isEqualTo(Outcome.EXCLUDED);
@@ -230,7 +251,7 @@ class MatchResultServiceTest {
 
     @Test
     void deniesExclusionByManagerOfAnotherFacility() {
-        givenLockedMatch(match("종료", null, "WAITING"));
+        givenLockedMatch(match("매칭 완료", null, "WAITING"));
         when(assignmentMapper.isFacilityManager(FACILITY_ID, MANAGER_ID)).thenReturn(false);
 
         assertThatThrownBy(() -> service.excludeRating(MATCH_ID, MANAGER_ID, NOW))

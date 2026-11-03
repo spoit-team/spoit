@@ -27,17 +27,18 @@ public class MatchResultScheduler {
     }
 
     // MatchStartScheduler처럼 여기에는 트랜잭션을 걸지 않아 경기마다 따로 커밋·롤백한다.
-    // 리마인더는 이번 1분 구간을 놓치면 다시 보내지 않으므로 먼저 보내고, 종료 전환과 마감은 다음 실행에서 다시 찾는다.
+    // 리마인더는 이번 1분 구간을 놓치면 다시 보내지 않으므로 먼저 보내고, 마감과 종료 전환은 다음 실행에서 다시 찾는다.
+    // 종료는 레이팅 처리가 끝난 경기만 대상이라, 마감에서 처리된 경기가 같은 실행에서 종료되도록 마감 뒤에 둔다.
     void process(LocalDateTime now) {
         try {
             matchResultService.sendReminders(now);
         } catch (RuntimeException e) {
             log.error("결과 제출 리마인더 실패: now={}", now, e);
         }
-        forEachMatch(matchResultService.findEndedMatchIds(now), "경기 종료 전환",
-                matchId -> matchResultService.markEnded(matchId, now));
         forEachMatch(matchResultService.findExpiredMatchIds(now), "결과 마감 처리",
                 matchId -> matchResultService.closeResult(matchId, now));
+        forEachMatch(matchResultService.findEndedMatchIds(now), "경기 종료 전환",
+                matchId -> matchResultService.markEnded(matchId, now));
     }
 
     private void forEachMatch(List<Long> matchIds, String task, Consumer<Long> action) {

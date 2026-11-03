@@ -17,7 +17,8 @@ import co.kr.spoit.mat.domain.ResultSubmission;
 @Mapper
 public interface MatchResultMapper {
 
-    // 종료된 경기는 시설 삭제를 막지 않는다. 시설이 삭제돼도 끝난 경기의 결과는 처리해야 해서 시설 조건을 두지 않는다.
+    // 취소·종료된 경기는 시설 삭제를 막지 않는다. 시설이 삭제돼도 취소 경기의 마감 처리와 종료 경기의 결과 조회는
+    // 해야 해서 시설 조건을 두지 않는다.
     String RESULT_MATCH_QUERY = """
             SELECT match_id AS matchId,
                    facility_id AS facilityId,
@@ -46,9 +47,12 @@ public interface MatchResultMapper {
             FROM social_match
             WHERE status = #{matchedStatus}
               AND end_at <= #{now}
+              AND rating_status IN (#{appliedStatus}, #{excludedStatus})
             ORDER BY end_at, match_id
             """)
     List<Long> findEndedMatchIds(@Param("matchedStatus") String matchedStatus,
+                                 @Param("appliedStatus") String appliedStatus,
+                                 @Param("excludedStatus") String excludedStatus,
                                  @Param("now") LocalDateTime now);
 
     @Update("""
@@ -57,10 +61,13 @@ public interface MatchResultMapper {
             WHERE match_id = #{matchId}
               AND status = #{matchedStatus}
               AND end_at <= #{now}
+              AND rating_status IN (#{appliedStatus}, #{excludedStatus})
             """)
     int markEnded(@Param("matchId") Long matchId,
                   @Param("closedStatus") String closedStatus,
                   @Param("matchedStatus") String matchedStatus,
+                  @Param("appliedStatus") String appliedStatus,
+                  @Param("excludedStatus") String excludedStatus,
                   @Param("now") LocalDateTime now);
 
     @Select("""

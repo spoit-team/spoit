@@ -49,19 +49,47 @@ class MatchResultMapperIntegrationTest extends AbstractMySqlMapperTest {
     }
 
     @Test
-    void endsOnlyMatchedMatchesWhoseEndTimeHasPassed() {
-        // 3·6·7은 매칭 완료이고 7은 종료 시각과 같은 경계값이다. 모집 중 1·2·4·5와 취소 8은 대상이 아니다.
-        assertThat(resultMapper.findEndedMatchIds("매칭 완료", END_AT)).containsExactly(3L, 6L, 7L);
-        assertThat(resultMapper.findEndedMatchIds("매칭 완료", END_AT.minusSeconds(1))).containsExactly(3L, 6L);
+    void keepsWaitingMatchesMatchedAfterEndTime() {
+        // 3·6·7은 종료 시각이 지난 매칭 완료지만 모두 WAITING이라 아직 결과 처리 중이다.
+        assertThat(endedMatchIds(END_AT)).isEmpty();
+        assertThat(markEnded(6L, END_AT)).isZero();
+        assertThat(markEnded(7L, END_AT)).isZero();
 
-        assertThat(resultMapper.markEnded(7L, "종료", "매칭 완료", END_AT.minusSeconds(1))).isZero();
-        assertThat(resultMapper.markEnded(7L, "종료", "매칭 완료", END_AT)).isEqualTo(1);
-        assertThat(resultMapper.markEnded(1L, "종료", "매칭 완료", END_AT)).isZero();
-        assertThat(resultMapper.markEnded(8L, "종료", "매칭 완료", END_AT)).isZero();
+        assertThat(statusOf(6L)).isEqualTo("매칭 완료");
+        assertThat(statusOf(7L)).isEqualTo("매칭 완료");
+    }
 
+    @Test
+    void endsMatchedMatchesWhoseRatingIsProcessedAfterEndTime() {
+        jdbcTemplate.update("UPDATE social_match SET rating_status = 'APPLIED' WHERE match_id = 3");
+        jdbcTemplate.update("UPDATE social_match SET rating_status = 'EXCLUDED' WHERE match_id = 7");
+
+        // 6은 WAITING이라 남는다. 7은 종료 시각과 같은 경계값이고, 취소 8은 EXCLUDED여도 대상이 아니다.
+        assertThat(endedMatchIds(END_AT)).containsExactly(3L, 7L);
+        assertThat(markEnded(6L, END_AT)).isZero();
+        assertThat(markEnded(8L, END_AT)).isZero();
+        assertThat(markEnded(7L, END_AT)).isEqualTo(1);
+        assertThat(markEnded(3L, END_AT)).isEqualTo(1);
+
+        assertThat(statusOf(3L)).isEqualTo("종료");
+        assertThat(statusOf(6L)).isEqualTo("매칭 완료");
         assertThat(statusOf(7L)).isEqualTo("종료");
-        assertThat(statusOf(1L)).isEqualTo("모집 중");
         assertThat(statusOf(8L)).isEqualTo("취소");
+    }
+
+    @Test
+    void keepsMatchExcludedDuringPlayMatchedUntilEndTime() {
+        // 경기 7(10:00~12:00)을 경기 중에 관리자가 레이팅에서 제외했다.
+        assertThat(resultMapper.markRatingProcessed(7L, "EXCLUDED", END_AT.minusHours(1), 1L, "WAITING"))
+                .isEqualTo(1);
+
+        assertThat(endedMatchIds(END_AT.minusSeconds(1))).doesNotContain(7L);
+        assertThat(markEnded(7L, END_AT.minusSeconds(1))).isZero();
+        assertThat(statusOf(7L)).isEqualTo("매칭 완료");
+
+        assertThat(endedMatchIds(END_AT)).contains(7L);
+        assertThat(markEnded(7L, END_AT)).isEqualTo(1);
+        assertThat(statusOf(7L)).isEqualTo("종료");
     }
 
     @Test
@@ -126,6 +154,14 @@ class MatchResultMapperIntegrationTest extends AbstractMySqlMapperTest {
         // 6은 같은 구간에 끝났지만 팀장이 없다.
         LocalDateTime match6EndAt = LocalDateTime.of(2026, 10, 25, 12, 0);
         assertThat(reminderTargets(match6EndAt.minusMinutes(1), match6EndAt)).isEmpty();
+    }
+
+    private List<Long> endedMatchIds(LocalDateTime now) {
+        return resultMapper.findEndedMatchIds("매칭 완료", "APPLIED", "EXCLUDED", now);
+    }
+
+    private int markEnded(Long matchId, LocalDateTime now) {
+        return resultMapper.markEnded(matchId, "종료", "매칭 완료", "APPLIED", "EXCLUDED", now);
     }
 
     private List<ReminderTarget> reminderTargets(LocalDateTime endedAfter, LocalDateTime endedUntil) {

@@ -1,6 +1,7 @@
 package co.kr.spoit.mat.scheduler;
 
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -9,6 +10,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -32,5 +34,19 @@ class MatchResultSchedulerTest {
 
         verify(matchResultService).markEnded(2L, NOW);
         verify(matchResultService).closeResult(4L, NOW);
+    }
+
+    @Test
+    void endsMatchClosedAtDeadlineInSameRun() {
+        when(matchResultService.findExpiredMatchIds(NOW)).thenReturn(List.of(1L));
+        when(matchResultService.findEndedMatchIds(NOW)).thenReturn(List.of(1L));
+
+        new MatchResultScheduler(matchResultService).process(NOW);
+
+        InOrder inOrder = inOrder(matchResultService);
+        inOrder.verify(matchResultService).sendReminders(NOW);
+        inOrder.verify(matchResultService).closeResult(1L, NOW);
+        inOrder.verify(matchResultService).findEndedMatchIds(NOW);
+        inOrder.verify(matchResultService).markEnded(1L, NOW);
     }
 }
