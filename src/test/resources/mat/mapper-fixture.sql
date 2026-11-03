@@ -206,3 +206,17 @@ INSERT INTO match_result_submission (
 ) VALUES
     (700, 7, 70, 'A_WIN', 'REPLACED', '2026-10-26 12:10:00'),
     (701, 7, 70, 'B_WIN', 'SUBMITTED', '2026-10-26 12:20:00');
+
+-- 결과 제출 화면 명단: 경기 7의 취소 참가자(회원 5)는 확정 명단에서 빠진다.
+INSERT INTO match_application (
+    application_id, match_id, applicant_user_id, club_id, application_type,
+    status, receipt_no, created_at, confirmed_at, cancelled_at, cancelled_by
+) VALUES
+    (72, 7, 5, NULL, '개인', '취소', 'MAT-TEST-RECEIPT-72',
+     '2026-10-20 09:00:00', NULL, '2026-10-21 12:00:00', 5);
+
+INSERT INTO match_participant (
+    participant_id, application_id, match_id, user_id, participation_status,
+    match_side, entry_mmr, joined_at, cancelled_at
+) VALUES
+    (72, 72, 7, 5, '취소', 'A', 1000.00, '2026-10-20 09:00:00', '2026-10-21 12:00:00');

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('경기 결과 제출 · SPO:IT', 'SPO:IT 팀장이 경기 결과를 제출하고 확정 상태를 확인합니다.', ${ {'mypage.css', 'match-result.css'} })}"></head>
+<body class="mypage-page match-result-page bg-canvas text-ink antialiased">
+<header th:replace="~{fragments/layout :: siteHeader('mypage')}"></header>
+
+<main class="mypage-main match-result-main wrap">
+  <section class="mypage-heading" aria-labelledby="match-result-title">
+    <div class="mypage-heading-copy">
+      <p class="mypage-eyebrow">SPO:IT <span aria-hidden="true">/</span> MATCH RESULT</p>
+      <h1 id="match-result-title">경기 결과 제출</h1>
+      <p>두 팀장이 같은 결과를 제출하면 경기 결과가 확정되고 레이팅에 반영됩니다.</p>
+    </div>
+    <a th:href="@{/mypage}" class="mypage-edit-link">마이페이지 <span aria-hidden="true">↗</span></a>
+  </section>
+
+  <section th:if="${page == null}" class="match-result-empty" aria-labelledby="match-result-empty-title">
+    <h2 id="match-result-empty-title">경기 정보를 찾을 수 없습니다.</h2>
+    <p>주소를 다시 확인해 주세요. 경기가 삭제되었거나 잘못된 경기 번호일 수 있습니다.</p>
+  </section>
+
+  <!-- 팀장이 아니면 경기 정보와 명단도 보여 주지 않는다 -->
+  <section th:if="${page != null and !page.captain}" class="match-result-empty" aria-labelledby="match-result-denied-title">
+    <h2 id="match-result-denied-title">이 경기의 팀장만 결과를 제출할 수 있습니다</h2>
+    <p>팀 배정 때 정해진 A팀·B팀 팀장 계정으로 로그인해 주세요.</p>
+  </section>
+
+  <th:block th:if="${page != null and page.captain}">
+    <section class="match-result-summary" aria-labelledby="match-result-match-title">
+      <p class="match-result-sport" th:text="${page.sportName}">종목</p>
+      <h2 id="match-result-match-title" th:text="${page.title}">경기 이름</h2>
+      <dl class="match-result-facts">
+        <div><dt>일시</dt><dd th:text="${page.scheduleLabel}">일시</dd></div>
+        <div><dt>시설</dt><dd th:text="${page.facilityName}">시설</dd></div>
+        <div><dt>우리 팀</dt><dd th:text="${page.mySide + '팀'}">A팀</dd></div>
+        <div><dt>제출 마감</dt><dd th:text="${page.deadlineLabel}">마감</dd></div>
+      </dl>
+      <div class="match-result-teams">
+        <section th:each="team : ${page.teams}" class="match-result-team" th:classappend="${team.mine} ? 'is-mine' : ''"
+                 th:aria-label="${team.side + '팀 참가자'}">
+          <h3>
+            <i th:classappend="${'is-team-' + #strings.toLowerCase(team.side)}" aria-hidden="true"></i>
+            <span th:text="${team.side + '팀'}">A팀</span>
+            <small th:if="${team.mine}">우리 팀</small>
+          </h3>
+          <ul>
+            <li th:each="member : ${team.members}">
+              <span th:text="${member.nickname}">닉네임</span>
+              <b th:if="${member.captain}" class="match-result-captain">팀장</b>
+            </li>
+            <li th:if="${#lists.isEmpty(team.members)}" class="match-result-team-empty">배정된 참가자가 없습니다.</li>
+          </ul>
+        </section>
+      </div>
+    </section>
+
+    <!-- 제출 영역: match-result.js가 결과 조회 API 응답으로 상태를 그린다. 제출은 폼 없이 fetch로 보낸다. -->
+    <section id="match-result" class="mypage-section match-result-section" aria-labelledby="match-result-heading"
+             th:data-result-url="@{/mypage/matches/{matchId}/result(matchId=${page.matchId})}"
+             th:data-my-side="${page.mySide}"
+             th:data-closed-note="${page.closedNote}"
+             th:data-csrf-header="${_csrf?.headerName}" th:data-csrf-token="${_csrf?.token}">
+      <div class="mypage-section-heading">
+        <span class="mypage-section-index" aria-hidden="true">01</span>
+        <div>
+          <h2 id="match-result-heading">결과 제출</h2>
+          <p>결과가 다르면 마감 전까지 다시 제출할 수 있습니다. 마감까지 확정되지 않으면 레이팅에 반영되지 않습니다.</p>
+        </div>
+      </div>
+      <p class="auth-message match-result-message" data-result-message role="status" aria-live="polite" hidden></p>
+      <div class="match-result-body" data-result-body aria-live="polite">
+        <p class="match-result-loading">제출 상태를 불러오는 중입니다.</p>
+      </div>
+    </section>
+  </th:block>
+</main>
+
+<script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/site-menu.js}"></script>
+<script th:if="${page != null and page.captain}" th:src="@{/js/match-result.js}"></script>
+</body>
+</html>
