@@ -12,6 +12,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 
 @EnabledIfEnvironmentVariable(named = "MAT_TEST_DB_URL", matches = ".+")
@@ -22,6 +23,9 @@ class MatchResultMapperIntegrationTest extends AbstractMySqlMapperTest {
 
     @Autowired
     private MatchResultMapper resultMapper;
+
+    @Autowired
+    private SqlSessionTemplate sqlSession;
 
     @BeforeEach
     void assignCaptains() {
@@ -187,6 +191,32 @@ class MatchResultMapperIntegrationTest extends AbstractMySqlMapperTest {
         assertThat(reminderTargets(match6EndAt.minusMinutes(1), match6EndAt)).isEmpty();
     }
 
+    @Test
+    void findsResultSubmittableMatchesOnlyForConfirmedCaptainsWithinPeriod() {
+        LocalDateTime now = END_AT.plusHours(1);
+        LocalDateTime deadline = END_AT.plusHours(24);
+        // 경기 7의 두 팀장이 대상이다. 같은 회원들이 확정 참가한 경기 6은 팀장이 없어 빠진다.
+        assertThat(submittableMatchIds(3L, now)).containsExactly(7L);
+        assertThat(submittableMatchIds(4L, now)).containsExactly(7L);
+        // 제출 기간은 종료 시각을 넣고 마감 시각을 뺀다.
+        assertThat(submittableMatchIds(3L, END_AT)).containsExactly(7L);
+        assertThat(submittableMatchIds(3L, END_AT.minusSeconds(1))).isEmpty();
+        assertThat(submittableMatchIds(3L, deadline.minusSeconds(1))).containsExactly(7L);
+        assertThat(submittableMatchIds(3L, deadline)).isEmpty();
+
+        // A팀장 자리를 취소 참가자 72(회원 5)로 바꾸면 회원 3은 팀원으로 남아 빠지고, 회원 5도 확정 참가가 아니라 빠진다.
+        updateMatch7("captain_a_participant_id = 72");
+        assertThat(submittableMatchIds(3L, now)).isEmpty();
+        assertThat(submittableMatchIds(5L, now)).isEmpty();
+        assertThat(submittableMatchIds(4L, now)).containsExactly(7L);
+
+        // 매칭 완료가 아니거나 레이팅 처리가 끝난 경기는 빠진다.
+        updateMatch7("status = '종료'");
+        assertThat(submittableMatchIds(4L, now)).isEmpty();
+        updateMatch7("status = '매칭 완료', rating_status = 'APPLIED'");
+        assertThat(submittableMatchIds(4L, now)).isEmpty();
+    }
+
     private List<Long> endedMatchIds(LocalDateTime now) {
         return resultMapper.findEndedMatchIds("매칭 완료", "APPLIED", "EXCLUDED", now);
     }
@@ -197,6 +227,17 @@ class MatchResultMapperIntegrationTest extends AbstractMySqlMapperTest {
 
     private List<ReminderTarget> reminderTargets(LocalDateTime endedAfter, LocalDateTime endedUntil) {
         return resultMapper.findReminderTargets("매칭 완료", "종료", "WAITING", "확정", endedAfter, endedUntil);
+    }
+
+    private List<Long> submittableMatchIds(Long userId, LocalDateTime now) {
+        return resultMapper.findResultSubmittableMatchIds(userId, "매칭 완료", "WAITING", "확정",
+                now.minusHours(24), now);
+    }
+
+    // jdbcTemplate으로 바꾼 값은 MyBatis 1차 캐시가 모르므로, 같은 인자로 다시 조회하기 전에 캐시를 비운다.
+    private void updateMatch7(String assignments) {
+        jdbcTemplate.update("UPDATE social_match SET " + assignments + " WHERE match_id = 7");
+        sqlSession.clearCache();
     }
 
     private String statusOf(Long matchId) {

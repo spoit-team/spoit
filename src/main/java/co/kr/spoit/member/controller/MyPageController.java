@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import co.kr.spoit.mat.dto.SportRatingResponse;
+import co.kr.spoit.mat.service.MatchResultPageService;
 import co.kr.spoit.mat.service.SportRatingService;
 import co.kr.spoit.match.dto.MyReservations;
 import co.kr.spoit.match.service.MatchApplicationService;
@@ -66,6 +67,7 @@ public class MyPageController {
     private final SportRatingService sportRatingService;
     private final MyReservationService reservationService;
     private final MatchApplicationService applicationService;
+    private final MatchResultPageService resultPageService;
 
     /** 폼 바인딩 대상 필드를 제한해 의도하지 않은 값 주입을 막는다. */
     @InitBinder("profileUpdateForm")
@@ -105,6 +107,7 @@ public class MyPageController {
         model.addAttribute("historyEmptyNote", "확정된 경기 기록이 없습니다.");
         model.addAttribute("currentReservations", reservations.getCurrent());
         model.addAttribute("pastReservations", reservations.getPast());
+        model.addAttribute("resultSubmitMatchIds", resultPageService.findResultSubmittableMatchIds(userId));
         model.addAttribute("notifications", EMPTY_LIST);
         model.addAttribute("message", blankToNull(message));
         return "mypage/index";

@@ -200,4 +200,26 @@ public interface MatchResultMapper {
                                              @Param("confirmedStatus") String confirmedStatus,
                                              @Param("endedAfter") LocalDateTime endedAfter,
                                              @Param("endedUntil") LocalDateTime endedUntil);
+
+    // 결과 API·결과 화면과 같이 확정 참가 중인 팀장만 본다.
+    @Select("""
+            SELECT sm.match_id
+            FROM social_match sm
+            JOIN match_participant mp
+              ON mp.match_id = sm.match_id
+             AND mp.participant_id IN (sm.captain_a_participant_id, sm.captain_b_participant_id)
+            WHERE mp.user_id = #{userId}
+              AND mp.participation_status = #{confirmedStatus}
+              AND sm.status = #{matchedStatus}
+              AND sm.rating_status = #{waitingStatus}
+              AND sm.end_at > #{endedAfter}
+              AND sm.end_at <= #{endedUntil}
+            ORDER BY sm.match_id
+            """)
+    List<Long> findResultSubmittableMatchIds(@Param("userId") Long userId,
+                                             @Param("matchedStatus") String matchedStatus,
+                                             @Param("waitingStatus") String waitingStatus,
+                                             @Param("confirmedStatus") String confirmedStatus,
+                                             @Param("endedAfter") LocalDateTime endedAfter,
+                                             @Param("endedUntil") LocalDateTime endedUntil);
 }

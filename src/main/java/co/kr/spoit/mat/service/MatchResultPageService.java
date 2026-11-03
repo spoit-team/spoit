@@ -1,18 +1,23 @@
 package co.kr.spoit.mat.service;
 
 import co.kr.spoit.mat.domain.RatingPolicy;
+import co.kr.spoit.mat.domain.RatingStatus;
 import co.kr.spoit.mat.domain.ResultPageMatch;
 import co.kr.spoit.mat.domain.ResultTeamMember;
 import co.kr.spoit.mat.dto.MatchResultPage;
 import co.kr.spoit.mat.mapper.MatchResultMapper;
+import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.domain.ParticipationStatus;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MatchResultPageService {
 
+    private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter DATE_TIME =
             DateTimeFormatter.ofPattern("yyyy년 M월 d일 (E) HH:mm", Locale.KOREAN);
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
@@ -56,6 +62,18 @@ public class MatchResultPageService {
                 closedNoteOf(match, deadline, now),
                 List.of(teamOf(SIDE_A, match.getCaptainAParticipantId(), mySide, members),
                         teamOf(SIDE_B, match.getCaptainBParticipantId(), mySide, members))));
+    }
+
+    /** 마이페이지 지난 참여 카드에 결과 제출 버튼을 붙일 경기. 비로그인이면 빈 Set */
+    @Transactional(readOnly = true)
+    public Set<Long> findResultSubmittableMatchIds(Long userId) {
+        if (userId == null) {
+            return Set.of();
+        }
+        LocalDateTime now = LocalDateTime.now(ZONE);
+        return new HashSet<>(resultMapper.findResultSubmittableMatchIds(userId, MatchStatus.MATCHED.dbValue(),
+                RatingStatus.WAITING.name(), ParticipationStatus.CONFIRMED.dbValue(),
+                now.minus(RatingPolicy.RESULT_SUBMIT_PERIOD), now));
     }
 
     // 결과 API와 같이 확정 참가 중인 팀장만 인정하고, 팀은 팀장 자리로 정한다.

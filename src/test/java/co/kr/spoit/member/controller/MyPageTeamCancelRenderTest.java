@@ -21,6 +21,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import co.kr.spoit.global.config.SecurityConfig;
+import co.kr.spoit.mat.service.MatchResultPageService;
 import co.kr.spoit.mat.service.SportRatingService;
 import co.kr.spoit.match.dto.MyReservations;
 import co.kr.spoit.match.dto.MyReservations.Entry;
@@ -50,6 +51,9 @@ class MyPageTeamCancelRenderTest {
 
     @MockitoBean
     private MatchApplicationService applicationService;
+
+    @MockitoBean
+    private MatchResultPageService resultPageService;
 
     @MockitoBean
     private MemberLoginSuccessHandler loginSuccessHandler;
