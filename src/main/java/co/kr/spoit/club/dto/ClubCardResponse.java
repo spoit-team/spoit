@@ -23,7 +23,7 @@ public class ClubCardResponse {
 
     public static ClubCardResponse from(ClubSummary club) {
 
-        boolean recruiting = ClubFormat.isRecruiting(club.getRecruitStatus());
+        boolean recruiting = ClubFormat.isRecruiting(club);
 
         return ClubCardResponse.builder()
                 .clubId(club.getClubId())

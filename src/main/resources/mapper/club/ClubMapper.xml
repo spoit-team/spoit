@@ -67,6 +67,8 @@
                 FROM club_region cr
                 JOIN region rg ON cr.region_id = rg.region_id
                 WHERE cr.club_id = c.club_id) AS areaLabel
+                ,(SELECT MIN(cr.region_id) FROM club_region cr
+                WHERE cr.club_id = c.club_id) AS regionId
         FROM club c
         JOIN sport s ON c.sport_id = s.sport_id
         WHERE c.deleted_at IS NULL AND c.club_id = #{clubId}
@@ -153,6 +155,7 @@
     <select id="selectActiveClubForUpdate" resultType="co.kr.spoit.club.domain.ClubSummary">
         SELECT club_id AS clubId
         ,club_name AS clubName
+        ,sport_id AS sportId
         ,max_members AS maxMembers
         ,recruit_status AS recruitStatus
         FROM club
@@ -278,5 +281,29 @@
         SET deleted_at = NOW()
         WHERE club_id = #{clubId} AND deleted_at IS NULL
     </update>
+
+    <select id="existsOtherActiveClubName" resultType="boolean">
+        SELECT COUNT(*) > 0
+        FROM club
+        WHERE club_name = #{clubName} AND deleted_at IS NULL 
+            AND club_id != #{clubId}
+    </select>
+
+    <update id="updateClub">
+        UPDATE club
+        SET club_name = #{clubName},
+            sport_id = #{sportId},
+            intro = #{intro},
+            max_members = #{maxMembers},
+            recruit_status = #{recruitStatus},
+            activity_days = #{activityDays},
+            activity_start_time = #{activityStartTime},
+            activity_end_time = #{activityEndTime}
+        WHERE club_id = #{clubId} AND deleted_at IS NULL
+    </update>
+
+    <delete id="deleteClubRegions">
+        DELETE FROM club_region WHERE club_id = #{clubId}
+    </delete>
 
 </mapper>
