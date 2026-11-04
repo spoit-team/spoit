@@ -34,4 +34,6 @@ public class RoomManagementRow {
     private String requiredSkill;
     /** 참가자 행(대기·확정) + 대기 신청(개인·팀). 1 이상이면 일정을 바꿀 수 없다. */
     private int reservedCount;
+    /** 시설 사진 공개 URL. 없으면 null */
+    private String photoUrl;
 }

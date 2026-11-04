@@ -18,10 +18,9 @@ public final class RatingPolicy {
     public static final int EXPECTED_SCORE_SCALE = 4;
     public static final RoundingMode ROUNDING = RoundingMode.HALF_UP;
 
-    public static final int SILVER_MIN_MMR = 900;
-    public static final int GOLD_MIN_MMR = 1050;
-    public static final int PLATINUM_MIN_MMR = 1200;
-    public static final int DIAMOND_MIN_MMR = 1350;
+    public static final int TIER_START_MMR = 800;
+    public static final int TIER_DIVISION_SIZE = 50;
+    public static final int TIER_POINTS_PER_DIVISION = 100;
 
     // 종료 시각(end_at) 후 결과 제출 기간과, 마감 전에 리마인더를 보내는 시점
     public static final Duration RESULT_SUBMIT_PERIOD = Duration.ofHours(24);

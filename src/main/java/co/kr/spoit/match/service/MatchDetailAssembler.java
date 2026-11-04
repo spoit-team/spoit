@@ -124,7 +124,8 @@ public class MatchDetailAssembler {
                         ? "팀 배정이 완료된 매칭방입니다."
                         : "시설 관리자가 참가를 확정하면 A·B팀으로 배정됩니다.")
                 .facility(new Facility(
-                        null, // 시설 사진 컬럼 없음 → 종목명 fallback (RES-01과 동일)
+                        // 시설 관리자가 올린 사진. 없으면 종목명 fallback (목록 카드와 동일)
+                        row.getPhotoUrl() == null || row.getPhotoUrl().isBlank() ? null : row.getPhotoUrl().strip(),
                         row.getFacilityName(),
                         row.getSportName(),
                         row.getFacilityName() + " · " + row.getRegionName(),

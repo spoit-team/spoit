@@ -3,6 +3,7 @@ package co.kr.spoit.member.controller;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -25,6 +26,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +43,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import co.kr.spoit.mat.dto.SportRatingResponse;
+import co.kr.spoit.mat.service.MatchResultPageService;
 import co.kr.spoit.mat.service.SportRatingService;
 import co.kr.spoit.match.dto.MyReservations;
 import co.kr.spoit.match.service.MatchApplicationService;
@@ -65,6 +68,7 @@ class MyPageControllerTest {
     private SportRatingService sportRatingService;
     private MyReservationService reservationService;
     private MatchApplicationService applicationService;
+    private MatchResultPageService resultPageService;
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -74,8 +78,10 @@ class MyPageControllerTest {
         reservationService = mock(MyReservationService.class);
         given(reservationService.find(anyLong())).willReturn(MyReservations.empty());
         applicationService = mock(MatchApplicationService.class);
+        resultPageService = mock(MatchResultPageService.class);
+        given(resultPageService.findResultSubmittableMatchIds(any())).willReturn(Set.of());
         mockMvc = MockMvcBuilders.standaloneSetup(new MyPageController(
-                memberService, sportRatingService, reservationService, applicationService)).build();
+                memberService, sportRatingService, reservationService, applicationService, resultPageService)).build();
     }
 
     @Test
@@ -135,6 +141,18 @@ class MyPageControllerTest {
                 .andExpect(model().attribute("summary", hasEntry("completedCount", 1)))
                 .andExpect(model().attribute("summary", hasEntry("waitingCount", 1)));
         verify(reservationService).find(USER_ID);
+    }
+
+    @Test
+    @DisplayName("결과 제출 버튼을 붙일 경기 번호는 본인 userId로 조회한 결과를 쓴다")
+    void resultSubmitMatchIdsComeFromOwnCaptainMatches() throws Exception {
+        given(memberService.findRegions(USER_ID)).willReturn(List.of());
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.empty());
+        given(resultPageService.findResultSubmittableMatchIds(USER_ID)).willReturn(Set.of(3L));
+
+        mockMvc.perform(get("/mypage").with(principal()))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("resultSubmitMatchIds", Set.of(3L)));
     }
 
     @Test

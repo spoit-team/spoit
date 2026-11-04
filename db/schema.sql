@@ -251,6 +251,7 @@ CREATE TABLE social_match (
     fee_per_person            DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '해당 회차 1인당 이용료',
     required_skill            VARCHAR(30)   NOT NULL COMMENT '요구 실력 조건 (내부 MMR과 별개)',
     status                    VARCHAR(20)   NOT NULL COMMENT '매칭방 상태 (모집 중, 매칭 완료, 종료, 취소)',
+    photo_url                 VARCHAR(500)  NULL COMMENT '시설 사진 공개 URL (로컬 /uploads/..., 운영 S3), 없으면 종목명 표시',
     assignment_method         VARCHAR(10)   NOT NULL DEFAULT 'MANUAL' COMMENT 'A/B팀 배정 방식, MANUAL 기본, AUTO 추천',
     assigned_by               BIGINT        NULL COMMENT 'A/B팀 배정을 확정한 회원',
     assignment_confirmed_at   DATETIME      NULL COMMENT 'A/B팀 배정 확정 시각',

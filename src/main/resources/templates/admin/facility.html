@@ -176,7 +176,7 @@
                      되돌릴 수 없는 취소만 danger-ghost로 위험을 구분한다. -->
                 <a class="admin-button small" th:href="@{/admin/operations(matchId=${match.matchId})}" th:aria-label="${match.matchId + '번 매칭방 상세 보기'}">상세</a>
                 <th:block th:if="${match.edit != null}">
-                  <button class="admin-button small" type="button" data-edit-room th:aria-label="${match.matchId + '번 매칭방 수정'}" th:attr="data-room-id=${match.matchId},data-room-facility=${match.edit.facilityId},data-room-sport=${match.edit.sportId},data-room-title=${match.edit.title},data-room-date=${match.edit.date},data-room-hours=${match.edit.hours},data-room-team=${match.edit.teamCapacity},data-room-fee=${match.edit.feePerPerson},data-room-skill=${match.edit.requiredSkill},data-room-reserved=${match.edit.reservedCount},data-room-locked=${match.edit.scheduleLocked}">수정</button>
+                  <button class="admin-button small" type="button" data-edit-room th:aria-label="${match.matchId + '번 매칭방 수정'}" th:attr="data-room-id=${match.matchId},data-room-facility=${match.edit.facilityId},data-room-sport=${match.edit.sportId},data-room-title=${match.edit.title},data-room-date=${match.edit.date},data-room-hours=${match.edit.hours},data-room-team=${match.edit.teamCapacity},data-room-fee=${match.edit.feePerPerson},data-room-skill=${match.edit.requiredSkill},data-room-reserved=${match.edit.reservedCount},data-room-locked=${match.edit.scheduleLocked},data-room-photo=${match.edit.photoUrl}">수정</button>
                   <form class="room-cancel-form" method="post" th:action="@{/admin/rooms/{matchId}/cancel(matchId=${match.matchId})}">
                     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                     <button class="admin-button small danger-ghost" type="submit" data-cancel-room th:aria-label="${match.matchId + '번 매칭방 취소'}" th:attr="data-room-title=${match.title},data-room-reserved=${match.edit.reservedCount}">취소</button>
@@ -305,7 +305,7 @@
 <div class="modal-backdrop" id="room-editor-modal" hidden>
   <section class="admin-modal wide" role="dialog" aria-modal="true" aria-labelledby="room-editor-title">
     <div class="modal-header"><div><h2 id="room-editor-title">매칭방 생성</h2><p id="room-editor-description">담당 시설의 운영 시간에 맞춰 매칭방을 개설합니다. 연속된 1시간 블록을 선택하세요.</p></div><button class="modal-close" type="button" data-close-room-editor aria-label="닫기">×</button></div>
-    <form id="room-editor-form" method="post" th:action="@{/admin/rooms}" th:attr="data-room-base=@{/admin/rooms}">
+    <form id="room-editor-form" method="post" enctype="multipart/form-data" th:action="@{/admin/rooms}" th:attr="data-room-base=@{/admin/rooms}">
       <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
       <div class="modal-body">
         <p class="room-editor-locked-note" id="room-editor-locked-note" hidden>신청자가 있어 시설·종목·날짜·시간은 바꿀 수 없습니다. 정원은 현재 참가·신청 인원보다 줄일 수 없습니다.</p>
@@ -325,6 +325,21 @@
           <div class="form-field full"><p class="room-editor-capacity-hint" id="room-editor-capacity-hint"></p></div>
           <div class="form-field"><label for="room-editor-fee">참가비 (1인)</label><input id="room-editor-fee" name="feePerPerson" type="number" min="0" step="500" required /></div>
           <div class="form-field"><label for="room-editor-level">실력 수준</label><select id="room-editor-level" name="requiredSkill" required><option value="초급">초급</option><option value="중급" selected>중급</option><option value="고급">고급</option></select></div>
+          <div class="form-field full room-photo-field">
+            <div class="room-editor-section-label"><strong>시설 사진 (선택)</strong><span>매칭방 목록 카드에 표시됩니다.</span></div>
+            <div class="room-photo-drop" id="room-editor-photo-drop">
+              <input class="room-photo-input" id="room-editor-photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" aria-label="시설 사진 파일 선택" />
+              <img class="room-photo-image" id="room-editor-photo-image" alt="시설 사진 미리보기" hidden />
+              <div class="room-photo-placeholder" id="room-editor-photo-empty">
+                <strong id="room-editor-photo-empty-title">사진을 끌어다 놓거나 클릭해 선택하세요</strong>
+                <span id="room-editor-photo-empty-hint">JPG·PNG·WEBP, 5MB 이하</span>
+                <button class="room-photo-undo" id="room-editor-photo-undo" type="button" hidden>삭제 취소</button>
+              </div>
+              <button class="room-photo-clear" id="room-editor-photo-clear" type="button" aria-label="사진 지우기" hidden>×</button>
+            </div>
+            <input id="room-editor-photo-remove" name="removePhoto" type="hidden" value="false" />
+            <p class="room-photo-error" id="room-editor-photo-error" aria-live="polite" hidden></p>
+          </div>
         </div>
         <p class="room-editor-footnote">시설 관리자가 개설한 매칭방은 이용자 화면에 공개됩니다. 시설 관리자는 참가 인원에 포함되지 않습니다.</p>
       </div>

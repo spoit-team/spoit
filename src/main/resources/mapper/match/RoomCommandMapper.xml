@@ -10,7 +10,8 @@
                sm.sport_id,
                sm.start_at,
                sm.end_at,
-               sm.status
+               sm.status,
+               sm.photo_url
           FROM social_match sm
           JOIN facility f ON f.facility_id = sm.facility_id
                          AND f.deleted_at IS NULL
@@ -58,10 +59,10 @@
             useGeneratedKeys="true" keyProperty="matchId" keyColumn="match_id">
         INSERT INTO social_match (facility_id, sport_id, created_by, title, start_at, end_at,
                                   min_participants, max_participants, team_a_capacity, team_b_capacity,
-                                  fee_per_person, required_skill, status)
+                                  fee_per_person, required_skill, status, photo_url)
         VALUES (#{facilityId}, #{sportId}, #{createdBy}, #{title}, #{startAt}, #{endAt},
                 #{minParticipants}, #{maxParticipants}, #{teamACapacity}, #{teamBCapacity},
-                #{feePerPerson}, #{requiredSkill}, #{status})
+                #{feePerPerson}, #{requiredSkill}, #{status}, #{photoUrl})
     </insert>
 
     <update id="updateRoom" parameterType="co.kr.spoit.match.dto.RoomCommand">
@@ -77,6 +78,9 @@
                team_b_capacity  = #{teamBCapacity},
                fee_per_person   = #{feePerPerson},
                required_skill   = #{requiredSkill}
+               <if test="photoChanged">
+               , photo_url      = #{photoUrl}
+               </if>
          WHERE match_id = #{matchId}
     </update>
 
@@ -89,6 +93,9 @@
                team_b_capacity  = #{teamBCapacity},
                fee_per_person   = #{feePerPerson},
                required_skill   = #{requiredSkill}
+               <if test="photoChanged">
+               , photo_url      = #{photoUrl}
+               </if>
          WHERE match_id = #{matchId}
     </update>
 

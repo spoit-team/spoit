@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -75,6 +77,28 @@ class RoomAdminRouteTest {
         verify(roomCommandService).create(eq(7L), argThat(form -> form.getFacilityId() == 30L
                 && form.getHours().equals(List.of("10:00", "11:00"))
                 && "중급".equals(form.getRequiredSkill())));
+    }
+
+    @Test
+    @DisplayName("multipart 생성 요청은 첨부 사진과 폼 값을 함께 바인딩한다")
+    void bindsPhotoFromMultipart() throws Exception {
+        when(roomCommandService.create(eq(7L), any())).thenReturn(813L);
+        MockMultipartFile photo = new MockMultipartFile("photo", "court.jpg", "image/jpeg",
+                new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0});
+
+        mockMvc.perform(multipart("/admin/rooms").file(photo).with(user(facilityManager())).with(csrf())
+                        .param("facilityId", "30").param("sportId", "2").param("title", "토요 풋살")
+                        .param("date", "2026-11-08").param("hours", "10:00")
+                        .param("teamCapacity", "3").param("feePerPerson", "9000").param("requiredSkill", "중급")
+                        .param("removePhoto", "true"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl(BOOKINGS + "&message=" + encode("813번 매칭방을 만들었습니다.")
+                        + "#facility-bookings"));
+
+        verify(roomCommandService).create(eq(7L), argThat(form -> form.getPhoto() != null
+                && "court.jpg".equals(form.getPhoto().getOriginalFilename())
+                && form.isRemovePhoto()
+                && form.getFacilityId() == 30L));
     }
 
     @Test
