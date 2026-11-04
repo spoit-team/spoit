@@ -33,18 +33,30 @@
         FROM club c
     JOIN sport s ON c.sport_id = s.sport_id
     WHERE c.deleted_at IS NULL
-        <if test="query != null and query != ''">
-            AND c.club_name LIKE CONCAT('%', #{query}, '%')
+        <if test="query != null">
+            AND (c.club_name LIKE CONCAT('%', #{query}, '%')
+                OR EXISTS (SELECT 1 FROM club_region qr
+                    JOIN region qrg ON qr.region_id = qrg.region_id
+                    WHERE qr.club_id = c.club_id
+                        AND qrg.name LIKE CONCAT('%', #{query}, '%')))
         </if>
         <if test="sportId != null">
             AND c.sport_id = #{sportId}
         </if>
         <if test="regionId != null">
             AND EXISTS (SELECT 1 FROM club_region r
-                        WHERE r.club_id = c.club_id AND r.region_id = #{regionId})
+                WHERE r.club_id = c.club_id AND r.region_id = #{regionId})
         </if>
         <if test="recruitingOnly">
             AND c.recruit_status = '모집중'
+            AND (SELECT COUNT(*) FROM club_member m
+                WHERE m.club_id = c.club_id AND m.left_at IS NULL) &lt; c.max_members
+        </if>
+        <if test="minMmr != null">
+            AND <include refid="averageMmr"/> &gt;= #{minMmr}
+        </if>
+        <if test="maxMmr != null">
+            AND <include refid="averageMmr"/> &lt; #{maxMmr}
         </if>
     <choose>
     <when test="sort == 'name'">

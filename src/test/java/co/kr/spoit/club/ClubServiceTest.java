@@ -18,6 +18,7 @@ import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.dto.MyClubResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
 import co.kr.spoit.club.service.ClubServiceImpl;
@@ -51,9 +52,9 @@ class ClubServiceTest {
     @DisplayName("모집 중인 동호회는 모집 중 카드로 바꾼다")
     void 모집중_동호회를_카드로_바꾼다() {
         ClubSummary club = club("모집중", "2,4", 19, 21);
-        when(clubMapper.selectClubs(null, null, null, false, "recent")).thenReturn(List.of(club));
+        when(clubMapper.selectClubs(any(ClubSearchForm.class))).thenReturn(List.of(club));
 
-        ClubCardResponse card = service.findClubCards().get(0);
+        ClubCardResponse card = service.findClubCards(new ClubSearchForm()).get(0);
 
         assertThat(card.getInitials()).isEqualTo("강남");
         assertThat(card.isRecruiting()).isTrue();
@@ -66,9 +67,9 @@ class ClubServiceTest {
     @DisplayName("마감된 동호회는 모집 마감 카드로 바꾼다")
     void 마감된_동호회를_카드로_바꾼다() {
         ClubSummary club = club("마감", "6,7", 10, 12);
-        when(clubMapper.selectClubs(null, null, null, false, "recent")).thenReturn(List.of(club));
+        when(clubMapper.selectClubs(any(ClubSearchForm.class))).thenReturn(List.of(club));
 
-        ClubCardResponse card = service.findClubCards().get(0);
+        ClubCardResponse card = service.findClubCards(new ClubSearchForm()).get(0);
 
         assertThat(card.isRecruiting()).isFalse();
         assertThat(card.getStatusLabel()).isEqualTo("모집 마감");
@@ -81,9 +82,9 @@ class ClubServiceTest {
     void 지역이_없으면_지역_미정으로_표시한다() {
         ClubSummary club = club("모집중", "2,4", 19, 21);
         club.setAreaLabel(null);
-        when(clubMapper.selectClubs(null, null, null, false, "recent")).thenReturn(List.of(club));
+        when(clubMapper.selectClubs(any(ClubSearchForm.class))).thenReturn(List.of(club));
 
-        ClubCardResponse card = service.findClubCards().get(0);
+        ClubCardResponse card = service.findClubCards(new ClubSearchForm()).get(0);
 
         assertThat(card.getAreaLabel()).isEqualTo("지역 미정");
     }
@@ -556,9 +557,9 @@ class ClubServiceTest {
     void 정원이_찬_모집중_동호회는_모집_마감으로_바꾼다() {
         ClubSummary club = club("모집중", "2,4", 19, 21);
         club.setMemberCount(10);
-        when(clubMapper.selectClubs(null, null, null, false, "recent")).thenReturn(List.of(club));
+        when(clubMapper.selectClubs(any(ClubSearchForm.class))).thenReturn(List.of(club));
 
-        ClubCardResponse card = service.findClubCards().get(0);
+        ClubCardResponse card = service.findClubCards(new ClubSearchForm()).get(0);
 
         assertThat(card.isRecruiting()).isFalse();
         assertThat(card.getStatusLabel()).isEqualTo("모집 마감");
@@ -664,20 +665,20 @@ class ClubServiceTest {
         verify(clubMapper, never()).updateClub(any(Club.class));
     }
 
-    @Test 
-    @DisplayName ("팀 평균 MMR로 실력 등급을 정하고, 기록이 없으면 배치 중")
+    @Test
+    @DisplayName("팀 평균 MMR로 실력 등급을 정하고, 기록이 없으면 배치 중")
     void 팀_평균_MMR로_실력_등급을_정한다() {
         ClubSummary none = club("모집중", "2,4", 19, 21);
         ClubSummary gold = club("모집중", "2,4", 19, 21);
         gold.setAverageMmr(1050);
         ClubSummary silver = club("모집중", "2,4", 19, 21);
         silver.setAverageMmr(1049);
-        when(clubMapper.selectClubs(null, null, null, false, "recent")).thenReturn(List.of(none, gold, silver));
+        when(clubMapper.selectClubs(any(ClubSearchForm.class))).thenReturn(List.of(none, gold, silver));
 
-        List<ClubCardResponse> cards = service.findClubCards();
+        List<ClubCardResponse> cards = service.findClubCards(new ClubSearchForm());
 
         assertThat(cards.get(0).getTierLabel()).isEqualTo("배치 중");
-        assertThat(cards.get(1).getTierLabel()).isEqualTo("골드"); 
+        assertThat(cards.get(1).getTierLabel()).isEqualTo("골드");
         assertThat(cards.get(2).getTierLabel()).isEqualTo("실버");
     }
 

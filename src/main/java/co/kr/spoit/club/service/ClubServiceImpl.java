@@ -20,6 +20,7 @@ import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.dto.MyClubResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
 import lombok.RequiredArgsConstructor;
@@ -41,8 +42,8 @@ public class ClubServiceImpl implements ClubService {
 
     // 최신순 전체 조회(검색 미구현)
     @Override
-    public List<ClubCardResponse> findClubCards() {
-        List<ClubSummary> clubs = clubMapper.selectClubs(null, null, null, false, "recent");
+    public List<ClubCardResponse> findClubCards(ClubSearchForm filters) {
+        List<ClubSummary> clubs = clubMapper.selectClubs(filters);
 
         List<ClubCardResponse> cards = new ArrayList<>();
         for (ClubSummary club : clubs) {

@@ -8,6 +8,7 @@ import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.dto.MyClubResponse;
 
 public interface ClubService {
@@ -17,7 +18,7 @@ public interface ClubService {
     }
 
     // 동호회 목록 카드 조회
-    List<ClubCardResponse> findClubCards();
+    List<ClubCardResponse> findClubCards(ClubSearchForm filters);
 
     // 동호회 상세 조회(없으면 null)
     ClubDetailResponse findClubDetail(Long clubId, Long userId);
