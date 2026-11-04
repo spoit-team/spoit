@@ -31,6 +31,20 @@ class ClubFormat {
         return areaLabel != null ? areaLabel : "지역 미정";
     }
 
+    // 종목 탭 임시 이모지(팀 아이콘 PR에서 SVG로 교체)
+    static String sportEmoji(Long sportId) {
+        if (sportId == null)
+            return "🏅";
+        return switch (sportId.intValue()) {
+            case 1 -> "🎾";
+            case 2 -> "⚽";
+            case 3 -> "🏐";
+            case 4 -> "🏀";
+            case 5 -> "🏸";
+            default -> "🏅";
+        };
+    }
+
     // 팀 실력 등급
     static String tierLabel(Integer averageMmr) {
         if (averageMmr == null) {

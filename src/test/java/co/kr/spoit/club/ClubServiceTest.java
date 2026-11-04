@@ -13,12 +13,14 @@ import static org.mockito.Mockito.when;
 import co.kr.spoit.club.domain.Club;
 import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
+import co.kr.spoit.club.domain.ClubSportCount;
 import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
 import co.kr.spoit.club.dto.ClubSearchForm;
+import co.kr.spoit.club.dto.ClubSportTabResponse;
 import co.kr.spoit.club.dto.MyClubResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
 import co.kr.spoit.club.service.ClubServiceImpl;
@@ -61,6 +63,26 @@ class ClubServiceTest {
         assertThat(card.getStatusLabel()).isEqualTo("팀원 모집 중");
         assertThat(card.getTime()).isEqualTo("화, 목 19:00 - 21:00");
         assertThat(card.getFooterNote()).isEqualTo("모집 자리: 7명");
+    }
+
+    @Test
+    @DisplayName("종목 탭은 전체가 맨 앞이고 고른 종목만 켜진다")
+    void 종목_탭은_전체가_맨_앞이고_고른_종목만_켜진다() {
+        // 가짜 DB 결과: 테니스 3개, 족구 0개
+        when(clubMapper.selectClubSportCounts())
+                .thenReturn(List.of(sportCount(1L, "테니스", 3), sportCount(3L, "족구", 0)));
+
+        // 테니스(1번)를 고른 상태로 탭 만들기
+        List<ClubSportTabResponse> tabs = service.findSportTabs(1L);
+
+        assertThat(tabs).hasSize(3); // 전체 + 종목 2개
+        assertThat(tabs.get(0).getName()).isEqualTo("전체");
+        assertThat(tabs.get(0).getCount()).isEqualTo(3); // 3 + 0
+        assertThat(tabs.get(0).isActive()).isFalse(); // 종목을 골랐으니 전체는 꺼짐
+        assertThat(tabs.get(1).isActive()).isTrue(); // 고른 테니스만 켜짐
+        assertThat(tabs.get(1).getUrl()).isEqualTo("/teams?sportId=1");
+        assertThat(tabs.get(2).getCount()).isEqualTo(0); // 동호회 없는 종목도 탭은 있음
+        assertThat(tabs.get(2).isActive()).isFalse();
     }
 
     @Test
@@ -688,6 +710,14 @@ class ClubServiceTest {
         member.setClubMemberId(3L);
         member.setUserId(userId);
         return member;
+    }
+
+    private ClubSportCount sportCount(Long sportId, String name, int clubCount) {
+        ClubSportCount sport = new ClubSportCount();
+        sport.setSportId(sportId);
+        sport.setName(name);
+        sport.setClubCount(clubCount);
+        return sport;
     }
 
     private ClubSummary club(String recruitStatus, String activityDays, int startHour, int endHour) {

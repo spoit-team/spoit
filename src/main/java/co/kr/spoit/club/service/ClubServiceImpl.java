@@ -14,6 +14,7 @@ import co.kr.spoit.club.domain.Club;
 import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
 import co.kr.spoit.club.domain.ClubRegionOption;
+import co.kr.spoit.club.domain.ClubSportCount;
 import co.kr.spoit.club.domain.ClubSportOption;
 import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.club.dto.ClubCardResponse;
@@ -21,6 +22,7 @@ import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
 import co.kr.spoit.club.dto.ClubSearchForm;
+import co.kr.spoit.club.dto.ClubSportTabResponse;
 import co.kr.spoit.club.dto.MyClubResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +52,21 @@ public class ClubServiceImpl implements ClubService {
             cards.add(ClubCardResponse.from(club));
         }
         return cards;
+    }
+
+    @Override
+    public List<ClubSportTabResponse> findSportTabs(Long selectedSportId) {
+        List<ClubSportCount> sports = clubMapper.selectClubSportCounts();
+        int total = 0;
+        for (ClubSportCount sport : sports) {
+            total += sport.getClubCount();
+        }
+        List<ClubSportTabResponse> tabs = new ArrayList<>();
+        tabs.add(ClubSportTabResponse.all(total, selectedSportId));
+        for (ClubSportCount sport : sports) {
+            tabs.add(ClubSportTabResponse.from(sport, selectedSportId));
+        }
+        return tabs;
     }
 
     @Override

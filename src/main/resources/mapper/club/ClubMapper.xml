@@ -130,6 +130,15 @@
         SELECT sport_id AS sportId, name AS name FROM sport ORDER BY sport_id
     </select>
 
+    <!-- 종목 탭: 검색 조건 무시 활성 동호회 수 -->
+    <select id="selectClubSportCounts" resultType="co.kr.spoit.club.domain.ClubSportCount">
+        SELECT s.sport_id AS sportId, s.name AS name, COUNT(c.club_id) AS clubCount
+        FROM sport s
+        LEFT JOIN club c ON c.sport_id = s.sport_id AND c.deleted_at IS NULL
+        GROUP BY s.sport_id, s.name
+        ORDER BY s.sport_id
+    </select>
+
     <select id="selectClubRegionOptions" resultType="co.kr.spoit.club.domain.ClubRegionOption">
         SELECT region_id AS regionId, name AS name
         FROM region

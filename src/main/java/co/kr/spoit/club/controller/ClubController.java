@@ -41,7 +41,7 @@ public class ClubController {
         List<ClubCardResponse> clubs = clubService.findClubCards(filters);
         model.addAttribute("clubs", clubs);
         model.addAttribute("resultCount", clubs.size());
-        model.addAttribute("sportTabs", List.of());
+        model.addAttribute("sportTabs", clubService.findSportTabs(filters.getSportId()));
         model.addAttribute("districts", clubService.findRegionOptions());
         model.addAttribute("filters", filters);
         return "teams/list";
