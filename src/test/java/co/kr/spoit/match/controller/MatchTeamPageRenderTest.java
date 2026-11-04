@@ -119,6 +119,7 @@ class MatchTeamPageRenderTest {
                         containsString("id=\"rules-guide-dialog\""),
                         containsString("저녁 배드민턴 · 내일 19:00~21:00"),
                         containsString("매치 운영 규칙"),
+                        containsString("다른 매치와 시간이 겹치면 신청할 수 없습니다."),
                         containsString("취소 안내"),
                         containsString("노쇼 안내"),
                         containsString("잦은 노쇼 시 일주일에서 한 달 사이의 계정 정지가 있을 수 있습니다."),
