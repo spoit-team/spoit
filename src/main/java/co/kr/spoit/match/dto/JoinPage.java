@@ -19,6 +19,29 @@ public class JoinPage {
     private final String feeSummaryNote;
     /** 완료 화면에서만 채운다 */
     private final Completion completion;
+    /** 이미 신청한 다른 매치와 시간이 겹치는 회원 (겹치면 신청 화면에서 모달로 막는다) */
+    @Builder.Default
+    private final List<ConflictPerson> timeConflicts = List.of();
+
+    /** 시간이 겹치는 회원 한 명과 그 회원의 겹치는 매치들 */
+    @Getter
+    @AllArgsConstructor
+    public static class ConflictPerson {
+        private final String nickname;
+        private final boolean me;
+        private final List<ConflictMatch> matches;
+    }
+
+    @Getter
+    @AllArgsConstructor
+    public static class ConflictMatch {
+        private final String title;
+        /** "11/7(토) 19:00~21:00" */
+        private final String timeLabel;
+        private final String facilityName;
+        /** 확정 대기 / 참가 확정 */
+        private final String stateLabel;
+    }
 
     @Getter
     @Builder

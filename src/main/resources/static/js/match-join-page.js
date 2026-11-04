@@ -74,6 +74,19 @@
     if (continueButton) continueButton.disabled = true;
   });
 
+  /* 시간 겹침: 서버가 겹침을 찾았을 때만 모달이 렌더링되며, 화면을 열자마자 띄웁니다. 신청 버튼은 서버가 이미 막아 둡니다. */
+  const conflictDialog = document.getElementById('time-conflict-dialog');
+  if (conflictDialog && typeof conflictDialog.showModal === 'function') {
+    conflictDialog.querySelectorAll('[data-close-time-conflict]').forEach(function (button) {
+      button.addEventListener('click', function () { conflictDialog.close(); });
+    });
+    conflictDialog.addEventListener('click', function (event) {
+      if (event.target === conflictDialog) conflictDialog.close();
+    });
+    conflictDialog.showModal();
+    conflictDialog.querySelector('.join-conflict-actions [data-close-time-conflict]')?.focus({ preventScroll: true });
+  }
+
   /*
    * 신청 동의 안내 모달: 체크박스를 체크하려 하면 체크하지 않고 안내를 먼저 띄웁니다.
    * "확인했습니다"를 눌러야 체크되고, 체크 해제는 바로 됩니다. "안내 보기"로 언제든 다시 열 수 있습니다.

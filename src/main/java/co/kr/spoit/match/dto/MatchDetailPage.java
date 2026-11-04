@@ -95,6 +95,8 @@ public class MatchDetailPage {
     @AllArgsConstructor
     public static class TeamMemberOption {
         private final Long clubMemberId;
+        /** 신청 내용 화면의 시간 겹침 확인용 (화면에는 쓰지 않는다) */
+        private final Long userId;
         private final String nickname;
         private final String initial;
         private final boolean leader;

@@ -1081,6 +1081,135 @@
   }
 }
 
+/* 시간 겹침 모달: 마이페이지 확인창과 같은 모양 */
+.join-conflict-dialog {
+  position: fixed;
+  inset: 50% auto auto 50%;
+  width: min(460px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  margin: 0;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  overflow: auto;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 16px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  box-shadow: 0 24px 70px rgb(19 21 25 / 20%);
+}
+
+.join-conflict-dialog:not([open]) {
+  display: none;
+}
+
+.join-conflict-dialog::backdrop {
+  background: rgb(19 21 25 / 48%);
+  backdrop-filter: blur(2px);
+}
+
+.join-conflict-content {
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+}
+
+.join-conflict-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.join-conflict-heading h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 850;
+  letter-spacing: -.04em;
+}
+
+.join-conflict-heading p {
+  margin: 5px 0 0;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.join-conflict-close {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 1px solid var(--color-line);
+  border-radius: 9px;
+  background: var(--color-paper);
+  color: var(--color-muted);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.join-conflict-note {
+  margin: 0;
+  border-left: 2px solid var(--color-danger);
+  background: var(--color-danger-soft);
+  padding: 10px 12px;
+  color: var(--color-danger);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.join-conflict-people,
+.join-conflict-people ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.join-conflict-people > li {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.join-conflict-people > li > b {
+  font-size: 13px;
+}
+
+.join-conflict-match {
+  display: grid;
+  gap: 2px;
+  border-left: 2px solid var(--color-line-strong);
+  padding-left: 10px;
+  color: var(--color-ink-2);
+  font-size: 12px;
+}
+
+.join-conflict-match-title {
+  color: var(--color-ink);
+  font-weight: 750;
+}
+
+.join-conflict-match small {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.join-conflict-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-line);
+}
+
+.join-conflict-close:focus-visible {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 3px;
+}
+
 /* 신청 동의 안내 모달 (매치 운영 규칙 · 취소·노쇼) */
 .join-rules-link {
   margin-left: 4px;
