@@ -100,11 +100,6 @@ INSERT INTO operating_rule (facility_id, weekday, open_time, close_time, end_nex
     (9401, 6, '08:00:00', '22:00:00', FALSE, TRUE),
     (9401, 7, '08:00:00', '22:00:00', FALSE, TRUE);
 
--- 해시태그 --------------------------------------------------------------
-INSERT INTO hashtag (hashtag_id, name, is_default) VALUES
-    (9901, '탈퇴검증', TRUE),
-    (9902, '테니스', TRUE);
-
 -- 동호회 ---------------------------------------------------------------
 -- 9501: withdraw-leader 가 동호회장 -> leaderClubNames 차단
 -- 9502: withdraw-team 이 동호회원 -> 모집 중 팀 매치 신청으로 teamMatchClubNames 차단
@@ -121,11 +116,6 @@ INSERT INTO club_region (club_id, region_id) VALUES
     (9501, 9102),
     (9502, 9102),
     (9502, 9103);
-
-INSERT INTO club_hashtag (club_id, hashtag_id, sort_order) VALUES
-    (9501, 9901, 1),
-    (9501, 9902, 2),
-    (9502, 9902, 1);
 
 INSERT INTO club_member (club_member_id, club_id, user_id, role, joined_at, left_at, leave_type, kick_reason) VALUES
     (9551, 9501, 9302, '동호회장', DATE_SUB(NOW(), INTERVAL 90 DAY), NULL, NULL, NULL),

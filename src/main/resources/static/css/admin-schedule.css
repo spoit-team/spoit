@@ -91,20 +91,6 @@
   gap: 8px;
 }
 
-.inline-action-form {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.inline-action-form .field-control {
-  min-width: 96px;
-  height: 28px;
-  min-height: 28px;
-  padding: 4px 6px;
-  font-size: 10px;
-}
-
 .table-detail summary {
   color: var(--admin-blue-ink);
   font-size: 10.5px;

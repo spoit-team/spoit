@@ -339,7 +339,7 @@ check(facilityDateForm?.attributes.method?.toLowerCase() === 'post'
 // 6) 충돌 경고: 안전한 alertdialog, 전체 충돌 목록, 저장 우회/자동 취소 선택지 없음.
 const conflictModal = facilitySource.slice(
   facilitySource.indexOf('id="schedule-conflict-modal"'),
-  facilitySource.indexOf('id="maintenance-modal"'));
+  facilitySource.indexOf('id="facility-delete-blocked-modal"'));
 check(conflictModal.length > 0, 'facility.html: schedule conflict modal missing');
 check(conflictModal.includes('role="alertdialog"'),
   'schedule-conflict-modal: must stay an alertdialog');
@@ -361,7 +361,7 @@ check(!/type="submit"/.test(conflictModal) && !/data-force/.test(conflictModal),
 // 6-1) 시설 삭제 차단 경고: 일정 충돌 경고와 같은 alertdialog로 막는 매칭방 전체를 보여 준다.
 const deleteBlockModal = facilitySource.slice(
   facilitySource.indexOf('id="facility-delete-blocked-modal"'),
-  facilitySource.indexOf('id="maintenance-modal"'));
+  facilitySource.indexOf('th:replace="~{fragments/admin :: toast}"'));
 check(deleteBlockModal.length > 0, 'facility.html: facility delete blocked modal missing');
 check(deleteBlockModal.includes('role="alertdialog"'),
   'facility-delete-blocked-modal: must stay an alertdialog');
@@ -417,8 +417,8 @@ check(facilityScript.includes("target?.closest('#date-schedule-hour-grid')"),
   'admin-facility.js: date slot summary must be delegated so fragment swaps keep it working');
 
 /* ── 대시보드 시설 현황 계약 ──────────────────────────────────────────────
-   대시보드에서 실제로 연결된 것은 담당 시설 전체의 매칭방 현황뿐이다.
-   요청·점검은 서버 값이 없으므로 0건처럼 보이는 표시나 동작하지 않는 링크를 두지 않는다. */
+   대시보드에서 실제로 연결된 것은 담당 시설 전체의 매칭방 현황과 참가 신청 피드뿐이다.
+   민원·요청/점검·유지보수 화면은 제거되었으므로 그 흔적이 다시 생기면 여기서 막는다. */
 const dashboardSource = fragmentSlice(facilitySource, 'id="facility-dashboard"', 'id="facility-assets"');
 check(Boolean(dashboardSource), 'facility.html: dashboard view missing');
 for (const field of ['dashboard?.matchCount', 'dashboard?.recruitingCount',
@@ -430,16 +430,26 @@ check(dashboardSource?.includes('bar.matchCount') && dashboardSource?.includes('
   'facility.html: each hourly bar must expose its real match/completed counts');
 check(/th:aria-label="\$\{bar\.label[^"]*bar\.matchCount/.test(dashboardSource ?? ''),
   'facility.html: hourly bars need an aria-label with the hour and counts');
-// 연동 전 지표는 '연동 전'으로만 남기고 0건으로 렌더링하지 않는다.
-// 미처리 요청 카드는 민원·요청 화면과 함께 여전히 미연동이므로 값 대신 '연동 전'을 고정한다.
-for (const unlinked of ['openRequestCount', 'maintenanceCount']) {
-  check(!dashboardSource?.includes(unlinked),
-    `facility.html: unlinked dashboard field ${unlinked} must not be rendered`);
+// 지표는 실제 집계되는 두 값만 남는다. 없는 값을 0건이나 '연동 전'으로 그리지 않는다.
+for (const removed of ['openRequestCount', 'maintenanceCount', '미처리 요청', '점검 예정',
+  '연동 전', 'is-unlinked', 'metric-tag']) {
+  check(!dashboardSource?.includes(removed),
+    `facility.html: removed dashboard metric must not come back (${removed})`);
 }
-check((dashboardSource?.match(/연동 전/g) ?? []).length >= 2,
-  'facility.html: unlinked request/maintenance cards must say 연동 전 instead of 0건');
+check(dashboardSource?.includes('<div class="metric-grid two-metrics">'),
+  'facility.html: the dashboard must lay out exactly two metrics in one row');
+check((dashboardSource?.match(/class="card metric-card"/g) ?? []).length === 2,
+  'facility.html: the dashboard must render exactly two metric cards');
+// 두 칸짜리 지표 줄은 좁은 화면에서 한 칸씩 쌓이므로, 세로 구분선 대신 가로 구분선을 쓴다.
+const twoMetricRule = adminCss.match(/\.metric-grid\.two-metrics\s*\{([^}]*)\}/)?.[1] ?? '';
+check(/grid-template-columns:\s*repeat\(2,minmax\(0,1fr\)\)/.test(twoMetricRule),
+  'admin.css: two metrics must fill one row on wide screens');
+check(/\.metric-grid\.two-metrics \.metric-card:nth-child\(-n\+2\)\s*\{\s*border-bottom:\s*0/.test(adminCss),
+  'admin.css: a two-cell metric row must not draw a bottom divider under its only row');
+check(/@media \(max-width: 600px\)[\s\S]*\.metric-grid\.two-metrics\s*\{\s*grid-template-columns:\s*1fr/.test(adminCss),
+  'admin.css: two metrics must stack into one column on narrow screens');
 check(!/@\{[^}]*view='requests'/.test(dashboardSource ?? ''),
-  'facility.html: the dashboard must not link to the unbuilt requests view');
+  'facility.html: the dashboard must not link to the removed requests view');
 // 최근 요청 카드는 담당 시설 매칭방의 참가 신청(모든 상태, 최신 5건)으로 채운다.
 // 서버 계약은 dashboard.recentRequests의 여섯 필드이며, 이 카드는 조회 전용 상세로만 이어진다.
 const recentRequestFields = ['matchId', 'matchTitle', 'facilityName', 'applicantName',
@@ -712,6 +722,31 @@ check(/th:href="@\{\/admin\/facility/.test(facilitySidebar ?? ''),
   'admin.html: facility sidebar must keep its own menu links');
 check(/th:href="@\{\/admin\/system/.test(systemSidebar ?? ''),
   'admin.html: system sidebar must keep its own menu links');
+// 민원·요청, 점검·유지보수 화면은 백엔드 처리 없이 껍데기만 남아 있었으므로 메뉴에서 제거했다.
+// 되살아나면 화면에 없는 동작을 약속하게 되므로, 남은 메뉴와 함께 부재를 고정한다.
+for (const removed of ['facility-requests', 'facility-maintenance', '민원·요청', '점검·유지보수']) {
+  check(!(facilitySidebar ?? '').includes(removed),
+    `admin.html: removed facility menu entry must stay gone (${removed})`);
+}
+for (const kept of ['facility-dashboard', 'facility-assets', 'facility-schedule',
+  'facility-bookings', 'facility-stats', 'facility-content']) {
+  check((facilitySidebar ?? '').includes(kept),
+    `admin.html: facility sidebar must keep ${kept}`);
+}
+
+/* ── 제거된 시설 관리자 화면 계약 ──────────────────────────────────────────
+   민원·요청과 점검·유지보수는 서버 모델·핸들러가 없어 화면만 존재했다. 화면과 진입점,
+   모달·스크립트 연결이 다시 생기면 없는 동작을 약속하게 되므로 부재를 고정한다. */
+for (const removed of ['id="facility-requests"', 'id="facility-maintenance"',
+  'id="maintenance-modal"', 'id="maintenance-form"', 'data-open-maintenance',
+  'data-close-maintenance', '@{/admin/facility/requests', '@{/admin/facility/maintenance',
+  'requestMetrics', 'maintenanceMetrics', 'maintenanceFilters', '요청 목록', '점검 일지']) {
+  check(!facilitySource.includes(removed),
+    `facility.html: removed requests/maintenance UI must stay gone (${removed})`);
+}
+check(!facilityScript.includes('maintenanceModal') && !facilityScript.includes('maintenance-modal')
+  && !facilityScript.includes('data-open-maintenance') && !facilityScript.includes('data-close-maintenance'),
+  'admin-facility.js: maintenance modal handlers must be removed with the screen');
 
 // 실제 시설·시스템 템플릿의 모든 .admin-view가 대체 포커스 표시 대상(제목)을 가져야 한다.
 for (const file of ['templates/admin/facility.html', 'templates/admin/system.html']) {

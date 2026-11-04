@@ -129,12 +129,6 @@ public class FacilityAdminController {
         model.addAttribute("roomEditorSports", bookings.getFacilitySports());
         model.addAttribute("roomEditorHourSlots", bookings.getHourSlots());
         model.addAttribute("stats", null);
-        model.addAttribute("requestMetrics", null);
-        model.addAttribute("requestFilters", null);
-        model.addAttribute("requests", EMPTY_LIST);
-        model.addAttribute("maintenanceMetrics", null);
-        model.addAttribute("maintenanceFilters", null);
-        model.addAttribute("maintenance", EMPTY_LIST);
         model.addAttribute("notices", EMPTY_LIST);
         model.addAttribute("rules", EMPTY_LIST);
         return "admin/facility";

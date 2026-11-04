@@ -36,7 +36,7 @@ class Control extends Element {
   querySelectorAll() { return []; }
 }
 
-function createPage() {
+function createPage(hash = '') {
   const ids = new Map();
   const control = (id, properties) => {
     const element = new Control({ id, ...properties });
@@ -55,7 +55,7 @@ function createPage() {
   const sidebarToggle = new Control();
   const breadcrumb = control('breadcrumb-current');
   for (const element of ['admin-toast', 'admin-notification-modal', 'room-editor-modal', 'room-editor-form',
-    'facility-modal', 'facility-form', 'maintenance-modal', 'room-editor-capacity-hint', 'room-editor-hour-grid']) {
+    'facility-modal', 'facility-form', 'room-editor-capacity-hint', 'room-editor-hour-grid']) {
     control(element);
   }
   const opener = new Control({ dataset: { openFacility: '' } });
@@ -77,7 +77,7 @@ function createPage() {
     listeners: {}
   };
   const window = {
-    location: { hash: '', pathname: '/admin/facility', href: 'http://localhost/admin/facility' },
+    location: { hash, pathname: '/admin/facility', href: 'http://localhost/admin/facility' },
     history: { lastUrl: null, replaceState(state, title, url) { this.lastUrl = url; } },
     matchMedia: () => ({ matches: false, addEventListener() {} }),
     addEventListener(type, handler) { (this.listeners[type] ??= []).push(handler); },
@@ -112,4 +112,16 @@ assert.equal(page.nav.getAttribute('aria-current'), 'page');
 assert.equal(page.window.history.lastUrl, '#facility-assets');
 assert.equal(page.document.title, '시설·공간 관리 · SPO:IT 관리자');
 
-console.log('PASS: admin shell and facility scripts initialize with window, open modals and switch views.');
+/* 민원·요청/점검·유지보수 화면과 해시가 사라졌으므로, 예전 해시로 들어와도 빈 화면이 아니라
+   첫 화면(대시보드)으로 돌아가야 한다. 링크를 타고 들어온 사용자가 화면을 잃지 않게 한다. */
+const fallbackPage = createPage('#facility-requests');
+globalThis.window = fallbackPage.window;
+globalThis.document = fallbackPage.document;
+await import('../../main/resources/static/js/admin-shell.js?removed-facility-hash');
+assert.equal(fallbackPage.views[0].hidden, false, 'a removed hash must fall back to the first view');
+assert.equal(fallbackPage.views[1].hidden, true, 'only the fallback view may stay visible');
+assert.equal(fallbackPage.window.history.lastUrl, '#facility-dashboard',
+  'the removed hash must be replaced with the dashboard hash');
+assert.equal(fallbackPage.document.title, '대시보드 · SPO:IT 관리자');
+
+console.log('PASS: admin shell and facility scripts initialize with window, open modals, switch views, and fall back from a removed hash.');

@@ -192,10 +192,6 @@ button { color: inherit; }
 .bar-chart.is-day .bar { width: 6px; min-height: 3px; }
 .chart-empty-note { margin: -5px 20px 12px; padding: 8px 10px; border-left: 2px solid var(--admin-line-strong); color: var(--admin-muted); font-size: 10.5px; line-height: 1.6; }
 .chart-foot { display: flex; justify-content: space-between; gap: 10px; padding: 0 20px 15px; color: var(--admin-faint); font-size: 10px; }
-/* 서버 값이 아직 없는 지표는 '0건'이 아니라 '연동 전'임을 드러낸다. */
-.metric-tag { display: inline-flex; min-height: 18px; align-items: center; padding: 1px 7px; border: 1px dashed var(--admin-line-strong); border-radius: 99px; background: var(--admin-soft); color: var(--admin-muted); font-size: 9.5px; font-weight: 800; white-space: nowrap; }
-.metric-card.is-unlinked .metric-value { color: var(--admin-faint); }
-.metric-card.is-unlinked .metric-foot { color: var(--admin-muted); line-height: 1.5; }
 .unlinked-panel { display: grid; gap: 6px; margin: 14px 18px 16px; padding: 14px 16px; border: 1px dashed var(--admin-line-strong); border-radius: 10px; background: repeating-linear-gradient(135deg, #fafbfc 0 8px, #f5f6f8 8px 16px); }
 .unlinked-panel strong { color: var(--admin-ink-2); font-size: 12px; font-weight: 800; }
 .unlinked-panel p { margin: 0; color: var(--admin-muted); font-size: 11px; line-height: 1.65; }
@@ -480,6 +476,8 @@ button { color: inherit; }
   .metric-card + .metric-card::before { display: none; }
   .metric-card:nth-child(even)::before { display: block; }
   .metric-card:nth-child(-n+2) { border-bottom: 1px solid var(--metric-divider-color); }
+  /* 지표가 두 칸뿐이면 한 줄로 끝나므로 줄 사이 구분선을 그리지 않는다. */
+  .metric-grid.two-metrics .metric-card:nth-child(-n+2) { border-bottom: 0; }
   .admin-content { padding-right: 22px; padding-left: 22px; }
   .admin-topbar { padding-right: 22px; padding-left: 22px; }
   .dashboard-grid { grid-template-columns: minmax(0,1.35fr) minmax(270px,1fr); }
@@ -533,6 +531,10 @@ button { color: inherit; }
   .metric-top { font-size: 10.5px; }
   .metric-value { font-size: 24px; }
   .metric-foot { font-size: 9.5px; }
+  /* 두 지표는 좁은 화면에서 나란히 두면 설명이 여러 줄로 끊긴다. 한 칸씩 쌓고 구분선을 가로로 돌린다. */
+  .metric-grid.two-metrics { grid-template-columns: 1fr; }
+  .metric-grid.two-metrics .metric-card:nth-child(even)::before { display: none; }
+  .metric-grid.two-metrics .metric-card + .metric-card { border-top: 1px solid var(--metric-divider-color); }
   .toolbar { align-items: stretch; padding: 11px; }
   .field-control, .search-control { min-width: calc(50% - 5px); flex: 1; }
   .toolbar-spacer { display: none; }

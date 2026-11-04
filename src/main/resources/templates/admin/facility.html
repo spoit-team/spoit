@@ -27,12 +27,10 @@
         </div>
 
         <!-- 매칭방 수치는 담당 시설 전체를 대상으로 실제 조회한 값이다.
-             요청·점검 수치는 아직 서버 값이 없으므로 0건으로 표시하지 않고 '연동 전'으로 남긴다. -->
-        <div class="metric-grid">
+             지표는 실제로 집계되는 두 값만 두고, 두 칸이 한 줄을 온전히 채우도록 배치한다. -->
+        <div class="metric-grid two-metrics">
           <article class="card metric-card"><div class="metric-top"><span>등록된 매칭방</span><span class="metric-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/></svg></span></div><div class="metric-value"><span th:text="${dashboard?.matchCount ?: 0}">0</span><small>개</small></div><div class="metric-foot">담당 시설 전체 · 취소 포함 모든 상태</div></article>
           <article class="card metric-card"><div class="metric-top"><span>모집 중인 방</span><span class="metric-icon amber"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M3.5 20v-1.5A5.5 5.5 0 0 1 9 13h1a5.5 5.5 0 0 1 5.5 5.5V20M15 14a4.5 4.5 0 0 1 5.5 4.5V20"/></svg></span></div><div class="metric-value"><span th:text="${dashboard?.recruitingCount ?: 0}">0</span><small>개</small></div><div class="metric-foot">모집 중으로 등록된 방 · 담당 시설 전체</div></article>
-          <article class="card metric-card is-unlinked" aria-describedby="facility-request-unlinked"><div class="metric-top"><span>미처리 요청</span><span class="metric-tag">연동 전</span></div><div class="metric-value"><span aria-hidden="true">—</span><span class="sr-only">데이터 연동 전</span></div><div class="metric-foot" id="facility-request-unlinked">요청 데이터가 아직 연결되지 않았습니다.</div></article>
-          <article class="card metric-card is-unlinked" aria-describedby="facility-maintenance-unlinked"><div class="metric-top"><span>점검 예정</span><span class="metric-tag">연동 전</span></div><div class="metric-value"><span aria-hidden="true">—</span><span class="sr-only">데이터 연동 전</span></div><div class="metric-foot" id="facility-maintenance-unlinked">점검 데이터가 아직 연결되지 않았습니다.</div></article>
         </div>
 
         <div class="dashboard-grid">
@@ -215,68 +213,6 @@
         <div class="notice-strip"><strong>통계 기준</strong><p>선택 기간에 생성된 매칭방 중 취소된 방을 제외해 집계합니다. 서버 집계 결과가 없으면 빈 상태로 표시합니다.</p></div>
       </section>
 
-      <!-- 민원·요청 -->
-      <section class="admin-view" id="facility-requests" data-view-title="민원·요청" hidden>
-        <div class="page-heading">
-          <div class="page-heading-copy"><div class="page-eyebrow">현장 운영</div><h1>민원·요청</h1><p>이용 문의와 시설 요청을 확인하고 담당자 및 처리 상태를 관리합니다.</p></div>
-          <div class="heading-actions"><a class="admin-button" th:href="@{/admin/facility/requests/export}">↓ 내보내기</a></div>
-        </div>
-        <div class="metric-grid">
-          <article class="card metric-card"><div class="metric-top">미처리</div><div class="metric-value"><span th:text="${requestMetrics?.openCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">담당자 확인이 필요합니다.</div></article>
-          <article class="card metric-card"><div class="metric-top">처리 중</div><div class="metric-value"><span th:text="${requestMetrics?.inProgressCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">진행 중인 요청</div></article>
-          <article class="card metric-card"><div class="metric-top">이번 달 완료</div><div class="metric-value"><span th:text="${requestMetrics?.completedCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">처리 완료 기준</div></article>
-          <article class="card metric-card"><div class="metric-top">평균 응답</div><div class="metric-value"><span th:text="${requestMetrics?.averageResponse ?: '—'}">—</span><small>시간</small></div><div class="metric-foot">목표 응답 4시간 이내</div></article>
-        </div>
-        <div class="section-heading"><div class="section-title-wrap"><h2>요청 목록</h2><p>접수된 시간순으로 표시합니다.</p></div></div>
-        <div class="card">
-          <form class="toolbar" method="get" th:action="@{/admin/facility}">
-            <input type="hidden" name="view" value="requests" />
-            <label class="search-control"><span aria-hidden="true">⌕</span><input name="q" type="search" placeholder="요청 내용, 접수자 검색" th:value="${requestFilters?.q}" /></label>
-            <select class="field-control" name="status" aria-label="요청 상태"><option value="all">전체 상태</option><option value="open" th:selected="${requestFilters?.status == 'open'}">접수</option><option value="in-progress" th:selected="${requestFilters?.status == 'in-progress'}">확인 중</option><option value="done" th:selected="${requestFilters?.status == 'done'}">처리 완료</option></select>
-            <button class="admin-button small" type="submit">검색</button>
-          </form>
-          <div class="table-scroll"><table class="admin-table"><thead><tr><th>요청 내용</th><th>접수자</th><th>접수 시각</th><th>담당자</th><th>상태</th><th>관리</th></tr></thead><tbody>
-            <tr th:each="request : ${requests}">
-              <td><span class="cell-primary" th:text="${request.summary}">요청 내용</span></td>
-              <td th:text="${request.requester}">접수자</td>
-              <td th:text="${request.receivedAt}">접수 시각</td>
-              <td th:text="${request.owner != null ? request.owner : '미지정'}">담당자</td>
-              <td><span class="status-badge" th:classappend="${request.statusTone}" th:text="${request.statusLabel}">상태</span></td>
-              <td><form method="post" class="inline-action-form" th:action="@{/admin/facility/requests/{id}/status(id=${request.id})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><select class="field-control" name="status" th:attr="aria-label=${request.summary + ' 처리 상태'}"><option value="open" th:selected="${request.status == 'open'}">접수</option><option value="in-progress" th:selected="${request.status == 'in-progress'}">확인 중</option><option value="done" th:selected="${request.status == 'done'}">처리 완료</option></select><button class="admin-button small" type="submit">저장</button></form></td>
-            </tr>
-            <tr th:if="${#lists.isEmpty(requests)}"><td class="table-empty" colspan="6">접수된 요청이 없습니다.</td></tr>
-          </tbody></table></div>
-        </div>
-      </section>
-
-      <!-- 점검·유지보수 -->
-      <section class="admin-view" id="facility-maintenance" data-view-title="점검·유지보수" hidden>
-        <div class="page-heading">
-          <div class="page-heading-copy"><div class="page-eyebrow">시설 운영</div><h1>점검·유지보수</h1><p>정기 점검 일정과 시설 보수 이력을 기록합니다.</p></div>
-          <div class="heading-actions"><button class="admin-button primary" type="button" data-open-maintenance>＋ 점검 일지 등록</button></div>
-        </div>
-        <div class="metric-grid">
-          <article class="card metric-card"><div class="metric-top">이번 주 점검 예정</div><div class="metric-value"><span th:text="${maintenanceMetrics?.scheduledCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">예정된 점검</div></article>
-          <article class="card metric-card"><div class="metric-top">진행 중</div><div class="metric-value"><span th:text="${maintenanceMetrics?.inProgressCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">담당자 확인</div></article>
-          <article class="card metric-card"><div class="metric-top">완료 · 이번 달</div><div class="metric-value"><span th:text="${maintenanceMetrics?.completedCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">완료 처리 기준</div></article>
-          <article class="card metric-card"><div class="metric-top">조치 필요</div><div class="metric-value"><span th:text="${maintenanceMetrics?.actionNeededCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">보수 또는 재점검 필요</div></article>
-        </div>
-        <div class="section-heading"><div class="section-title-wrap"><h2>점검 일지</h2><p>기록을 선택하면 상세 내용과 처리 이력을 확인할 수 있습니다.</p></div>
-          <form method="get" th:action="@{/admin/facility}"><input type="hidden" name="view" value="maintenance" /><select class="field-control" name="status" aria-label="점검 상태" onchange="this.form.submit()"><option value="all">전체 상태</option><option value="scheduled" th:selected="${maintenanceFilters?.status == 'scheduled'}">예정</option><option value="in-progress" th:selected="${maintenanceFilters?.status == 'in-progress'}">진행 중</option><option value="completed" th:selected="${maintenanceFilters?.status == 'completed'}">완료</option><option value="action-needed" th:selected="${maintenanceFilters?.status == 'action-needed'}">조치 필요</option></select><noscript><button class="admin-button small" type="submit">적용</button></noscript></form>
-        </div>
-        <div class="card"><div class="table-scroll"><table class="admin-table"><thead><tr><th>점검 일시</th><th>시설·공간</th><th>점검 항목</th><th>담당자</th><th>상태</th><th>상세</th></tr></thead><tbody>
-          <tr th:each="entry : ${maintenance}">
-            <td th:text="${entry.dateLabel}">일시</td>
-            <td th:text="${entry.area}">시설</td>
-            <td th:text="${entry.category}">항목</td>
-            <td th:text="${entry.owner}">담당자</td>
-            <td><span class="status-badge" th:classappend="${entry.statusTone}" th:text="${entry.statusLabel}">상태</span></td>
-            <td><details class="table-detail"><summary>보기</summary><p th:text="${entry.result}">점검 결과</p></details></td>
-          </tr>
-          <tr th:if="${#lists.isEmpty(maintenance)}"><td class="table-empty" colspan="6">등록된 점검 일지가 없습니다.</td></tr>
-        </tbody></table></div></div>
-      </section>
-
       <!-- 공지·이용 수칙 -->
       <section class="admin-view" id="facility-content" data-view-title="공지·이용 수칙" hidden>
         <div class="page-heading">
@@ -299,7 +235,7 @@
   </main>
 </div>
 
-<div th:replace="~{fragments/admin :: notificationModal('시설 알림', '담당 시설의 요청과 운영 알림을 확인합니다.')}"></div>
+<div th:replace="~{fragments/admin :: notificationModal('시설 알림', '담당 시설의 운영 알림을 확인합니다.')}"></div>
 
 <!-- 매칭방 개설 -->
 <div class="modal-backdrop" id="room-editor-modal" hidden>
@@ -493,25 +429,6 @@
     <div class="modal-footer">
       <button class="admin-button danger-solid" type="button" id="facility-delete-blocked-close" data-close-facility-delete-blocked>확인</button>
     </div>
-  </section>
-</div>
-
-<!-- 점검 일지 등록 -->
-<div class="modal-backdrop" id="maintenance-modal" hidden>
-  <section class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="maintenance-modal-title">
-    <div class="modal-header"><div><h2 id="maintenance-modal-title">점검 일지 등록</h2><p>점검 결과를 입력하면 서버에 기록됩니다.</p></div><button class="modal-close" type="button" data-close-maintenance aria-label="닫기">×</button></div>
-    <form id="maintenance-form" method="post" th:action="@{/admin/facility/maintenance}">
-      <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-      <div class="modal-body"><div class="form-grid">
-        <div class="form-field"><label for="maintenance-date">점검 일시</label><input id="maintenance-date" name="date" type="datetime-local" required /></div>
-        <div class="form-field"><label for="maintenance-area">시설·공간</label><select id="maintenance-area" name="area"><option th:each="facility : ${facilities}" th:value="${facility.name}" th:text="${facility.name}">시설</option></select></div>
-        <div class="form-field"><label for="maintenance-category">점검 분류</label><select id="maintenance-category" name="category"><option>정기 안전 점검</option><option>배수·위생 점검</option><option>조명·전기 점검</option><option>바닥·네트 점검</option><option>설비 점검</option><option>청결·위생</option><option>이용자 요청 조치</option></select></div>
-        <div class="form-field"><label for="maintenance-status">처리 상태</label><select id="maintenance-status" name="status"><option>예정</option><option>진행 중</option><option>완료</option><option>조치 필요</option></select></div>
-        <div class="form-field full"><label for="maintenance-result">점검 결과 및 메모</label><textarea id="maintenance-result" name="result" placeholder="확인한 항목과 조치 내용을 입력해 주세요." required></textarea></div>
-        <div class="form-field full"><label for="maintenance-owner">담당자</label><input id="maintenance-owner" name="owner" required th:value="${adminUser?.nickname}" /></div>
-      </div></div>
-      <div class="modal-footer"><button class="admin-button" type="button" data-close-maintenance>취소</button><button class="admin-button primary" type="submit">일지 저장</button></div>
-    </form>
   </section>
 </div>
 
