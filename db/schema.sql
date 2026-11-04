@@ -12,7 +12,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS audit_log, penalty, report_evidence, admin_request, notification, report,
     sport_rating_history, sport_rating, match_evaluation_score, match_evaluation,
     sport_evaluation_item, match_result_submission, match_participant, match_application,
-    social_match, club_join_request, club_member, club_hashtag, hashtag, club_region, club,
+    social_match, club_join_request, club_member, club_region, club,
     schedule_change, facility_date_override_slot, facility_date_override,
     operating_rule, facility_sport, facility_manager, facility,
     user_preferred_sport, user_region, region, sport, app_user;
@@ -192,24 +192,6 @@ CREATE TABLE club_region (
     CONSTRAINT fk_club_region_club   FOREIGN KEY (club_id)   REFERENCES club (club_id),
     CONSTRAINT fk_club_region_region FOREIGN KEY (region_id) REFERENCES region (region_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='동호회 활동 지역';
-
-CREATE TABLE hashtag (
-    hashtag_id  BIGINT      NOT NULL AUTO_INCREMENT COMMENT '해시태그 식별자',
-    name        VARCHAR(30) NOT NULL COMMENT '태그명, # 없이 저장, 중복 불가',
-    is_default  BOOLEAN     NOT NULL DEFAULT FALSE COMMENT 'true면 지정 태그, false면 자유 입력',
-    PRIMARY KEY (hashtag_id),
-    UNIQUE KEY uk_hashtag_name (name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='해시태그';
-
-CREATE TABLE club_hashtag (
-    club_id     BIGINT  NOT NULL COMMENT '동호회',
-    hashtag_id  BIGINT  NOT NULL COMMENT '해시태그',
-    sort_order  TINYINT NOT NULL COMMENT '표시 순서 1~5, 1번이 카드 대표 태그',
-    PRIMARY KEY (club_id, hashtag_id),
-    CONSTRAINT fk_club_hashtag_club    FOREIGN KEY (club_id)    REFERENCES club (club_id),
-    CONSTRAINT fk_club_hashtag_hashtag FOREIGN KEY (hashtag_id) REFERENCES hashtag (hashtag_id),
-    CONSTRAINT ck_club_hashtag_order CHECK (sort_order BETWEEN 1 AND 5)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='동호회 해시태그';
 
 CREATE TABLE club_member (
     club_member_id  BIGINT       NOT NULL AUTO_INCREMENT COMMENT '소속 이력 식별자, 재가입 시 새 행',
