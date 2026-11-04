@@ -48,8 +48,8 @@
       <section th:if="${tab == 'team'}" class="team-management-section team-management-overview">
         <div class="managed-team-toolbar">
           <div class="managed-team-title">
-            <span class="team-mark" th:attr="data-sport=${managedClub.sportId}" aria-hidden="true" th:text="${managedClub.initials}">팀</span>
-            <div><h2 th:text="${managedClub.clubName}">팀 이름</h2><p th:text="${managedClub.sportName + ' · ' + managedClub.areaLabel + ' · ' + (managedClub.leader ? '팀장' : '팀원')}">종목 · 지역 · 팀장</p></div>
+            <span class="team-mark" th:classappend="${'tone-' + managedClub.markTone}" aria-hidden="true"><img th:src="@{/images/club/sports/{key}.svg(key=${managedClub.sportKey})}" alt=""><img th:src="@{/images/club/tiers/{key}.svg(key=${managedClub.tierKey})}" alt=""></span>
+           <div><h2 th:text="${managedClub.clubName}">팀 이름</h2><p th:text="${managedClub.sportName + ' · ' + managedClub.areaLabel + ' · ' + (managedClub.leader ? '팀장' : '팀원')}">종목 · 지역 · 팀장</p></div>
           </div>
           <div class="team-row-actions">
             <button th:if="${managedClub.leader}" class="team-button team-button-quiet" type="button" data-team-edit>팀 정보 수정</button>

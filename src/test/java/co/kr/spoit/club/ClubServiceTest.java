@@ -58,7 +58,7 @@ class ClubServiceTest {
 
         ClubCardResponse card = service.findClubCards(new ClubSearchForm()).get(0);
 
-        assertThat(card.getInitials()).isEqualTo("강남");
+        assertThat(card.getSportKey()).isEqualTo("tennis");
         assertThat(card.isRecruiting()).isTrue();
         assertThat(card.getStatusLabel()).isEqualTo("팀원 모집 중");
         assertThat(card.getTime()).isEqualTo("화, 목 19:00 - 21:00");
@@ -124,7 +124,7 @@ class ClubServiceTest {
 
         ClubDetailResponse detail = service.findClubDetail(1L, 7L);
 
-        assertThat(detail.getInitials()).isEqualTo("강남");
+        assertThat(detail.getMarkTone()).isEqualTo(2);
         assertThat(detail.getAreaLabel()).isEqualTo("강남구");
         assertThat(detail.getFounded()).isEqualTo("2026.10.20");
         assertThat(detail.getIntro()).isEqualTo("주말 농구 모임");
@@ -702,6 +702,10 @@ class ClubServiceTest {
         assertThat(cards.get(0).getTierLabel()).isEqualTo("배치 중");
         assertThat(cards.get(1).getTierLabel()).isEqualTo("골드");
         assertThat(cards.get(2).getTierLabel()).isEqualTo("실버");
+        assertThat(cards.get(0).getTierKey()).isEqualTo("none");
+        assertThat(cards.get(1).getTierKey()).isEqualTo("gold");
+        assertThat(cards.get(2).getTierKey()).isEqualTo("silver");
+
     }
 
     // 추방할 동호회원(동호회원 번호 3, 회원 번호만)

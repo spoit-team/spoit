@@ -17,7 +17,6 @@ public class ClubManageResponse {
 
     private final Long clubId;
     private final String clubName;
-    private final String initials;
     private final Long sportId;
     private final String sportName;
     private final String areaLabel;
@@ -38,6 +37,9 @@ public class ClubManageResponse {
     private final List<ClubJoinRequestResponse> applications;
     private final Integer pendingApplicationCount;
     private final String recruitLabel;
+    private final String sportKey;
+    private final String tierKey;
+    private final int markTone;
 
     public static ClubManageResponse from(ClubSummary club, List<ClubMember> members, Long userId,
             List<ClubJoinRequest> joinRequests) {
@@ -65,7 +67,6 @@ public class ClubManageResponse {
         return ClubManageResponse.builder()
                 .clubId(club.getClubId())
                 .clubName(club.getClubName())
-                .initials(ClubFormat.initials(club.getClubName()))
                 .sportId(club.getSportId())
                 .sportName(club.getSportName())
                 .areaLabel(ClubFormat.areaLabel(club.getAreaLabel()))
@@ -86,6 +87,9 @@ public class ClubManageResponse {
                 .pendingApplicationCount(applications.size())
                 .otherMembersRemain(otherMembersRemain)
                 .recruitLabel(ClubFormat.manageRecruitLabel(club))
+                .sportKey(ClubFormat.sportKey(club.getSportId()))
+                .tierKey(ClubFormat.tierKey(club.getAverageMmr()))
+                .markTone(ClubFormat.markTone(club.getClubId()))
                 .build();
 
     }

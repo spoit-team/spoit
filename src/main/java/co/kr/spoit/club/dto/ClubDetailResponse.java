@@ -15,7 +15,6 @@ public class ClubDetailResponse {
 
     private final Long clubId;
     private final String clubName;
-    private final String initials;
     private final Long sportId;
     private final String sportName;
     private final String areaLabel;
@@ -25,6 +24,9 @@ public class ClubDetailResponse {
     private final String tierLabel;
     private final String time;
     private final String footerNote;
+    private final String sportKey;
+    private final String tierKey;
+    private final int markTone;
 
     private final String founded;
     private final String intro;
@@ -52,7 +54,7 @@ public class ClubDetailResponse {
                 leaderName = response.getNickname();
                 leaderInitials = response.getInitials();
             }
-            if(response.isCurrent()){
+            if (response.isCurrent()) {
                 member = true;
                 manager = response.isLeader();
             }
@@ -62,7 +64,6 @@ public class ClubDetailResponse {
         return ClubDetailResponse.builder()
                 .clubId(club.getClubId())
                 .clubName(club.getClubName())
-                .initials(ClubFormat.initials(club.getClubName()))
                 .recruiting(recruiting)
                 .memberCount(club.getMemberCount())
                 .maxMembers(club.getMaxMembers())
@@ -80,6 +81,9 @@ public class ClubDetailResponse {
                 .manager(manager)
                 .pendingJoinRequestId(pendingJoinRequestId)
                 .tierLabel(ClubFormat.tierLabel(club.getAverageMmr()))
+                .sportKey(ClubFormat.sportKey(club.getSportId()))
+                .tierKey(ClubFormat.tierKey(club.getAverageMmr()))
+                .markTone(ClubFormat.markTone(club.getClubId()))
                 .build();
     }
 }

@@ -10,7 +10,6 @@ public class ClubCardResponse {
 
     private final Long clubId;
     private final String clubName;
-    private final String initials;
     private final Long sportId;
     private final String sportName;
     private final String statusLabel;
@@ -21,6 +20,9 @@ public class ClubCardResponse {
     private final Integer maxMembers;
     private final String time;
     private final String footerNote;
+    private final String sportKey;
+    private final String tierKey;
+    private final int markTone;
 
     public static ClubCardResponse from(ClubSummary club) {
 
@@ -29,7 +31,6 @@ public class ClubCardResponse {
         return ClubCardResponse.builder()
                 .clubId(club.getClubId())
                 .clubName(club.getClubName())
-                .initials(ClubFormat.initials(club.getClubName()))
                 .sportId(club.getSportId())
                 .sportName(club.getSportName())
                 .areaLabel(ClubFormat.areaLabel(club.getAreaLabel()))
@@ -40,6 +41,9 @@ public class ClubCardResponse {
                 .time(ClubFormat.time(club))
                 .footerNote(ClubFormat.footerNote(recruiting, club))
                 .tierLabel(ClubFormat.tierLabel(club.getAverageMmr()))
+                .sportKey(ClubFormat.sportKey(club.getSportId()))
+                .tierKey(ClubFormat.tierKey(club.getAverageMmr()))
+                .markTone(ClubFormat.markTone(club.getClubId()))
                 .build();
     }
 

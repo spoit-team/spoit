@@ -17,7 +17,7 @@
 
   <div id="team-sport-tabs" class="team-sport-tabs" aria-label="종목별 팀 필터" role="group">
     <a th:each="sport : ${sportTabs}" class="team-sport-tab" th:classappend="${sport.active} ? 'is-active' : ''" th:href="@{${sport.url}}" th:attr="aria-current=${sport.active} ? 'page' : null">
-      <span class="team-sport-tab-emoji" aria-hidden="true" th:text="${sport.emoji}">🏅</span>
+      <img class="team-sport-tab-icon" th:src="@{/images/club/sports/{key}.svg(key=${sport.sportKey})}" alt="" aria-hidden="true">
       <span th:text="${sport.name}">전체</span>
       <span class="team-sport-tab-count" th:text="${sport.count}">0</span>
     </a>
@@ -37,7 +37,7 @@
   <section id="team-list-view" aria-label="팀 목록">
     <div id="team-grid" class="team-grid">
       <article th:each="club : ${clubs}" class="team-card">
-        <div class="team-card-top"><span class="team-mark" th:attr="data-sport=${club.sportId}" aria-hidden="true" th:text="${club.initials}">팀</span><div><h2 class="team-card-name" th:text="${club.clubName}">팀 이름</h2><p class="team-card-subtitle" th:text="${club.sportName + ' · ' + club.areaLabel}">종목 · 지역</p></div></div>
+        <div class="team-card-top"><span class="team-mark" th:classappend="${'tone-' + club.markTone}" aria-hidden="true"><img th:src="@{/images/club/sports/{key}.svg(key=${club.sportKey})}" alt=""><img th:src="@{/images/club/tiers/{key}.svg(key=${club.tierKey})}" alt=""></span><div><h2 class="team-card-name" th:text="${club.clubName}">팀 이름</h2><p class="team-card-subtitle" th:text="${club.sportName + ' · ' + club.areaLabel}">종목 · 지역</p></div></div>
         <div class="team-badges">
           <span class="team-badge" th:classappend="${club.recruiting} ? 'is-recruiting' : 'is-closed'" th:text="${club.statusLabel}">모집 중</span>
           <span class="team-badge" title="팀 실력" th:text="${club.tierLabel}">실버</span>
