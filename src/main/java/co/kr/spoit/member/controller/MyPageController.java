@@ -170,7 +170,7 @@ public class MyPageController {
                 .orElse(NO_RATING_TEXT));
         summary.put("representativeSportId", representative.<Object>map(SportOption::getSportId).orElse(""));
         summary.put("representativeSportName", representative.map(SportOption::getName).orElse("종목"));
-        summary.put("skillNote", "참가 확정 매치의 개인 레이팅 평균을 표시합니다.");
+        summary.put("skillNote", "확정 경기 결과로 계산한 레이팅을 티어로 표시합니다. 배치 5경기 후 티어가 정해집니다.");
         summary.put("confirmedCount", reservations.getConfirmedCount());
         summary.put("completedCount", reservations.getCompletedCount());
         summary.put("waitingCount", reservations.getWaitingCount());
@@ -178,14 +178,14 @@ public class MyPageController {
         return summary;
     }
 
-    /** 저장된 레이팅 행의 MMR을 그대로 표시한다. 행이 없거나 확정 매치가 없으면 기록 없음. */
+    /** 레이팅 행을 티어로 표시한다(배치 중이면 배치 문구). 행이 없거나 확정 매치가 없으면 기록 없음. */ 
     private String ratingText(Long userId, Long sportId) {
         SportRatingResponse rating = sportRatingService.findByUserIdAndSportId(userId, sportId).orElse(null);
         if (rating == null || rating.ratedMatchCount() == null || rating.ratedMatchCount() <= 0
                 || rating.currentMmr() == null) {
             return NO_RATING_TEXT;
         }
-        return rating.currentMmr().toPlainString();
+        return rating.tierLabel();
     }
 
     /** 프로필 수정 화면. 로그인 회원이면 저장된 정보를, 아니면 빈 폼을 보여준다. */
