@@ -159,8 +159,12 @@
                 </div>
                 <div class="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
                   <a th:if="${entry.canViewPaymentGuidance}" th:href="@{${entry.paymentGuidanceUrl}}" class="h-9 shrink-0 self-start rounded-lg bg-match px-3 py-2 text-xs font-bold text-white hover:bg-match-hover sm:self-center">결제 안내</a>
-                  <form th:if="${entry.canCancel}" method="post" th:action="@{/mypage/applications/{applicationId}/cancel(applicationId=${entry.applicationId})}" th:attr="data-team-cancel=${entry.teamCancel ? entry.cancelConfirmMessage : null}, data-team-cancel-title=${entry.teamCancel ? entry.title : null}, data-team-cancel-meta=${entry.teamCancel ? entry.metaLine : null}">
+                  <form th:if="${entry.canCancel}" method="post" th:action="@{/mypage/applications/{applicationId}/cancel(applicationId=${entry.applicationId})}" th:attr="data-team-cancel=${entry.teamCancel ? 'true' : null}, data-team-cancel-title=${entry.teamCancel ? entry.title : null}, data-team-cancel-meta=${entry.teamCancel ? entry.metaLine : null}">
                     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                    <!-- 확인창 팀원 목록 데이터. 스크립트가 없으면 폼은 팀 전체 취소로 제출된다. -->
+                    <ul th:if="${entry.teamCancel}" hidden data-team-members>
+                      <li th:each="member : ${entry.teamMembers}" th:attr="data-application-id=${member.applicationId}, data-nickname=${member.nickname}, data-state=${member.stateLabel}, data-leader=${member.leader}"></li>
+                    </ul>
                     <button type="submit" class="h-9 shrink-0 self-start rounded-lg border border-line-strong px-3 text-xs font-bold text-ink-2 hover:border-danger hover:text-danger sm:self-center" th:text="${entry.cancelLabel}">신청 취소</button>
                   </form>
                 </div>
@@ -262,17 +266,26 @@
   </section>
 </div>
 
-<!-- RES-04 팀 신청 취소 확인: 대표가 취소하면 팀원 전원의 신청이 함께 취소된다 -->
+<!-- RES-04 팀 신청 취소: 대표가 취소할 팀원을 고른다. 대표가 빠지고 남는 팀원이 있으면 새 대표를 고른다. -->
 <dialog id="team-cancel-dialog" class="mypage-confirm-dialog" aria-labelledby="team-cancel-title" aria-describedby="team-cancel-message">
   <div class="mypage-confirm-dialog-content">
     <div class="mypage-confirm-dialog-heading">
-      <div><h2 id="team-cancel-title">팀 신청을 취소할까요?</h2><p id="team-cancel-match">매칭방</p></div>
+      <div><h2 id="team-cancel-title">팀 신청 취소</h2><p id="team-cancel-match">매칭방</p></div>
       <button class="mypage-confirm-close" type="button" data-close-team-cancel aria-label="닫기">×</button>
     </div>
-    <p id="team-cancel-message" class="mypage-confirm-note">팀원의 신청이 모두 함께 취소됩니다.</p>
+    <fieldset class="mypage-team-cancel-group">
+      <legend>취소할 팀원을 선택하세요</legend>
+      <label class="mypage-team-cancel-option mypage-team-cancel-all"><input id="team-cancel-all" type="checkbox" /> <span>전체 선택</span></label>
+      <div id="team-cancel-members"></div>
+    </fieldset>
+    <fieldset id="team-cancel-leader" class="mypage-team-cancel-group" hidden>
+      <legend>대표가 빠지므로 새 대표를 선택하세요</legend>
+      <div id="team-cancel-leaders" class="mypage-team-cancel-leaders"></div>
+    </fieldset>
+    <p id="team-cancel-message" class="mypage-confirm-note">취소할 팀원을 선택해 주세요.</p>
     <div class="mypage-confirm-actions">
       <button class="mypage-confirm-back" type="button" data-close-team-cancel>돌아가기</button>
-      <button id="team-cancel-confirm" class="mypage-confirm-submit" type="button">팀 신청 취소</button>
+      <button id="team-cancel-confirm" class="mypage-confirm-submit" type="button" disabled>팀원 취소</button>
     </div>
   </div>
 </dialog>

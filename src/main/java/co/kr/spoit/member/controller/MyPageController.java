@@ -113,16 +113,27 @@ public class MyPageController {
         return "mypage/index";
     }
 
-    /** RES-05 신청 취소. 결과는 성공·실패 모두 마이페이지 상단 안내 영역에 보여 준다. */
+    /**
+     * RES-05 신청 취소. 결과는 성공·실패 모두 마이페이지 상단 안내 영역에 보여 준다.
+     * RES-04 팀 신청 대표는 취소할 팀원(memberApplicationIds)과, 본인이 빠질 때 새 대표를 함께 보낸다.
+     * 팀원을 보내지 않으면 팀 전체를 취소한다.
+     */
     @PostMapping("/mypage/applications/{applicationId}/cancel")
-    public String cancelApplication(@PathVariable long applicationId, Authentication authentication) {
+    public String cancelApplication(@PathVariable long applicationId,
+                                    @RequestParam(required = false) List<Long> memberApplicationIds,
+                                    @RequestParam(required = false) Long newLeaderApplicationId,
+                                    Authentication authentication) {
         MemberPrincipal principal = principalOf(authentication);
         if (principal == null) {
             return "redirect:/login";
         }
         String message;
         try {
-            applicationService.cancel(applicationId, principal.getUserId());
+            if (memberApplicationIds == null || memberApplicationIds.isEmpty()) {
+                applicationService.cancel(applicationId, principal.getUserId());
+            } else {
+                applicationService.cancel(applicationId, principal.getUserId(), memberApplicationIds, newLeaderApplicationId);
+            }
             message = "신청을 취소했습니다.";
         } catch (MatchApplyException exception) {
             message = exception.getMessage();

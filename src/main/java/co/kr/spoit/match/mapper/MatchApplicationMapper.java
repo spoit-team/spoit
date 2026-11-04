@@ -102,6 +102,20 @@ public interface MatchApplicationMapper {
     /** 같은 묶음의 신청 행 (대표가 먼저, 그다음 접수 순) */
     List<GroupMemberRow> findGroupMembers(@Param("groupApplicationId") long groupApplicationId);
 
+    /**
+     * 팀원 일부 취소 전 묶음 행 잠금 (findGroupMembers와 같은 순서).
+     * 잠금 읽기라 트랜잭션 앞부분의 스냅숏이 아닌 최신 상태를 읽는다.
+     */
+    List<GroupMemberRow> lockGroupMembers(@Param("groupApplicationId") long groupApplicationId);
+
+    /**
+     * 대표가 빠질 때 남은 팀원 행을 새 대표 행의 묶음으로 옮긴다.
+     * 아직 이전 묶음에 있는 행만 바꾸며, 바뀐 행 수를 돌려준다.
+     */
+    int moveGroup(@Param("applicationIds") List<Long> applicationIds,
+                  @Param("fromGroupApplicationId") long fromGroupApplicationId,
+                  @Param("toGroupApplicationId") long toGroupApplicationId);
+
     /** RES-06 내 신청 내역: 내가 낸 신청 + 내가 참가자로 들어간 신청 (경기 시작 순) */
     List<MyApplicationRow> findMyApplications(@Param("userId") long userId,
                                               @Param("participantStatuses") List<String> participantStatuses);

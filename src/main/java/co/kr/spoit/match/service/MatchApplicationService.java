@@ -461,10 +461,25 @@ public class MatchApplicationService {
      * RES-05 신청 취소. 확정된 신청이면 연결된 참가자 행도 함께 취소해 정원을 돌려준다.
      * 팀 배정이 끝난 매치는 팀 구성·팀장이 깨지므로 받지 않는다.
      *
-     * <p>RES-04 팀 신청은 대표만 취소할 수 있고, 묶음 전체가 함께 취소된다. 팀원 일부 취소는 아직 지원하지 않는다.</p>
+     * <p>RES-04 팀 신청은 대표만 취소할 수 있고, 묶음 전체가 함께 취소된다.</p>
      */
     @Transactional
     public void cancel(long applicationId, long userId) {
+        cancel(applicationId, userId, List.of(), null);
+    }
+
+    /**
+     * RES-04 팀 신청 대표의 팀원 선택 취소. 고른 팀원이 없으면 {@link #cancel(long, long)}과 같이 묶음 전체를 취소한다.
+     *
+     * <p>남는 활성 팀원이 없으면 묶음 전체 취소와 같다. 대표 본인이 빠지면 남는 팀원 중 새 대표를 골라야 하고,
+     * 남는 팀원 행은 새 대표 행의 묶음으로 옮긴다. 취소한 행은 이전 묶음에 남아 취소 기록이 된다.</p>
+     *
+     * @param memberApplicationIds   취소할 팀원의 신청 행 id
+     * @param newLeaderApplicationId 대표가 빠질 때 새 대표가 될 팀원의 신청 행 id
+     */
+    @Transactional
+    public void cancel(long applicationId, long userId, List<Long> memberApplicationIds, Long newLeaderApplicationId) {
+        List<Long> targets = memberApplicationIds == null ? List.of() : List.copyOf(new LinkedHashSet<>(memberApplicationIds));
         LocalDateTime now = LocalDateTime.now(ZONE);
         MatchApplication application = applicationMapper.findById(applicationId);
         if (application == null) {
@@ -479,7 +494,7 @@ public class MatchApplicationService {
                         ? "팀 신청은 신청한 대표만 취소할 수 있습니다."
                         : "취소할 수 있는 신청이 아닙니다.");
             }
-        } else if (application.getApplicantUserId() != userId) {
+        } else if (application.getApplicantUserId() != userId || !targets.isEmpty()) {
             throw new MatchApplyException("취소할 수 있는 신청이 아닙니다.");
         }
 
@@ -499,13 +514,9 @@ public class MatchApplicationService {
         }
 
         if (groupId != null) {
-            int updated = applicationMapper.markGroupCancelled(groupId, ApplicationStatus.activeValues(),
-                    ApplicationStatus.CANCELLED.dbValue(), userId, now);
-            if (updated == 0) {
-                throw new MatchApplyException("이미 취소되었거나 처리된 신청입니다.");
+            if (targets.isEmpty() || !cancelMembersLocked(groupId, userId, targets, newLeaderApplicationId, now)) {
+                cancelGroupLocked(groupId, userId, now);
             }
-            applicationMapper.cancelGroupParticipants(groupId, ParticipationStatus.occupyingValues(),
-                    ParticipationStatus.CANCELLED.dbValue(), now);
             return;
         }
         int updated = applicationMapper.markCancelled(applicationId, ApplicationStatus.activeValues(),
@@ -515,6 +526,60 @@ public class MatchApplicationService {
         }
         applicationMapper.cancelParticipants(applicationId, ParticipationStatus.occupyingValues(),
                 ParticipationStatus.CANCELLED.dbValue(), now);
+    }
+
+    private void cancelGroupLocked(long groupId, long userId, LocalDateTime now) {
+        int updated = applicationMapper.markGroupCancelled(groupId, ApplicationStatus.activeValues(),
+                ApplicationStatus.CANCELLED.dbValue(), userId, now);
+        if (updated == 0) {
+            throw new MatchApplyException("이미 취소되었거나 처리된 신청입니다.");
+        }
+        applicationMapper.cancelGroupParticipants(groupId, ParticipationStatus.occupyingValues(),
+                ParticipationStatus.CANCELLED.dbValue(), now);
+    }
+
+    /**
+     * 매칭방 잠금 뒤 팀원 일부를 취소한다.
+     *
+     * @return 일부만 취소했으면 true, 활성 팀원 전원을 골라 묶음 전체 취소로 넘겨야 하면 false
+     */
+    private boolean cancelMembersLocked(long groupId, long userId, List<Long> targets,
+                                        Long newLeaderApplicationId, LocalDateTime now) {
+        // 잠금 전 확인한 대표 정보는 다른 요청이 대표를 넘겼으면 낡았을 수 있어 최신 행으로 다시 확인한다.
+        List<GroupMemberRow> members = applicationMapper.lockGroupMembers(groupId);
+        List<Long> active = members.stream()
+                .filter(m -> ApplicationStatus.activeValues().contains(m.getStatus()))
+                .map(GroupMemberRow::getApplicationId)
+                .toList();
+        boolean leaderActive = members.stream().anyMatch(m -> m.getApplicationId() == groupId
+                && m.getUserId() == userId && active.contains(m.getApplicationId()));
+        if (!leaderActive) {
+            throw new MatchApplyException("이미 취소되었거나 처리된 신청입니다.");
+        }
+        if (!active.containsAll(targets)) {
+            throw new MatchApplyException("이미 취소되었거나 이 팀 신청에 없는 팀원이 포함되어 있습니다.");
+        }
+        List<Long> remaining = active.stream().filter(id -> !targets.contains(id)).toList();
+        if (remaining.isEmpty()) {
+            return false;
+        }
+        boolean leaderLeaves = targets.contains(groupId);
+        if (leaderLeaves && (newLeaderApplicationId == null || !remaining.contains(newLeaderApplicationId))) {
+            throw new MatchApplyException("대표가 빠지면 남는 팀원 중 새 대표를 선택해 주세요.");
+        }
+
+        for (Long target : targets) {
+            if (applicationMapper.markCancelled(target, ApplicationStatus.activeValues(),
+                    ApplicationStatus.CANCELLED.dbValue(), userId, now) == 0) {
+                throw new MatchApplyException("이미 취소되었거나 처리된 신청입니다.");
+            }
+            applicationMapper.cancelParticipants(target, ParticipationStatus.occupyingValues(),
+                    ParticipationStatus.CANCELLED.dbValue(), now);
+        }
+        if (leaderLeaves && applicationMapper.moveGroup(remaining, groupId, newLeaderApplicationId) != remaining.size()) {
+            throw new MatchApplyException("팀 신청 정보가 바뀌었습니다. 다시 시도해 주세요.");
+        }
+        return true;
     }
 
     /** 완료 화면. 본인 신청이 아니거나 다른 매칭방 접수 번호면 empty */
