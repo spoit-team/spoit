@@ -121,7 +121,7 @@ class MyPageControllerTest {
         mockMvc.perform(get("/mypage").with(principal()))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("summary", hasEntry("representativeSportName", "농구")))
-                .andExpect(model().attribute("summary", hasEntry("representativeRatingText", "1015.66")));
+                .andExpect(model().attribute("summary", hasEntry("representativeRatingText", "배치 중 (4/5)")));
     }
 
     @Test
