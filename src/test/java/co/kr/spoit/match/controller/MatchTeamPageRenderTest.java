@@ -101,6 +101,27 @@ class MatchTeamPageRenderTest {
                         containsString("팀 단위 참가"))));
     }
 
+    @Test
+    @DisplayName("신청 내용 화면에 운영 규칙·취소·노쇼 안내 모달과 계정 정지 문구를 그린다")
+    void joinPageRendersRulesGuide() throws Exception {
+        given(applicationService.prepareTeam(MATCH_ID, 7L, 5L, List.of(21L, 22L))).willReturn(Optional.of(teamJoinPage()));
+
+        mockMvc.perform(get("/matches/{matchId}/apply/team", MATCH_ID)
+                        .param("clubId", "5")
+                        .param("clubMemberIds", "21,22")
+                        .with(user(member())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(allOf(
+                        containsString("id=\"rules-guide-open\""),
+                        containsString("id=\"rules-guide-dialog\""),
+                        containsString("저녁 배드민턴 · 내일 19:00~21:00"),
+                        containsString("매치 운영 규칙"),
+                        containsString("취소 안내"),
+                        containsString("노쇼 안내"),
+                        containsString("잦은 노쇼 시 일주일에서 한 달 사이의 계정 정지가 있을 수 있습니다."),
+                        containsString("id=\"rules-guide-confirm\""))));
+    }
+
     private static MatchDetailPage detailWithClub() {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         MatchDetailRow row = new MatchDetailRow();
