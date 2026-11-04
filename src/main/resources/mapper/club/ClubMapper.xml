@@ -2,6 +2,15 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="co.kr.spoit.club.mapper.ClubMapper">
 
+    <!-- 팀 실력: 1번 이상 경기한 동호회원 MMR 평균, 없으면 NULL-->
+    <sql id="averageMmr">
+        (SELECT ROUND(AVG(sr.current_mmr))
+        FROM club_member m
+        JOIN sport_rating sr ON sr.user_id = m.user_id AND sr.sport_id = c.sport_id
+        WHERE m.club_id = c.club_id AND m.left_at IS NULL
+            AND sr.rated_match_count > 0)
+    </sql>
+
     <!-- 동호회 목록: 해체되지 않은 동호회만 -->
     <select id="selectClubs" resultType="co.kr.spoit.club.domain.ClubSummary">
         SELECT club_id AS clubId
@@ -16,6 +25,7 @@
               ,s.name AS sportName
               ,(SELECT COUNT(*) FROM club_member m where m.club_id = c.club_id
               AND m.left_at IS NULL) AS memberCount
+              ,<include refid="averageMmr" /> AS averageMmr
               ,(SELECT GROUP_CONCAT(rg.name ORDER BY rg.region_id SEPARATOR ', ')
                 FROM club_region cr
                 JOIN region rg ON cr.region_id = rg.region_id
@@ -61,6 +71,7 @@
               ,s.name AS sportName
               ,(SELECT COUNT(*) FROM club_member m where m.club_id = c.club_id
               AND m.left_at IS NULL) AS memberCount
+              ,<include refid="averageMmr" /> AS averageMmr
               ,(SELECT GROUP_CONCAT(rg.name ORDER BY rg.region_id SEPARATOR ', ')
                 FROM club_region cr
                 JOIN region rg ON cr.region_id = rg.region_id

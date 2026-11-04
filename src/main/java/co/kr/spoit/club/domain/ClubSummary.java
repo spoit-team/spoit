@@ -26,4 +26,5 @@ public class ClubSummary {
     private String areaLabel;
     private String intro;
     private Long regionId;
+    private Integer averageMmr; 
 }

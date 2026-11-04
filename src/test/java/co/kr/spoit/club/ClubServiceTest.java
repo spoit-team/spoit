@@ -664,6 +664,23 @@ class ClubServiceTest {
         verify(clubMapper, never()).updateClub(any(Club.class));
     }
 
+    @Test 
+    @DisplayName ("팀 평균 MMR로 실력 등급을 정하고, 기록이 없으면 배치 중")
+    void 팀_평균_MMR로_실력_등급을_정한다() {
+        ClubSummary none = club("모집중", "2,4", 19, 21);
+        ClubSummary gold = club("모집중", "2,4", 19, 21);
+        gold.setAverageMmr(1050);
+        ClubSummary silver = club("모집중", "2,4", 19, 21);
+        silver.setAverageMmr(1049);
+        when(clubMapper.selectClubs(null, null, null, false, "recent")).thenReturn(List.of(none, gold, silver));
+
+        List<ClubCardResponse> cards = service.findClubCards();
+
+        assertThat(cards.get(0).getTierLabel()).isEqualTo("배치 중");
+        assertThat(cards.get(1).getTierLabel()).isEqualTo("골드"); 
+        assertThat(cards.get(2).getTierLabel()).isEqualTo("실버");
+    }
+
     // 추방할 동호회원(동호회원 번호 3, 회원 번호만)
     private ClubMember kickTarget(Long userId) {
         ClubMember member = new ClubMember();

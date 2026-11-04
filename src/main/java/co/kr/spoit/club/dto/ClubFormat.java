@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import co.kr.spoit.club.domain.ClubSummary;
+import co.kr.spoit.mat.domain.RatingPolicy;
 
 class ClubFormat {
 
@@ -28,6 +29,26 @@ class ClubFormat {
 
     static String areaLabel(String areaLabel) {
         return areaLabel != null ? areaLabel : "지역 미정";
+    }
+
+    // 팀 실력 등급
+    static String tierLabel(Integer averageMmr) {
+        if (averageMmr == null) {
+            return "배치 중";
+        }
+        if (averageMmr >= RatingPolicy.DIAMOND_MIN_MMR) {
+            return "다이아";
+        }
+        if (averageMmr >= RatingPolicy.PLATINUM_MIN_MMR) {
+            return "플래티넘";
+        }
+        if (averageMmr >= RatingPolicy.GOLD_MIN_MMR) {
+            return "골드";
+        }
+        if (averageMmr >= RatingPolicy.SILVER_MIN_MMR) {
+            return "실버";
+        }
+        return "브론즈";
     }
 
     static String initials(String name) {

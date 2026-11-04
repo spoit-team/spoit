@@ -8,8 +8,7 @@
   <section class="team-page-heading" aria-labelledby="team-page-title">
     <div>
       <p class="team-page-eyebrow">SPO:IT <span aria-hidden="true">/</span> TEAMS</p>
-      <h1 id="team-page-title">SPO:IT 팀</h1>
-      <p>종목과 지역이 맞는 팀을 찾아 함께 운동해 보세요. 평균 레이팅은 팀원 레이팅을 기준으로 서버가 계산합니다.</p>
+      <h1 id="team-page-title">SPO:IT 동호회</h1>
     </div>
     <a class="team-button team-button-primary" th:href="@{/teams/manage}">내 팀 관리 <span aria-hidden="true">→</span></a>
   </section>
@@ -41,7 +40,7 @@
         <div class="team-card-top"><span class="team-mark" th:attr="data-sport=${club.sportId}" aria-hidden="true" th:text="${club.initials}">팀</span><div><h2 class="team-card-name" th:text="${club.clubName}">팀 이름</h2><p class="team-card-subtitle" th:text="${club.sportName + ' · ' + club.areaLabel}">종목 · 지역</p></div></div>
         <div class="team-badges">
           <span class="team-badge" th:classappend="${club.recruiting} ? 'is-recruiting' : 'is-closed'" th:text="${club.statusLabel}">모집 중</span>
-          <!-- <span class="team-badge" th:text="${'팀 실력 ' + club.level + '단계'}">팀 실력 1단계</span> -->
+          <span class="team-badge" title="팀 실력" th:text="${club.tierLabel}">실버</span>
         </div>
         <div class="team-card-meta">
           <div><div class="team-card-meta-label">팀원 / 최대 인원</div><div class="team-card-meta-value" th:text="${club.memberCount + ' / ' + club.maxMembers + '명'}">0 / 0명</div></div>

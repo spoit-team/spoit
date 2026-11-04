@@ -23,7 +23,7 @@
             <p><a class="team-detail-sport-link" th:href="@{/teams(sportId=${club.sportId})}" th:aria-label="${club.sportName + ' 팀 목록 보기'}" th:text="${club.sportName}">종목</a><span aria-hidden="true"> · </span><span th:text="${club.areaLabel}">지역</span></p>
             <div class="team-badges">
               <span class="team-badge" th:classappend="${club.recruiting} ? 'is-recruiting' : 'is-closed'" th:text="${club.recruiting ? '팀원 모집 중' : '모집 마감'}">모집 중</span>
-              <!-- <span class="team-badge" th:text="${'팀 실력 ' + club.level + '단계'}">팀 실력 1단계</span> -->
+              <span class="team-badge" title="팀 실력" th:text="${club.tierLabel}">실버</span>
             </div>
           </div>
           <div class="team-detail-actions">
