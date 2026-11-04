@@ -75,8 +75,8 @@ class MatchOperationsRouteTest {
         RoomManagementDetail detail = new RoomManagementDetail(500L, "토요 풋살",
                 "테스트 체육관", "풋살", "11/1(토) 10:00~12:00", "3 / 8명", "모집 중", "good",
                 List.of(new RoomManagementDetail.Application("김철수", "개인 신청", "참가 확정",
-                        "R-2026-0001", "2026-10-29 09:30")),
-                List.of(new RoomManagementDetail.Participant("이영희", "A팀", "참가 확정")));
+                        "R-2026-0001", "2026-10-29 09:30", 21L)),
+                List.of(new RoomManagementDetail.Participant("이영희", "A팀", "참가 확정", 22L)));
         when(roomManagementService.findDetail(7L, 500L)).thenReturn(detail);
 
         String html = mockMvc.perform(

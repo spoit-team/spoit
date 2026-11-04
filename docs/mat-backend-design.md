@@ -237,3 +237,5 @@ GitHub Actions는 설정만 변경했고 원격 실행은 하지 않았다. CI�
 | WAITING → EXCLUDED | `end_at + 24시간`까지 확정되지 않으면 경기 상태와 관계없이 제외한다. 담당 시설 관리자는 시작 뒤 노쇼 경기를 제외할 수 있고, `result_reviewed_by`에 남는다. |
 
 `READY`는 쓰지 않는다. 마감 1시간 전(`end_at + 23시간`)이 실행 시각의 1분 구간에 드는 경기에서는 제출 행이 없는 팀장에게 리마인더를 보낸다. 알림 테이블로 중복을 확인하지 않으므로, 그 1분에 앱이 멈춰 있었으면 리마인더는 다시 보내지 않는다.
+
+운영 화면의 참가자 이력 모달은 `GET /admin/operations/matches/{matchId}/participants/{userId}/history`로 요약만 받는다. 팀 배정 화면과 같이 그 경기 시설의 시설 관리자만 볼 수 있고(아니면 403), 경기가 없거나 그 경기에 신청 행(`match_application`)도 참가자 행(`match_participant`)도 없는 회원이면 본문 없이 404다. 응답은 `nickname`, 경기 종목 기준 `tierLabel`(레이팅 행이 없으면 "기록 없음")과 `ratedMatchCount`, 그 종목 `sport_rating_history`의 최근 5건 `recentChanges`(`calculatedAt`, `finalDelta`, 최신순), 확정 참가한 경기 중 상태가 매칭 완료·종료이고 `rating_status = EXCLUDED`인 경기 수 `excludedMatchCount`(전 종목, 자동 취소 경기 제외), 대상 신고 중 '처리 완료'만 센 `confirmedReportCount`, '적용 중'이고 `end_at`이 없거나 지금보다 뒤인 제재의 `penaltyType`·`endAt` 목록 `activePenalties`다. 신고 내용·신고자·제재 사유는 내보내지 않고, `report`·`penalty`는 읽기만 한다.
