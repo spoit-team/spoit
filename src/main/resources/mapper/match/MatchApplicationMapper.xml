@@ -162,6 +162,29 @@
          ORDER BY (ma.application_id = #{groupApplicationId}) DESC, ma.created_at, ma.application_id
     </select>
 
+    <!-- 팀원 일부 취소: 묶음 행을 잠그고 최신 상태로 읽는다 (회원 행은 잠그지 않는다) -->
+    <select id="lockGroupMembers" resultType="co.kr.spoit.match.dto.GroupMemberRow">
+        SELECT ma.application_id,
+               ma.applicant_user_id AS user_id,
+               u.nickname,
+               ma.status
+          FROM match_application ma
+          JOIN app_user u ON u.user_id = ma.applicant_user_id
+         WHERE ma.group_application_id = #{groupApplicationId}
+         ORDER BY (ma.application_id = #{groupApplicationId}) DESC, ma.created_at, ma.application_id
+           FOR UPDATE OF ma
+    </select>
+
+    <update id="moveGroup">
+        UPDATE match_application
+           SET group_application_id = #{toGroupApplicationId}
+         WHERE group_application_id = #{fromGroupApplicationId}
+           AND application_id IN
+               <foreach collection="applicationIds" item="id" open="(" separator="," close=")">
+                   #{id}
+               </foreach>
+    </update>
+
     <!--
       RES-06 내 신청 내역. 팀 신청(RES-04)은 팀원마다 신청 행이 있어 applicant_user_id로 찾는다.
       이전 방식의 동호회 신청(신청 1건 : 참가자 N명)은 참가자로 포함된 신청도 함께 가져온다.

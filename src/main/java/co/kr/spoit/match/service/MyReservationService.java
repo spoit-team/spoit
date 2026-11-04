@@ -15,10 +15,10 @@ import co.kr.spoit.match.domain.ApplicationStatus;
 import co.kr.spoit.match.domain.ApplicationType;
 import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.domain.ParticipationStatus;
-import co.kr.spoit.match.dto.GroupMemberRow;
 import co.kr.spoit.match.dto.MyApplicationRow;
 import co.kr.spoit.match.dto.MyReservations;
 import co.kr.spoit.match.dto.MyReservations.Entry;
+import co.kr.spoit.match.dto.MyReservations.TeamMemberOption;
 import co.kr.spoit.match.mapper.MatchApplicationMapper;
 import lombok.RequiredArgsConstructor;
 
@@ -28,7 +28,7 @@ import lombok.RequiredArgsConstructor;
  * <p>현재 신청: 경기가 끝나기 전인 대기·확정 신청. 지난 참여·취소: 그 밖의 모든 신청
  * (이용 완료, 신청 취소·반려, 매칭방 취소, 확정되지 않고 지난 신청).</p>
  *
- * <p>RES-04 팀 신청은 팀원마다 자기 신청 행으로 보인다. 취소는 대표만 할 수 있고 묶음 전체가 취소된다.</p>
+ * <p>RES-04 팀 신청은 팀원마다 자기 신청 행으로 보인다. 취소는 대표만 할 수 있고, 팀 전체 또는 고른 팀원만 취소한다.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -147,16 +147,17 @@ public class MyReservationService {
                 false,
                 null,
                 teamCancel,
-                teamCancel ? teamCancelMessage(row.getGroupApplicationId()) : null);
+                teamCancel ? teamMembers(row.getGroupApplicationId()) : List.of());
     }
 
-    /** "팀원 3명(김채원, 박민수, 이서연)의 신청이 모두 함께 취소됩니다." (아직 취소되지 않은 행만) */
-    private String teamCancelMessage(long groupApplicationId) {
-        List<String> names = applicationMapper.findGroupMembers(groupApplicationId).stream()
+    /** 취소 확인창에 보일 팀원: 아직 취소되지 않은 묶음 행 (대표가 먼저) */
+    private List<TeamMemberOption> teamMembers(long groupApplicationId) {
+        return applicationMapper.findGroupMembers(groupApplicationId).stream()
                 .filter(m -> ApplicationStatus.activeValues().contains(m.getStatus()))
-                .map(GroupMemberRow::getNickname)
+                .map(m -> new TeamMemberOption(m.getApplicationId(), m.getNickname(),
+                        ApplicationStatus.CONFIRMED.dbValue().equals(m.getStatus()) ? "확정" : "대기",
+                        m.getApplicationId() == groupApplicationId))
                 .toList();
-        return "팀원 " + names.size() + "명(" + String.join(", ", names) + ")의 신청이 모두 함께 취소됩니다.";
     }
 
     private String statusNote(MyApplicationRow row, State state, long userId) {
