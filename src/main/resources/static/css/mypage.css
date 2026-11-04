@@ -2015,3 +2015,68 @@
   outline: 2px solid var(--color-danger);
   outline-offset: 3px;
 }
+
+.mypage-confirm-submit:disabled {
+  border-color: var(--color-line-strong);
+  background: var(--color-paper-soft);
+  color: var(--color-faint);
+  cursor: not-allowed;
+  filter: none;
+}
+
+/* 팀 신청 취소: 취소할 팀원 체크박스, 새 대표 라디오 */
+.mypage-team-cancel-group {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  padding: 8px 12px 10px;
+}
+
+.mypage-team-cancel-group legend {
+  padding: 0 4px;
+  color: var(--color-ink-2);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mypage-team-cancel-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mypage-team-cancel-option input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  accent-color: var(--color-danger);
+}
+
+.mypage-team-cancel-all {
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.mypage-team-cancel-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.mypage-team-cancel-meta {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.mypage-team-cancel-leaders {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 18px;
+}
