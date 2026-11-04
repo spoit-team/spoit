@@ -23,5 +23,6 @@ public class Club {
     private String activityDays;
     private LocalTime activityStartTime;
     private LocalTime activityEndTime;
+    private String recruitStatus;
 
 }

@@ -1,5 +1,6 @@
 package co.kr.spoit.club.dto;
 
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,11 +27,17 @@ public class ClubManageResponse {
     private final String founded;
     private final String time;
     private final String intro;
+    private final Long regionId;
+    private final String recruitStatus;
+    private final List<Integer> activityDays;
+    private final LocalTime activityStartTime;
+    private final LocalTime activityEndTime;
     private final boolean leader;
     private final boolean otherMembersRemain;
     private final List<ClubMemberResponse> members;
     private final List<ClubJoinRequestResponse> applications;
     private final Integer pendingApplicationCount;
+    private final String recruitLabel;
 
     public static ClubManageResponse from(ClubSummary club, List<ClubMember> members, Long userId,
             List<ClubJoinRequest> joinRequests) {
@@ -68,11 +75,17 @@ public class ClubManageResponse {
                 .founded(club.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy.MM.dd")))
                 .time(ClubFormat.time(club))
                 .intro(club.getIntro())
+                .regionId(club.getRegionId())
+                .recruitStatus(club.getRecruitStatus())
+                .activityDays(ClubFormat.days(club.getActivityDays()))
+                .activityStartTime(club.getActivityStartTime())
+                .activityEndTime(club.getActivityEndTime())
                 .leader(leader)
                 .members(memberResponses)
                 .applications(applications)
                 .pendingApplicationCount(applications.size())
                 .otherMembersRemain(otherMembersRemain)
+                .recruitLabel(ClubFormat.manageRecruitLabel(club))
                 .build();
 
     }
