@@ -21,6 +21,7 @@ import co.kr.spoit.mat.mapper.SportRatingMapper;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,7 +66,7 @@ class RatingApplyServiceTest {
         givenRating(11L, "1200.00", 7);
         givenRating(12L, "800.00", 7);
 
-        service.apply(MATCH_ID, SPORT_ID, result, NOW);
+        service.apply(MATCH_ID, SPORT_ID, result, Map.of(), NOW);
 
         // 기대 점수는 entry_mmr 평균으로 구하고, 증감은 잠근 current_mmr에 더한다.
         assertThat(savedChanges())
@@ -89,11 +90,39 @@ class RatingApplyServiceTest {
         givenRating(13L, "1000.00", 4);
         givenRating(14L, "1000.00", 5);
 
-        service.apply(MATCH_ID, SPORT_ID, MatchResult.A_WIN, NOW);
+        service.apply(MATCH_ID, SPORT_ID, MatchResult.A_WIN, Map.of(), NOW);
 
         assertThat(savedChanges()).extracting(RatingChange::eloDelta).containsExactly(
                 new BigDecimal("32.00"), new BigDecimal("16.00"),
                 new BigDecimal("-32.00"), new BigDecimal("-16.00"));
+    }
+
+    @Test
+    void addsEvaluationCorrectionToEloIncludingPlacementMatches() {
+        givenParticipants(participant(1L, 11L, "확정", "A", "1000.00"), participant(2L, 12L, "확정", "A", "1000.00"),
+                participant(3L, 13L, "확정", "B", "1000.00"), participant(4L, 14L, "확정", "B", "1000.00"));
+        givenRating(11L, "1000.00", 7);
+        givenRating(12L, "1000.00", 2);
+        givenRating(13L, "1000.00", 7);
+        givenRating(14L, "1000.00", 7);
+
+        // 참가자 4는 평가 점수가 없어 보정하지 않는다. 회원 12는 배치 중이어도 보정을 받는다.
+        service.apply(MATCH_ID, SPORT_ID, MatchResult.A_WIN, Map.of(1L, new BigDecimal("8.00"),
+                2L, new BigDecimal("0.00"), 3L, new BigDecimal("10.00")), NOW);
+
+        assertThat(savedChanges())
+                .extracting(RatingChange::userId, RatingChange::eloDelta, RatingChange::evaluationScore,
+                        RatingChange::evaluationDelta, RatingChange::finalDelta, RatingChange::mmrAfter)
+                .containsExactly(
+                        tuple(11L, new BigDecimal("16.00"), new BigDecimal("8.00"), new BigDecimal("3.00"),
+                                new BigDecimal("19.00"), new BigDecimal("1019.00")),
+                        tuple(12L, new BigDecimal("32.00"), new BigDecimal("0.00"), new BigDecimal("-5.00"),
+                                new BigDecimal("27.00"), new BigDecimal("1027.00")),
+                        tuple(13L, new BigDecimal("-16.00"), new BigDecimal("10.00"), new BigDecimal("5.00"),
+                                new BigDecimal("-11.00"), new BigDecimal("989.00")),
+                        tuple(14L, new BigDecimal("-16.00"), null, new BigDecimal("0.00"),
+                                new BigDecimal("-16.00"), new BigDecimal("984.00")));
+        verify(ratingMapper).updateRating(12L, SPORT_ID, new BigDecimal("1027.00"));
     }
 
     @Test
@@ -102,14 +131,14 @@ class RatingApplyServiceTest {
         givenRating(11L, "1000.00", 7);
         givenRating(12L, "1000.00", 7);
 
-        service.apply(MATCH_ID, SPORT_ID, MatchResult.DRAW, NOW);
+        service.apply(MATCH_ID, SPORT_ID, MatchResult.DRAW, Map.of(), NOW);
 
         assertThat(savedChanges()).allSatisfy(change -> {
             assertThat(change.matchId()).isEqualTo(MATCH_ID);
             assertThat(change.sportId()).isEqualTo(SPORT_ID);
             assertThat(change.teamAvgMmrA()).isEqualTo(new BigDecimal("1100.00"));
             assertThat(change.teamAvgMmrB()).isEqualTo(new BigDecimal("900.00"));
-            assertThat(change.algorithmVersion()).isEqualTo("ELO-K32-V1");
+            assertThat(change.algorithmVersion()).isEqualTo("ELO-K32-V2");
             assertThat(change.calculatedAt()).isEqualTo(NOW);
         });
     }
@@ -121,7 +150,7 @@ class RatingApplyServiceTest {
         givenRating(11L, "1000.00", 7);
         givenRating(12L, "1000.00", 7);
 
-        service.apply(MATCH_ID, SPORT_ID, MatchResult.A_WIN, NOW);
+        service.apply(MATCH_ID, SPORT_ID, MatchResult.A_WIN, Map.of(), NOW);
 
         assertThat(savedChanges()).extracting(RatingChange::userId).containsExactly(11L, 12L);
         assertThat(savedChanges()).extracting(RatingChange::expectedScore)
@@ -134,7 +163,7 @@ class RatingApplyServiceTest {
         givenRating(11L, "1000.00", 0);
         givenRating(12L, "1000.00", 0);
 
-        service.apply(MATCH_ID, SPORT_ID, MatchResult.DRAW, NOW);
+        service.apply(MATCH_ID, SPORT_ID, MatchResult.DRAW, Map.of(), NOW);
 
         InOrder order = inOrder(ratingMapper);
         order.verify(ratingMapper).insertIfAbsent(11L, SPORT_ID);
@@ -147,7 +176,7 @@ class RatingApplyServiceTest {
     void rejectsMatchWithEmptyTeam() {
         givenParticipants(participant(1L, 11L, "확정", "A", "1000.00"));
 
-        assertThatThrownBy(() -> service.apply(MATCH_ID, SPORT_ID, MatchResult.A_WIN, NOW))
+        assertThatThrownBy(() -> service.apply(MATCH_ID, SPORT_ID, MatchResult.A_WIN, Map.of(), NOW))
                 .isInstanceOf(IllegalStateException.class);
         verify(ratingMapper, never()).updateRating(any(), eq(SPORT_ID), any());
     }

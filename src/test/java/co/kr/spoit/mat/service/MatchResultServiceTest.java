@@ -13,12 +13,15 @@ import static org.mockito.Mockito.when;
 
 import co.kr.spoit.mat.domain.MatchParticipant;
 import co.kr.spoit.mat.domain.MatchResult;
+import co.kr.spoit.mat.domain.ReceivedEvaluation;
 import co.kr.spoit.mat.domain.ReminderTarget;
 import co.kr.spoit.mat.domain.ResultMatch;
 import co.kr.spoit.mat.domain.ResultSubmission;
+import co.kr.spoit.mat.dto.MatchResultResponse;
 import co.kr.spoit.mat.dto.MatchResultResponse.Outcome;
 import co.kr.spoit.mat.dto.MatchResultView;
 import co.kr.spoit.mat.mapper.MatchAssignmentMapper;
+import co.kr.spoit.mat.mapper.MatchEvaluationMapper;
 import co.kr.spoit.mat.mapper.MatchParticipantMapper;
 import co.kr.spoit.mat.mapper.MatchResultMapper;
 import co.kr.spoit.mat.service.MatchResultService.DeadlineResult;
@@ -26,6 +29,7 @@ import co.kr.spoit.notification.domain.NotificationType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,6 +64,9 @@ class MatchResultServiceTest {
     private MatchAssignmentMapper assignmentMapper;
 
     @Mock
+    private MatchEvaluationMapper evaluationMapper;
+
+    @Mock
     private RatingApplyService ratingApplyService;
 
     @Mock
@@ -69,27 +76,89 @@ class MatchResultServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new MatchResultService(resultMapper, participantMapper, assignmentMapper, ratingApplyService,
-                matchNotifier);
+        service = new MatchResultService(resultMapper, participantMapper, assignmentMapper, evaluationMapper,
+                ratingApplyService, new RatingCalculator(), matchNotifier);
         lenient().when(resultMapper.markRatingProcessed(anyLong(), anyString(), any(), any(), anyString()))
                 .thenReturn(1);
     }
 
     @Test
-    void confirmsMatchingResultsAndAppliesRating() {
+    void confirmsMatchingResultsAndAppliesRatingWhenBothCaptainsEvaluated() {
         givenLockedMatch(match("매칭 완료", "SUBMITTED", "WAITING"));
         givenParticipants();
         givenActiveSubmissions(submission(20L, 2L, "A_WIN", "SUBMITTED"));
+        givenEvaluators(1L, 2L);
+        // 참가자 2는 두 평가의 평균, 3은 관찰한 항목이 없던 평가만 받아 평가 점수가 없다.
+        givenReceivedEvaluations(received(1L, "7.00"), received(2L, "7.35"), received(2L, "8.00"), received(3L, null));
 
-        assertThat(service.submit(MATCH_ID, CAPTAIN_A_USER, MatchResult.A_WIN, NOW).outcome())
-                .isEqualTo(Outcome.CONFIRMED);
+        MatchResultResponse response = service.submit(MATCH_ID, CAPTAIN_A_USER, MatchResult.A_WIN, NOW);
+        assertThat(response.outcome()).isEqualTo(Outcome.CONFIRMED);
+        assertThat(response.message()).isEqualTo("두 팀장의 결과가 같아 경기 결과를 확정하고 레이팅에 반영했습니다.");
 
         verify(resultMapper).insertSubmission(MATCH_ID, 1L, "A_WIN", "CONFIRMED", NOW);
         verify(resultMapper).updateSubmissionStatus(20L, "CONFIRMED");
         verify(resultMapper).markResult(MATCH_ID, "CONFIRMED", "A_WIN", NOW);
-        verify(ratingApplyService).apply(MATCH_ID, SPORT_ID, MatchResult.A_WIN, NOW);
+        verify(ratingApplyService).apply(MATCH_ID, SPORT_ID, MatchResult.A_WIN,
+                Map.of(1L, new BigDecimal("7.00"), 2L, new BigDecimal("7.68")), NOW);
         verify(resultMapper).markRatingProcessed(MATCH_ID, "APPLIED", NOW, null, "WAITING");
         verifyNoInteractions(matchNotifier);
+    }
+
+    @Test
+    void confirmsResultButWaitsUntilBothCaptainsEvaluate() {
+        givenLockedMatch(match("매칭 완료", "SUBMITTED", "WAITING"));
+        givenParticipants();
+        givenActiveSubmissions(submission(20L, 2L, "A_WIN", "SUBMITTED"));
+        givenEvaluators(2L);
+
+        MatchResultResponse response = service.submit(MATCH_ID, CAPTAIN_A_USER, MatchResult.A_WIN, NOW);
+        assertThat(response.outcome()).isEqualTo(Outcome.CONFIRMED);
+        assertThat(response.message())
+                .isEqualTo("두 팀장의 결과가 같아 경기 결과를 확정했습니다. 두 팀장의 평가가 모두 들어오면 레이팅에 반영됩니다.");
+
+        verify(resultMapper).markResult(MATCH_ID, "CONFIRMED", "A_WIN", NOW);
+        verify(ratingApplyService, never()).apply(anyLong(), anyLong(), any(), any(), any());
+        verify(resultMapper, never()).markRatingProcessed(anyLong(), anyString(), any(), any(), anyString());
+    }
+
+    @Test
+    void appliesWhenLastCaptainEvaluatesAfterResultIsConfirmed() {
+        ResultMatch match = match("매칭 완료", "CONFIRMED", "WAITING");
+        match.setFinalResult("DRAW");
+        givenEvaluators(1L, 2L);
+        givenReceivedEvaluations();
+
+        assertThat(service.applyRatingIfReady(match, NOW)).isTrue();
+        verify(ratingApplyService).apply(MATCH_ID, SPORT_ID, MatchResult.DRAW, Map.of(), NOW);
+        verify(resultMapper).markRatingProcessed(MATCH_ID, "APPLIED", NOW, null, "WAITING");
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"SUBMITTED", "CONFLICT"})
+    void waitsForConfirmedResultEvenIfBothCaptainsEvaluated(String resultStatus) {
+        lenient().when(evaluationMapper.findEvaluatorIds(MATCH_ID)).thenReturn(List.of(1L, 2L));
+
+        assertThat(service.applyRatingIfReady(match("매칭 완료", resultStatus, "WAITING"), NOW)).isFalse();
+        verify(ratingApplyService, never()).apply(anyLong(), anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void appliesAtDeadlineWithPartialEvaluationsThatDoNotTriggerImmediateApply() {
+        // 결과는 확정됐고 A팀장(1)만 평가를 냈다. 같은 상태가 마감 전에는 대기, 마감 때는 반영이다.
+        ResultMatch match = match("매칭 완료", "CONFIRMED", "WAITING");
+        match.setFinalResult("A_WIN");
+        givenEvaluators(1L);
+        givenReceivedEvaluations(received(2L, "8.00"), received(3L, "6.50"));
+
+        assertThat(service.applyRatingIfReady(match, NOW)).isFalse();
+        verify(ratingApplyService, never()).apply(anyLong(), anyLong(), any(), any(), any());
+
+        givenLockedMatch(match);
+        assertThat(service.closeResult(MATCH_ID, DEADLINE)).isEqualTo(DeadlineResult.APPLIED);
+        verify(ratingApplyService).apply(MATCH_ID, SPORT_ID, MatchResult.A_WIN,
+                Map.of(2L, new BigDecimal("8.00"), 3L, new BigDecimal("6.50")), DEADLINE);
+        verify(resultMapper).markRatingProcessed(MATCH_ID, "APPLIED", DEADLINE, null, "WAITING");
     }
 
     @Test
@@ -102,6 +171,7 @@ class MatchResultServiceTest {
                 .thenReturn(List.of(submission(20L, 2L, "A_WIN", "SUBMITTED")))
                 .thenReturn(List.of(submission(20L, 2L, "A_WIN", "CONFLICT"),
                         submission(21L, 1L, "B_WIN", "CONFLICT")));
+        givenEvaluators(1L, 2L);
 
         assertThat(service.submit(MATCH_ID, CAPTAIN_A_USER, MatchResult.B_WIN, NOW).outcome())
                 .isEqualTo(Outcome.CONFLICT);
@@ -111,7 +181,7 @@ class MatchResultServiceTest {
         verify(matchNotifier).notifyAfterCommit(List.of(CAPTAIN_A_USER, CAPTAIN_B_USER), MATCH_ID,
                 NotificationType.MATCH_RESULT_CONFLICT, "경기 결과 확인 요청",
                 "상대 팀장과 경기 결과가 다릅니다. 제출 마감 전까지 다시 확인해 주세요.");
-        verify(ratingApplyService, never()).apply(anyLong(), anyLong(), any(), any());
+        verify(ratingApplyService, never()).apply(anyLong(), anyLong(), any(), any(), any());
 
         LocalDateTime resubmittedAt = NOW.plusMinutes(10);
         assertThat(service.submit(MATCH_ID, CAPTAIN_A_USER, MatchResult.A_WIN, resubmittedAt).outcome())
@@ -119,7 +189,7 @@ class MatchResultServiceTest {
         verify(resultMapper).updateSubmissionStatus(21L, "REPLACED");
         verify(resultMapper).insertSubmission(MATCH_ID, 1L, "A_WIN", "CONFIRMED", resubmittedAt);
         verify(resultMapper).updateSubmissionStatus(20L, "CONFIRMED");
-        verify(ratingApplyService).apply(MATCH_ID, SPORT_ID, MatchResult.A_WIN, resubmittedAt);
+        verify(ratingApplyService).apply(MATCH_ID, SPORT_ID, MatchResult.A_WIN, Map.of(), resubmittedAt);
     }
 
     @Test
@@ -198,20 +268,22 @@ class MatchResultServiceTest {
     @ValueSource(strings = {"SUBMITTED", "CONFLICT"})
     void excludesUnconfirmedMatchAtDeadline(String resultStatus) {
         givenLockedMatch(match("매칭 완료", resultStatus, "WAITING"));
+        // 두 팀장이 평가를 냈어도 결과가 확정되지 않으면 제외한다.
+        lenient().when(evaluationMapper.findEvaluatorIds(MATCH_ID)).thenReturn(List.of(1L, 2L));
 
         assertThat(service.closeResult(MATCH_ID, DEADLINE)).isEqualTo(DeadlineResult.EXCLUDED);
         verify(resultMapper).markRatingProcessed(MATCH_ID, "EXCLUDED", DEADLINE, null, "WAITING");
-        verify(ratingApplyService, never()).apply(anyLong(), anyLong(), any(), any());
+        verify(ratingApplyService, never()).apply(anyLong(), anyLong(), any(), any(), any());
     }
 
     @Test
-    void appliesConfirmedResultAtDeadline() {
+    void appliesConfirmedResultAtDeadlineWithoutEvaluations() {
         ResultMatch match = match("매칭 완료", "CONFIRMED", "WAITING");
         match.setFinalResult("B_WIN");
         givenLockedMatch(match);
 
         assertThat(service.closeResult(MATCH_ID, DEADLINE)).isEqualTo(DeadlineResult.APPLIED);
-        verify(ratingApplyService).apply(MATCH_ID, SPORT_ID, MatchResult.B_WIN, DEADLINE);
+        verify(ratingApplyService).apply(MATCH_ID, SPORT_ID, MatchResult.B_WIN, Map.of(), DEADLINE);
         verify(resultMapper).markRatingProcessed(MATCH_ID, "APPLIED", DEADLINE, null, "WAITING");
     }
 
@@ -233,11 +305,11 @@ class MatchResultServiceTest {
 
         service.sendReminders(LocalDateTime.of(2026, 10, 31, 19, 0, 30));
 
-        String body = "제출 마감까지 1시간 남았습니다. 경기 결과를 제출해 주세요.";
+        String body = "제출 마감까지 1시간 남았습니다. 아직 내지 않은 경기 결과나 평가를 제출해 주세요.";
         verify(matchNotifier).notifyAfterCommit(List.of(11L, 12L), 10L, NotificationType.MATCH_RESULT_REMINDER,
-                "경기 결과 미제출", body);
+                "경기 결과·평가 미제출", body);
         verify(matchNotifier).notifyAfterCommit(List.of(21L), 20L, NotificationType.MATCH_RESULT_REMINDER,
-                "경기 결과 미제출", body);
+                "경기 결과·평가 미제출", body);
     }
 
     @Test
@@ -282,6 +354,21 @@ class MatchResultServiceTest {
 
     private void givenActiveSubmissions(ResultSubmission... submissions) {
         when(resultMapper.findActiveSubmissions(MATCH_ID, "REPLACED")).thenReturn(List.of(submissions));
+    }
+
+    private void givenEvaluators(Long... evaluatorParticipantIds) {
+        when(evaluationMapper.findEvaluatorIds(MATCH_ID)).thenReturn(List.of(evaluatorParticipantIds));
+    }
+
+    private void givenReceivedEvaluations(ReceivedEvaluation... evaluations) {
+        when(evaluationMapper.findReceivedEvaluations(MATCH_ID)).thenReturn(List.of(evaluations));
+    }
+
+    private static ReceivedEvaluation received(Long targetParticipantId, String overallScore) {
+        var evaluation = new ReceivedEvaluation();
+        evaluation.setTargetParticipantId(targetParticipantId);
+        evaluation.setOverallScore(overallScore == null ? null : new BigDecimal(overallScore));
+        return evaluation;
     }
 
     private static ResultMatch match(String status, String resultStatus, String ratingStatus) {

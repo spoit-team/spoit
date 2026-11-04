@@ -1,6 +1,6 @@
 package co.kr.spoit.mat.dto;
 
-/** 경기 결과 제출과 레이팅 제외의 처리 결과. */
+/** 경기 결과·평가 제출과 레이팅 제외의 처리 결과. */
 public record MatchResultResponse(Outcome outcome, String message) {
 
     public enum Outcome {
@@ -10,6 +10,7 @@ public record MatchResultResponse(Outcome outcome, String message) {
         EXCLUDED,
         NOT_FOUND,
         INVALID_RESULT,
+        INVALID_EVALUATION,
         INVALID_STATUS,
         OUT_OF_PERIOD,
         RATING_CLOSED,

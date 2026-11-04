@@ -4,6 +4,7 @@ import co.kr.spoit.mat.domain.MatchParticipant;
 import co.kr.spoit.mat.domain.MatchResult;
 import co.kr.spoit.mat.domain.RatingPolicy;
 import co.kr.spoit.mat.domain.RatingStatus;
+import co.kr.spoit.mat.domain.ReceivedEvaluation;
 import co.kr.spoit.mat.domain.ReminderTarget;
 import co.kr.spoit.mat.domain.ResultMatch;
 import co.kr.spoit.mat.domain.ResultStatus;
@@ -13,14 +14,17 @@ import co.kr.spoit.mat.dto.MatchResultResponse;
 import co.kr.spoit.mat.dto.MatchResultResponse.Outcome;
 import co.kr.spoit.mat.dto.MatchResultView;
 import co.kr.spoit.mat.mapper.MatchAssignmentMapper;
+import co.kr.spoit.mat.mapper.MatchEvaluationMapper;
 import co.kr.spoit.mat.mapper.MatchParticipantMapper;
 import co.kr.spoit.mat.mapper.MatchResultMapper;
 import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.domain.ParticipationStatus;
 import co.kr.spoit.notification.domain.NotificationType;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,10 +35,11 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 종료 시각 뒤 처리: 팀장 결과 제출, 제출 마감, 리마인더, 레이팅 제외, 처리가 끝난 경기의 종료 전환.
+ * 종료 시각 뒤 처리: 팀장 결과 제출, 레이팅 반영 시점 판단, 제출 마감, 리마인더, 레이팅 제외, 처리가 끝난 경기의 종료 전환.
  *
  * <p>제출·마감·제외는 매칭방 행을 잠근 뒤 다시 읽은 값으로 검사한다. 같은 경기의 요청이 겹쳐도
  * 하나씩 처리되므로 팀장마다 활성 제출 행은 하나만 남는다.</p>
@@ -59,18 +64,24 @@ public class MatchResultService {
     private final MatchResultMapper resultMapper;
     private final MatchParticipantMapper participantMapper;
     private final MatchAssignmentMapper assignmentMapper;
+    private final MatchEvaluationMapper evaluationMapper;
     private final RatingApplyService ratingApplyService;
+    private final RatingCalculator calculator;
     private final MatchNotifier matchNotifier;
 
     public MatchResultService(MatchResultMapper resultMapper,
                               MatchParticipantMapper participantMapper,
                               MatchAssignmentMapper assignmentMapper,
+                              MatchEvaluationMapper evaluationMapper,
                               RatingApplyService ratingApplyService,
+                              RatingCalculator calculator,
                               MatchNotifier matchNotifier) {
         this.resultMapper = resultMapper;
         this.participantMapper = participantMapper;
         this.assignmentMapper = assignmentMapper;
+        this.evaluationMapper = evaluationMapper;
         this.ratingApplyService = ratingApplyService;
+        this.calculator = calculator;
         this.matchNotifier = matchNotifier;
     }
 
@@ -139,10 +150,24 @@ public class MatchResultService {
         resultMapper.markResult(matchId, ResultStatus.CONFIRMED.name(), result.name(), now);
         match.setResultStatus(ResultStatus.CONFIRMED.name());
         match.setFinalResult(result.name());
-        if (isRatingReady(match)) {
-            applyRating(match, now);
+        if (applyRatingIfReady(match, now)) {
+            return MatchResultResponse.of(Outcome.CONFIRMED, "두 팀장의 결과가 같아 경기 결과를 확정하고 레이팅에 반영했습니다.");
         }
-        return MatchResultResponse.of(Outcome.CONFIRMED, "두 팀장의 결과가 같아 경기 결과를 확정했습니다.");
+        return MatchResultResponse.of(Outcome.CONFIRMED,
+                "두 팀장의 결과가 같아 경기 결과를 확정했습니다. 두 팀장의 평가가 모두 들어오면 레이팅에 반영됩니다.");
+    }
+
+    /**
+     * 결과 확정과 평가 제출 뒤에 부른다. 두 팀장의 평가까지 모두 들어왔으면 마감을 기다리지 않고 반영한다.
+     * 두 제출 모두 social_match를 잠그고 하나씩 처리되므로, 마지막으로 조건을 채운 제출이 한 번만 반영한다.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean applyRatingIfReady(ResultMatch lockedMatch, LocalDateTime now) {
+        if (!isReadyToApplyNow(lockedMatch)) {
+            return false;
+        }
+        applyRating(lockedMatch, now);
+        return true;
     }
 
     /** 노쇼 경기를 담당 시설 관리자가 레이팅 반영에서 뺀다. */
@@ -179,7 +204,7 @@ public class MatchResultService {
 
     /**
      * 종료 시각이 지나고 레이팅 반영·제외까지 끝난 매칭 완료 경기를 종료로 바꾼다. 결과·평가 처리 중인 경기는
-     * 아직 진행 중으로 보고 매칭 완료로 둔다. 평가 완료 조건은 isRatingReady에 더해지므로 여기서는 레이팅 상태만 본다.
+     * 아직 진행 중으로 보고 매칭 완료로 둔다. 평가는 WAITING일 때만 받으므로 여기서는 레이팅 상태만 본다.
      * 레이팅 상태는 WAITING에서 한 번만 바뀌고, 조건부 UPDATE가 세 조건을 다시 확인하므로 따로 잠그지 않는다.
      */
     @Transactional
@@ -194,7 +219,7 @@ public class MatchResultService {
                 now.minus(RatingPolicy.RESULT_SUBMIT_PERIOD));
     }
 
-    /** 제출 마감이 지난 경기를 확정 결과로 반영하거나 레이팅에서 뺀다. 스케줄러가 경기마다 호출한다. */
+    /** 제출 마감이 지난 경기를 확정 결과와 그때까지 들어온 평가로 반영하거나 레이팅에서 뺀다. 스케줄러가 경기마다 호출한다. */
     @Transactional
     public DeadlineResult closeResult(long matchId, LocalDateTime now) {
         ResultMatch match = resultMapper.lockResultMatch(matchId).orElse(null);
@@ -204,7 +229,7 @@ public class MatchResultService {
             log.info("결과 마감 처리 건너뜀: matchId={}", matchId);
             return DeadlineResult.SKIPPED;
         }
-        if (isRatingReady(match)) {
+        if (isReadyToApplyAtDeadline(match)) {
             applyRating(match, now);
             log.info("결과 마감 레이팅 반영: matchId={}", matchId);
             return DeadlineResult.APPLIED;
@@ -214,7 +239,7 @@ public class MatchResultService {
         return DeadlineResult.EXCLUDED;
     }
 
-    /** 마감 전 리마인더 시각이 이번 실행의 1분 구간에 드는 경기에서, 제출 행이 없는 팀장에게 알린다. */
+    /** 마감 전 리마인더 시각이 이번 실행의 1분 구간에 드는 경기에서, 결과나 평가를 아직 내지 않은 팀장에게 알린다. */
     public void sendReminders(LocalDateTime now) {
         // 분 단위로 잘라야 실행이 몇 초 늦어져도 이어지는 실행의 구간이 겹치거나 비지 않는다.
         LocalDateTime windowEnd = now.truncatedTo(ChronoUnit.MINUTES);
@@ -223,25 +248,52 @@ public class MatchResultService {
                 MatchStatus.MATCHED.dbValue(), MatchStatus.CLOSED.dbValue(), RatingStatus.WAITING.name(),
                 ParticipationStatus.CONFIRMED.dbValue(),
                 windowEnd.minusMinutes(1).minus(sinceEnd), windowEnd.minus(sinceEnd));
-        String body = "제출 마감까지 %d시간 남았습니다. 경기 결과를 제출해 주세요."
+        String body = "제출 마감까지 %d시간 남았습니다. 아직 내지 않은 경기 결과나 평가를 제출해 주세요."
                 .formatted(RatingPolicy.REMINDER_BEFORE_DEADLINE.toHours());
         targets.stream()
                 .collect(Collectors.groupingBy(ReminderTarget::getMatchId, LinkedHashMap::new,
                         Collectors.mapping(ReminderTarget::getUserId, Collectors.toList())))
                 .forEach((matchId, userIds) -> matchNotifier.notifyAfterCommit(userIds, matchId,
-                        NotificationType.MATCH_RESULT_REMINDER, "경기 결과 미제출", body));
+                        NotificationType.MATCH_RESULT_REMINDER, "경기 결과·평가 미제출", body));
     }
 
-    // 레이팅 반영 조건은 여기서만 판단한다. 평가 보정이 들어오면 평가 완료 조건을 이 메서드에 더한다.
-    private boolean isRatingReady(ResultMatch match) {
+    // 마감 전에는 두 팀장의 평가까지 기다린다. 결과만 확정됐을 때 반영하면 늦게 낸 팀장의 평가가 빠진다.
+    private boolean isReadyToApplyNow(ResultMatch match) {
+        if (!isReadyToApplyAtDeadline(match)) {
+            return false;
+        }
+        List<Long> evaluatorIds = evaluationMapper.findEvaluatorIds(match.getMatchId());
+        return match.getCaptainAParticipantId() != null && match.getCaptainBParticipantId() != null
+                && evaluatorIds.contains(match.getCaptainAParticipantId())
+                && evaluatorIds.contains(match.getCaptainBParticipantId());
+    }
+
+    // 마감 때는 결과만 확정되면 그때까지 들어온 평가로 반영한다. 여기에 평가 조건을 더하면 평가가 덜 들어온 경기가
+    // 제외되므로 즉시 반영 조건과 나눠 둔다.
+    private boolean isReadyToApplyAtDeadline(ResultMatch match) {
         return RatingStatus.WAITING.name().equals(match.getRatingStatus())
                 && ResultStatus.CONFIRMED.name().equals(match.getResultStatus());
     }
 
     private void applyRating(ResultMatch match, LocalDateTime now) {
         ratingApplyService.apply(match.getMatchId(), match.getSportId(),
-                MatchResult.valueOf(match.getFinalResult()), now);
+                MatchResult.valueOf(match.getFinalResult()), evaluationScoresOf(match.getMatchId()), now);
         markRatingProcessed(match, RatingStatus.APPLIED, now, null);
+    }
+
+    /** 참가자 ID별 평가 점수. 점수를 하나도 받지 못한 참가자는 넣지 않는다. */
+    private Map<Long, BigDecimal> evaluationScoresOf(long matchId) {
+        Map<Long, List<BigDecimal>> received = evaluationMapper.findReceivedEvaluations(matchId).stream()
+                .collect(Collectors.groupingBy(ReceivedEvaluation::getTargetParticipantId,
+                        Collectors.mapping(ReceivedEvaluation::getOverallScore, Collectors.toList())));
+        Map<Long, BigDecimal> scores = new HashMap<>();
+        received.forEach((participantId, overallScores) -> {
+            BigDecimal score = calculator.playerScore(overallScores);
+            if (score != null) {
+                scores.put(participantId, score);
+            }
+        });
+        return scores;
     }
 
     private void markRatingProcessed(ResultMatch match, RatingStatus status, LocalDateTime now, Long reviewedBy) {

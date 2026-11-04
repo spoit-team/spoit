@@ -220,3 +220,12 @@ INSERT INTO match_participant (
     match_side, entry_mmr, joined_at, cancelled_at
 ) VALUES
     (72, 72, 7, 5, '취소', 'A', 1000.00, '2026-10-20 09:00:00', '2026-10-21 12:00:00');
+
+-- MatchEvaluationMapper: 종목 1의 활성 항목 2개(표시 순서가 ID 순서와 반대), 비활성 항목 1개, 종목 2의 항목 1개
+INSERT INTO sport_evaluation_item (
+    item_id, sport_id, item_code, item_name, weight, scale_max, display_order, is_active
+) VALUES
+    (1, 1, 'MAT_TEST_ITEM_B', 'MAT 테스트 항목 B', 0.60, 10, 2, TRUE),
+    (2, 1, 'MAT_TEST_ITEM_A', 'MAT 테스트 항목 A', 0.40, 10, 1, TRUE),
+    (3, 1, 'MAT_TEST_ITEM_OFF', 'MAT 비활성 테스트 항목', 0.50, 10, 3, FALSE),
+    (4, 2, 'MAT_TEST_ITEM_OTHER', 'MAT 다른 종목 테스트 항목', 1.00, 10, 1, TRUE);
