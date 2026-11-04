@@ -187,6 +187,9 @@
                   <p class="mt-1 text-[11px] text-faint" th:text="${entry.seatLine}">참가 1명</p>
                   <p th:if="${entry.statusNote != null}" class="mt-1 text-[11px] text-muted" th:text="${entry.statusNote}">안내</p>
                 </div>
+                <div th:if="${resultSubmitMatchIds.contains(entry.matchId)}" class="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
+                  <a th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="h-9 shrink-0 self-start rounded-lg bg-match px-3 py-2 text-xs font-bold text-white hover:bg-match-hover sm:self-center">경기 결과 제출</a>
+                </div>
               </article>
             </div>
             <p th:if="${#lists.isEmpty(pastReservations)}" class="py-5 text-sm text-muted">완료하거나 취소한 내역이 없습니다.</p>
