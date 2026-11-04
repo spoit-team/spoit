@@ -71,4 +71,19 @@
   });
 
   if (applicationError) openDialog();
+    // 제출 버튼 두 번 누름 방지(POST만, 검사에 걸려 막힌 제출은 그대로 둠)
+  document.addEventListener('submit', function (event) {
+    const form = event.target;
+    if (event.defaultPrevented || form.method !== 'post') return;
+    form.querySelectorAll('button[type="submit"]').forEach(function (button) {
+      button.disabled = true;
+    });
+  });
+
+  // 뒤로 가기로 돌아오면 버튼 다시 켬
+  window.addEventListener('pageshow', function () {
+    document.querySelectorAll('form[method="post"] button[type="submit"]').forEach(function (button) {
+      button.disabled = false;
+    });
+  });
 })();
