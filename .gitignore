@@ -45,3 +45,6 @@ codemap.json
 
 ### Local docs ###
 /docs/local/
+
+### 로컬 업로드 사진 ###
+/uploads/

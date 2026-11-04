@@ -29,4 +29,6 @@ public class MatchRow {
     private BigDecimal feePerPerson;
     private String requiredSkill;
     private String status;
+    /** 시설 사진 공개 URL. 없으면 null */
+    private String photoUrl;
 }

@@ -30,6 +30,10 @@ dependencies {
     // MySQL
     runtimeOnly 'com.mysql:mysql-connector-j'
 
+    // AWS S3 - 운영 서버 매칭방 사진 저장 (spoit.upload.storage=s3일 때만 사용)
+    implementation platform('software.amazon.awssdk:bom:2.31.50')
+    implementation 'software.amazon.awssdk:s3'
+
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
