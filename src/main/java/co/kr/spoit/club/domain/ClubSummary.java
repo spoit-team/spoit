@@ -21,7 +21,6 @@ public class ClubSummary {
     private String activityDays;
     private LocalTime activityStartTime;
     private LocalTime activityEndTime;
-    private String imageUrl;
     private LocalDateTime createdAt;
     private Integer memberCount;
     private String areaLabel;

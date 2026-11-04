@@ -12,7 +12,6 @@
               ,c.activity_days AS activityDays
               ,c.activity_start_time AS activityStartTime
               ,c.activity_end_time AS activityEndTime
-              ,c.image_url AS imageUrl
               ,c.created_at AS createdAt
               ,s.name AS sportName
               ,(SELECT COUNT(*) FROM club_member m where m.club_id = c.club_id
@@ -58,7 +57,6 @@
               ,c.activity_days AS activityDays
               ,c.activity_start_time AS activityStartTime
               ,c.activity_end_time AS activityEndTime
-              ,c.image_url AS imageUrl
               ,c.created_at AS createdAt
               ,s.name AS sportName
               ,(SELECT COUNT(*) FROM club_member m where m.club_id = c.club_id

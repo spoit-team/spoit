@@ -36,7 +36,6 @@ public class ClubController {
         model.addAttribute("clubs", clubs);
         model.addAttribute("resultCount", clubs.size());
         model.addAttribute("sportTabs", List.of());
-        model.addAttribute("statistics", List.of());
         model.addAttribute("districts", List.of());
         model.addAttribute("filters", null);
         return "teams/list";
