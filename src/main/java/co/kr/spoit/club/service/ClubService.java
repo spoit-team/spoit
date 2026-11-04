@@ -60,4 +60,7 @@ public interface ClubService {
 
     // 동호회 해체
     void disbandClub(Long userId, Long clubId, String clubNameConfirmation);
+
+    // 동호회 정보 수정
+    void updateClub(Long userId, Long clubId, ClubCreateForm form) throws ClubNameExistException;
 }

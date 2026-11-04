@@ -37,7 +37,7 @@ public class ClubDetailResponse {
 
     public static ClubDetailResponse from(ClubSummary club, List<ClubMember> members,
             Long userId, Long pendingJoinRequestId) {
-        boolean recruiting = ClubFormat.isRecruiting(club.getRecruitStatus());
+        boolean recruiting = ClubFormat.isRecruiting(club);
 
         String leaderName = "미정";
         String leaderInitials = "미정";

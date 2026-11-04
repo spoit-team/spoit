@@ -218,6 +218,21 @@ class ClubServiceTest {
     }
 
     @Test
+    @DisplayName("모집중이어도 정원이 차면 관리 화면에 정원이 찼다고 표시한다")
+    void 정원이_찬_동호회는_관리_화면에_정원_마감으로_표시한다() {
+        ClubSummary club = detailClub();
+        // 정원 10명 = 현재 인원 10명
+        club.setMemberCount(10);
+        when(clubMapper.existsActiveMember(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectClubDetail(1L)).thenReturn(club);
+        when(clubMapper.selectClubMembers(1L)).thenReturn(List.of(member("이슛터", "동호회장")));
+
+        ClubManageResponse managed = service.findManagedClub(7L, 1L);
+
+        assertThat(managed.getRecruitLabel()).isEqualTo("모집 마감 (정원이 찼어요)");
+    }
+
+    @Test
     @DisplayName("내 동호회 목록에서 선택된 동호회만 강조한다")
     void 선택된_동호회만_강조한다() {
         ClubSummary second = club("모집중", "2,4", 19, 21);
@@ -536,6 +551,119 @@ class ClubServiceTest {
         verify(clubMapper, never()).updateClubDisband(any());
     }
 
+    @Test
+    @DisplayName("정원이 찬 모집중 동호회는 모집 마감 카드로 바꾼다")
+    void 정원이_찬_모집중_동호회는_모집_마감으로_바꾼다() {
+        ClubSummary club = club("모집중", "2,4", 19, 21);
+        club.setMemberCount(10);
+        when(clubMapper.selectClubs(null, null, null, false, "recent")).thenReturn(List.of(club));
+
+        ClubCardResponse card = service.findClubCards().get(0);
+
+        assertThat(card.isRecruiting()).isFalse();
+        assertThat(card.getStatusLabel()).isEqualTo("모집 마감");
+        assertThat(card.getFooterNote()).isEqualTo("모집이 마감된 팀입니다.");
+    }
+
+    // 동호회 정보 수정
+    @Test
+    @DisplayName("동호회 정보를 수정하면 동호회를 고치고 지역을 지운 뒤 다시 넣는다")
+    void 동호회_정보_수정_성공() throws Exception {
+        when(clubMapper.existsSport(1L)).thenReturn(true);
+        when(clubMapper.existsRegion(3L)).thenReturn(true);
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClubForEdit());
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+
+        service.updateClub(7L, 1L, editForm());
+
+        InOrder order = inOrder(clubMapper);
+        order.verify(clubMapper).updateClub(any(Club.class));
+        order.verify(clubMapper).deleteClubRegions(1L);
+        order.verify(clubMapper).insertClubRegion(1L, 3L);
+        // 종목을 안 바꾸면 팀 매치는 확인하지 않음
+        verify(clubMapper, never()).existsRecruitingTeamMatch(any(), any());
+    }
+
+    @Test
+    @DisplayName("동호회장이 아니면 수정하지 않는다")
+    void 동호회장이_아니면_수정을_거부한다() {
+        when(clubMapper.existsSport(1L)).thenReturn(true);
+        when(clubMapper.existsRegion(3L)).thenReturn(true);
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClubForEdit());
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(false);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> service.updateClub(7L, 1L, editForm()));
+
+        assertThat(e.getMessage()).isEqualTo("팀장만 팀 정보를 수정할 수 있습니다.");
+        verify(clubMapper, never()).updateClub(any(Club.class));
+    }
+
+    @Test
+    @DisplayName("최대 인원을 현재 팀원 수보다 적게 바꾸면 수정하지 않는다")
+    void 정원이_현재_인원보다_적으면_수정을_거부한다() {
+        when(clubMapper.existsSport(1L)).thenReturn(true);
+        when(clubMapper.existsRegion(3L)).thenReturn(true);
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClubForEdit());
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        // 폼 정원 10명 < 현재 12명
+        when(clubMapper.countActiveMembers(1L)).thenReturn(12);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> service.updateClub(7L, 1L, editForm()));
+
+        assertThat(e.getMessage()).isEqualTo("최대 팀원 수는 현재 팀원 수보다 작을 수 없습니다.");
+        verify(clubMapper, never()).updateClub(any(Club.class));
+    }
+
+    @Test
+    @DisplayName("다른 활성 동호회와 이름이 같으면 수정하지 않는다")
+    void 다른_동호회와_이름이_같으면_수정을_거부한다() {
+        when(clubMapper.existsSport(1L)).thenReturn(true);
+        when(clubMapper.existsRegion(3L)).thenReturn(true);
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClubForEdit());
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.existsOtherActiveClubName(1L, "강남 농구 크루")).thenReturn(true);
+
+        assertThrows(ClubNameExistException.class, () -> service.updateClub(7L, 1L, editForm()));
+
+        verify(clubMapper, never()).updateClub(any(Club.class));
+    }
+
+    @Test
+    @DisplayName("모집 상태가 모집중, 마감이 아니면 잠그기 전에 거부한다")
+    void 모집_상태_값이_틀리면_수정을_거부한다() {
+        when(clubMapper.existsSport(1L)).thenReturn(true);
+        when(clubMapper.existsRegion(3L)).thenReturn(true);
+        ClubCreateForm form = editForm();
+        form.setRecruitStatus("recruiting");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> service.updateClub(7L, 1L, form));
+
+        assertThat(e.getMessage()).isEqualTo("모집 상태 값이 올바르지 않습니다.");
+        verify(clubMapper, never()).selectActiveClubForUpdate(any());
+    }
+
+    @Test
+    @DisplayName("모집 중인 팀 매치가 있으면 종목을 바꾸지 않는다")
+    void 팀_매치가_있으면_종목_변경을_거부한다() {
+        ClubCreateForm form = editForm();
+        // 종목 1번 -> 2번
+        form.setSportId(2L);
+        when(clubMapper.existsSport(2L)).thenReturn(true);
+        when(clubMapper.existsRegion(3L)).thenReturn(true);
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClubForEdit());
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.existsRecruitingTeamMatch(1L, null)).thenReturn(true);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> service.updateClub(7L, 1L, form));
+
+        assertThat(e.getMessage()).isEqualTo("모집 중인 팀 매치가 있어 종목을 변경할 수 없습니다.");
+        verify(clubMapper, never()).updateClub(any(Club.class));
+    }
+
     // 추방할 동호회원(동호회원 번호 3, 회원 번호만)
     private ClubMember kickTarget(Long userId) {
         ClubMember member = new ClubMember();
@@ -608,6 +736,21 @@ class ClubServiceTest {
     private ClubSummary disbandTarget() {
         ClubSummary club = lockedClub("모집중", 10);
         club.setClubName("노원 농구회");
+        return club;
+    }
+
+    // 수정 폼: 만들기 폼 + 모집 상태
+    private ClubCreateForm editForm() {
+        ClubCreateForm form = validForm();
+        form.setRecruitStatus("모집중");
+        return form;
+    }
+
+    // 잠금 SQL이 돌려주는 수정 전 동호회(종목 1번)
+    private ClubSummary lockedClubForEdit() {
+        ClubSummary club = lockedClub("모집중", 10);
+        club.setClubName("강남 농구 크루");
+        club.setSportId(1L);
         return club;
     }
 

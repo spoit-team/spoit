@@ -51,7 +51,7 @@ public class MatchResultService {
 
     // 결과 처리는 매칭 완료 경기에서 한다. 종료 경기는 레이팅 처리가 끝났으므로, 상태 오류 대신
     // RATING_CLOSED·ALREADY_APPLIED·ALREADY_EXCLUDED로 답하려고 함께 둔다.
-    private static final List<String> PLAYED_STATUSES =
+    static final List<String> PLAYED_STATUSES =
             List.of(MatchStatus.MATCHED.dbValue(), MatchStatus.CLOSED.dbValue());
     private static final String SIDE_A = "A";
     private static final String SIDE_B = "B";
