@@ -1,10 +1,11 @@
 package co.kr.spoit.club.dto;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
 import co.kr.spoit.club.domain.ClubSummary;
-import co.kr.spoit.mat.domain.RatingPolicy;
+import co.kr.spoit.mat.domain.TierRank;
 
 class ClubFormat {
 
@@ -50,19 +51,7 @@ class ClubFormat {
         if (averageMmr == null) {
             return "배치 중";
         }
-        if (averageMmr >= RatingPolicy.DIAMOND_MIN_MMR) {
-            return "다이아";
-        }
-        if (averageMmr >= RatingPolicy.PLATINUM_MIN_MMR) {
-            return "플래티넘";
-        }
-        if (averageMmr >= RatingPolicy.GOLD_MIN_MMR) {
-            return "골드";
-        }
-        if (averageMmr >= RatingPolicy.SILVER_MIN_MMR) {
-            return "실버";
-        }
-        return "브론즈";
+        return TierRank.of(BigDecimal.valueOf(averageMmr)).tier().label();
     }
 
     static String initials(String name) {

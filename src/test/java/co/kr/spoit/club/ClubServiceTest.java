@@ -692,9 +692,9 @@ class ClubServiceTest {
     void 팀_평균_MMR로_실력_등급을_정한다() {
         ClubSummary none = club("모집중", "2,4", 19, 21);
         ClubSummary gold = club("모집중", "2,4", 19, 21);
-        gold.setAverageMmr(1050);
+        gold.setAverageMmr(1200);
         ClubSummary silver = club("모집중", "2,4", 19, 21);
-        silver.setAverageMmr(1049);
+        silver.setAverageMmr(1199);
         when(clubMapper.selectClubs(any(ClubSearchForm.class))).thenReturn(List.of(none, gold, silver));
 
         List<ClubCardResponse> cards = service.findClubCards(new ClubSearchForm());

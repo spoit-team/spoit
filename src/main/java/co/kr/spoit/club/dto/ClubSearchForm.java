@@ -6,11 +6,8 @@ import lombok.Data;
 @Data
 public class ClubSearchForm {
 
-    // 실력 단계별 MMR: 1=브론즈 ~ 5=다이아 (0은 비워둠)
-    private static final Integer[] MIN_MMR = { null, null, RatingPolicy.SILVER_MIN_MMR,
-            RatingPolicy.GOLD_MIN_MMR, RatingPolicy.PLATINUM_MIN_MMR, RatingPolicy.DIAMOND_MIN_MMR };
-    private static final Integer[] MAX_MMR = { null, RatingPolicy.SILVER_MIN_MMR,
-            RatingPolicy.GOLD_MIN_MMR, RatingPolicy.PLATINUM_MIN_MMR, RatingPolicy.DIAMOND_MIN_MMR, null };
+    // 티어 하나의 MMR 폭
+    private static final int TIER_SIZE = RatingPolicy.TIER_DIVISION_SIZE * 4;
 
     private String q;
     private Long sportId;
@@ -32,12 +29,23 @@ public class ClubSearchForm {
 
     // 실력 구간 (이상), 브론즈는 최저 없음
     public Integer getMinMmr() {
-        return validLevel() ? MIN_MMR[level] : null;
+        if (!validLevel() || level == 1) {
+            return null;
+        }
+        return tierStartMmr(level);
     }
 
-    // 실력 구간 (미만), 다이아 최대 없음
+    // 실력 구간 (미만), 다이아는 최대 없음
     public Integer getMaxMmr() {
-        return validLevel() ? MAX_MMR[level] : null;
+        if (!validLevel() || level == 5) {
+            return null;
+        }
+        return tierStartMmr(level + 1);
+    }
+
+    // 단계가 시작하는 MMR: 2=실버 1000, 3=골드 1200, 4=플래티넘 1400, 5=다이아 1600
+    private static int tierStartMmr(int level) {
+        return RatingPolicy.TIER_START_MMR + TIER_SIZE * (level - 1);
     }
 
     private boolean validLevel() {

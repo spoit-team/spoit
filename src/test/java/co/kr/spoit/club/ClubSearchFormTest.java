@@ -25,12 +25,12 @@ public class ClubSearchFormTest {
         ClubSearchForm form = new ClubSearchForm();
         form.setLevel(1);
         assertThat(form.getMinMmr()).isNull();
-        assertThat(form.getMaxMmr()).isEqualTo(900);
+        assertThat(form.getMaxMmr()).isEqualTo(1000);
         form.setLevel(3);
-        assertThat(form.getMinMmr()).isEqualTo(1050);
-        assertThat(form.getMaxMmr()).isEqualTo(1200);
+        assertThat(form.getMinMmr()).isEqualTo(1200);
+        assertThat(form.getMaxMmr()).isEqualTo(1400);
         form.setLevel(5);
-        assertThat(form.getMinMmr()).isEqualTo(1350);
+        assertThat(form.getMinMmr()).isEqualTo(1600);
         assertThat(form.getMaxMmr()).isNull();
         form.setLevel(9);
         assertThat(form.getMinMmr()).isNull();
