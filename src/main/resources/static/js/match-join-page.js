@@ -73,4 +73,17 @@
     // 두 번 누르면 두 번째 요청이 "이미 신청" 오류로 끝나 완료 화면 대신 오류가 보이므로 막는다.
     if (continueButton) continueButton.disabled = true;
   });
+
+  /* 시간 겹침: 서버가 겹침을 찾았을 때만 모달이 렌더링되며, 화면을 열자마자 띄웁니다. 신청 버튼은 서버가 이미 막아 둡니다. */
+  const conflictDialog = document.getElementById('time-conflict-dialog');
+  if (conflictDialog && typeof conflictDialog.showModal === 'function') {
+    conflictDialog.querySelectorAll('[data-close-time-conflict]').forEach(function (button) {
+      button.addEventListener('click', function () { conflictDialog.close(); });
+    });
+    conflictDialog.addEventListener('click', function (event) {
+      if (event.target === conflictDialog) conflictDialog.close();
+    });
+    conflictDialog.showModal();
+    conflictDialog.querySelector('.join-conflict-actions [data-close-time-conflict]')?.focus({ preventScroll: true });
+  }
 })();
