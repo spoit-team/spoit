@@ -11,6 +11,15 @@
             AND sr.rated_match_count > 0)
     </sql>
 
+    <!-- 최근 활동(레이팅 반영 시각 기준)-->
+    <sql id="lastActivityAt">
+        (SELECT MAX(h.calculated_at)
+        FROM sport_rating_history h
+        JOIN match_participant p ON h.participant_id = p.participant_id
+        JOIN match_application a ON p.application_id = a.application_id
+        WHERE a.club_id = c.club_id)
+    </sql>
+
     <!-- 동호회 목록: 해체되지 않은 동호회만 -->
     <select id="selectClubs" resultType="co.kr.spoit.club.domain.ClubSummary">
         SELECT club_id AS clubId
@@ -58,13 +67,23 @@
         <if test="maxMmr != null">
             AND <include refid="averageMmr"/> &lt; #{maxMmr}
         </if>
+    <!-- 정렬: newest-최신순(기본) -->
     <choose>
-    <when test="sort == 'name'">
-        ORDER BY c.club_name ASC</when>
-    <when test="sort == 'members'">
-        ORDER BY memberCount DESC, c.created_at DESC</when>
+    <when test="sort == 'rating'">
+        ORDER BY averageMmr DESC, c.created_at DESC
+            ,<include refid="lastActivityAt"/> DESC
+            ,c.club_id DESC
+    </when>
+    <when test="sort == 'recent'">
+        ORDER BY <include refid="lastActivityAt"/> DESC, c.created_at DESC
+            ,averageMmr DESC
+            ,c.club_id DESC
+    </when>
     <otherwise>
-        ORDER BY c.created_at DESC</otherwise>
+        ORDER BY c.created_at DESC, averageMmr DESC
+            ,<include refid="lastActivityAt"/> DESC
+            ,c.club_id DESC
+    </otherwise>
     </choose>
     </select>
 

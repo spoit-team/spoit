@@ -40,7 +40,7 @@ public class ClubServiceImpl implements ClubService {
     private static final int MESSAGE_MAX_LENGTH = 200;
     private static final int KICK_REASON_MAX_LENGTH = 200;
 
-    // 최신순 전체 조회(검색 미구현)
+    // 목록: 검색,필터,정렬 조건으로 조회
     @Override
     public List<ClubCardResponse> findClubCards(ClubSearchForm filters) {
         List<ClubSummary> clubs = clubMapper.selectClubs(filters);
