@@ -1,9 +1,11 @@
 package co.kr.spoit.club.dto;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
 import co.kr.spoit.club.domain.ClubSummary;
+import co.kr.spoit.mat.domain.TierRank;
 
 class ClubFormat {
 
@@ -28,6 +30,28 @@ class ClubFormat {
 
     static String areaLabel(String areaLabel) {
         return areaLabel != null ? areaLabel : "지역 미정";
+    }
+
+    // 종목 탭 임시 이모지(팀 아이콘 PR에서 SVG로 교체)
+    static String sportEmoji(Long sportId) {
+        if (sportId == null)
+            return "🏅";
+        return switch (sportId.intValue()) {
+            case 1 -> "🎾";
+            case 2 -> "⚽";
+            case 3 -> "🏐";
+            case 4 -> "🏀";
+            case 5 -> "🏸";
+            default -> "🏅";
+        };
+    }
+
+    // 팀 실력 등급
+    static String tierLabel(Integer averageMmr) {
+        if (averageMmr == null) {
+            return "배치 중";
+        }
+        return TierRank.of(BigDecimal.valueOf(averageMmr)).tier().label();
     }
 
     static String initials(String name) {

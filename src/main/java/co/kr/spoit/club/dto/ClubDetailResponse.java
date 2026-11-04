@@ -22,6 +22,7 @@ public class ClubDetailResponse {
     private final boolean recruiting;
     private final Integer memberCount;
     private final Integer maxMembers;
+    private final String tierLabel;
     private final String time;
     private final String footerNote;
 
@@ -78,6 +79,7 @@ public class ClubDetailResponse {
                 .member(member)
                 .manager(manager)
                 .pendingJoinRequestId(pendingJoinRequestId)
+                .tierLabel(ClubFormat.tierLabel(club.getAverageMmr()))
                 .build();
     }
 }

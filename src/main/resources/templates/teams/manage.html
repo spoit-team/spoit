@@ -63,7 +63,6 @@
           <div class="team-summary-item"><div class="team-summary-label">활동 시간</div><div class="team-summary-value" th:text="${managedClub.time}">활동 시간</div></div>
           <div class="team-summary-item"><div class="team-summary-label">모집 상태</div><div class="team-summary-value" th:text="${managedClub.recruitLabel}">모집 상태</div></div>
         </div>
-        <div class="team-management-note">팀 정보와 일정은 서버에 저장된 값입니다. 평균 레이팅은 팀원 레이팅을 기준으로 서버가 계산하며 이 화면에서 직접 변경할 수 없습니다.</div>
         <!-- 예정 일정 미구현: <div class="team-management-overview-block">
           <div class="team-section-heading"><div><h2>예정 일정</h2><p>팀에서 함께할 다음 활동을 확인하세요.</p></div><span class="team-badge" th:text="${#lists.size(managedClub.schedules) + '건'}">0건</span></div>
           <div class="team-schedule-list">
