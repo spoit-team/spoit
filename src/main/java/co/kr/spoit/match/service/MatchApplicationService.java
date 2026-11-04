@@ -7,7 +7,9 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -28,6 +30,8 @@ import co.kr.spoit.match.domain.ParticipationStatus;
 import co.kr.spoit.match.dto.GroupMemberRow;
 import co.kr.spoit.match.dto.JoinPage;
 import co.kr.spoit.match.dto.JoinPage.Completion;
+import co.kr.spoit.match.dto.JoinPage.ConflictMatch;
+import co.kr.spoit.match.dto.JoinPage.ConflictPerson;
 import co.kr.spoit.match.dto.JoinPage.JoinMatch;
 import co.kr.spoit.match.dto.JoinPage.Person;
 import co.kr.spoit.match.dto.JoinPage.Selection;
@@ -37,6 +41,7 @@ import co.kr.spoit.match.dto.MatchDetailPage.TeamOption;
 import co.kr.spoit.match.dto.MatchRow;
 import co.kr.spoit.match.dto.TeamClubRow;
 import co.kr.spoit.match.dto.TeamMemberRow;
+import co.kr.spoit.match.dto.TimeConflictRow;
 import co.kr.spoit.match.mapper.MatchApplicationMapper;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.mapper.MemberMapper;
@@ -77,6 +82,9 @@ public class MatchApplicationService {
     private static final String NO_TEAM_MEMBER = "함께 참가할 팀원을 한 명 이상 선택해 주세요.";
     private static final String INVALID_TEAM_MEMBER = "선택한 팀원 정보를 확인할 수 없습니다. 매치 상세에서 다시 선택해 주세요.";
 
+    private static final DateTimeFormatter CONFLICT_START = DateTimeFormatter.ofPattern("M/d(E) HH:mm", Locale.KOREAN);
+    private static final DateTimeFormatter CONFLICT_END = DateTimeFormatter.ofPattern("HH:mm");
+
     private final MatchApplicationMapper applicationMapper;
     private final MemberMapper memberMapper;
     private final SportRatingMapper sportRatingMapper;
@@ -89,14 +97,22 @@ public class MatchApplicationService {
         if (member.isEmpty()) {
             return Optional.empty();
         }
-        return matchService.findDetail(matchId, userId).map(detail -> JoinPage.builder()
-                .match(toJoinMatch(detail))
-                .selection(individualSelection(member.get()))
-                .canReserve(detail.isCanApply())
-                .capacityNotice(detail.isCanApply() ? "" : detail.getApplyMessage())
-                .feeTotalText(FREE_TOTAL_TEXT)
-                .feeSummaryNote(FREE_SUMMARY_NOTE)
-                .build());
+        return matchService.findDetail(matchId, userId).map(detail -> {
+            String blocked = detail.isCanApply() ? null : detail.getApplyMessage();
+            List<ConflictPerson> conflicts = blocked == null ? findConflicts(matchId, List.of(userId), userId) : List.of();
+            if (!conflicts.isEmpty()) {
+                blocked = conflictMessage(conflicts);
+            }
+            return JoinPage.builder()
+                    .match(toJoinMatch(detail))
+                    .selection(individualSelection(member.get()))
+                    .canReserve(blocked == null)
+                    .capacityNotice(blocked == null ? "" : blocked)
+                    .timeConflicts(conflicts)
+                    .feeTotalText(FREE_TOTAL_TEXT)
+                    .feeSummaryNote(FREE_SUMMARY_NOTE)
+                    .build();
+        });
     }
 
     /**
@@ -136,6 +152,16 @@ public class MatchApplicationService {
                         .map(m -> alreadyApplied(m.getNickname()))
                         .orElse(null);
             }
+            List<ConflictPerson> conflicts = List.of();
+            if (blocked == null) {
+                List<Long> userIds = new ArrayList<>();
+                userIds.add(userId);
+                selected.forEach(m -> userIds.add(m.getUserId()));
+                conflicts = findConflicts(matchId, userIds, userId);
+                if (!conflicts.isEmpty()) {
+                    blocked = conflictMessage(conflicts);
+                }
+            }
 
             List<Person> persons = new ArrayList<>();
             persons.add(new Person(member.get().getNickname(), "신청 대표"));
@@ -147,6 +173,7 @@ public class MatchApplicationService {
                             member.get().getPhone(), TEAM, seats, persons, clubId, ids))
                     .canReserve(blocked == null)
                     .capacityNotice(blocked == null ? "" : blocked)
+                    .timeConflicts(conflicts)
                     .feeTotalText(FREE_TOTAL_TEXT)
                     .feeSummaryNote(FREE_SUMMARY_NOTE)
                     .build());
@@ -165,6 +192,8 @@ public class MatchApplicationService {
      */
     @Transactional
     public String applyIndividual(long matchId, long userId) {
+        // 첫 조회로 회원 행을 잠가, 같은 회원의 다른 매치 신청이 끝난 뒤의 상태로 시간 겹침을 확인한다.
+        applicationMapper.lockUsers(List.of(userId));
         LocalDateTime now = LocalDateTime.now(ZONE);
         requireApplicableMember(userId, now);
 
@@ -176,6 +205,7 @@ public class MatchApplicationService {
         if (occupied + 1 > match.getMaxParticipants()) {
             throw new MatchApplyException("정원이 모두 찼습니다.");
         }
+        requireNoTimeConflict(matchId, List.of(userId), userId);
 
         MatchApplication application = MatchApplication.individual(matchId, userId, newReceiptNo(now), now);
         applicationMapper.insert(application);
@@ -191,12 +221,16 @@ public class MatchApplicationService {
      */
     @Transactional
     public String applyTeam(long matchId, long userId, long clubId, List<Long> clubMemberIds) {
-        LocalDateTime now = LocalDateTime.now(ZONE);
-        requireApplicableMember(userId, now);
         List<Long> ids = distinctIds(clubMemberIds);
         if (ids.isEmpty()) {
             throw new MatchApplyException(NO_TEAM_MEMBER);
         }
+        // 첫 조회로 대표와 팀원 회원 행을 잠근다 (개인 신청과 같은 이유, 잠금 읽기만 써서 스냅숏을 늦춘다).
+        List<Long> lockIds = new ArrayList<>(applicationMapper.lockClubMemberUserIds(ids));
+        lockIds.add(userId);
+        applicationMapper.lockUsers(distinctIds(lockIds));
+        LocalDateTime now = LocalDateTime.now(ZONE);
+        requireApplicableMember(userId, now);
 
         MatchRow match = lockForApply(matchId, now);
         TeamClubRow club = applicationMapper.findTeamClub(clubId, userId);
@@ -236,6 +270,10 @@ public class MatchApplicationService {
         if (occupied + seats > match.getMaxParticipants()) {
             throw new MatchApplyException(overCapacity(Math.max(0, match.getMaxParticipants() - occupied), seats));
         }
+        List<Long> applicantIds = new ArrayList<>();
+        applicantIds.add(userId);
+        selected.forEach(m -> applicantIds.add(m.getUserId()));
+        requireNoTimeConflict(matchId, applicantIds, userId);
 
         MatchApplication leader = MatchApplication.teamMember(matchId, userId, clubId, null, newReceiptNo(now), now);
         applicationMapper.insert(leader);
@@ -245,6 +283,60 @@ public class MatchApplicationService {
                     leader.getApplicationId(), newReceiptNo(now), now));
         }
         return leader.getReceiptNo();
+    }
+
+    private void requireNoTimeConflict(long matchId, List<Long> userIds, long userId) {
+        List<ConflictPerson> conflicts = findConflicts(matchId, userIds, userId);
+        if (!conflicts.isEmpty()) {
+            throw new MatchApplyException(conflictMessage(conflicts));
+        }
+    }
+
+    /**
+     * 회원별로 묶은 시간 겹침 매치. 회원 순서는 userIds 순서(대표 먼저)를 따른다.
+     * 한 매치에 신청 행과 참가자 행이 함께 있으면 한 번만 보이고, 확정 상태를 우선한다.
+     */
+    private List<ConflictPerson> findConflicts(long matchId, List<Long> userIds, long userId) {
+        List<TimeConflictRow> rows = applicationMapper.findTimeConflicts(matchId, userIds,
+                ApplicationStatus.activeValues(), MatchStatus.CANCELLED.dbValue());
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Map<Long, TimeConflictRow>> byUser = new LinkedHashMap<>();
+        for (TimeConflictRow row : rows) {
+            byUser.computeIfAbsent(row.getUserId(), k -> new LinkedHashMap<>())
+                    .merge(row.getMatchId(), row, (a, b) ->
+                            ApplicationStatus.CONFIRMED.dbValue().equals(b.getStatus()) ? b : a);
+        }
+        List<ConflictPerson> persons = new ArrayList<>();
+        for (Long id : userIds) {
+            Map<Long, TimeConflictRow> matches = byUser.remove(id);
+            if (matches == null) {
+                continue;
+            }
+            List<ConflictMatch> items = matches.values().stream()
+                    .map(r -> new ConflictMatch(r.getTitle(),
+                            r.getStartAt().format(CONFLICT_START) + "~" + r.getEndAt().format(CONFLICT_END),
+                            r.getFacilityName(),
+                            ApplicationStatus.CONFIRMED.dbValue().equals(r.getStatus()) ? "참가 확정" : "확정 대기"))
+                    .toList();
+            String nickname = matches.values().iterator().next().getNickname();
+            persons.add(new ConflictPerson(nickname, id == userId, items));
+        }
+        return persons;
+    }
+
+    /** 본인: "이미 참가 신청한 다른 매치와…", 팀원: "박민수님이 이미…" (여러 명이면 "외 N명") */
+    private static String conflictMessage(List<ConflictPerson> conflicts) {
+        ConflictPerson first = conflicts.get(0);
+        String others = conflicts.size() > 1 ? " 외 " + (conflicts.size() - 1) + "명" : "";
+        String who;
+        if (first.isMe()) {
+            who = others.isEmpty() ? "" : "회원님" + others + "이 ";
+        } else {
+            who = first.getNickname() + "님" + others + "이 ";
+        }
+        return who + "이미 참가 신청한 다른 매치와 시간이 겹칩니다.";
     }
 
     /** 세션의 principal은 로그인 시점 값이라 탈퇴·정지는 DB로 다시 확인한다. */

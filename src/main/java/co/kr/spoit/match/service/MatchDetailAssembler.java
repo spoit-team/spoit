@@ -168,7 +168,7 @@ public class MatchDetailAssembler {
             List<TeamMemberRow> all = byClub.getOrDefault(club.getClubId(), List.of());
             List<TeamMemberOption> options = all.stream()
                     .filter(m -> m.getUserId() != applicantUserId)
-                    .map(m -> new TeamMemberOption(m.getClubMemberId(), m.getNickname(), initial(m.getNickname()),
+                    .map(m -> new TeamMemberOption(m.getClubMemberId(), m.getUserId(), m.getNickname(), initial(m.getNickname()),
                             m.isLeader(), ratingText(m), m.isAlreadyApplied()))
                     .toList();
             return new TeamOption(club.getClubId(), club.getClubName(),

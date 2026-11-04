@@ -60,7 +60,7 @@
         <div th:if="${!canReserve}" id="capacity-notice" class="join-inline-notice">
           <span aria-hidden="true">ℹ</span><span><b>현재 선택으로 예약할 수 없습니다.</b> <span th:text="${capacityNotice}">현재 남은 자리를 확인해 주세요.</span></span>
         </div>
-        <p th:if="${error != null}" class="join-error" role="alert" th:text="${error}">신청을 처리하지 못했습니다.</p>
+        <p th:if="${error != null and #lists.isEmpty(timeConflicts)}" class="join-error" role="alert" th:text="${error}">신청을 처리하지 못했습니다.</p>
         <label class="join-agreement"><input id="rules-agree" name="agreeRules" type="checkbox" value="true" /><span><b>매치 운영 규칙과 취소·노쇼 안내를 확인했습니다.</b><small>참가 신청 후 취소는 마이페이지의 신청 내역에서 진행할 수 있습니다.</small></span></label>
         <p id="join-error" class="join-error" role="alert" hidden></p>
         <div class="join-stage-actions">
@@ -132,6 +132,33 @@
     </aside>
   </div>
 </main>
+
+<!-- 이미 참가 신청한 다른 매치와 시간이 겹치면 신청 화면을 열자마자 보여 준다. 신청 버튼은 서버가 이미 막아 둔다. -->
+<dialog th:if="${!completed and timeConflicts != null and !#lists.isEmpty(timeConflicts)}" id="time-conflict-dialog" class="join-conflict-dialog" aria-labelledby="time-conflict-title" aria-describedby="time-conflict-message">
+  <div class="join-conflict-content">
+    <div class="join-conflict-heading">
+      <div><h2 id="time-conflict-title">신청 시간이 겹칩니다</h2><p th:text="${match.title + ' · ' + match.dateLabel + ' ' + match.time}">매치 · 날짜 시간</p></div>
+      <button class="join-conflict-close" type="button" data-close-time-conflict aria-label="닫기">×</button>
+    </div>
+    <p id="time-conflict-message" class="join-conflict-note">이미 참가 신청한 매치와 시간이 겹쳐 신청할 수 없습니다.</p>
+    <ul class="join-conflict-people">
+      <li th:each="person : ${timeConflicts}">
+        <b th:text="${person.me ? person.nickname + ' (나)' : person.nickname}">회원</b>
+        <ul>
+          <li th:each="item : ${person.matches}" class="join-conflict-match">
+            <span class="join-conflict-match-title" th:text="${item.title}">매치</span>
+            <span th:text="${item.timeLabel + ' · ' + item.facilityName}">시간 · 시설</span>
+            <small th:text="${item.stateLabel}">참가 확정</small>
+          </li>
+        </ul>
+      </li>
+    </ul>
+    <div class="join-conflict-actions">
+      <a th:href="@{/mypage#reservations}" class="join-button join-button-quiet">신청 내역 보기</a>
+      <button type="button" class="join-button join-button-primary" data-close-time-conflict>확인</button>
+    </div>
+  </div>
+</dialog>
 
 <footer th:replace="~{fragments/layout :: simpleFooter}"></footer>
 
