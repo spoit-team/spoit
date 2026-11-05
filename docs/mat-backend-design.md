@@ -236,6 +236,9 @@ GitHub Actions는 설정만 변경했고 원격 실행은 하지 않았다. CI�
 | WAITING → APPLIED | 결과가 확정되고 두 팀장의 평가가 모두 들어오면 바로 반영한다. 결과가 확정될 때와 평가가 제출될 때 둘 다 확인한다. 마감 때는 결과만 확정돼 있으면 평가가 덜 들어왔어도 그때까지 들어온 평가로 반영한다. 두 조건은 `isReadyToApplyNow`와 `isReadyToApplyAtDeadline`으로 나눠 둔다. |
 | WAITING → EXCLUDED | `end_at + 24시간`까지 확정되지 않으면 경기 상태와 관계없이 제외한다. 담당 시설 관리자는 시작 뒤 노쇼 경기를 제외할 수 있고, `result_reviewed_by`에 남는다. |
 
+
+
+
 `READY`는 쓰지 않는다. 마감 1시간 전(`end_at + 23시간`)이 실행 시각의 1분 구간에 드는 경기에서는 결과 제출 행이나 평가 행이 없는 팀장에게 리마인더("경기 결과·평가 미제출")를 보낸다. 알림 테이블로 중복을 확인하지 않으므로, 그 1분에 앱이 멈춰 있었으면 리마인더는 다시 보내지 않는다.
 
 팀장 평가는 결과 제출과 같은 팀장·기간·`rating_status = WAITING` 조건에서 받는다(`/mypage/matches/{matchId}/evaluation`). 팀장 한 명이 팀이 배정된 확정 참가자 전원(자기 자신 제외)을 경기 종목의 활성 항목 전부에 대해 한 번에 제출하고, 제출한 평가는 고칠 수 없다. 항목 점수는 0~10 정수(OBSERVED) 또는 관찰 불가(NOT_OBSERVED, 점수 NULL)다. (경기, 평가자) UNIQUE가 없으므로 결과 제출처럼 `social_match`를 잠근 뒤 이미 제출했는지 확인해 중복을 막는다. 평가할 참가자나 활성 항목이 없으면 제출을 받지 않는다.
@@ -246,3 +249,6 @@ GitHub Actions는 설정만 변경했고 원격 실행은 하지 않았다. CI�
 | 선수 평가 점수 `evaluation_score` | 그 경기에서 받은 `overall_score` 중 NULL이 아닌 값의 평균. 없으면 NULL |
 | 평가 보정 `evaluation_delta` | (평가 점수 − 5) × 1. 평가 점수가 NULL이면 0이고, 배치 중에도 적용한다 |
 | 최종 증감 `final_delta` | `elo_delta + evaluation_delta`. 공식 버전은 `ELO-K32-V2` |
+
+
+운영 화면의 참가자 이력 모달은 `GET /admin/operations/matches/{matchId}/participants/{userId}/history`로 요약만 받는다. 팀 배정 화면과 같이 그 경기 시설의 시설 관리자만 볼 수 있고(아니면 403), 경기가 없거나 그 경기에 신청 행(`match_application`)도 참가자 행(`match_participant`)도 없는 회원이면 본문 없이 404다. 응답은 `nickname`, 경기 종목 기준 `tierLabel`(레이팅 행이 없으면 "기록 없음")과 `ratedMatchCount`, 그 종목 `sport_rating_history`의 최근 5건 `recentChanges`(`calculatedAt`, `finalDelta`, 최신순), 확정 참가한 경기 중 상태가 매칭 완료·종료이고 `rating_status = EXCLUDED`인 경기 수 `excludedMatchCount`(전 종목, 자동 취소 경기 제외), 대상 신고 중 '처리 완료'만 센 `confirmedReportCount`, '적용 중'이고 `end_at`이 없거나 지금보다 뒤인 제재의 `penaltyType`·`endAt` 목록 `activePenalties`다. 신고 내용·신고자·제재 사유는 내보내지 않고, `report`·`penalty`는 읽기만 한다.

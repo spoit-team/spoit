@@ -19,4 +19,6 @@ public class RoomManagementParticipantRow {
     /** A, B, 미배정이면 null */
     private String matchSide;
     private LocalDateTime joinedAt;
+    /** 참가자 이력 모달을 열 때 쓰는 회원 ID */
+    private Long userId;
 }
