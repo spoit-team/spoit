@@ -346,6 +346,17 @@
                 #{status}, #{entryMmr}, #{joinedAt})
     </insert>
 
+    <!-- 매칭방 담당 시설 관리자 (알림 수신자). 사라진 시설은 제외한다. -->
+    <select id="findFacilityManagerUserIds" resultType="java.lang.Long">
+        SELECT DISTINCT fm.user_id
+          FROM social_match sm
+          JOIN facility f ON f.facility_id = sm.facility_id
+                         AND f.deleted_at IS NULL
+          JOIN facility_manager fm ON fm.facility_id = f.facility_id
+         WHERE sm.match_id = #{matchId}
+         ORDER BY fm.user_id
+    </select>
+
     <!-- ================= RES-04 팀 신청 대상 ================= -->
 
     <sql id="teamClubColumns">

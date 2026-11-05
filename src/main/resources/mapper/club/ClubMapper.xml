@@ -228,6 +228,12 @@
         WHERE club_id = #{clubId} AND user_id = #{userId} AND role = '동호회장' AND left_at IS NULL
     </select>
 
+    <select id="selectActiveLeaderUserIds" resultType="java.lang.Long">
+        SELECT user_id FROM club_member
+        WHERE club_id = #{clubId} AND role = '동호회장' AND left_at IS NULL
+        ORDER BY joined_at, club_member_id
+    </select>
+
     <select id="selectPendingJoinRequests" resultType="co.kr.spoit.club.domain.ClubJoinRequest">
         SELECT r.request_id AS joinRequestId
             ,r.user_id AS userId
@@ -372,6 +378,11 @@
         FROM club_member
         WHERE club_id = #{clubId} AND club_member_id = #{clubMemberId} 
             AND role = '동호회원' AND left_at IS NULL
+    </select>
+
+    <select id="selectActiveMemberUserId" resultType="java.lang.Long">
+        SELECT user_id FROM club_member
+        WHERE club_id = #{clubId} AND club_member_id = #{clubMemberId} AND left_at IS NULL
     </select>
 
     <update id="updateMemberKick">

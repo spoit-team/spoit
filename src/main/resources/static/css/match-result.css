@@ -1,13 +1,27 @@
-/* 경기 결과 제출 화면. 공통 틀·제목·버튼은 mypage.css를 그대로 쓰고, 이 화면에만 있는 요소를 정의한다. */
+/* 경기 결과 화면. 공통 색·타이포·버튼은 mypage.css를 그대로 따르고, 이 화면에만 있는 요소만 정의한다. */
+
+.match-result-main {
+  max-width: 960px;
+}
+
+.match-result-wrap {
+  display: grid;
+  gap: 24px;
+  margin-top: 28px;
+}
 
 .match-result-summary,
 .match-result-empty {
-  margin-top: 28px;
   padding: 23px 25px;
   border: 1px solid var(--color-line-strong);
   border-radius: 16px;
   background: var(--color-paper);
   box-shadow: 0 2px 8px rgb(19 21 25 / 3%);
+}
+
+.match-result-summary[hidden],
+.match-result-empty[hidden] {
+  display: none;
 }
 
 .match-result-sport {
@@ -35,6 +49,7 @@
 }
 
 .match-result-facts > div {
+  min-width: 0;
   padding: 13px 14px 13px 0;
 }
 
@@ -51,6 +66,7 @@
 
 .match-result-facts dd {
   margin: 4px 0 0;
+  overflow-wrap: anywhere;
   color: var(--color-ink);
   font-size: 13px;
   font-weight: 750;
@@ -117,9 +133,9 @@
   min-width: 0;
   align-items: center;
   gap: 6px;
+  overflow-wrap: anywhere;
   color: var(--color-ink-2);
   font-size: 12px;
-  overflow-wrap: anywhere;
 }
 
 .match-result-captain {
@@ -149,13 +165,31 @@
   line-height: 1.6;
 }
 
-.match-result-section {
-  margin-top: 34px;
+.match-result-back {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  margin-top: 14px;
+  padding: 0 13px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 8px;
+  color: var(--color-ink-2);
+  font-size: 12px;
+  font-weight: 750;
+  text-decoration: none;
 }
 
-.match-result-message {
-  margin: 0 0 14px;
+.match-result-back:hover {
+  border-color: var(--color-faint);
+  background: var(--color-paper-soft);
+  color: var(--color-ink);
 }
+
+.match-result-section { margin: 0; }
+
+.match-result-section[hidden] { display: none; }
+
+.match-result-message { margin: 0 0 14px; }
 
 .match-result-body {
   display: grid;
@@ -214,7 +248,7 @@
 .match-result-choice:active:not(:disabled) { transform: translateY(1px); }
 
 .match-result-choice:disabled {
-  cursor: not-allowed;
+  cursor: wait;
   opacity: .5;
 }
 
@@ -350,6 +384,7 @@
 }
 
 .match-result-compare strong {
+  overflow-wrap: anywhere;
   color: var(--color-ink);
   font-size: 14px;
   font-weight: 800;

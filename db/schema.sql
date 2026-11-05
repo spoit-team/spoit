@@ -517,6 +517,7 @@ CREATE TABLE notification (
     match_id           BIGINT       NULL COMMENT '매칭방 운영 알림이면 연결할 경기',
     report_id          BIGINT       NULL COMMENT '신고 처리 결과 알림이면 연결할 신고',
     join_request_id    BIGINT       NULL COMMENT '동호회 가입 신청 알림이면 연결할 신청',
+    club_id            BIGINT       NULL COMMENT '동호회 관련 알림의 대상 동호회',
     notification_type  VARCHAR(30)  NOT NULL COMMENT '알림 종류 코드',
     title              VARCHAR(100) NOT NULL COMMENT '알림 제목',
     body               TEXT         NOT NULL COMMENT '알림 본문',
@@ -529,7 +530,8 @@ CREATE TABLE notification (
     CONSTRAINT fk_notification_application  FOREIGN KEY (application_id)    REFERENCES match_application (application_id),
     CONSTRAINT fk_notification_match        FOREIGN KEY (match_id)          REFERENCES social_match (match_id),
     CONSTRAINT fk_notification_report       FOREIGN KEY (report_id)         REFERENCES report (report_id),
-    CONSTRAINT fk_notification_join_request FOREIGN KEY (join_request_id)   REFERENCES club_join_request (request_id)
+    CONSTRAINT fk_notification_join_request FOREIGN KEY (join_request_id)   REFERENCES club_join_request (request_id),
+    CONSTRAINT fk_notification_club         FOREIGN KEY (club_id)           REFERENCES club (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='저장 알림';
 
 CREATE TABLE admin_request (

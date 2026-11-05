@@ -6,8 +6,11 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +34,7 @@ import co.kr.spoit.match.dto.RoomCommand;
 import co.kr.spoit.match.dto.RoomEditTarget;
 import co.kr.spoit.match.dto.RoomForm;
 import co.kr.spoit.match.mapper.RoomCommandMapper;
+import co.kr.spoit.notification.service.NotificationDispatcher;
 
 /**
  * 시설 관리자의 담당 시설 매칭방 생성·수정·취소를 담당한다.
@@ -68,21 +72,25 @@ public class RoomCommandService {
     private final FacilityReservationService reservationService;
     private final FacilityCapacityService capacityService;
     private final PhotoStorage photoStorage;
+    private final NotificationDispatcher notificationDispatcher;
     private final Clock clock;
 
     @Autowired
     public RoomCommandService(RoomCommandMapper roomCommandMapper,
             FacilityReservationService reservationService, FacilityCapacityService capacityService,
-            PhotoStorage photoStorage) {
-        this(roomCommandMapper, reservationService, capacityService, photoStorage, Clock.system(ZONE));
+            PhotoStorage photoStorage, NotificationDispatcher notificationDispatcher) {
+        this(roomCommandMapper, reservationService, capacityService, photoStorage, notificationDispatcher,
+                Clock.system(ZONE));
     }
 
     RoomCommandService(RoomCommandMapper roomCommandMapper, FacilityReservationService reservationService,
-            FacilityCapacityService capacityService, PhotoStorage photoStorage, Clock clock) {
+            FacilityCapacityService capacityService, PhotoStorage photoStorage,
+            NotificationDispatcher notificationDispatcher, Clock clock) {
         this.roomCommandMapper = roomCommandMapper;
         this.reservationService = reservationService;
         this.capacityService = capacityService;
         this.photoStorage = photoStorage;
+        this.notificationDispatcher = notificationDispatcher;
         this.clock = clock;
     }
 
@@ -148,6 +156,11 @@ public class RoomCommandService {
         RoomEditTarget target = lockEditableRoom(managerUserId, matchId);
         LocalDateTime now = now();
 
+        // 상태를 바꾸기 전에 수신자를 확정한다(바꾼 뒤에는 활성 행이 사라진다).
+        List<Long> recipients = distinctUserIds(
+                roomCommandMapper.findCancelRecipientUserIds(target.getMatchId(),
+                        ParticipationStatus.occupyingValues(), ApplicationStatus.activeValues()));
+
         int updated = roomCommandMapper.cancelRoom(target.getMatchId(), MatchStatus.CANCELLED.dbValue(),
                 EDITABLE_STATUSES, now);
         if (updated != 1) {
@@ -157,6 +170,20 @@ public class RoomCommandService {
                 ParticipationStatus.occupyingValues(), now);
         roomCommandMapper.cancelApplications(target.getMatchId(), ApplicationStatus.CANCELLED.dbValue(),
                 ApplicationStatus.activeValues(), managerUserId, now);
+
+        notificationDispatcher.notifyAfterCommit(recipients,
+                "MATCH_ROOM_CANCELLED", "매칭방이 취소되었습니다",
+                "참가 신청한 매칭방이 시설 사정으로 취소되었습니다. 매칭 화면에서 확인해 주세요.",
+                target.getMatchId(), null, null);
+    }
+
+    /** 순서를 유지하며 null·중복을 제거한다. */
+    private static List<Long> distinctUserIds(List<Long> ids) {
+        if (ids == null) {
+            return List.of();
+        }
+        return List.copyOf(ids.stream().filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new)));
     }
 
     /* ---------------- 대상 확인 ---------------- */

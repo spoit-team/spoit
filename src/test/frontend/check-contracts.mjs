@@ -756,6 +756,94 @@ for (const file of ['templates/admin/facility.html', 'templates/admin/system.htm
     `${file}: every .admin-view needs .page-heading-copy with an h1 for the keyboard focus indicator`);
 }
 
+/* ── 통합 알림 계약 ────────────────────────────────────────────────────
+   헤더 배지와 마이페이지·관리자 알림은 GET /api/notifications를 단일 원본으로 쓴다.
+   실시간 연결은 로그인 사용자만 하고, 수신 데이터는 목록 재조회 신호로만 쓴다.
+   경로·마커가 어긋나면 배지가 조용히 멈추므로 여기서 고정한다. */
+const notificationScript = await readFile(path.join(resources, 'static/js/notification-center.js'), 'utf8');
+const notificationFragment = await readFile(path.join(resources, 'templates/fragments/notification.html'), 'utf8');
+const myPageSource = await readFile(path.join(resources, 'templates/mypage/index.html'), 'utf8');
+const matchResultSource = await readFile(path.join(resources, 'templates/mypage/match-result.html'), 'utf8');
+const matchResultScript = await readFile(path.join(resources, 'static/js/match-result.js'), 'utf8');
+
+// 1) API·소켓 경로와 STOMP 구독 주소는 백엔드 계약과 같아야 한다.
+for (const [needle, message] of [
+  ['@{/api/notifications}', 'layout.html: notification config must point at GET /api/notifications'],
+  ['@{/ws/notifications}', 'layout.html: notification config must point at the native STOMP endpoint'],
+]) {
+  check(layoutSource.includes(needle), message);
+}
+check(notificationScript.includes("'/user/queue/notifications'"),
+  'notification-center.js: STOMP subscription destination must stay /user/queue/notifications');
+check(notificationScript.includes("frame('CONNECT'"),
+  'notification-center.js: the client must send a CONNECT frame before subscribing');
+check(notificationScript.includes('CONNECTED') && notificationScript.includes("frame('SUBSCRIBE'"),
+  'notification-center.js: the client must subscribe only after the broker answers CONNECTED');
+// CSRF는 CONNECT 헤더로 보낸다(같은 출처·인증 세션 유지).
+check(/headers\[csrfHeader\] = csrfToken/.test(notificationScript),
+  'notification-center.js: the CONNECT frame must carry the CSRF header');
+
+// 2) 실시간 수신 데이터를 화면에 직접 그리지 않고 목록을 다시 읽는다(텍스트 안전 렌더링).
+check(/item\.command === 'MESSAGE'[\s\S]{0,120}refresh\(\)/.test(notificationScript),
+  'notification-center.js: a MESSAGE must trigger a fresh API read instead of rendering the payload');
+check(notificationScript.includes('textContent') && !/innerHTML\s*=\s*[^;]*item\./.test(notificationScript),
+  'notification-center.js: API values must be rendered as text, never injected as HTML');
+// 이동 주소는 같은 출처의 상대 경로만 허용한다.
+check(/!trimmed\.startsWith\('\/'\)\s*\|\|\s*trimmed\.startsWith\('\/\/'\)/.test(notificationScript),
+  'notification-center.js: href values must be limited to same-origin relative paths');
+
+// 3) 비로그인은 접속·조회하지 않고, 화면을 떠나면 소켓·타이머를 정리한다.
+check(/if \(!authenticated\) return;/.test(notificationScript),
+  'notification-center.js: anonymous visitors must not open the socket or poll the API');
+check(notificationScript.includes("addEventListener('visibilitychange'")
+  && notificationScript.includes('stop();'),
+  'notification-center.js: hidden documents must release the socket and timers');
+check(notificationScript.includes("addEventListener('pagehide'"),
+  'notification-center.js: leaving the page must release the socket and timers');
+check(notificationScript.includes('scheduleReconnect') && notificationScript.includes('RECONNECT_MAX'),
+  'notification-center.js: a dropped socket must reconnect with a bounded backoff');
+
+// 4) 마이페이지·관리자 화면은 같은 API를 쓰는 공통 조각을 사용한다.
+check(myPageSource.includes('fragments/notification :: center'),
+  'mypage/index.html: the notification modal must come from the shared fragment');
+check(myPageSource.includes('data-notification-surface') && myPageSource.includes('fragments/notification :: mypageItem'),
+  'mypage/index.html: the notification section must be a live surface with the shared item template');
+check(adminSource.includes('fragments/notification :: adminItem'),
+  'admin.html: the admin notification modal must use the shared item template');
+check(adminSource.includes('@{/api/notifications}') && adminSource.includes('@{/ws/notifications}'),
+  'admin.html: the admin notification modal must carry the same API/socket config');
+// 서버 폼은 JS가 없을 때의 대체 경로로 남긴다.
+check(myPageSource.includes('@{/mypage/notifications/read-all}')
+  && myPageSource.includes('@{/mypage/notifications/{notificationId}/read(notificationId=${item.notificationId})}'),
+  'mypage/index.html: the server notification forms must stay as the no-JS path');
+check(adminSource.includes('@{/admin/notifications/read-all}')
+  && adminSource.includes('@{/admin/notifications/{id}/read(id=${item.notificationId})}'),
+  'admin.html: the server admin notification forms must stay as the no-JS path');
+
+// 5) 배지는 헤더 한 곳에서 갱신되고, 숨김 상태로 시작해 0건을 그리지 않는다.
+check(layoutSource.includes('data-notification-badge') && layoutSource.includes('th:hidden='),
+  'layout.html: the header badge must start hidden and be owned by the notification script');
+check(notificationFragment.includes('data-notification-badge') === false,
+  'notification.html: the modal fragment must not add a second badge');
+
+/* ── 경기 결과 화면 계약 ──────────────────────────────────────────────
+   확정 참가자는 요약 API만, 팀장은 팀장 전용 조회·제출 API를 쓴다.
+   화면이 다른 사용자의 결과를 그리지 않도록 경로와 노출 조건을 고정한다. */
+check(matchResultSource.includes('@{/mypage} + \'#reservations\''),
+  'match-result.html: the result screen must offer a way back to the application list');
+check(matchResultScript.includes("apiUrl('result/summary')"),
+  'match-result.js: confirmed participants must read GET /mypage/matches/{matchId}/result/summary');
+check(matchResultScript.includes("apiUrl('result')"),
+  'match-result.js: captains must use the captain-only /result API for submission');
+check(/status === 403[\s\S]{0,120}submitSection\.hidden = true/.test(matchResultScript),
+  'match-result.js: a non-captain 403 must hide the submission area instead of showing an error');
+check(matchResultScript.includes('textContent') && !/innerHTML\s*=/.test(matchResultScript),
+  'match-result.js: API values must be rendered as text, never injected as HTML');
+check(matchResultScript.includes('JSON.stringify({ result: pending })'),
+  'match-result.js: submission must post {result} to the captain-only endpoint');
+check(!/myResult/.test(matchResultSource),
+  'match-result.html: the other captain\'s submission values must not be rendered by the server');
+
 if (failures.length) {
   console.error(failures.join('\n'));
   process.exitCode = 1;

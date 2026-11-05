@@ -273,5 +273,5 @@
     }
   });
 
-  load();
+  root.addEventListener('match-result:captain', load);
 })(window);

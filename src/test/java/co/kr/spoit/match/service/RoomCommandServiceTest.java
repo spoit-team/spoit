@@ -36,6 +36,7 @@ import co.kr.spoit.match.dto.RoomCommand;
 import co.kr.spoit.match.dto.RoomEditTarget;
 import co.kr.spoit.match.dto.RoomForm;
 import co.kr.spoit.match.mapper.RoomCommandMapper;
+import co.kr.spoit.notification.service.NotificationDispatcher;
 
 /** 매칭방 생성·수정·취소의 입력 검증, 잠금·검사 순서, 신청자 유무별 수정 범위를 검증한다. */
 class RoomCommandServiceTest {
@@ -52,6 +53,7 @@ class RoomCommandServiceTest {
     private FacilityReservationService reservationService;
     private FacilityCapacityService capacityService;
     private PhotoStorage photoStorage;
+    private NotificationDispatcher notificationDispatcher;
     private RoomCommandService service;
 
     /** JPG 시그니처로 시작하는 최소 바이트 */
@@ -63,8 +65,10 @@ class RoomCommandServiceTest {
         reservationService = mock(FacilityReservationService.class);
         capacityService = mock(FacilityCapacityService.class);
         photoStorage = mock(PhotoStorage.class);
+        notificationDispatcher = mock(NotificationDispatcher.class);
         Clock clock = Clock.fixed(NOW.atZone(ZONE).toInstant(), ZONE);
-        service = new RoomCommandService(mapper, reservationService, capacityService, photoStorage, clock);
+        service = new RoomCommandService(mapper, reservationService, capacityService, photoStorage,
+                notificationDispatcher, clock);
     }
 
     /* ---------------- 생성 ---------------- */
@@ -253,12 +257,32 @@ class RoomCommandServiceTest {
     void cancelsRoomAndActiveRows() {
         givenEditable("매칭 완료", LocalDateTime.of(2026, 11, 8, 10, 0));
         given(mapper.cancelRoom(eq(MATCH_ID), eq("취소"), any(), eq(NOW))).willReturn(1);
+        given(mapper.findCancelRecipientUserIds(eq(MATCH_ID), any(), any()))
+                .willReturn(List.of(21L, 21L, 22L));
 
         service.cancel(MANAGER_ID, MATCH_ID);
 
         verify(mapper).cancelRoom(MATCH_ID, "취소", List.of("모집 중", "매칭 완료"), NOW);
         verify(mapper).cancelParticipants(MATCH_ID, "취소", List.of("대기", "확정"), NOW);
         verify(mapper).cancelApplications(MATCH_ID, "취소", List.of("대기", "확정"), MANAGER_ID, NOW);
+        // 상태 변경 전에 모은 수신자를 중복 없이 한 번만 넘긴다.
+        verify(notificationDispatcher).notifyAfterCommit(List.of(21L, 22L),
+                "MATCH_ROOM_CANCELLED", "매칭방이 취소되었습니다",
+                "참가 신청한 매칭방이 시설 사정으로 취소되었습니다. 매칭 화면에서 확인해 주세요.",
+                MATCH_ID, null, null);
+    }
+
+    @Test
+    @DisplayName("수신자는 방 상태를 바꾸기 전에 읽는다")
+    void collectsCancelRecipientsBeforeStatusChange() {
+        givenEditable("모집 중", LocalDateTime.of(2026, 11, 8, 10, 0));
+        given(mapper.cancelRoom(eq(MATCH_ID), eq("취소"), any(), eq(NOW))).willReturn(1);
+
+        service.cancel(MANAGER_ID, MATCH_ID);
+
+        InOrder order = inOrder(mapper);
+        order.verify(mapper).findCancelRecipientUserIds(eq(MATCH_ID), any(), any());
+        order.verify(mapper).cancelRoom(eq(MATCH_ID), eq("취소"), any(), eq(NOW));
     }
 
     @Test

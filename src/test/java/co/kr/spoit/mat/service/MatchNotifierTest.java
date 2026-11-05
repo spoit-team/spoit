@@ -1,15 +1,16 @@
 package co.kr.spoit.mat.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import co.kr.spoit.notification.domain.NotificationType;
-import co.kr.spoit.notification.service.NotificationService;
+import co.kr.spoit.notification.service.NotificationDispatcher;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,130 +18,64 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.support.AbstractPlatformTransactionManager;
-import org.springframework.transaction.support.DefaultTransactionStatus;
-import org.springframework.transaction.support.TransactionTemplate;
 
 @ExtendWith(MockitoExtension.class)
 class MatchNotifierTest {
 
     private static final Long MATCH_ID = 10L;
-    private static final NotificationType TYPE = NotificationType.MATCH_AUTO_ASSIGNED;
 
     @Mock
-    private ObjectProvider<NotificationService> provider;
+    private ObjectProvider<NotificationDispatcher> provider;
 
     @Mock
-    private NotificationService notificationService;
+    private NotificationDispatcher dispatcher;
 
-    private final FakeTransactionManager transactionManager = new FakeTransactionManager();
     private MatchNotifier notifier;
 
     @BeforeEach
     void setUp() {
-        notifier = new MatchNotifier(provider, transactionManager);
+        notifier = new MatchNotifier(provider);
     }
 
     @Test
-    void sendsAfterCommitInNewTransactionForEachRecipient() {
-        when(provider.getIfAvailable()).thenReturn(notificationService);
+    void delegatesCommitBoundaryToSharedDispatcher() {
+        when(provider.getIfAvailable()).thenReturn(dispatcher);
 
-        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            notifier.notifyAfterCommit(List.of(1L, 2L), MATCH_ID, TYPE, "제목", "본문");
-            verifyNoInteractions(notificationService);
-        });
+        notifier.notifyAfterCommit(List.of(1L, 2L), MATCH_ID, NotificationType.MATCH_AUTO_ASSIGNED, "제목", "본문");
 
-        verify(notificationService).notifyMatch(1L, MATCH_ID, TYPE, "제목", "본문");
-        verify(notificationService).notifyMatch(2L, MATCH_ID, TYPE, "제목", "본문");
-        assertThat(transactionManager.begun).isEqualTo(3);
+        // 알림 저장과 커밋 후 전송을 공통 dispatcher에 위임한다.
+        verify(dispatcher).notifyAfterCommit(List.of(1L, 2L), "MATCH_AUTO_ASSIGNED", "제목", "본문",
+                MATCH_ID, null, null);
     }
 
     @Test
-    void doesNotSendWhenTransactionRollsBack() {
-        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            notifier.notifyAfterCommit(List.of(1L), MATCH_ID, TYPE, "제목", "본문");
-            status.setRollbackOnly();
-        });
+    void passesTypeNameToSharedDispatcher() {
+        when(provider.getIfAvailable()).thenReturn(dispatcher);
 
-        verifyNoInteractions(provider, notificationService);
+        notifier.notifyAfterCommit(List.of(1L), MATCH_ID, NotificationType.MATCH_RESULT_COMPLETED, "제목", "본문");
+
+        verify(dispatcher).notifyAfterCommit(List.of(1L), "MATCH_RESULT_COMPLETED", "제목", "본문",
+                MATCH_ID, null, null);
     }
 
     @Test
-    void continuesWithNextRecipientWhenOneFails() {
-        when(provider.getIfAvailable()).thenReturn(notificationService);
-        doThrow(new IllegalStateException("저장 실패")).when(notificationService)
-                .notifyMatch(eq(1L), any(), any(), any(), any());
-
-        new TransactionTemplate(transactionManager).executeWithoutResult(status ->
-                notifier.notifyAfterCommit(List.of(1L, 2L), MATCH_ID, TYPE, "제목", "본문"));
-
-        verify(notificationService).notifyMatch(2L, MATCH_ID, TYPE, "제목", "본문");
-    }
-
-    @Test
-    void skipsWhenNoImplementationExists() {
+    void skipsWhenNoDispatcherExists() {
         when(provider.getIfAvailable()).thenReturn(null);
 
-        new TransactionTemplate(transactionManager).executeWithoutResult(status ->
-                notifier.notifyAfterCommit(List.of(1L), MATCH_ID, TYPE, "제목", "본문"));
+        assertThatCode(() -> notifier.notifyAfterCommit(List.of(1L), MATCH_ID, NotificationType.MATCH_AUTO_ASSIGNED,
+                "제목", "본문")).doesNotThrowAnyException();
 
-        assertThat(transactionManager.begun).isEqualTo(1);
+        verifyNoInteractions(dispatcher);
     }
 
     @Test
-    void sendsImmediatelyWithoutTransaction() {
-        when(provider.getIfAvailable()).thenReturn(notificationService);
+    void propagatesStorageFailureSoMatchWorkCanRollBack() {
+        when(provider.getIfAvailable()).thenReturn(dispatcher);
+        doThrow(new IllegalStateException("예약 실패")).when(dispatcher)
+                .notifyAfterCommit(any(), any(), any(), any(), any(), isNull(), isNull());
 
-        notifier.notifyAfterCommit(List.of(1L), MATCH_ID, TYPE, "제목", "본문");
-
-        verify(notificationService).notifyMatch(1L, MATCH_ID, TYPE, "제목", "본문");
-    }
-
-    /** DataSourceTransactionManager처럼 커밋 뒤 정리 전까지 트랜잭션이 남아 있어 REQUIRED면 참여하게 된다. */
-    private static final class FakeTransactionManager extends AbstractPlatformTransactionManager {
-
-        private int begun;
-        private boolean active;
-
-        @Override
-        protected Object doGetTransaction() {
-            return new Object();
-        }
-
-        @Override
-        protected boolean isExistingTransaction(Object transaction) {
-            return active;
-        }
-
-        @Override
-        protected void doBegin(Object transaction, TransactionDefinition definition) {
-            begun++;
-            active = true;
-        }
-
-        @Override
-        protected Object doSuspend(Object transaction) {
-            active = false;
-            return new Object();
-        }
-
-        @Override
-        protected void doResume(Object transaction, Object suspendedResources) {
-            active = true;
-        }
-
-        @Override
-        protected void doCommit(DefaultTransactionStatus status) {
-        }
-
-        @Override
-        protected void doRollback(DefaultTransactionStatus status) {
-        }
-
-        @Override
-        protected void doCleanupAfterCompletion(Object transaction) {
-            active = false;
-        }
+        assertThatThrownBy(() -> notifier.notifyAfterCommit(List.of(1L), MATCH_ID,
+                NotificationType.MATCH_RESULT_REMINDER, "제목", "본문"))
+                .isInstanceOf(IllegalStateException.class);
     }
 }

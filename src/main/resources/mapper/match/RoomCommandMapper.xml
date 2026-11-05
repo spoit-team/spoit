@@ -132,5 +132,28 @@
                    #{st}
                </foreach>
     </update>
+    <!--
+      방 취소 알림 수신자. 상태를 바꾸기 전에 읽어야 한다.
+      활성 참가자와 활성 신청자(대기·확정)를 모두 포함하고 회원 번호 기준으로 중복을 제거한다.
+    -->
+    <select id="findCancelRecipientUserIds" resultType="java.lang.Long">
+        SELECT DISTINCT recipient
+          FROM (SELECT mp.user_id AS recipient
+                  FROM match_participant mp
+                 WHERE mp.match_id = #{matchId}
+                   AND mp.participation_status IN
+                       <foreach collection="participationStatuses" item="st" open="(" separator="," close=")">
+                           #{st}
+                       </foreach>
+                 UNION
+                SELECT ma.applicant_user_id AS recipient
+                  FROM match_application ma
+                 WHERE ma.match_id = #{matchId}
+                   AND ma.status IN
+                       <foreach collection="applicationStatuses" item="st" open="(" separator="," close=")">
+                           #{st}
+                       </foreach>) recipients
+         ORDER BY recipient
+    </select>
 
 </mapper>

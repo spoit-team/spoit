@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
@@ -15,6 +17,7 @@ import static org.mockito.Mockito.verify;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +35,7 @@ import co.kr.spoit.match.mapper.MatchApplicationMapper;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.mapper.MemberMapper;
 import co.kr.spoit.member.service.MemberAccountLockService;
+import co.kr.spoit.notification.service.NotificationDispatcher;
 
 /**
  * RES-03 개인 신청이 기존 매칭방이라도 시설의 최신 운영 일정을 다시 확인하는지 검증한다.
@@ -50,6 +54,7 @@ class MatchApplicationServiceApplyTest {
     private MemberMapper memberMapper;
     private FacilityReservationService facilityReservationService;
     private MemberAccountLockService accountLockService;
+    private NotificationDispatcher notificationDispatcher;
     private MatchApplicationService service;
 
     private Member member;
@@ -60,9 +65,10 @@ class MatchApplicationServiceApplyTest {
         memberMapper = mock(MemberMapper.class);
         facilityReservationService = mock(FacilityReservationService.class);
         accountLockService = mock(MemberAccountLockService.class);
+        notificationDispatcher = mock(NotificationDispatcher.class);
         service = new MatchApplicationService(applicationMapper, memberMapper,
                 mock(SportRatingMapper.class), mock(MatchService.class), facilityReservationService,
-                accountLockService, mock(ClubService.class));
+                accountLockService, mock(ClubService.class), notificationDispatcher);
 
         member = new Member();
         member.setUserId(USER_ID);
@@ -90,6 +96,33 @@ class MatchApplicationServiceApplyTest {
         order.verify(applicationMapper).lockMatch(MATCH_ID);
         order.verify(facilityReservationService).requireAvailable(FACILITY_ID, startAt, endAt);
         order.verify(applicationMapper).insert(any(MatchApplication.class));
+    }
+
+    @Test
+    @DisplayName("신청이 접수되면 담당 시설 관리자에게 알림을 등록한다")
+    void notifiesFacilityManagerAfterApply() {
+        LocalDateTime startAt = LocalDateTime.now(KST).plusDays(1);
+        given(applicationMapper.lockMatch(MATCH_ID)).willReturn(recruitingMatch(startAt, startAt.plusHours(2)));
+        given(applicationMapper.countOccupiedSeats(anyLong(), anyList(), anyString())).willReturn(0);
+        given(applicationMapper.insert(any(MatchApplication.class))).willReturn(1);
+        given(applicationMapper.findFacilityManagerUserIds(MATCH_ID)).willReturn(List.of(30L));
+
+        service.applyIndividual(MATCH_ID, USER_ID);
+
+        verify(notificationDispatcher).notifyAfterCommit(eq(List.of(30L)), eq("MATCH_APPLICATION_RECEIVED"),
+                anyString(), anyString(), eq(MATCH_ID), any(), isNull());
+    }
+
+    @Test
+    @DisplayName("신청이 거부되면 알림을 등록하지 않는다")
+    void doesNotNotifyWhenApplyRejected() {
+        given(applicationMapper.findFacilityId(MATCH_ID)).willReturn(null);
+
+        assertThatThrownBy(() -> service.applyIndividual(MATCH_ID, USER_ID))
+                .isInstanceOf(MatchApplyException.class);
+
+        verify(notificationDispatcher, never()).notifyAfterCommit(anyList(), anyString(), anyString(),
+                anyString(), any(), any(), any());
     }
 
     @Test

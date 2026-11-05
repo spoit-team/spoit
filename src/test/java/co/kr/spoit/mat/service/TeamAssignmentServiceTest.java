@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -80,6 +81,9 @@ class TeamAssignmentServiceTest {
         verify(assignmentMapper).updateMatchSide(MATCH_ID, List.of(1L, 6L), "B", "확정");
         verify(assignmentMapper).markAssigned(eq(MATCH_ID), eq("MANUAL"), eq(MANAGER_ID), any(LocalDateTime.class),
                 eq(4L), eq(1L), eq("매칭 완료"), eq("모집 중"));
+        // 관리자 수동 배정 성공도 확정 참가자에게만 배정 완료를 알린다. 대기 참가자(103)는 제외된다.
+        verify(matchNotifier, times(1)).notifyAfterCommit(List.of(101L, 102L, 104L, 106L), MATCH_ID,
+                NotificationType.MATCH_AUTO_ASSIGNED, "경기 팀 배정 완료", "관리자가 수동 배정으로 팀을 확정했습니다.");
     }
 
     static Stream<Arguments> invalidTeams() {
@@ -117,6 +121,8 @@ class TeamAssignmentServiceTest {
         verify(assignmentMapper).updateMatchSide(MATCH_ID, List.of(4L, 6L), "B", "확정");
         verify(assignmentMapper).markAssigned(eq(MATCH_ID), eq("AUTO"), eq(MANAGER_ID), any(LocalDateTime.class),
                 eq(1L), eq(4L), eq("매칭 완료"), eq("모집 중"));
+        verify(matchNotifier).notifyAfterCommit(List.of(101L, 102L, 104L, 106L), MATCH_ID,
+                NotificationType.MATCH_AUTO_ASSIGNED, "경기 팀 배정 완료", "관리자가 자동 배정으로 팀을 확정했습니다.");
     }
 
     @Test
