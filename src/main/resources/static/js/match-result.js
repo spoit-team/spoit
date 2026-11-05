@@ -273,9 +273,63 @@
     setField('side', sideText(summary.mySide));
     setField('resultStatus', resultStatusText(summary.resultStatus));
     setField('ratingStatus', ratingText(summary.ratingStatus));
+    setField('schedule', summary.scheduleLabel);
+    setField('facility', summary.facilityName);
+    setField('deadline', summary.deadlineLabel);
     setField('title', summary.finalResult
       ? '최종 결과 ' + resultText(summary.finalResult)
       : '경기 결과를 확인하고 있습니다');
+    renderTeams();
+  }
+
+  /* A/B팀 로스터. 서버가 확정 참가자의 닉네임만 주므로 화면은 그 값을 textContent로만 그린다. */
+  function renderTeams() {
+    const container = root.querySelector('[data-result-teams]');
+    if (!container) return;
+    container.replaceChildren();
+    const teams = Array.isArray(summary.teams) ? summary.teams : [];
+    teams.forEach(function (team) {
+      const section = document.createElement('section');
+      section.className = 'match-result-team' + (team.mine ? ' is-mine' : '');
+      section.setAttribute('aria-label', sideText(team.side) + ' 참가자');
+
+      const heading = document.createElement('h3');
+      const dot = document.createElement('i');
+      if (team.side === 'A' || team.side === 'B') dot.className = 'is-team-' + team.side.toLowerCase();
+      const name = document.createElement('span');
+      name.textContent = sideText(team.side);
+      heading.append(dot, name);
+      if (team.mine) {
+        const mine = document.createElement('small');
+        mine.textContent = '우리 팀';
+        heading.appendChild(mine);
+      }
+
+      const list = document.createElement('ul');
+      const members = Array.isArray(team.members) ? team.members : [];
+      members.forEach(function (member) {
+        const item = document.createElement('li');
+        const nickname = document.createElement('span');
+        nickname.textContent = member.nickname || '—';
+        item.appendChild(nickname);
+        if (member.captain) {
+          const badge = document.createElement('b');
+          badge.className = 'match-result-captain';
+          badge.textContent = '팀장';
+          item.appendChild(badge);
+        }
+        list.appendChild(item);
+      });
+      if (members.length === 0) {
+        const empty = document.createElement('li');
+        empty.className = 'match-result-team-empty';
+        empty.textContent = '배정된 참가자가 없습니다.';
+        list.appendChild(empty);
+      }
+
+      section.append(heading, list);
+      container.appendChild(section);
+    });
   }
 
   function renderState() {

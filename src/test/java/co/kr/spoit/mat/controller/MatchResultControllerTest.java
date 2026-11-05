@@ -27,6 +27,7 @@ import co.kr.spoit.member.security.MemberLoginFailureHandler;
 import co.kr.spoit.member.security.MemberLoginSuccessHandler;
 import co.kr.spoit.member.service.MemberUserDetailsService;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -86,7 +87,10 @@ class MatchResultControllerTest {
     @Test
     void returnsParticipantSummary() throws Exception {
         given(matchResultService.getSummary(10L, 7L)).willReturn(Optional.of(
-                new MatchResultSummary(10L, "종료", "CONFIRMED", "APPLIED", "A_WIN", "A", null)));
+                new MatchResultSummary(10L, "종료", "CONFIRMED", "APPLIED", "A_WIN", "A", null,
+                        "2026년 10월 30일 (금) 18:00 ~ 20:00", "MAT 테스트 시설", "2026년 10월 31일 (토) 20:00",
+                        List.of(new MatchResultSummary.Team("A", true,
+                                List.of(new MatchResultSummary.Member("에이스", true)))))));
 
         mockMvc.perform(get(SUMMARY_URL).with(user(member())))
                 .andExpect(status().isOk())
@@ -94,7 +98,9 @@ class MatchResultControllerTest {
                 .andExpect(jsonPath("$.resultStatus").value("CONFIRMED"))
                 .andExpect(jsonPath("$.ratingStatus").value("APPLIED"))
                 .andExpect(jsonPath("$.mySide").value("A"))
-                .andExpect(jsonPath("$.myResult").value(org.hamcrest.Matchers.nullValue()));
+                .andExpect(jsonPath("$.myResult").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.facilityName").value("MAT 테스트 시설"))
+                .andExpect(jsonPath("$.teams[0].members[0].nickname").value("에이스"));
     }
 
     @Test
