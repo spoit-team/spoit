@@ -48,7 +48,7 @@
     const transfer = target.closest('[data-team-transfer]');
     if (transfer) {
       document.getElementById('team-transfer-member-id').value = transfer.dataset.memberId || '';
-      document.getElementById('team-transfer-member-name').textContent = transfer.dataset.memberName || '팀원';
+      document.getElementById('team-transfer-member-name').textContent = transfer.dataset.memberName || '동호회원';
       openDialog(document.getElementById('team-transfer-dialog'), '.team-dialog-close');
       return;
     }
@@ -56,7 +56,7 @@
     const remove = target.closest('[data-team-remove-member]');
     if (remove) {
       document.getElementById('team-remove-member-id').value = remove.dataset.memberId || '';
-      document.getElementById('team-remove-member-name').textContent = remove.dataset.memberName || '팀원';
+      document.getElementById('team-remove-member-name').textContent = remove.dataset.memberName || '동호회원';
       document.getElementById('team-remove-reason').value = '';
       openDialog(document.getElementById('team-remove-dialog'), '#team-remove-reason');
       return;
@@ -153,7 +153,7 @@
     }
     event.preventDefault();
     if (error) {
-      error.textContent = '입력한 팀 이름이 일치하지 않습니다.';
+      error.textContent = '입력한 동호회 이름이 일치하지 않습니다.';
       error.hidden = false;
     }
     input.focus();

@@ -141,15 +141,15 @@ public class ClubServiceImpl implements ClubService {
         // 1. 브라우저 입력 정리, 검사
         String clubName = trim(form.getClubName());
         if (clubName.isEmpty() || clubName.length() > NAME_MAX_LENGTH) {
-            throw new IllegalArgumentException("팀 이름은 1~30자로 입력해 주세요.");
+            throw new IllegalArgumentException("동호회 이름은 1~30자로 입력해 주세요.");
         }
         String intro = trim(form.getIntro());
         if (intro.isEmpty() || intro.length() > INTRO_MAX_LENGTH) {
-            throw new IllegalArgumentException("팀 소개는 1~240자로 입력해 주세요.");
+            throw new IllegalArgumentException("동호회 소개는 1~240자로 입력해 주세요.");
         }
         Integer maxMembers = form.getMaxMembers();
         if (maxMembers == null || maxMembers < MIN_MEMBERS || maxMembers > MAX_MEMBERS) {
-            throw new IllegalArgumentException("최대 팀원 수는 2~30명으로 입력해주세요.");
+            throw new IllegalArgumentException("최대 동호회원 수는 2~30명으로 입력해주세요.");
         }
         String activityDays = normalizeDays(form.getActivityDays());
         LocalTime start = form.getActivityStartTime();
@@ -192,10 +192,10 @@ public class ClubServiceImpl implements ClubService {
         }
         ClubSummary existingClub = getActiveClubForUpdate(clubId);
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
-            throw new IllegalArgumentException("팀장만 팀 정보를 수정할 수 있습니다.");
+            throw new IllegalArgumentException("동호회장만 동호회 정보를 수정할 수 있습니다.");
         }
         if (club.getMaxMembers() < clubMapper.countActiveMembers(clubId)) {
-            throw new IllegalArgumentException("최대 팀원 수는 현재 팀원 수보다 작을 수 없습니다.");
+            throw new IllegalArgumentException("최대 동호회원 수는 현재 동호회원 수보다 작을 수 없습니다.");
         }
         if (clubMapper.existsOtherActiveClubName(clubId, club.getClubName())) {
             throw new ClubNameExistException();
@@ -258,7 +258,7 @@ public class ClubServiceImpl implements ClubService {
 
         // 내 동호회가 아니면 거부
         if (!clubMapper.existsActiveMember(targetClubId, userId)) {
-            throw new IllegalArgumentException("내가 속한 팀만 관리할 수 있습니다.");
+            throw new IllegalArgumentException("내가 속한 동호회만 관리할 수 있습니다.");
         }
 
         ClubSummary club = clubMapper.selectClubDetail(targetClubId);
@@ -303,16 +303,16 @@ public class ClubServiceImpl implements ClubService {
 
         // 3. 신청 가능검사
         if (clubMapper.existsActiveMember(clubId, userId)) {
-            throw new IllegalArgumentException("이미 소속된 팀입니다.");
+            throw new IllegalArgumentException("이미 소속된 동호회입니다.");
         }
         if (clubMapper.selectMyPendingJoinRequestId(clubId, userId) != null) {
             throw new IllegalArgumentException("이미 가입 신청을 보냈습니다.");
         }
         if (!"모집중".equals(club.getRecruitStatus())) {
-            throw new IllegalArgumentException("모집이 마감된 팀입니다.");
+            throw new IllegalArgumentException("모집이 마감된 동호회입니다.");
         }
         if (clubMapper.countActiveMembers(clubId) >= club.getMaxMembers()) {
-            throw new IllegalArgumentException("정원이 가득 찬 팀입니다.");
+            throw new IllegalArgumentException("정원이 가득 찬 동호회입니다.");
         }
 
         // 4. 저장
@@ -326,14 +326,14 @@ public class ClubServiceImpl implements ClubService {
     public void approveJoin(Long userId, Long clubId, Long joinRequestId) {
         ClubSummary club = getActiveClubForUpdate(clubId);
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
-            throw new IllegalArgumentException("팀장만 가입 신청을 처리할 수 있습니다.");
+            throw new IllegalArgumentException("동호회장만 가입 신청을 처리할 수 있습니다.");
         }
         ClubJoinRequest request = clubMapper.selectPendingJoinRequestById(clubId, joinRequestId);
         if (request == null) {
             throw new IllegalArgumentException("이미 처리된 가입 신청입니다.");
         }
         if (clubMapper.countActiveMembers(clubId) >= club.getMaxMembers()) {
-            throw new IllegalArgumentException("정원이 가득 찬 팀입니다.");
+            throw new IllegalArgumentException("정원이 가득 찬 동호회입니다.");
         }
         clubMapper.updateJoinRequestStatus(joinRequestId, "승인");
         clubMapper.insertJoinedMember(clubId, request.getUserId());
@@ -346,7 +346,7 @@ public class ClubServiceImpl implements ClubService {
     public void rejectJoin(Long userId, Long clubId, Long joinRequestId) {
         getActiveClubForUpdate(clubId);
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
-            throw new IllegalArgumentException("팀장만 가입 신청을 처리할 수 있습니다.");
+            throw new IllegalArgumentException("동호회장만 가입 신청을 처리할 수 있습니다.");
         }
         if (clubMapper.selectPendingJoinRequestById(clubId, joinRequestId) == null) {
             throw new IllegalArgumentException("이미 처리된 가입 신청입니다.");
@@ -371,7 +371,7 @@ public class ClubServiceImpl implements ClubService {
     private ClubSummary getActiveClubForUpdate(Long clubId) {
         ClubSummary club = clubMapper.selectActiveClubForUpdate(clubId);
         if (club == null) {
-            throw new IllegalArgumentException("팀 정보를 찾을 수 없습니다.");
+            throw new IllegalArgumentException("동호회 정보를 찾을 수 없습니다.");
         }
         return club;
     }
@@ -382,20 +382,20 @@ public class ClubServiceImpl implements ClubService {
     public void transferLeader(Long userId, Long clubId, Long clubMemberId) {
         getActiveClubForUpdate(clubId);
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
-            throw new IllegalArgumentException("팀장만 위임할 수 있습니다.");
+            throw new IllegalArgumentException("동호회장만 위임할 수 있습니다.");
         }
         // 위임 대상의 회원 행을 동호회 다음에 잠근다. 잠금 순서(동호회 → 계정)를 지키고,
         // 잠근 뒤 최신 값으로 탈퇴를 확인해야 탈퇴한 회원이 회장이 되는 일이 없다.
         ClubMember target = clubMapper.selectActiveMemberById(clubId, clubMemberId);
         if (target == null) {
-            throw new IllegalArgumentException("위임할 수 없는 팀원입니다.");
+            throw new IllegalArgumentException("위임할 수 없는 동호회원입니다.");
         }
         Member recipient = accountLockService.lockById(target.getUserId());
         if (recipient == null || recipient.getDeletedAt() != null) {
-            throw new IllegalArgumentException("위임할 수 없는 팀원입니다.");
+            throw new IllegalArgumentException("위임할 수 없는 동호회원입니다.");
         }
         if (clubMapper.updateRoleToLeader(clubId, clubMemberId) == 0) {
-            throw new IllegalArgumentException("위임할 수 없는 팀원입니다.");
+            throw new IllegalArgumentException("위임할 수 없는 동호회원입니다.");
         }
         clubMapper.updateRoleToMember(clubId, userId);
         log.info("동호회장 위임: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
@@ -407,13 +407,13 @@ public class ClubServiceImpl implements ClubService {
     public void leaveClub(Long userId, Long clubId) {
         getActiveClubForUpdate(clubId);
         if (clubMapper.existsActiveLeader(clubId, userId)) {
-            throw new IllegalArgumentException("팀장은 탈퇴할 수 없습니다. 팀장을 위임한 뒤 탈퇴해 주세요.");
+            throw new IllegalArgumentException("동호회장은 탈퇴할 수 없습니다. 동호회장을 위임한 뒤 탈퇴해 주세요.");
         }
         if (clubMapper.existsRecruitingTeamMatch(clubId, userId)) {
             throw new IllegalArgumentException("모집 중인 팀 매치에 신청되어 있어 탈퇴할 수 없습니다.");
         }
         if (clubMapper.updateMemberLeave(clubId, userId) == 0) {
-            throw new IllegalArgumentException("이미 탈퇴했거나 소속되지 않은 팀입니다.");
+            throw new IllegalArgumentException("이미 탈퇴했거나 소속되지 않은 동호회입니다.");
         }
         log.info("동호회 탈퇴: clubId={}, userId={}", clubId, userId);
     }
@@ -428,14 +428,14 @@ public class ClubServiceImpl implements ClubService {
         }
         getActiveClubForUpdate(clubId);
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
-            throw new IllegalArgumentException("팀장만 팀원을 추방할 수 있습니다.");
+            throw new IllegalArgumentException("동호회장만 동호회원을 추방할 수 있습니다.");
         }
         ClubMember target = clubMapper.selectActiveMemberById(clubId, clubMemberId);
         if (target == null) {
-            throw new IllegalArgumentException("추방할 수 없는 팀원입니다.");
+            throw new IllegalArgumentException("추방할 수 없는 동호회원입니다.");
         }
         if (clubMapper.existsRecruitingTeamMatch(clubId, target.getUserId())) {
-            throw new IllegalArgumentException("모집 중인 팀 매치에 신청된 팀원은 추방할 수 없습니다.");
+            throw new IllegalArgumentException("모집 중인 팀 매치에 신청된 동호회원은 추방할 수 없습니다.");
         }
         clubMapper.updateMemberKick(clubId, clubMemberId, reason);
         log.info("동호회원 추방: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
@@ -447,14 +447,14 @@ public class ClubServiceImpl implements ClubService {
     public void disbandClub(Long userId, Long clubId, String clubNameConfirmation) {
         ClubSummary club = getActiveClubForUpdate(clubId);
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
-            throw new IllegalArgumentException("팀장만 팀을 해체할 수 있습니다.");
+            throw new IllegalArgumentException("동호회장만 동호회를 해체할 수 있습니다.");
         }
         // 잠근 행의 이름과 비교
         if (!trim(clubNameConfirmation).equals(club.getClubName())) {
-            throw new IllegalArgumentException("입력한 팀 이름이 일치하지 않습니다.");
+            throw new IllegalArgumentException("입력한 동호회 이름이 일치하지 않습니다.");
         }
         if (clubMapper.countActiveMembers(clubId) > 1) {
-            throw new IllegalArgumentException("팀장 외 다른 팀원이 남아 있어 해체할 수 없습니다. 팀원을 먼저 정리해 주세요.");
+            throw new IllegalArgumentException("동호회장 외 다른 동호회원이 남아 있어 해체할 수 없습니다. 동호회원을 먼저 정리해 주세요.");
         }
         // userId 없이 동호회 전체 확인
         if (clubMapper.existsRecruitingTeamMatch(clubId, null)) {

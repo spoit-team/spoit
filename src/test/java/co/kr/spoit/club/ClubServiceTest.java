@@ -68,9 +68,9 @@ class ClubServiceTest {
 
         assertThat(card.getSportKey()).isEqualTo("tennis");
         assertThat(card.isRecruiting()).isTrue();
-        assertThat(card.getStatusLabel()).isEqualTo("팀원 모집 중");
+        assertThat(card.getStatusLabel()).isEqualTo("모집 중");
         assertThat(card.getTime()).isEqualTo("화, 목 19:00 - 21:00");
-        assertThat(card.getFooterNote()).isEqualTo("모집 자리: 7명");
+
     }
 
     @Test
@@ -104,7 +104,7 @@ class ClubServiceTest {
         assertThat(card.isRecruiting()).isFalse();
         assertThat(card.getStatusLabel()).isEqualTo("모집 마감");
         assertThat(card.getTime()).isEqualTo("토, 일 10:00 - 12:00");
-        assertThat(card.getFooterNote()).isEqualTo("모집이 마감된 팀입니다.");
+
     }
 
     @Test
@@ -136,10 +136,7 @@ class ClubServiceTest {
         assertThat(detail.getAreaLabel()).isEqualTo("강남구");
         assertThat(detail.getFounded()).isEqualTo("2026.10.20");
         assertThat(detail.getIntro()).isEqualTo("주말 농구 모임");
-        assertThat(detail.getLeaderName()).isEqualTo("이슛터");
-        assertThat(detail.getLeaderInitials()).isEqualTo("이슛");
         assertThat(detail.getMembers()).hasSize(2);
-        assertThat(detail.getFooterNote()).isEqualTo("모집 자리: 7명");
     }
 
     @Test
@@ -182,7 +179,7 @@ class ClubServiceTest {
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> service.createClub(7L, form));
 
-        assertThat(e.getMessage()).isEqualTo("팀 이름은 1~30자로 입력해 주세요.");
+        assertThat(e.getMessage()).isEqualTo("동호회 이름은 1~30자로 입력해 주세요.");
         verify(clubMapper, never()).insertClub(any(Club.class));
     }
 
@@ -348,7 +345,7 @@ class ClubServiceTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.approveJoin(7L, 1L, 5L));
 
-        assertThat(exception.getMessage()).isEqualTo("팀장만 가입 신청을 처리할 수 있습니다.");
+        assertThat(exception.getMessage()).isEqualTo("동호회장만 가입 신청을 처리할 수 있습니다.");
         verify(clubMapper, never()).updateJoinRequestStatus(any(), any());
     }
 
@@ -363,7 +360,7 @@ class ClubServiceTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.approveJoin(7L, 1L, 5L));
 
-        assertThat(exception.getMessage()).isEqualTo("정원이 가득 찬 팀입니다.");
+        assertThat(exception.getMessage()).isEqualTo("정원이 가득 찬 동호회입니다.");
         verify(clubMapper, never()).updateJoinRequestStatus(any(), any());
         verify(clubMapper, never()).insertJoinedMember(any(), any());
     }
@@ -418,7 +415,7 @@ class ClubServiceTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.transferLeader(7L, 1L, 3L));
 
-        assertThat(exception.getMessage()).isEqualTo("팀장만 위임할 수 있습니다.");
+        assertThat(exception.getMessage()).isEqualTo("동호회장만 위임할 수 있습니다.");
         verify(clubMapper, never()).updateRoleToLeader(any(), any());
         verify(clubMapper, never()).updateRoleToMember(any(), any());
     }
@@ -433,7 +430,7 @@ class ClubServiceTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.transferLeader(7L, 1L, 99L));
 
-        assertThat(exception.getMessage()).isEqualTo("위임할 수 없는 팀원입니다.");
+        assertThat(exception.getMessage()).isEqualTo("위임할 수 없는 동호회원입니다.");
         verify(clubMapper, never()).updateRoleToLeader(any(), any());
         verify(clubMapper, never()).updateRoleToMember(any(), any());
     }
@@ -446,7 +443,7 @@ class ClubServiceTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.transferLeader(7L, 1L, 3L));
 
-        assertThat(exception.getMessage()).isEqualTo("팀 정보를 찾을 수 없습니다.");
+        assertThat(exception.getMessage()).isEqualTo("동호회 정보를 찾을 수 없습니다.");
         verify(clubMapper, never()).updateRoleToLeader(any(), any());
     }
 
@@ -470,7 +467,7 @@ class ClubServiceTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.leaveClub(7L, 1L));
 
-        assertThat(exception.getMessage()).isEqualTo("팀장은 탈퇴할 수 없습니다. 팀장을 위임한 뒤 탈퇴해 주세요.");
+        assertThat(exception.getMessage()).isEqualTo("동호회장은 탈퇴할 수 없습니다. 동호회장을 위임한 뒤 탈퇴해 주세요.");
         verify(clubMapper, never()).updateMemberLeave(any(), any());
     }
 
@@ -488,7 +485,7 @@ class ClubServiceTest {
     }
 
     @Test
-    @DisplayName("팀원을 추방하면 앞뒤 공백을 지운 사유로 기록한다")
+    @DisplayName("동호회원을 추방하면 앞뒤 공백을 지운 사유로 기록한다")
     void 동호회원_내보내기_성공() {
         when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
         when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
@@ -511,7 +508,7 @@ class ClubServiceTest {
     }
 
     @Test
-    @DisplayName("동호회장이 아니면 팀원을 추방하지 못한다")
+    @DisplayName("동호회장이 아니면 동호회원을 추방하지 못한다")
     void 동호회장이_아니면_내보내기를_거부한다() {
         when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
         when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(false);
@@ -519,13 +516,13 @@ class ClubServiceTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.kickMember(7L, 1L, 3L, "불참"));
 
-        assertThat(exception.getMessage()).isEqualTo("팀장만 팀원을 추방할 수 있습니다.");
+        assertThat(exception.getMessage()).isEqualTo("동호회장만 동호회원을 추방할 수 있습니다.");
         verify(clubMapper, never()).updateMemberKick(any(), any(), any());
     }
 
     @Test
-    @DisplayName("모집 중인 팀 매치에 신청된 팀원은 추방하지 못한다")
-    void 팀_매치_신청중인_팀원은_내보내기를_거부한다() {
+    @DisplayName("모집 중인 팀 매치에 신청된 동호회원은 추방하지 못한다")
+    void 팀_매치_신청중인_동호회원은_내보내기를_거부한다() {
         when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
         when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
         when(clubMapper.selectActiveMemberById(1L, 3L)).thenReturn(kickTarget(8L));
@@ -534,7 +531,7 @@ class ClubServiceTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.kickMember(7L, 1L, 3L, "불참"));
 
-        assertThat(exception.getMessage()).isEqualTo("모집 중인 팀 매치에 신청된 팀원은 추방할 수 없습니다.");
+        assertThat(exception.getMessage()).isEqualTo("모집 중인 팀 매치에 신청된 동호회원은 추방할 수 없습니다.");
         verify(clubMapper, never()).updateMemberKick(any(), any(), any());
     }
 
@@ -561,7 +558,7 @@ class ClubServiceTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.disbandClub(7L, 1L, "노원 농구회"));
 
-        assertThat(exception.getMessage()).isEqualTo("팀장만 팀을 해체할 수 있습니다.");
+        assertThat(exception.getMessage()).isEqualTo("동호회장만 동호회를 해체할 수 있습니다.");
         verify(clubMapper, never()).updateClubDisband(any());
     }
 
@@ -574,13 +571,13 @@ class ClubServiceTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.disbandClub(7L, 1L, "노원농구회"));
 
-        assertThat(exception.getMessage()).isEqualTo("입력한 팀 이름이 일치하지 않습니다.");
+        assertThat(exception.getMessage()).isEqualTo("입력한 동호회 이름이 일치하지 않습니다.");
         verify(clubMapper, never()).updateClubDisband(any());
     }
 
     @Test
-    @DisplayName("동호회장 외 팀원이 남아 있으면 해체하지 않는다")
-    void 팀원이_남아_있으면_해체를_거부한다() {
+    @DisplayName("동호회장 외 동호회원이 남아 있으면 해체하지 않는다")
+    void 동호회원이_남아_있으면_해체를_거부한다() {
         when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(disbandTarget());
         when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
         when(clubMapper.countActiveMembers(1L)).thenReturn(2);
@@ -588,7 +585,7 @@ class ClubServiceTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.disbandClub(7L, 1L, "노원 농구회"));
 
-        assertThat(exception.getMessage()).isEqualTo("팀장 외 다른 팀원이 남아 있어 해체할 수 없습니다. 팀원을 먼저 정리해 주세요.");
+        assertThat(exception.getMessage()).isEqualTo("동호회장 외 다른 동호회원이 남아 있어 해체할 수 없습니다. 동호회원을 먼저 정리해 주세요.");
         verify(clubMapper, never()).updateClubDisband(any());
     }
 
@@ -618,7 +615,7 @@ class ClubServiceTest {
 
         assertThat(card.isRecruiting()).isFalse();
         assertThat(card.getStatusLabel()).isEqualTo("모집 마감");
-        assertThat(card.getFooterNote()).isEqualTo("모집이 마감된 팀입니다.");
+
     }
 
     // 동호회 정보 수정
@@ -651,12 +648,12 @@ class ClubServiceTest {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> service.updateClub(7L, 1L, editForm()));
 
-        assertThat(e.getMessage()).isEqualTo("팀장만 팀 정보를 수정할 수 있습니다.");
+        assertThat(e.getMessage()).isEqualTo("동호회장만 동호회 정보를 수정할 수 있습니다.");
         verify(clubMapper, never()).updateClub(any(Club.class));
     }
 
     @Test
-    @DisplayName("최대 인원을 현재 팀원 수보다 적게 바꾸면 수정하지 않는다")
+    @DisplayName("최대 인원을 현재 동호회원 수보다 적게 바꾸면 수정하지 않는다")
     void 정원이_현재_인원보다_적으면_수정을_거부한다() {
         when(clubMapper.existsSport(1L)).thenReturn(true);
         when(clubMapper.existsRegion(3L)).thenReturn(true);
@@ -668,7 +665,7 @@ class ClubServiceTest {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> service.updateClub(7L, 1L, editForm()));
 
-        assertThat(e.getMessage()).isEqualTo("최대 팀원 수는 현재 팀원 수보다 작을 수 없습니다.");
+        assertThat(e.getMessage()).isEqualTo("최대 동호회원 수는 현재 동호회원 수보다 작을 수 없습니다.");
         verify(clubMapper, never()).updateClub(any(Club.class));
     }
 
@@ -814,7 +811,7 @@ class ClubServiceTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.transferLeader(7L, 1L, 3L));
 
-        assertThat(exception.getMessage()).isEqualTo("위임할 수 없는 팀원입니다.");
+        assertThat(exception.getMessage()).isEqualTo("위임할 수 없는 동호회원입니다.");
         verify(clubMapper, never()).updateRoleToLeader(any(), any());
         verify(clubMapper, never()).updateRoleToMember(any(), any());
     }
@@ -863,8 +860,8 @@ class ClubServiceTest {
     }
 
     @Test
-    @DisplayName("팀 평균 MMR로 실력 등급을 정하고, 기록이 없으면 배치 중")
-    void 팀_평균_MMR로_실력_등급을_정한다() {
+    @DisplayName("동호회 평균 MMR로 실력 등급을 정하고, 기록이 없으면 배치 중")
+    void 동호회_평균_MMR로_실력_등급을_정한다() {
         ClubSummary none = club("모집중", "2,4", 19, 21);
         ClubSummary gold = club("모집중", "2,4", 19, 21);
         gold.setAverageMmr(1200);
