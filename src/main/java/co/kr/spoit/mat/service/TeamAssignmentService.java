@@ -86,6 +86,7 @@ public class TeamAssignmentService {
         List<TeamAssignmentView.Participant> participants = assignmentMapper
                 .findConfirmedMembers(matchId, ParticipationStatus.CONFIRMED.dbValue()).stream()
                 .map(m -> new TeamAssignmentView.Participant(m.getParticipantId(), m.getNickname(),
+                        m.getClubName() == null || m.getClubName().isBlank() ? null : m.getClubName().strip(),
                         m.getEntryMmr(), m.getMatchSide(), isCaptain(match, m)))
                 .toList();
         return Optional.of(new TeamAssignmentView(matchId, match.getStartAt(), match.getTeamACapacity(),

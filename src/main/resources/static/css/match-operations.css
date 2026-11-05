@@ -152,6 +152,43 @@
   margin-block: -2px;
 }
 
+/* ── 참가 신청 승인·반려 ─────────────────────────────────── */
+/* 동호회 신청은 이름 옆에 동호회명을 작은 배지로 붙인다. */
+.ops-club-chip {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--admin-blue-soft);
+  color: var(--admin-blue-ink);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
+.ops-decision-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ops-decision-none {
+  color: var(--admin-muted);
+}
+
+.application-decision-modal {
+  width: min(100%, 420px);
+}
+
+.application-decision-modal .modal-body p {
+  margin: 0;
+  color: var(--admin-ink-2);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
 /* ── 팀 배정 ──────────────────────────────────────────────── */
 .ops-assignment-summary {
   margin: 6px 0 12px;

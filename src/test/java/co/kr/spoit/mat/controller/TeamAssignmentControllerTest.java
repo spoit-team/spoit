@@ -62,8 +62,8 @@ class TeamAssignmentControllerTest {
     void returnsAssignmentView() throws Exception {
         var view = new TeamAssignmentView(10L, LocalDateTime.of(2026, 10, 24, 10, 0), 1, 2, true, "MANUAL",
                 false, true, List.of(
-                new TeamAssignmentView.Participant(1L, "회원1", new BigDecimal("1200.00"), "A", true),
-                new TeamAssignmentView.Participant(2L, "회원2", new BigDecimal("900.00"), "B", true)));
+                new TeamAssignmentView.Participant(1L, "회원1", "주말 풋살 클럽", new BigDecimal("1200.00"), "A", true),
+                new TeamAssignmentView.Participant(2L, "회원2", null, new BigDecimal("900.00"), "B", true)));
         given(teamAssignmentService.getView(10L, 7L)).willReturn(Optional.of(view));
 
         mockMvc.perform(get(BASE + "/assignment").with(user(manager())))
@@ -73,6 +73,7 @@ class TeamAssignmentControllerTest {
                 .andExpect(jsonPath("$.assigned").value(true))
                 .andExpect(jsonPath("$.canReset").value(true))
                 .andExpect(jsonPath("$.participants[0].nickname").value("회원1"))
+                .andExpect(jsonPath("$.participants[0].clubName").value("주말 풋살 클럽"))
                 .andExpect(jsonPath("$.participants[1].side").value("B"));
     }
 

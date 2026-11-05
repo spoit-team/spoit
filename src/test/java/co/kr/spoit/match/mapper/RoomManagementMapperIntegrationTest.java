@@ -167,14 +167,14 @@ class RoomManagementMapperIntegrationTest {
     void readsApplicationsAndParticipantsInOrder() {
         var applications = roomManagementMapper.findApplications(query(MANAGER_A, 9401L, null, null, null));
         assertThat(applications)
-                .extracting(RoomManagementApplicationRow::getReceiptNo,
+                .extracting(RoomManagementApplicationRow::getApplicationId,
                         RoomManagementApplicationRow::getApplicationType,
                         RoomManagementApplicationRow::getStatus)
                 .containsExactly(
-                        tuple("ROOM-TEST-9501", "개인", "대기"),
-                        tuple("ROOM-TEST-9502", "개인", "확정"),
-                        tuple("ROOM-TEST-9503", "개인", "취소"),
-                        tuple("ROOM-TEST-9504", "동호회", "대기"));
+                        tuple(9501L, "개인", "대기"),
+                        tuple(9502L, "개인", "확정"),
+                        tuple(9503L, "개인", "취소"),
+                        tuple(9504L, "동호회", "대기"));
         assertThat(applications.get(3).getClubName()).isEqualTo("Match 테스트 동호회");
 
         var participants = roomManagementMapper.findParticipants(query(MANAGER_A, 9401L, null, null, null));
@@ -220,17 +220,64 @@ class RoomManagementMapperIntegrationTest {
     }
 
     @Test
-    @DisplayName("서비스 상세는 신청·참가자 컬렉션을 항상 채우고 방 상태를 정확히 표기한다")
+    @DisplayName("서비스 상세는 배정 전 모든 신청을 보여 주고, 배정 후 확정 신청을 참가자 표로 옮긴다")
     void serviceBuildsDetailCollections() {
         var detail = roomManagementService.findDetail(MANAGER_A, 9401L);
 
         assertThat(detail).isNotNull();
         assertThat(detail.getStatusLabel()).isEqualTo("모집 중");
+        assertThat(detail.isTeamAssigned()).isFalse();
         assertThat(detail.getApplications()).hasSize(4);
-        assertThat(detail.getParticipants()).hasSize(1);
+        assertThat(detail.getParticipants()).isEmpty();
         assertThat(detail.getApplications().get(0).getCreatedAtLabel()).isEqualTo("2026-11-01 10:00");
-        assertThat(detail.getApplications().get(3).getApplicantName()).isEqualTo("Match 테스트 동호회");
+        assertThat(detail.getApplications().get(3).getApplicantName()).isEqualTo("호스트비");
+        assertThat(detail.getApplications().get(3).getClubName()).isEqualTo("Match 테스트 동호회");
         assertThat(detail.getApplications().get(3).getKindLabel()).isEqualTo("동호회 신청");
+    }
+
+    @Test
+    @DisplayName("팀 배정이 끝난 방의 상세는 확정 신청을 참가자 표로 옮기고 반려·취소·대기 기록은 남긴다")
+    void serviceMovesConfirmedApplicationsAfterAssignment() {
+        // 같은 트랜잭션의 MyBatis 1차 캐시를 피하려고 첫 조회 전에 상태를 바꾼다.
+        jdbcTemplate.update("UPDATE social_match SET status = '매칭 완료' WHERE match_id = 9401");
+        var assigned = roomManagementService.findDetail(MANAGER_A, 9401L);
+
+        assertThat(assigned.isTeamAssigned()).isTrue();
+        assertThat(assigned.getApplications()).extracting(a -> a.getApplicationId())
+                .containsExactly(9501L, 9503L, 9504L);
+        assertThat(assigned.getParticipants()).singleElement()
+                .satisfies(p -> {
+                    assertThat(p.getName()).isEqualTo("참가자둘");
+                    assertThat(p.getTeamLabel()).isEqualTo("A팀");
+                    assertThat(p.getClubName()).isNull();
+                });
+    }
+
+    @Test
+    @DisplayName("참가자 명단은 A팀 → B팀, 팀 안에서는 팀장 → 레이팅 높은 순으로 조회된다")
+    void ordersParticipantsByTeamCaptainAndRating() {
+        jdbcTemplate.update("""
+                INSERT INTO match_application (application_id, match_id, applicant_user_id, club_id,
+                    application_type, status, receipt_no, created_at, confirmed_at)
+                VALUES (9521, 9402, 9205, NULL, '개인', '확정', 'ROOM-TEST-9521', '2026-11-02 10:20:00', '2026-11-02 10:25:00'),
+                       (9522, 9402, 9203, NULL, '개인', '확정', 'ROOM-TEST-9522', '2026-11-02 10:30:00', '2026-11-02 10:35:00')
+                """);
+        // 팀장보다 레이팅이 높은 팀원을 넣어 팀장 우선이 레이팅보다 앞서는지 본다.
+        jdbcTemplate.update("""
+                INSERT INTO match_participant (participant_id, application_id, match_id, user_id,
+                    participation_status, match_side, entry_mmr, joined_at)
+                VALUES (9711, 9521, 9402, 9205, '확정', 'A', 1200.00, '2026-11-02 10:25:00'),
+                       (9712, 9522, 9402, 9203, '확정', 'B', 1100.00, '2026-11-02 10:35:00')
+                """);
+        jdbcTemplate.update("""
+                UPDATE social_match SET status = '매칭 완료',
+                       captain_a_participant_id = 9703, captain_b_participant_id = 9704
+                 WHERE match_id = 9402
+                """);
+
+        assertThat(roomManagementMapper.findParticipants(query(MANAGER_A, 9402L, null, null, null)))
+                .extracting(RoomManagementParticipantRow::getParticipantId)
+                .containsExactly(9703L, 9711L, 9704L, 9712L);
     }
 
     @Test

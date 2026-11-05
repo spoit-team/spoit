@@ -21,4 +21,6 @@ public class RoomManagementParticipantRow {
     private LocalDateTime joinedAt;
     /** 참가자 이력 모달을 열 때 쓰는 회원 ID */
     private Long userId;
+    /** 동호회 신청으로 들어왔으면 동호회명, 아니면 null */
+    private String clubName;
 }

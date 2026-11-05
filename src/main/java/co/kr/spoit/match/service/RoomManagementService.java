@@ -261,17 +261,26 @@ public class RoomManagementService {
             return null;
         }
 
+        // 팀 배정이 끝나면 확정 신청은 참가자 표로 옮겨 보여 주고, 되돌리면 다시 신청 내역으로 돌아온다.
+        // 반려·취소 신청은 기록으로 계속 신청 내역에 남긴다.
+        boolean teamAssigned = isTeamAssigned(row.getStatus());
+        boolean decisionOpen = MatchStatus.RECRUITING.dbValue().equals(row.getStatus())
+                && row.getStartAt() != null && row.getStartAt().isAfter(LocalDateTime.now(clock));
         List<RoomManagementDetail.Application> applications = new ArrayList<>();
         for (RoomManagementApplicationRow application : nullSafe(roomManagementMapper.findApplications(query))) {
-            if (application != null) {
-                applications.add(toApplication(application));
+            if (application == null
+                    || (teamAssigned && ApplicationStatus.CONFIRMED.dbValue().equals(application.getStatus()))) {
+                continue;
             }
+            applications.add(toApplication(application, decisionOpen));
         }
 
         List<RoomManagementDetail.Participant> participants = new ArrayList<>();
-        for (RoomManagementParticipantRow participant : nullSafe(roomManagementMapper.findParticipants(query))) {
-            if (participant != null) {
-                participants.add(toParticipant(participant));
+        if (teamAssigned) {
+            for (RoomManagementParticipantRow participant : nullSafe(roomManagementMapper.findParticipants(query))) {
+                if (participant != null) {
+                    participants.add(toParticipant(participant));
+                }
             }
         }
 
@@ -284,8 +293,14 @@ public class RoomManagementService {
                 participationLabel(row),
                 statusLabel(row.getStatus()),
                 statusTone(row.getStatus()),
+                teamAssigned,
                 applications,
                 participants);
+    }
+
+    /** 팀 배정 화면과 같은 기준: 매칭 완료·종료면 배정이 끝난 경기다. */
+    private static boolean isTeamAssigned(String status) {
+        return MatchStatus.MATCHED.dbValue().equals(status) || MatchStatus.CLOSED.dbValue().equals(status);
     }
 
     /* ---------------- 조회 조건 ---------------- */
@@ -417,31 +432,27 @@ public class RoomManagementService {
         return String.join(",", hours);
     }
 
-    private RoomManagementDetail.Application toApplication(RoomManagementApplicationRow row) {
+    private RoomManagementDetail.Application toApplication(RoomManagementApplicationRow row, boolean decisionOpen) {
+        boolean club = ApplicationType.CLUB.dbValue().equals(row.getApplicationType());
         return new RoomManagementDetail.Application(
-                applicantName(row),
+                row.getApplicationId(),
+                label(row.getApplicantName(), "신청자 미상"),
+                club && !isBlank(row.getClubName()) ? row.getClubName().strip() : null,
                 kindLabel(row.getApplicationType()),
                 applicationStatusLabel(row.getStatus()),
-                row.getReceiptNo() == null ? "" : row.getReceiptNo(),
                 createdAtLabel(row.getCreatedAt()),
-                // 동호회 신청은 회원 이름 대신 동호회명을 보여 주므로 이력 모달 버튼을 두지 않는다.
-                ApplicationType.CLUB.dbValue().equals(row.getApplicationType()) ? null : row.getApplicantUserId());
+                row.getApplicantUserId(),
+                decisionOpen && row.getApplicationId() != null
+                        && ApplicationStatus.WAITING.dbValue().equals(row.getStatus()));
     }
 
     private RoomManagementDetail.Participant toParticipant(RoomManagementParticipantRow row) {
         return new RoomManagementDetail.Participant(
                 label(row.getNickname(), "이름 없음"),
+                isBlank(row.getClubName()) ? null : row.getClubName().strip(),
                 teamLabel(row.getMatchSide()),
                 participationStatusLabel(row.getParticipationStatus()),
                 row.getUserId());
-    }
-
-    /** 동호회 신청은 신청자(동호회장) 대신 동호회명을 우선 보여 준다. */
-    private String applicantName(RoomManagementApplicationRow row) {
-        if (ApplicationType.CLUB.dbValue().equals(row.getApplicationType()) && !isBlank(row.getClubName())) {
-            return row.getClubName().strip();
-        }
-        return label(row.getApplicantName(), "신청자 미상");
     }
 
     private static String kindLabel(String applicationType) {

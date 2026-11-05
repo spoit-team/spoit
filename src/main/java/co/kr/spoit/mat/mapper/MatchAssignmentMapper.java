@@ -95,9 +95,12 @@ public interface MatchAssignmentMapper {
             SELECT mp.participant_id AS participantId,
                    u.nickname AS nickname,
                    mp.entry_mmr AS entryMmr,
-                   mp.match_side AS matchSide
+                   mp.match_side AS matchSide,
+                   c.club_name AS clubName
             FROM match_participant mp
             JOIN app_user u ON u.user_id = mp.user_id
+            LEFT JOIN match_application ma ON ma.application_id = mp.application_id
+            LEFT JOIN club c ON c.club_id = ma.club_id
             WHERE mp.match_id = #{matchId}
               AND mp.participation_status = #{confirmedStatus}
             ORDER BY mp.participant_id
