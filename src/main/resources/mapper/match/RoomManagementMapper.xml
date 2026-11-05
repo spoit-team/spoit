@@ -173,7 +173,8 @@
                ma.status,
                ma.receipt_no,
                ma.created_at,
-               c.club_name
+               c.club_name,
+               ma.applicant_user_id
           FROM match_application ma
           JOIN social_match sm ON sm.match_id = ma.match_id
           JOIN facility f      ON f.facility_id = sm.facility_id
@@ -194,7 +195,8 @@
                u.nickname,
                mp.participation_status,
                mp.match_side,
-               mp.joined_at
+               mp.joined_at,
+               mp.user_id
           FROM match_participant mp
           JOIN social_match sm ON sm.match_id = mp.match_id
           JOIN facility f      ON f.facility_id = sm.facility_id

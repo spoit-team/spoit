@@ -19,11 +19,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import co.kr.spoit.facility.service.FacilityReservationService;
+import co.kr.spoit.club.service.ClubService;
 import co.kr.spoit.mat.mapper.SportRatingMapper;
 import co.kr.spoit.match.domain.MatchApplication;
 import co.kr.spoit.match.dto.MatchRow;
 import co.kr.spoit.match.mapper.MatchApplicationMapper;
 import co.kr.spoit.member.mapper.MemberMapper;
+import co.kr.spoit.member.service.MemberAccountLockService;
 
 /** RES-05 신청 취소 규칙: 신청자 본인, 모집 중, 경기 시작 전, 활성 신청만 취소된다. */
 class MatchApplicationServiceCancelTest {
@@ -42,7 +44,8 @@ class MatchApplicationServiceCancelTest {
         mapper = mock(MatchApplicationMapper.class);
         service = new MatchApplicationService(mapper, mock(MemberMapper.class),
                 mock(SportRatingMapper.class), mock(MatchService.class),
-                mock(FacilityReservationService.class));
+                mock(FacilityReservationService.class), mock(MemberAccountLockService.class),
+                mock(ClubService.class));
         given(mapper.findById(APPLICATION_ID)).willReturn(application(USER_ID));
     }
 

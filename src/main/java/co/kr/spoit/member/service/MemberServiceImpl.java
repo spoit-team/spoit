@@ -11,14 +11,19 @@ import java.util.regex.Pattern;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+import co.kr.spoit.club.dto.ClubWithdrawalBlocks;
+import co.kr.spoit.club.service.ClubService;
+import co.kr.spoit.match.service.MatchApplicationService;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.domain.MemberRole;
 import co.kr.spoit.member.dto.ProfileUpdateForm;
 import co.kr.spoit.member.dto.SignupForm;
 import co.kr.spoit.member.dto.SignupRegion;
 import co.kr.spoit.member.dto.SportOption;
+import co.kr.spoit.member.dto.WithdrawalBlocks;
 import co.kr.spoit.member.mapper.MemberMapper;
 import lombok.RequiredArgsConstructor;
 
@@ -38,6 +43,11 @@ public class MemberServiceImpl implements MemberService {
 
     private static final String SIGNUP_ROLE_MEMBER = "member";
 
+    /** 탈퇴를 막는 소속·신청이 남아 있을 때의 기본 안내 문구. */
+    static final String WITHDRAWAL_BLOCKED_MESSAGE =
+            "동호회장으로 있거나 진행 중인 팀·개인 매치에 신청된 내역이 있어 탈퇴할 수 없습니다. "
+                    + "팀 관리에서 회장을 위임하거나 진행 중인 매치 신청을 정리한 뒤 다시 시도해 주세요.";
+
     /** 서버가 UTC여도 한국 시간 기준으로 탈퇴·정지 시각을 비교한다. */
     private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
 
@@ -50,6 +60,9 @@ public class MemberServiceImpl implements MemberService {
 
     private final MemberMapper memberMapper;
     private final PasswordEncoder passwordEncoder;
+    private final ClubService clubService;
+    private final MatchApplicationService matchApplicationService;
+    private final MemberAccountLockService accountLockService;
 
     @Override
     public Optional<Member> findByEmail(String email) {
@@ -172,16 +185,27 @@ public class MemberServiceImpl implements MemberService {
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void withdraw(Long userId, String rawPassword) {
         if (rawPassword == null || rawPassword.isBlank()) {
             throw new IllegalArgumentException("비밀번호를 입력해 주세요.");
         }
-        Member member = memberMapper.findById(userId)
-                .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
+        // 회원 행을 먼저 잠근다. 잠금 뒤 조회는 스냅샷이 아니라 최신 커밋 값이므로,
+        // 이후의 비밀번호·차단 사유 확인과 deleted_at 기록이 다른 신청·위임과 겹치지 않는다.
+        // (match/club 쓰기 경로도 같은 행을 이 서비스를 통해 잠근다.)
+        Member member = accountLockService.lockById(userId);
+        if (member == null) {
+            throw new IllegalStateException("회원 정보를 찾을 수 없습니다.");
+        }
         if (member.getPasswordHash() == null || member.getPasswordHash().isBlank()
                 || !passwordEncoder.matches(rawPassword, member.getPasswordHash())) {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
+        }
+        // 탈퇴 직전에 차단 사유를 다시 읽는다(잠금 획득 후 첫 조회). 동호회 조건은 club 도메인이,
+        // 개인 매치 신청 조건은 match 도메인이 판단한다. 화면 값은 신뢰하지 않으므로 POST 우회도 막힌다.
+        WithdrawalBlocks blocks = findWithdrawalBlocks(userId);
+        if (blocks.isBlocked()) {
+            throw new WithdrawalBlockedException(WITHDRAWAL_BLOCKED_MESSAGE);
         }
         // 소프트 삭제이므로 다른 행은 건드리지 않고 deleted_at만 기록한다.
         // 0행이면 이미 탈퇴했거나(deleted_at 존재) 이용정지 기간이 끝나지 않은 계정이다.
@@ -190,6 +214,19 @@ public class MemberServiceImpl implements MemberService {
         if (updated != 1) {
             throw new IllegalStateException("이미 탈퇴했거나 탈퇴할 수 없는 계정입니다.");
         }
+    }
+
+    @Override
+    public WithdrawalBlocks findWithdrawalBlocks(Long userId) {
+        if (userId == null || userId <= 0) {
+            return WithdrawalBlocks.empty();
+        }
+        // 동호회 조건은 club 도메인이, 개인 매치 신청 조건은 match 도메인이 판단한다.
+        ClubWithdrawalBlocks clubBlocks = clubService.findWithdrawalBlocks(userId);
+        List<String> leaderClubNames = clubBlocks == null ? List.of() : clubBlocks.getLeaderClubNames();
+        List<String> teamMatchClubNames = clubBlocks == null ? List.of() : clubBlocks.getTeamMatchClubNames();
+        return WithdrawalBlocks.of(leaderClubNames, teamMatchClubNames,
+                matchApplicationService.findActiveIndividualMatchTitles(userId));
     }
 
     private void validateRegionExists(Long regionId) {

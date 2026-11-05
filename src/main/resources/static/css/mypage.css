@@ -1251,6 +1251,139 @@
   color: var(--color-danger);
 }
 
+.profile-withdrawal-blocks {
+  display: grid;
+  gap: 12px;
+  margin-top: 2px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 12px;
+  background: var(--color-canvas);
+  padding: 16px;
+}
+
+.profile-withdrawal-blocks:focus-visible {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 3px;
+}
+
+.profile-withdrawal-blocks-title {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+.profile-withdrawal-block-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 이름이 길어도 개수는 오른쪽에 고정되고, 두 줄째 이름이 겹치지 않게 한다. */
+.profile-withdrawal-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  padding: 12px 0;
+  border-top: 1px dashed var(--color-line-strong);
+}
+
+.profile-withdrawal-block:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.profile-withdrawal-block:last-child {
+  padding-bottom: 0;
+}
+
+.profile-withdrawal-block-label {
+  color: var(--color-ink-2);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  /* 한국어는 단어 중간에서 끊지 않는다. 좁은 화면에서 '주세/요'처럼 한 글자만 남는 것을 막는다. */
+  word-break: keep-all;
+}
+
+.profile-withdrawal-block-count {
+  flex: 0 0 auto;
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.profile-withdrawal-block-names {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-ink-2);
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.profile-withdrawal-block-note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.profile-withdrawal-block-note strong {
+  color: var(--color-ink-2);
+  font-weight: 750;
+}
+
+.profile-withdrawal-block-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px 16px;
+}
+
+.profile-withdrawal-block-link {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-ink-2);
+  font-size: 11px;
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--color-line-strong);
+}
+
+.profile-withdrawal-block-link:hover {
+  color: var(--color-ink);
+  text-decoration-color: currentColor;
+}
+
+.profile-withdrawal-block-link:focus-visible {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* .auth-input은 content-box라 대화상자의 안쪽 여백을 넘어 4px 튀어나온다. 이 대화상자 안에서만 보정한다. */
+.profile-withdrawal-dialog-content .auth-input {
+  box-sizing: border-box;
+}
+
+/* 탈퇴가 막힌 동안에는 비밀번호를 받지 않는다. 서버도 탈퇴 직전에 다시 확인한다. */
+.profile-withdrawal-dialog[data-withdrawal-blocked="true"] .auth-input:disabled {
+  border-color: var(--color-line);
+  background: var(--color-field-disabled);
+  color: var(--color-muted);
+  -webkit-text-fill-color: var(--color-muted);
+  cursor: not-allowed;
+}
+
 .profile-withdrawal-label {
   margin-top: 3px;
   color: var(--color-ink-2);
@@ -1278,6 +1411,13 @@
   margin-top: 8px;
   padding-top: 14px;
   border-top: 1px solid var(--color-line);
+  /* 사유가 길어 대화상자가 스크롤돼도 취소·탈퇴 버튼은 항상 보이게 한다. */
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  background: var(--color-paper);
+  padding-bottom: 22px;
+  margin-bottom: -22px;
 }
 
 .profile-withdrawal-cancel {
@@ -1734,6 +1874,14 @@
     flex-direction: column;
   }
 
+  .profile-withdrawal-blocks {
+    padding: 14px 13px;
+  }
+
+  .profile-withdrawal-block-links {
+    justify-content: flex-start;
+  }
+
   .mypage-player-counts {
     padding: 13px 0;
     border-top: 1px solid var(--color-line);
@@ -2014,4 +2162,69 @@
 .mypage-confirm-submit:focus-visible {
   outline: 2px solid var(--color-danger);
   outline-offset: 3px;
+}
+
+.mypage-confirm-submit:disabled {
+  border-color: var(--color-line-strong);
+  background: var(--color-paper-soft);
+  color: var(--color-faint);
+  cursor: not-allowed;
+  filter: none;
+}
+
+/* 팀 신청 취소: 취소할 팀원 체크박스, 새 대표 라디오 */
+.mypage-team-cancel-group {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  padding: 8px 12px 10px;
+}
+
+.mypage-team-cancel-group legend {
+  padding: 0 4px;
+  color: var(--color-ink-2);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mypage-team-cancel-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mypage-team-cancel-option input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  accent-color: var(--color-danger);
+}
+
+.mypage-team-cancel-all {
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.mypage-team-cancel-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.mypage-team-cancel-meta {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.mypage-team-cancel-leaders {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 18px;
 }

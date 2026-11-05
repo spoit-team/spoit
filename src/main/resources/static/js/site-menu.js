@@ -112,7 +112,7 @@
   });
 
   document.addEventListener('click', function (event) {
-    if (!headerInner.contains(event.target)) closeMenu(false);
+    if (!event.composedPath().includes(headerInner)) closeMenu(false);
   });
 
   document.addEventListener('keydown', function (event) {

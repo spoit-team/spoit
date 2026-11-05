@@ -91,7 +91,9 @@
     </div>
   </section>
 
-  <dialog id="profile-withdrawal-dialog" class="profile-withdrawal-dialog" aria-labelledby="withdrawal-dialog-title" aria-describedby="withdrawal-dialog-description">
+  <dialog id="profile-withdrawal-dialog" class="profile-withdrawal-dialog"
+          th:attr="data-withdrawal-blocked=${withdrawalBlocks != null and withdrawalBlocks.blocked} ? 'true' : null"
+          aria-labelledby="withdrawal-dialog-title" aria-describedby="withdrawal-dialog-description">
     <form id="profile-withdrawal-form" class="profile-withdrawal-dialog-content" method="post" th:action="@{/mypage/withdrawal-requests}">
       <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
       <div class="profile-withdrawal-dialog-heading">
@@ -99,9 +101,45 @@
         <button class="profile-withdrawal-close" type="button" data-close-withdrawal aria-label="닫기">×</button>
       </div>
       <p class="profile-withdrawal-note">탈퇴는 즉시 처리되며 되돌릴 수 없습니다.</p>
+
+      <!-- 탈퇴를 막는 항목은 서버가 판단해 내려준다. 목록은 항상 비어 있지 않은 값이며 blocked로 막힘 여부를 판단한다. -->
+      <section id="withdrawal-blocks" class="profile-withdrawal-blocks" tabindex="-1" role="group"
+               aria-labelledby="withdrawal-blocks-title"
+               th:if="${withdrawalBlocks != null and withdrawalBlocks.blocked}">
+        <h3 id="withdrawal-blocks-title" class="profile-withdrawal-blocks-title">지금 바로 탈퇴할 수 없어요</h3>
+        <ul class="profile-withdrawal-block-list">
+          <li class="profile-withdrawal-block" th:if="${!#lists.isEmpty(withdrawalBlocks.leaderClubNames)}">
+            <span class="profile-withdrawal-block-label">동호회장인 팀은 위임하거나 해체해 주세요</span>
+            <span class="profile-withdrawal-block-count" th:text="${#lists.size(withdrawalBlocks.leaderClubNames)} + '개'">1개</span>
+            <p class="profile-withdrawal-block-names" th:text="${#strings.listJoin(withdrawalBlocks.leaderClubNames, ' · ')}">팀 이름</p>
+          </li>
+          <li class="profile-withdrawal-block" th:if="${!#lists.isEmpty(withdrawalBlocks.teamMatchClubNames)}">
+            <span class="profile-withdrawal-block-label">모집 중인 팀 매치에 신청되어 있어요</span>
+            <span class="profile-withdrawal-block-count" th:text="${#lists.size(withdrawalBlocks.teamMatchClubNames)} + '개'">1개</span>
+            <p class="profile-withdrawal-block-names" th:text="${#strings.listJoin(withdrawalBlocks.teamMatchClubNames, ' · ')}">팀 이름</p>
+          </li>
+          <li class="profile-withdrawal-block" th:if="${!#lists.isEmpty(withdrawalBlocks.individualMatchNames)}">
+            <span class="profile-withdrawal-block-label">종료 상태가 아닌 매치에 신청되어 있어요</span>
+            <span class="profile-withdrawal-block-count" th:text="${#lists.size(withdrawalBlocks.individualMatchNames)} + '건'">1건</span>
+            <p class="profile-withdrawal-block-names" th:text="${#strings.listJoin(withdrawalBlocks.individualMatchNames, ' · ')}">매치 이름</p>
+          </li>
+        </ul>
+        <!-- 종료 상태에 대한 안내는 개인 매치 신청이 있을 때만 참이다. 팀 사유는 위임·취소로 풀 수 있다. -->
+        <p class="profile-withdrawal-block-note" th:if="${!#lists.isEmpty(withdrawalBlocks.individualMatchNames)}">경기가 끝났더라도 결과 처리 전에는 <strong>매칭 완료</strong> 상태일 수 있습니다. 해당 매치가 종료 상태가 되거나 신청이 취소되면 이 제한이 해제됩니다.</p>
+        <div class="profile-withdrawal-block-links">
+          <a class="profile-withdrawal-block-link" th:if="${!#lists.isEmpty(withdrawalBlocks.leaderClubNames) or !#lists.isEmpty(withdrawalBlocks.teamMatchClubNames)}"
+             th:href="@{/teams/manage}">팀 관리로 가기 <span aria-hidden="true">›</span></a>
+          <a class="profile-withdrawal-block-link" th:if="${!#lists.isEmpty(withdrawalBlocks.individualMatchNames)}"
+             th:href="@{/mypage#reservations}">신청 내역 보기 <span aria-hidden="true">›</span></a>
+        </div>
+      </section>
+
       <label class="profile-withdrawal-label" for="withdrawal-password">현재 비밀번호 입력</label>
-      <input id="withdrawal-password" name="password" class="auth-input" type="password" autocomplete="current-password" required aria-describedby="withdrawal-password-help withdrawal-error" />
-      <p id="withdrawal-password-help" class="profile-withdrawal-help">비밀번호를 입력하면 확인 버튼이 활성화됩니다.</p>
+      <input id="withdrawal-password" name="password" class="auth-input" type="password" autocomplete="current-password" required
+             aria-describedby="withdrawal-password-help withdrawal-error"
+             th:disabled="${withdrawalBlocks != null and withdrawalBlocks.blocked}" />
+      <p id="withdrawal-password-help" class="profile-withdrawal-help"
+         th:text="${withdrawalBlocks != null and withdrawalBlocks.blocked ? '탈퇴를 막는 항목을 정리한 뒤 비밀번호를 입력할 수 있습니다.' : '비밀번호를 입력하면 확인 버튼이 활성화됩니다.'}">비밀번호를 입력하면 확인 버튼이 활성화됩니다.</p>
       <p id="withdrawal-error" class="profile-withdrawal-error" role="alert" hidden>비밀번호를 입력해 주세요.</p>
       <div class="profile-withdrawal-actions">
         <button class="profile-withdrawal-cancel" type="button" data-close-withdrawal>취소</button>

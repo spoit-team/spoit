@@ -13,6 +13,7 @@ public class AssignmentMatch {
 
     private Long matchId;
     private Long facilityId;
+    private Long sportId;
     private LocalDateTime startAt;
     private LocalDateTime endAt;
     private String status;

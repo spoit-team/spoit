@@ -1,0 +1,45 @@
+/* 운영 화면 참가자 이력 모달. 모달 틀·요약 칸·배지·빈 상태는 admin.css를 쓰고, 이름 버튼과 증감 목록만 둔다. */
+.admin-table .history-name-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--admin-line-strong);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.admin-table .history-name-button:hover {
+  color: var(--admin-blue-ink);
+  text-decoration-color: currentColor;
+}
+
+.participant-history-modal .report-kv-grid { margin-bottom: 18px; }
+.participant-history-modal .empty-state { padding: 28px 12px; }
+
+.history-section + .history-section { margin-top: 16px; }
+.history-section h3 { margin: 0 0 8px; color: var(--admin-ink); font-size: 12px; font-weight: 800; }
+.history-empty { margin: 0; color: var(--admin-muted); font-size: 11.5px; }
+
+.history-changes { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.history-change {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--admin-soft);
+  font-size: 11.5px;
+}
+.history-change time { color: var(--admin-muted); font-variant-numeric: tabular-nums; }
+
+/* 부호와 함께 색으로도 오르내림을 구분한다. 빨강은 작은 글씨 대비를 위해 .status-badge.bad와 같은 값을 쓴다. */
+.history-delta { font-weight: 800; font-variant-numeric: tabular-nums; }
+.history-delta.is-up { color: var(--admin-green-ink); }
+.history-delta.is-down { color: #a62e2c; }
+.history-delta.is-flat { color: var(--admin-muted); }
+
+.history-penalties { display: flex; flex-wrap: wrap; gap: 6px; }

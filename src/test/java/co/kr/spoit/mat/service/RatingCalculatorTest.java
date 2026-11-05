@@ -2,7 +2,10 @@ package co.kr.spoit.mat.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import co.kr.spoit.mat.domain.ItemScore;
+import co.kr.spoit.mat.domain.ObservationStatus;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -44,5 +47,47 @@ class RatingCalculatorTest {
     })
     void roundsEloDeltaHalfUpToTwoDecimals(int kFactor, BigDecimal actual, BigDecimal expected, BigDecimal delta) {
         assertThat(calculator.eloDelta(kFactor, actual, expected)).isEqualTo(delta);
+    }
+
+    @Test
+    void averagesObservedScoresByWeight() {
+        // 시드 평가 1: (8×0.35 + 7×0.35 + 7×0.30) / 1.00
+        assertThat(calculator.overallScore(List.of(observed("0.35", 8), observed("0.35", 7), observed("0.30", 7))))
+                .isEqualTo(new BigDecimal("7.35"));
+    }
+
+    @Test
+    void leavesNotObservedItemsOutOfWeightedAverage() {
+        // (8×0.40 + 6×0.30) / 0.70 = 7.142…
+        assertThat(calculator.overallScore(List.of(observed("0.40", 8), notObserved("0.30"), observed("0.30", 6))))
+                .isEqualTo(new BigDecimal("7.14"));
+    }
+
+    @Test
+    void givesNoScoreWithoutObservedWeight() {
+        assertThat(calculator.overallScore(List.of(notObserved("0.40"), notObserved("0.60")))).isNull();
+        assertThat(calculator.overallScore(List.of(observed("0.00", 9), notObserved("1.00")))).isNull();
+    }
+
+    @Test
+    void averagesReceivedScoresIgnoringEvaluationsWithoutScore() {
+        assertThat(calculator.playerScore(Arrays.asList(new BigDecimal("7.35"), null, new BigDecimal("8.00"))))
+                .isEqualTo(new BigDecimal("7.68"));
+        assertThat(calculator.playerScore(Arrays.asList(null, null))).isNull();
+        assertThat(calculator.playerScore(List.of())).isNull();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0.00, -5.00", "10.00, 5.00", "5.00, 0.00", "7.68, 2.68", ", 0.00"})
+    void correctsByEvaluationScoreAroundFive(BigDecimal evaluationScore, BigDecimal delta) {
+        assertThat(calculator.evaluationDelta(evaluationScore)).isEqualTo(delta);
+    }
+
+    private static ItemScore observed(String weight, int score) {
+        return new ItemScore(1L, new BigDecimal(weight), ObservationStatus.OBSERVED, score);
+    }
+
+    private static ItemScore notObserved(String weight) {
+        return new ItemScore(1L, new BigDecimal(weight), ObservationStatus.NOT_OBSERVED, null);
     }
 }

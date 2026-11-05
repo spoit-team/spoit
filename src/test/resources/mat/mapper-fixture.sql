@@ -220,3 +220,41 @@ INSERT INTO match_participant (
     match_side, entry_mmr, joined_at, cancelled_at
 ) VALUES
     (72, 72, 7, 5, '취소', 'A', 1000.00, '2026-10-20 09:00:00', '2026-10-21 12:00:00');
+
+-- ParticipantHistoryMapper: 회원 3의 신고(처리 완료·기각·접수)와 제재(적용 중 2건, 종료가 지난 적용 중, 해제)
+-- 회원 4의 처리 완료 신고와 적용 중 제재로 대상 회원 조건을 확인한다.
+INSERT INTO report (
+    report_id, reporter_user_id, target_user_id, match_id, reviewed_by, category, summary,
+    status, resolution, created_at, reviewed_at
+) VALUES
+    (1, 1, 3, 7, 1, '경기 매너', 'MAT 테스트 신고 1',
+     '처리 완료', '경고', '2026-10-26 13:00:00', '2026-10-26 14:00:00'),
+    (2, 1, 3, NULL, 1, '불참', 'MAT 테스트 신고 2',
+     '기각', '기각', '2026-10-26 13:00:00', '2026-10-26 14:00:00'),
+    (3, 1, 3, NULL, NULL, '허위 정보', 'MAT 테스트 신고 3',
+     '접수', NULL, '2026-10-26 13:00:00', NULL),
+    (4, 1, 4, 7, 1, '경기 매너', 'MAT 테스트 신고 4',
+     '처리 완료', '경고', '2026-10-26 13:00:00', '2026-10-26 14:00:00');
+
+INSERT INTO penalty (
+    penalty_id, target_user_id, report_id, issued_by, penalty_type, start_at, end_at,
+    status, reason, released_by, released_at
+) VALUES
+    (1, 3, 1, 1, '경고', '2026-10-20 10:00:00', NULL,
+     '적용 중', 'MAT 테스트 제재 1', NULL, NULL),
+    (2, 3, NULL, 1, '이용 제한', '2026-10-24 10:00:00', '2026-10-31 10:00:00',
+     '적용 중', 'MAT 테스트 제재 2', NULL, NULL),
+    (3, 3, NULL, 1, '경고', '2026-10-01 10:00:00', '2026-10-15 10:00:00',
+     '적용 중', 'MAT 테스트 제재 3', NULL, NULL),
+    (4, 3, NULL, 1, '경고', '2026-10-22 10:00:00', NULL,
+     '해제', 'MAT 테스트 제재 4', 1, '2026-10-23 10:00:00'),
+    (5, 4, 4, 1, '경고', '2026-10-26 14:00:00', NULL,
+     '적용 중', 'MAT 테스트 제재 5', NULL, NULL);
+-- MatchEvaluationMapper: 종목 1의 활성 항목 2개(표시 순서가 ID 순서와 반대), 비활성 항목 1개, 종목 2의 항목 1개
+INSERT INTO sport_evaluation_item (
+    item_id, sport_id, item_code, item_name, weight, scale_max, display_order, is_active
+) VALUES
+    (1, 1, 'MAT_TEST_ITEM_B', 'MAT 테스트 항목 B', 0.60, 10, 2, TRUE),
+    (2, 1, 'MAT_TEST_ITEM_A', 'MAT 테스트 항목 A', 0.40, 10, 1, TRUE),
+    (3, 1, 'MAT_TEST_ITEM_OFF', 'MAT 비활성 테스트 항목', 0.50, 10, 3, FALSE),
+    (4, 2, 'MAT_TEST_ITEM_OTHER', 'MAT 다른 종목 테스트 항목', 1.00, 10, 1, TRUE);

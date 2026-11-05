@@ -175,7 +175,8 @@ public interface MatchResultMapper {
                             @Param("reviewedBy") Long reviewedBy,
                             @Param("currentStatus") String currentStatus);
 
-    // 제출 행이 하나라도 있는 팀장은 뺀다. 불일치 상태의 팀장은 이미 불일치 알림을 받았다.
+    // 결과 제출 행과 평가 행이 모두 있는 팀장만 뺀다. 결과 제출 행이 하나라도 있으면 결과는 낸 것으로 본다.
+    // 불일치 상태의 팀장은 이미 불일치 알림을 받았다.
     @Select("""
             SELECT sm.match_id AS matchId,
                    mp.user_id AS userId
@@ -188,10 +189,14 @@ public interface MatchResultMapper {
               AND sm.end_at > #{endedAfter}
               AND sm.end_at <= #{endedUntil}
               AND mp.participation_status = #{confirmedStatus}
-              AND NOT EXISTS (SELECT 1
-                              FROM match_result_submission s
-                              WHERE s.match_id = sm.match_id
-                                AND s.captain_participant_id = mp.participant_id)
+              AND (NOT EXISTS (SELECT 1
+                               FROM match_result_submission s
+                               WHERE s.match_id = sm.match_id
+                                 AND s.captain_participant_id = mp.participant_id)
+                   OR NOT EXISTS (SELECT 1
+                                  FROM match_evaluation e
+                                  WHERE e.match_id = sm.match_id
+                                    AND e.evaluator_participant_id = mp.participant_id))
             ORDER BY sm.match_id, mp.user_id
             """)
     List<ReminderTarget> findReminderTargets(@Param("matchedStatus") String matchedStatus,

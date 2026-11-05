@@ -423,14 +423,17 @@ public class RoomManagementService {
                 kindLabel(row.getApplicationType()),
                 applicationStatusLabel(row.getStatus()),
                 row.getReceiptNo() == null ? "" : row.getReceiptNo(),
-                createdAtLabel(row.getCreatedAt()));
+                createdAtLabel(row.getCreatedAt()),
+                // 동호회 신청은 회원 이름 대신 동호회명을 보여 주므로 이력 모달 버튼을 두지 않는다.
+                ApplicationType.CLUB.dbValue().equals(row.getApplicationType()) ? null : row.getApplicantUserId());
     }
 
     private RoomManagementDetail.Participant toParticipant(RoomManagementParticipantRow row) {
         return new RoomManagementDetail.Participant(
                 label(row.getNickname(), "이름 없음"),
                 teamLabel(row.getMatchSide()),
-                participationStatusLabel(row.getParticipationStatus()));
+                participationStatusLabel(row.getParticipationStatus()),
+                row.getUserId());
     }
 
     /** 동호회 신청은 신청자(동호회장) 대신 동호회명을 우선 보여 준다. */

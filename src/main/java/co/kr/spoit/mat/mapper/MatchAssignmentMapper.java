@@ -19,6 +19,7 @@ public interface MatchAssignmentMapper {
     String ASSIGNMENT_MATCH_QUERY = """
             SELECT sm.match_id AS matchId,
                    sm.facility_id AS facilityId,
+                   sm.sport_id AS sportId,
                    sm.start_at AS startAt,
                    sm.end_at AS endAt,
                    sm.status AS status,

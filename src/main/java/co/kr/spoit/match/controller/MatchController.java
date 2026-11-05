@@ -209,6 +209,7 @@ public class MatchController {
         model.addAttribute("feeTotalText", page.getFeeTotalText());
         model.addAttribute("feeSummaryNote", page.getFeeSummaryNote());
         model.addAttribute("completion", page.getCompletion());
+        model.addAttribute("timeConflicts", page.getTimeConflicts());
     }
 
     private void addUnavailableModel(Model model) {
@@ -220,6 +221,7 @@ public class MatchController {
         model.addAttribute("feeTotalText", "");
         model.addAttribute("feeSummaryNote", "");
         model.addAttribute("completion", null);
+        model.addAttribute("timeConflicts", List.of());
     }
 
     /*

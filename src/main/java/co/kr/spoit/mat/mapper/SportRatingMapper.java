@@ -71,7 +71,7 @@ public interface SportRatingMapper {
                 algorithm_version, calculated_at
             ) VALUES (
                 #{matchId}, #{participantId}, #{userId}, #{sportId}, #{mmrBefore}, #{mmrAfter},
-                #{eloDelta}, 0, #{eloDelta}, NULL,
+                #{eloDelta}, #{evaluationDelta}, #{finalDelta}, #{evaluationScore},
                 #{actualScore}, #{expectedScore}, #{teamAvgMmrA}, #{teamAvgMmrB},
                 #{algorithmVersion}, #{calculatedAt}
             )
