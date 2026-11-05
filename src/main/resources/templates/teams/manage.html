@@ -63,7 +63,7 @@
           <div class="team-summary-item"><div class="team-summary-label">활동 시간</div><div class="team-summary-value" th:text="${managedClub.time}">활동 시간</div></div>
           <div class="team-summary-item"><div class="team-summary-label">모집 상태</div><div class="team-summary-value" th:text="${managedClub.recruitLabel}">모집 상태</div></div>
         </div>
-        <!-- 예정 일정 미구현: <div class="team-management-overview-block">
+        <div class="team-management-overview-block">
           <div class="team-section-heading"><div><h2>예정 일정</h2><p>팀에서 함께할 다음 활동을 확인하세요.</p></div><span class="team-badge" th:text="${#lists.size(managedClub.schedules) + '건'}">0건</span></div>
           <div class="team-schedule-list">
             <article th:each="schedule : ${managedClub.schedules}" class="team-schedule-row">
@@ -73,7 +73,7 @@
             </article>
             <p th:if="${#lists.isEmpty(managedClub.schedules)}" class="team-management-empty">등록된 예정 일정이 없습니다.</p>
           </div>
-        </div> -->
+        </div>
         <div class="team-management-overview-block">
           <div class="team-section-heading"><div><h2>팀 소개</h2><p th:text="${managedClub.intro}">팀 소개</p></div></div>
           <div class="team-management-danger">

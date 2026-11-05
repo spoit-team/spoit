@@ -290,6 +290,23 @@
             </if>
     </select>
 
+    <select id="selectUpcomingSchedules" resultType="co.kr.spoit.club.domain.ClubSchedule">
+        SELECT sm.match_id AS matchId
+                ,sm.title AS title
+                ,sm.start_at AS startAt
+                ,sm.end_at AS endAt
+                ,f.name AS facilityName
+        FROM social_match sm
+        JOIN facility f ON f.facility_id = sm.facility_id
+        WHERE EXISTS (SELECT 1 FROM match_application ma
+                        WHERE ma.match_id = sm.match_id
+                            AND ma.club_id = #{clubId}
+                            AND ma.status IN ('대기', '확정'))
+            AND sm.status IN ('모집 중', '매칭 완료')
+            AND sm.start_at &gt; #{now}
+            ORDER BY sm.start_at, sm.match_id
+            </select>
+
     <update id="updateMemberLeave">
         UPDATE club_member
         SET left_at = NOW(), leave_type = '탈퇴'

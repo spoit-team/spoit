@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import co.kr.spoit.club.domain.Club;
 import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
+import co.kr.spoit.club.domain.ClubSchedule;
 import co.kr.spoit.club.domain.ClubSportCount;
 import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.club.dto.ClubCardResponse;
@@ -253,6 +254,27 @@ class ClubServiceTest {
         ClubManageResponse managed = service.findManagedClub(7L, 1L);
 
         assertThat(managed.getRecruitLabel()).isEqualTo("모집 마감 (정원이 찼어요)");
+    }
+
+    @Test
+    @DisplayName("예정 일정은 날짜·시간·장소를 화면 값으로 바꾸고 자정을 넘기면 익일로 표시한다")
+    void 예정_일정을_화면_값으로_바꾼다() {
+        when(clubMapper.existsActiveMember(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectClubDetail(1L)).thenReturn(detailClub());
+        when(clubMapper.selectClubMembers(1L)).thenReturn(List.of(member("이슛터", "동호회장")));
+        // 저녁 경기 1개 + 자정을 넘기는 경기 1개
+        when(clubMapper.selectUpcomingSchedules(any(), any())).thenReturn(List.of(
+                schedule(LocalDateTime.of(2026, 11, 7, 18, 0), LocalDateTime.of(2026, 11, 7, 20, 0)),
+                schedule(LocalDateTime.of(2026, 11, 7, 23, 0), LocalDateTime.of(2026, 11, 8, 1, 0))));
+
+        ClubManageResponse managed = service.findManagedClub(7L, 1L);
+
+        assertThat(managed.getSchedules()).hasSize(2);
+        assertThat(managed.getSchedules().get(0).getDate()).isEqualTo("2026-11-07");
+        assertThat(managed.getSchedules().get(0).getDateLabel()).isEqualTo("11.07 (토)");
+        assertThat(managed.getSchedules().get(0).getTime()).isEqualTo("18:00 - 20:00");
+        assertThat(managed.getSchedules().get(0).getPlace()).isEqualTo("성동 풋살장");
+        assertThat(managed.getSchedules().get(1).getTime()).isEqualTo("23:00 - 익일 01:00");
     }
 
     @Test
@@ -804,6 +826,17 @@ class ClubServiceTest {
         club.setClubName("강남 농구 크루");
         club.setSportId(1L);
         return club;
+    }
+
+    // 예정 일정(시작·종료 시각만 바꿔 씀)
+    private ClubSchedule schedule(LocalDateTime startAt, LocalDateTime endAt) {
+        ClubSchedule schedule = new ClubSchedule();
+        schedule.setMatchId(19L);
+        schedule.setTitle("토요일 저녁 3:3 풋살");
+        schedule.setStartAt(startAt);
+        schedule.setEndAt(endAt);
+        schedule.setFacilityName("성동 풋살장");
+        return schedule;
     }
 
 }
