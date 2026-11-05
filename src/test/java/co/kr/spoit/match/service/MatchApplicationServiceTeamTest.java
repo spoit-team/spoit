@@ -399,6 +399,135 @@ class MatchApplicationServiceTeamTest {
         verify(mapper, never()).cancelGroupParticipants(anyLong(), anyList(), anyString(), any());
     }
 
+    /* ---------------- 팀원 일부 취소 ---------------- */
+
+    /** 대표 500(LEADER_ID), 팀원 501(21), 502(22) 모두 확정인 묶음 */
+    private void givenActiveGroup() {
+        given(mapper.findById(500L)).willReturn(groupRow(500L, LEADER_ID, 500L));
+        given(mapper.lockGroupMembers(500L)).willReturn(List.of(
+                group(500L, LEADER_ID, "확정"), group(501L, 21L, "확정"), group(502L, 22L, "확정")));
+        given(mapper.markCancelled(anyLong(), anyList(), eq("취소"), eq(LEADER_ID), any())).willReturn(1);
+    }
+
+    @Test
+    @DisplayName("대표가 고른 팀원만 취소하고 묶음과 대표는 그대로 둔다")
+    void leaderCancelsSelectedMembers() {
+        givenActiveGroup();
+
+        service.cancel(500L, LEADER_ID, List.of(502L), null);
+
+        verify(mapper).markCancelled(eq(502L), anyList(), eq("취소"), eq(LEADER_ID), any());
+        verify(mapper).cancelParticipants(eq(502L), anyList(), eq("취소"), any());
+        verify(mapper, times(1)).markCancelled(anyLong(), anyList(), anyString(), anyLong(), any());
+        verify(mapper, never()).markGroupCancelled(anyLong(), anyList(), anyString(), anyLong(), any());
+        verify(mapper, never()).moveGroup(anyList(), anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("대표가 빠지면 본인과 고른 팀원을 취소하고 남은 팀원을 새 대표 묶음으로 옮긴다")
+    void leaderLeavesWithNewLeader() {
+        givenActiveGroup();
+        given(mapper.moveGroup(List.of(501L), 500L, 501L)).willReturn(1);
+
+        service.cancel(500L, LEADER_ID, List.of(500L, 502L), 501L);
+
+        verify(mapper).markCancelled(eq(500L), anyList(), eq("취소"), eq(LEADER_ID), any());
+        verify(mapper).markCancelled(eq(502L), anyList(), eq("취소"), eq(LEADER_ID), any());
+        verify(mapper).cancelParticipants(eq(500L), anyList(), eq("취소"), any());
+        verify(mapper).moveGroup(List.of(501L), 500L, 501L);
+        verify(mapper, never()).markGroupCancelled(anyLong(), anyList(), anyString(), anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("대표가 빠지는데 새 대표를 고르지 않았거나 남는 팀원이 아니면 취소하지 않는다")
+    void leaderLeavingRequiresRemainingNewLeader() {
+        givenActiveGroup();
+
+        assertThatThrownBy(() -> service.cancel(500L, LEADER_ID, List.of(500L), null))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("대표가 빠지면 남는 팀원 중 새 대표를 선택해 주세요.");
+        assertThatThrownBy(() -> service.cancel(500L, LEADER_ID, List.of(500L, 502L), 502L))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("대표가 빠지면 남는 팀원 중 새 대표를 선택해 주세요.");
+        verify(mapper, never()).markCancelled(anyLong(), anyList(), anyString(), anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("활성 팀원을 모두 고르면 팀 전체 취소로 처리한다")
+    void selectingEveryoneCancelsWholeGroup() {
+        givenActiveGroup();
+        given(mapper.markGroupCancelled(eq(500L), anyList(), eq("취소"), eq(LEADER_ID), any())).willReturn(3);
+
+        service.cancel(500L, LEADER_ID, List.of(500L, 501L, 502L), null);
+
+        verify(mapper).cancelGroupParticipants(eq(500L), anyList(), eq("취소"), any());
+        verify(mapper, never()).markCancelled(anyLong(), anyList(), anyString(), anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("이미 취소됐거나 다른 묶음의 팀원이 섞여 있으면 취소하지 않는다")
+    void rejectsInactiveOrForeignMember() {
+        given(mapper.findById(500L)).willReturn(groupRow(500L, LEADER_ID, 500L));
+        given(mapper.lockGroupMembers(500L)).willReturn(List.of(
+                group(500L, LEADER_ID, "확정"), group(501L, 21L, "취소"), group(502L, 22L, "확정")));
+
+        assertThatThrownBy(() -> service.cancel(500L, LEADER_ID, List.of(501L), null))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("이미 취소되었거나 이 팀 신청에 없는 팀원이 포함되어 있습니다.");
+        assertThatThrownBy(() -> service.cancel(500L, LEADER_ID, List.of(999L), null))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("이미 취소되었거나 이 팀 신청에 없는 팀원이 포함되어 있습니다.");
+        verify(mapper, never()).markCancelled(anyLong(), anyList(), anyString(), anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("이미 대표를 넘기고 빠진 이전 대표는 잠금 뒤 다시 확인해 막는다")
+    void formerLeaderCannotCancelAfterHandover() {
+        given(mapper.findById(500L)).willReturn(groupRow(500L, LEADER_ID, 500L));
+        given(mapper.lockGroupMembers(500L)).willReturn(List.of(group(500L, LEADER_ID, "취소")));
+
+        assertThatThrownBy(() -> service.cancel(500L, LEADER_ID, List.of(501L), null))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("이미 취소되었거나 처리된 신청입니다.");
+        verify(mapper, never()).markCancelled(anyLong(), anyList(), anyString(), anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("팀원은 팀원을 골라도 취소할 수 없다")
+    void memberCannotCancelSelectedMembers() {
+        given(mapper.findById(501L)).willReturn(groupRow(501L, 21L, 500L));
+        given(mapper.findById(500L)).willReturn(groupRow(500L, LEADER_ID, 500L));
+
+        assertThatThrownBy(() -> service.cancel(501L, 21L, List.of(501L), null))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("팀 신청은 신청한 대표만 취소할 수 있습니다.");
+        verify(mapper, never()).lockMatch(anyLong());
+    }
+
+    @Test
+    @DisplayName("남은 팀원을 새 묶음으로 다 옮기지 못하면 실패시켜 되돌린다")
+    void rejectsPartialGroupMove() {
+        givenActiveGroup();
+        given(mapper.moveGroup(List.of(501L, 502L), 500L, 501L)).willReturn(1);
+
+        assertThatThrownBy(() -> service.cancel(500L, LEADER_ID, List.of(500L), 501L))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("팀 신청 정보가 바뀌었습니다. 다시 시도해 주세요.");
+    }
+
+    @Test
+    @DisplayName("개인 신청에는 팀원을 골라 취소할 수 없다")
+    void individualApplicationRejectsMemberSelection() {
+        MatchApplication individual = groupRow(600L, LEADER_ID, 600L);
+        individual.setGroupApplicationId(null);
+        given(mapper.findById(600L)).willReturn(individual);
+
+        assertThatThrownBy(() -> service.cancel(600L, LEADER_ID, List.of(600L), null))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("취소할 수 있는 신청이 아닙니다.");
+        verify(mapper, never()).lockMatch(anyLong());
+    }
+
     private static MatchRow match(int maxParticipants) {
         LocalDateTime startAt = LocalDateTime.now(KST).plusDays(1);
         MatchRow m = new MatchRow();

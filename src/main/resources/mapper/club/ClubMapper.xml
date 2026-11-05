@@ -2,6 +2,24 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="co.kr.spoit.club.mapper.ClubMapper">
 
+    <!-- 팀 실력: 1번 이상 경기한 동호회원 MMR 평균, 없으면 NULL-->
+    <sql id="averageMmr">
+        (SELECT ROUND(AVG(sr.current_mmr))
+        FROM club_member m
+        JOIN sport_rating sr ON sr.user_id = m.user_id AND sr.sport_id = c.sport_id
+        WHERE m.club_id = c.club_id AND m.left_at IS NULL
+            AND sr.rated_match_count > 0)
+    </sql>
+
+    <!-- 최근 활동(레이팅 반영 시각 기준)-->
+    <sql id="lastActivityAt">
+        (SELECT MAX(h.calculated_at)
+        FROM sport_rating_history h
+        JOIN match_participant p ON h.participant_id = p.participant_id
+        JOIN match_application a ON p.application_id = a.application_id
+        WHERE a.club_id = c.club_id)
+    </sql>
+
     <!-- 동호회 목록: 해체되지 않은 동호회만 -->
     <select id="selectClubs" resultType="co.kr.spoit.club.domain.ClubSummary">
         SELECT club_id AS clubId
@@ -12,11 +30,11 @@
               ,c.activity_days AS activityDays
               ,c.activity_start_time AS activityStartTime
               ,c.activity_end_time AS activityEndTime
-              ,c.image_url AS imageUrl
               ,c.created_at AS createdAt
               ,s.name AS sportName
               ,(SELECT COUNT(*) FROM club_member m where m.club_id = c.club_id
               AND m.left_at IS NULL) AS memberCount
+              ,<include refid="averageMmr" /> AS averageMmr
               ,(SELECT GROUP_CONCAT(rg.name ORDER BY rg.region_id SEPARATOR ', ')
                 FROM club_region cr
                 JOIN region rg ON cr.region_id = rg.region_id
@@ -24,26 +42,48 @@
         FROM club c
     JOIN sport s ON c.sport_id = s.sport_id
     WHERE c.deleted_at IS NULL
-        <if test="query != null and query != ''">
-            AND c.club_name LIKE CONCAT('%', #{query}, '%')
+        <if test="query != null">
+            AND (c.club_name LIKE CONCAT('%', #{query}, '%')
+                OR EXISTS (SELECT 1 FROM club_region qr
+                    JOIN region qrg ON qr.region_id = qrg.region_id
+                    WHERE qr.club_id = c.club_id
+                        AND qrg.name LIKE CONCAT('%', #{query}, '%')))
         </if>
         <if test="sportId != null">
             AND c.sport_id = #{sportId}
         </if>
         <if test="regionId != null">
             AND EXISTS (SELECT 1 FROM club_region r
-                        WHERE r.club_id = c.club_id AND r.region_id = #{regionId})
+                WHERE r.club_id = c.club_id AND r.region_id = #{regionId})
         </if>
         <if test="recruitingOnly">
             AND c.recruit_status = '모집중'
+            AND (SELECT COUNT(*) FROM club_member m
+                WHERE m.club_id = c.club_id AND m.left_at IS NULL) &lt; c.max_members
         </if>
+        <if test="minMmr != null">
+            AND <include refid="averageMmr"/> &gt;= #{minMmr}
+        </if>
+        <if test="maxMmr != null">
+            AND <include refid="averageMmr"/> &lt; #{maxMmr}
+        </if>
+    <!-- 정렬: newest-최신순(기본) -->
     <choose>
-    <when test="sort == 'name'">
-        ORDER BY c.club_name ASC</when>
-    <when test="sort == 'members'">
-        ORDER BY memberCount DESC, c.created_at DESC</when>
+    <when test="sort == 'rating'">
+        ORDER BY averageMmr DESC, c.created_at DESC
+            ,<include refid="lastActivityAt"/> DESC
+            ,c.club_id DESC
+    </when>
+    <when test="sort == 'recent'">
+        ORDER BY <include refid="lastActivityAt"/> DESC, c.created_at DESC
+            ,averageMmr DESC
+            ,c.club_id DESC
+    </when>
     <otherwise>
-        ORDER BY c.created_at DESC</otherwise>
+        ORDER BY c.created_at DESC, averageMmr DESC
+            ,<include refid="lastActivityAt"/> DESC
+            ,c.club_id DESC
+    </otherwise>
     </choose>
     </select>
 
@@ -58,11 +98,11 @@
               ,c.activity_days AS activityDays
               ,c.activity_start_time AS activityStartTime
               ,c.activity_end_time AS activityEndTime
-              ,c.image_url AS imageUrl
               ,c.created_at AS createdAt
               ,s.name AS sportName
               ,(SELECT COUNT(*) FROM club_member m where m.club_id = c.club_id
               AND m.left_at IS NULL) AS memberCount
+              ,<include refid="averageMmr" /> AS averageMmr
               ,(SELECT GROUP_CONCAT(rg.name ORDER BY rg.region_id SEPARATOR ', ')
                 FROM club_region cr
                 JOIN region rg ON cr.region_id = rg.region_id
@@ -88,6 +128,15 @@
 
     <select id="selectClubSportOptions" resultType="co.kr.spoit.club.domain.ClubSportOption">
         SELECT sport_id AS sportId, name AS name FROM sport ORDER BY sport_id
+    </select>
+
+    <!-- 종목 탭: 검색 조건 무시 활성 동호회 수 -->
+    <select id="selectClubSportCounts" resultType="co.kr.spoit.club.domain.ClubSportCount">
+        SELECT s.sport_id AS sportId, s.name AS name, COUNT(c.club_id) AS clubCount
+        FROM sport s
+        LEFT JOIN club c ON c.sport_id = s.sport_id AND c.deleted_at IS NULL
+        GROUP BY s.sport_id, s.name
+        ORDER BY s.sport_id
     </select>
 
     <select id="selectClubRegionOptions" resultType="co.kr.spoit.club.domain.ClubRegionOption">

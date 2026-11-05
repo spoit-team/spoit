@@ -9,17 +9,20 @@ import co.kr.spoit.club.domain.Club;
 import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
 import co.kr.spoit.club.domain.ClubRegionOption;
+import co.kr.spoit.club.domain.ClubSportCount;
 import co.kr.spoit.club.domain.ClubSportOption;
 import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.club.dto.ClubBlockRow;
+import co.kr.spoit.club.dto.ClubSearchForm;
 
 @Mapper
 public interface ClubMapper {
 
         // 동호회 목록(조건 null이면 그 조건은 빠짐)
-        List<ClubSummary> selectClubs(@Param("query") String query, @Param("sportId") Long sportId,
-                        @Param("regionId") Long regionId, @Param("recruitingOnly") boolean recruitingOnly,
-                        @Param("sort") String sort);
+        List<ClubSummary> selectClubs(ClubSearchForm filters);
+
+        // 목록 종목별 조회
+        List<ClubSportCount> selectClubSportCounts();
 
         // 동호회 상세(해체된 동호회 제외)
         ClubSummary selectClubDetail(@Param("clubId") Long clubId);

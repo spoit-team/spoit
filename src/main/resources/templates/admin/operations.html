@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/admin :: head('매치 운영 · SPO:IT 시설 관리', 'SPO:IT 시설 관리에서 매칭방의 참가 신청 내역과 참가자를 조회합니다.', ${ {'match-operations.css'} })}"></head>
+<head th:replace="~{fragments/admin :: head('매치 운영 · SPO:IT 시설 관리', 'SPO:IT 시설 관리에서 매칭방의 참가 신청 내역과 참가자를 조회합니다.', ${ {'match-operations.css', 'participant-history.css'} })}"></head>
 <body class="admin-body" data-admin-role="facility">
 <div class="admin-layout">
   <aside th:replace="~{fragments/admin :: facilitySidebar('facility-bookings')}"></aside>
@@ -117,8 +117,14 @@
               <thead><tr><th scope="col">신청자</th><th scope="col">구분</th><th scope="col">접수 번호</th><th scope="col">신청 일시</th><th scope="col">상태</th></tr></thead>
               <tbody>
                 <!-- 'application'는 Thymeleaf 예약어(웹 변수)라 지역 변수 이름으로 쓸 수 없다. -->
+                <!-- 이름 버튼은 participant-history.js가 참가자 이력 모달로 연다. 동호회 신청은 동호회명이라 버튼을 두지 않는다. -->
                 <tr th:each="roomApplication : ${match.applications}">
-                  <td><span class="cell-primary" th:text="${roomApplication.applicantName}">신청자</span></td>
+                  <td>
+                    <button th:if="${roomApplication.historyUserId != null}" type="button" class="cell-primary history-name-button" aria-haspopup="dialog"
+                            th:data-history-user-id="${roomApplication.historyUserId}" th:aria-label="${roomApplication.applicantName + ' 참가자 이력 보기'}"
+                            th:text="${roomApplication.applicantName}">신청자</button>
+                    <span th:unless="${roomApplication.historyUserId != null}" class="cell-primary" th:text="${roomApplication.applicantName}">신청자</span>
+                  </td>
                   <td th:text="${roomApplication.kindLabel}">구분</td>
                   <td class="ops-numeric" th:text="${#strings.isEmpty(roomApplication.receiptNo) ? '—' : roomApplication.receiptNo}">접수 번호</td>
                   <td th:text="${roomApplication.createdAtLabel}">신청 일시</td>
@@ -146,7 +152,12 @@
               <thead><tr><th scope="col">참가자</th><th scope="col">팀</th><th scope="col">상태</th></tr></thead>
               <tbody>
                 <tr th:each="participant : ${match.participants}">
-                  <td><span class="cell-primary" th:text="${participant.name}">참가자</span></td>
+                  <td>
+                    <button th:if="${participant.historyUserId != null}" type="button" class="cell-primary history-name-button" aria-haspopup="dialog"
+                            th:data-history-user-id="${participant.historyUserId}" th:aria-label="${participant.name + ' 참가자 이력 보기'}"
+                            th:text="${participant.name}">참가자</button>
+                    <span th:unless="${participant.historyUserId != null}" class="cell-primary" th:text="${participant.name}">참가자</span>
+                  </td>
                   <td th:text="${participant.teamLabel}">팀</td>
                   <td><span class="status-badge neutral" th:text="${participant.statusLabel}">상태</span></td>
                 </tr>
@@ -170,8 +181,22 @@
 <div th:replace="~{fragments/admin :: notificationModal('시설 알림', '시설 운영 관련 알림을 확인합니다.')}"></div>
 <div th:replace="~{fragments/admin :: toast}"></div>
 
+<!-- 참가자 이력: participant-history.js가 이름 버튼을 누르면 이력 조회 API의 요약으로 본문을 채운다. -->
+<div th:if="${match != null}" class="modal-backdrop" id="participant-history-modal" hidden
+     th:data-history-url="@{/admin/operations/matches/{matchId}/participants(matchId=${match.matchId})}">
+  <section class="admin-modal participant-history-modal" role="dialog" aria-modal="true" aria-labelledby="participant-history-title">
+    <div class="modal-header">
+      <div><p class="report-modal-kicker">참가자 이력</p><h2 id="participant-history-title" data-history-title>참가자</h2></div>
+      <button class="modal-close" type="button" data-history-close aria-label="참가자 이력 닫기">×</button>
+    </div>
+    <div class="modal-body" data-history-body aria-live="polite"></div>
+    <div class="modal-footer"><button class="admin-button small" type="button" data-history-close>닫기</button></div>
+  </section>
+</div>
+
 <script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/admin-shell.js}"></script>
 <script th:src="@{/js/match-assignment.js}"></script>
+<script th:src="@{/js/participant-history.js}"></script>
 </body>
 </html>

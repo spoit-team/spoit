@@ -49,14 +49,17 @@ public class RoomManagementDetail {
         private final String statusLabel;
         private final String receiptNo;
         private final String createdAtLabel;
+        /** 참가자 이력 모달을 열 회원 ID. 동호회명을 보여 주는 동호회 신청은 버튼을 두지 않아 null이다. */
+        private final Long historyUserId;
 
         public Application(String applicantName, String kindLabel, String statusLabel,
-                String receiptNo, String createdAtLabel) {
+                String receiptNo, String createdAtLabel, Long historyUserId) {
             this.applicantName = applicantName;
             this.kindLabel = kindLabel;
             this.statusLabel = statusLabel;
             this.receiptNo = receiptNo;
             this.createdAtLabel = createdAtLabel;
+            this.historyUserId = historyUserId;
         }
     }
 
@@ -67,11 +70,14 @@ public class RoomManagementDetail {
         private final String name;
         private final String teamLabel;
         private final String statusLabel;
+        /** 참가자 이력 모달을 열 회원 ID */
+        private final Long historyUserId;
 
-        public Participant(String name, String teamLabel, String statusLabel) {
+        public Participant(String name, String teamLabel, String statusLabel, Long historyUserId) {
             this.name = name;
             this.teamLabel = teamLabel;
             this.statusLabel = statusLabel;
+            this.historyUserId = historyUserId;
         }
     }
 }

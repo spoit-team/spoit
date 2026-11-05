@@ -4,8 +4,8 @@ import co.kr.spoit.club.domain.ClubSummary;
 import lombok.Builder;
 import lombok.Getter;
 
-@Getter 
-@Builder 
+@Getter
+@Builder
 public class ClubCardResponse {
 
     private final Long clubId;
@@ -17,6 +17,7 @@ public class ClubCardResponse {
     private final boolean recruiting;
     private final String areaLabel;
     private final Integer memberCount;
+    private final String tierLabel;
     private final Integer maxMembers;
     private final String time;
     private final String footerNote;
@@ -38,6 +39,7 @@ public class ClubCardResponse {
                 .maxMembers(club.getMaxMembers())
                 .time(ClubFormat.time(club))
                 .footerNote(ClubFormat.footerNote(recruiting, club))
+                .tierLabel(ClubFormat.tierLabel(club.getAverageMmr()))
                 .build();
     }
 

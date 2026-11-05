@@ -114,16 +114,27 @@ public class MyPageController {
         return "mypage/index";
     }
 
-    /** RES-05 신청 취소. 결과는 성공·실패 모두 마이페이지 상단 안내 영역에 보여 준다. */
+    /**
+     * RES-05 신청 취소. 결과는 성공·실패 모두 마이페이지 상단 안내 영역에 보여 준다.
+     * RES-04 팀 신청 대표는 취소할 팀원(memberApplicationIds)과, 본인이 빠질 때 새 대표를 함께 보낸다.
+     * 팀원을 보내지 않으면 팀 전체를 취소한다.
+     */
     @PostMapping("/mypage/applications/{applicationId}/cancel")
-    public String cancelApplication(@PathVariable long applicationId, Authentication authentication) {
+    public String cancelApplication(@PathVariable long applicationId,
+                                    @RequestParam(required = false) List<Long> memberApplicationIds,
+                                    @RequestParam(required = false) Long newLeaderApplicationId,
+                                    Authentication authentication) {
         MemberPrincipal principal = principalOf(authentication);
         if (principal == null) {
             return "redirect:/login";
         }
         String message;
         try {
-            applicationService.cancel(applicationId, principal.getUserId());
+            if (memberApplicationIds == null || memberApplicationIds.isEmpty()) {
+                applicationService.cancel(applicationId, principal.getUserId());
+            } else {
+                applicationService.cancel(applicationId, principal.getUserId(), memberApplicationIds, newLeaderApplicationId);
+            }
             message = "신청을 취소했습니다.";
         } catch (MatchApplyException exception) {
             message = exception.getMessage();
@@ -160,7 +171,7 @@ public class MyPageController {
                 .orElse(NO_RATING_TEXT));
         summary.put("representativeSportId", representative.<Object>map(SportOption::getSportId).orElse(""));
         summary.put("representativeSportName", representative.map(SportOption::getName).orElse("종목"));
-        summary.put("skillNote", "참가 확정 매치의 개인 레이팅 평균을 표시합니다.");
+        summary.put("skillNote", "확정 경기 결과로 계산한 레이팅을 티어로 표시합니다. 배치 5경기 후 티어가 정해집니다.");
         summary.put("confirmedCount", reservations.getConfirmedCount());
         summary.put("completedCount", reservations.getCompletedCount());
         summary.put("waitingCount", reservations.getWaitingCount());
@@ -168,14 +179,14 @@ public class MyPageController {
         return summary;
     }
 
-    /** 저장된 레이팅 행의 MMR을 그대로 표시한다. 행이 없거나 확정 매치가 없으면 기록 없음. */
+    /** 레이팅 행을 티어로 표시한다(배치 중이면 배치 문구). 행이 없거나 확정 매치가 없으면 기록 없음. */ 
     private String ratingText(Long userId, Long sportId) {
         SportRatingResponse rating = sportRatingService.findByUserIdAndSportId(userId, sportId).orElse(null);
         if (rating == null || rating.ratedMatchCount() == null || rating.ratedMatchCount() <= 0
                 || rating.currentMmr() == null) {
             return NO_RATING_TEXT;
         }
-        return rating.currentMmr().toPlainString();
+        return rating.tierLabel();
     }
 
     /** 프로필 수정 화면. 로그인 회원이면 저장된 정보를, 아니면 빈 폼을 보여준다. */

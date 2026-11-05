@@ -1,6 +1,7 @@
 package co.kr.spoit.match.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -17,6 +18,7 @@ import co.kr.spoit.match.dto.GroupMemberRow;
 import co.kr.spoit.match.dto.MyApplicationRow;
 import co.kr.spoit.match.dto.MyReservations;
 import co.kr.spoit.match.dto.MyReservations.Entry;
+import co.kr.spoit.match.dto.MyReservations.TeamMemberOption;
 import co.kr.spoit.match.mapper.MatchApplicationMapper;
 
 /** RES-06 신청 내역을 현재/지난 목록으로 나누는 규칙을 검증한다. */
@@ -99,13 +101,14 @@ class MyReservationServiceTest {
     }
 
     @Test
-    @DisplayName("팀 신청 대표는 묶음 인원과 팀 전체 취소 확인 문구를 받는다")
+    @DisplayName("팀 신청 대표는 묶음 인원과 취소 확인창의 활성 팀원 목록을 받는다")
     void teamLeaderGetsGroupCancel() {
         MyApplicationRow leader = teamRow(1L, USER_ID, 1L);
         leader.setGroupSize(3);
         given(mapper.findMyApplications(eq(USER_ID), anyList())).willReturn(List.of(leader));
         given(mapper.findGroupMembers(1L)).willReturn(List.of(
-                group(1L, "김채원", "대기"), group(2L, "박민수", "대기"), group(3L, "이서연", "대기")));
+                group(1L, "김채원", "확정"), group(2L, "박민수", "확정"), group(3L, "이서연", "대기"),
+                group(4L, "최지훈", "취소")));
 
         Entry entry = service.find(USER_ID, NOW).getCurrent().get(0);
 
@@ -113,8 +116,11 @@ class MyReservationServiceTest {
         assertThat(entry.getSeatLine()).isEqualTo("참가 3명");
         assertThat(entry.isCanCancel()).isTrue();
         assertThat(entry.isTeamCancel()).isTrue();
-        assertThat(entry.getCancelConfirmMessage())
-                .isEqualTo("팀원 3명(김채원, 박민수, 이서연)의 신청이 모두 함께 취소됩니다.");
+        assertThat(entry.getTeamMembers())
+                .extracting(TeamMemberOption::getApplicationId, TeamMemberOption::getNickname,
+                        TeamMemberOption::getStateLabel, TeamMemberOption::isLeader)
+                .containsExactly(tuple(1L, "김채원", "확정", true), tuple(2L, "박민수", "확정", false),
+                        tuple(3L, "이서연", "대기", false));
     }
 
     @Test
