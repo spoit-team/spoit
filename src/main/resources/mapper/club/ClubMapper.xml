@@ -2,13 +2,15 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="co.kr.spoit.club.mapper.ClubMapper">
 
-    <!-- 팀 실력: 1번 이상 경기한 동호회원 MMR 평균, 없으면 NULL-->
+    <!-- 팀 실력: 배치를 마친 동호회원 MMR 평균, 없으면 NULL.
+         배치 중 MMR은 개인 화면에서도 티어 대신 "배치 중"으로 보이는 임시 값이라 뺀다. -->
     <sql id="averageMmr">
+        <bind name="placementMatches" value="@co.kr.spoit.mat.domain.RatingPolicy@PLACEMENT_MATCHES"/>
         (SELECT ROUND(AVG(sr.current_mmr))
         FROM club_member m
         JOIN sport_rating sr ON sr.user_id = m.user_id AND sr.sport_id = c.sport_id
         WHERE m.club_id = c.club_id AND m.left_at IS NULL
-            AND sr.rated_match_count > 0)
+            AND sr.rated_match_count &gt;= #{placementMatches})
     </sql>
 
     <!-- 최근 활동(레이팅 반영 시각 기준)-->

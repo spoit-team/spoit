@@ -38,6 +38,7 @@ public class ClubManageResponse {
     private final List<ClubJoinRequestResponse> applications;
     private final Integer pendingApplicationCount;
     private final String recruitLabel;
+    private final String tierLabel;
     private final String sportKey;
     private final String tierKey;
     private final int markTone;
@@ -94,6 +95,7 @@ public class ClubManageResponse {
                 .pendingApplicationCount(applications.size())
                 .otherMembersRemain(otherMembersRemain)
                 .recruitLabel(ClubFormat.manageRecruitLabel(club))
+                .tierLabel(ClubFormat.tierLabel(club.getAverageMmr()))
                 .sportKey(ClubFormat.sportKey(club.getSportId()))
                 .tierKey(ClubFormat.tierKey(club.getAverageMmr()))
                 .markTone(ClubFormat.markTone(club.getClubId()))

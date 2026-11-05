@@ -265,6 +265,20 @@ class ClubServiceTest {
     }
 
     @Test
+    @DisplayName("관리 화면에도 카드와 같은 팀 실력 등급을 표시한다")
+    void 관리_화면에_팀_실력_등급을_표시한다() {
+        ClubSummary club = detailClub();
+        club.setAverageMmr(1200);
+        when(clubMapper.existsActiveMember(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectClubDetail(1L)).thenReturn(club);
+        when(clubMapper.selectClubMembers(1L)).thenReturn(List.of(member("이슛터", "동호회장")));
+
+        ClubManageResponse managed = service.findManagedClub(7L, 1L);
+
+        assertThat(managed.getTierLabel()).isEqualTo("골드");
+    }
+
+    @Test
     @DisplayName("예정 일정은 날짜·시간·장소를 화면 값으로 바꾸고 자정을 넘기면 익일로 표시한다")
     void 예정_일정을_화면_값으로_바꾼다() {
         when(clubMapper.existsActiveMember(1L, 7L)).thenReturn(true);
@@ -863,7 +877,7 @@ class ClubServiceTest {
     }
 
     @Test
-    @DisplayName("팀 평균 MMR로 실력 등급을 정하고, 기록이 없으면 배치 중")
+    @DisplayName("팀 평균 MMR로 실력 등급을 정하고, 기록이 없으면 기록 없음")
     void 팀_평균_MMR로_실력_등급을_정한다() {
         ClubSummary none = club("모집중", "2,4", 19, 21);
         ClubSummary gold = club("모집중", "2,4", 19, 21);
@@ -874,7 +888,7 @@ class ClubServiceTest {
 
         List<ClubCardResponse> cards = service.findClubCards(new ClubSearchForm());
 
-        assertThat(cards.get(0).getTierLabel()).isEqualTo("배치 중");
+        assertThat(cards.get(0).getTierLabel()).isEqualTo("기록 없음");
         assertThat(cards.get(1).getTierLabel()).isEqualTo("골드");
         assertThat(cards.get(2).getTierLabel()).isEqualTo("실버");
         assertThat(cards.get(0).getTierKey()).isEqualTo("none");

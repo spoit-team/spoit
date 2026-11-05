@@ -64,7 +64,7 @@ class ClubFormat {
     // 팀 실력 등급
     static String tierLabel(Integer averageMmr) {
         if (averageMmr == null) {
-            return "배치 중";
+            return "기록 없음";
         }
         return TierRank.of(BigDecimal.valueOf(averageMmr)).tier().label();
     }
