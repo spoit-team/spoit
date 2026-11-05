@@ -65,7 +65,19 @@ class MatchResultPageControllerTest {
                 .andExpect(content().string(Matchers.allOf(
                         Matchers.containsString("data-result-root"),
                         Matchers.containsString("data-match-id=\"10\""),
-                        Matchers.containsString("\"/js/match-result.js\""))));
+                        Matchers.containsString("data-csrf-header=\"X-CSRF-TOKEN\""))))
+                .andExpect(content().string(Matchers.allOf(
+                        Matchers.stringContainsInOrder("id=\"match-result\"", "id=\"match-evaluation\""),
+                        Matchers.matchesPattern("(?s).*<section(?=[^>]*\\sid=\"match-evaluation\")"
+                                + "(?=[^>]*\\shidden(?:\\s|=|>))[^>]*>.*"),
+                        Matchers.containsString("data-evaluation-url=\"/mypage/matches/10/evaluation\""),
+                        Matchers.stringContainsInOrder("\"/js/match-evaluation.js\"", "\"/js/match-result.js\""))))
+                .andExpect(content().string(Matchers.allOf(
+                        Matchers.containsString("data-notification-open"),
+                        Matchers.containsString("id=\"notification-modal\""),
+                        Matchers.containsString("data-notification-authenticated=\"true\""),
+                        Matchers.containsString("data-notification-api=\"/api/notifications\""),
+                        Matchers.containsString("data-notification-stream=\"/ws/notifications\""))));
     }
 
     @Test
