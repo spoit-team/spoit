@@ -183,6 +183,18 @@ class ClubServiceTest {
         verify(clubMapper, never()).insertClub(any(Club.class));
     }
 
+    @Test 
+    @DisplayName ("동호회 소개가 500자를 넘으면 저장하지 않는다")
+    void 동호회_소개가_500자를_넘으면_거부한다() {
+        ClubCreateForm form = validForm();
+        form.setIntro("가".repeat(501));
+
+        IllegalArgumentException e =  assertThrows(IllegalArgumentException.class, () -> service.createClub(7L, form));
+        
+        assertThat(e.getMessage()).isEqualTo("동호회 소개는 1~500자로 입력해 주세요.");
+        verify(clubMapper, never()).insertClub(any(Club.class));
+    }
+
     @Test
     @DisplayName("활성 동호회 이름이 이미 있으면 저장하지 않는다")
     void 동호회_이름이_중복이면_거부한다() {
@@ -622,7 +634,6 @@ class ClubServiceTest {
     @Test
     @DisplayName("동호회 정보를 수정하면 동호회를 고치고 지역을 지운 뒤 다시 넣는다")
     void 동호회_정보_수정_성공() throws Exception {
-        when(clubMapper.existsSport(1L)).thenReturn(true);
         when(clubMapper.existsRegion(3L)).thenReturn(true);
         when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClubForEdit());
         when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
@@ -633,14 +644,11 @@ class ClubServiceTest {
         order.verify(clubMapper).updateClub(any(Club.class));
         order.verify(clubMapper).deleteClubRegions(1L);
         order.verify(clubMapper).insertClubRegion(1L, 3L);
-        // 종목을 안 바꾸면 팀 매치는 확인하지 않음
-        verify(clubMapper, never()).existsRecruitingTeamMatch(any(), any());
     }
 
     @Test
     @DisplayName("동호회장이 아니면 수정하지 않는다")
     void 동호회장이_아니면_수정을_거부한다() {
-        when(clubMapper.existsSport(1L)).thenReturn(true);
         when(clubMapper.existsRegion(3L)).thenReturn(true);
         when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClubForEdit());
         when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(false);
@@ -653,9 +661,8 @@ class ClubServiceTest {
     }
 
     @Test
-    @DisplayName("최대 인원을 현재 동호회원 수보다 적게 바꾸면 수정하지 않는다")
+    @DisplayName("모집 정원을 현재 동호회원 수보다 적게 바꾸면 수정하지 않는다")
     void 정원이_현재_인원보다_적으면_수정을_거부한다() {
-        when(clubMapper.existsSport(1L)).thenReturn(true);
         when(clubMapper.existsRegion(3L)).thenReturn(true);
         when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClubForEdit());
         when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
@@ -665,14 +672,13 @@ class ClubServiceTest {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> service.updateClub(7L, 1L, editForm()));
 
-        assertThat(e.getMessage()).isEqualTo("최대 동호회원 수는 현재 동호회원 수보다 작을 수 없습니다.");
+        assertThat(e.getMessage()).isEqualTo("모집 정원은 현재 동호회원 수보다 작을 수 없습니다.");
         verify(clubMapper, never()).updateClub(any(Club.class));
     }
 
     @Test
     @DisplayName("다른 활성 동호회와 이름이 같으면 수정하지 않는다")
     void 다른_동호회와_이름이_같으면_수정을_거부한다() {
-        when(clubMapper.existsSport(1L)).thenReturn(true);
         when(clubMapper.existsRegion(3L)).thenReturn(true);
         when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClubForEdit());
         when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
@@ -686,7 +692,6 @@ class ClubServiceTest {
     @Test
     @DisplayName("모집 상태가 모집중, 마감이 아니면 잠그기 전에 거부한다")
     void 모집_상태_값이_틀리면_수정을_거부한다() {
-        when(clubMapper.existsSport(1L)).thenReturn(true);
         when(clubMapper.existsRegion(3L)).thenReturn(true);
         ClubCreateForm form = editForm();
         form.setRecruitStatus("recruiting");
@@ -696,25 +701,6 @@ class ClubServiceTest {
 
         assertThat(e.getMessage()).isEqualTo("모집 상태 값이 올바르지 않습니다.");
         verify(clubMapper, never()).selectActiveClubForUpdate(any());
-    }
-
-    @Test
-    @DisplayName("모집 중인 팀 매치가 있으면 종목을 바꾸지 않는다")
-    void 팀_매치가_있으면_종목_변경을_거부한다() {
-        ClubCreateForm form = editForm();
-        // 종목 1번 -> 2번
-        form.setSportId(2L);
-        when(clubMapper.existsSport(2L)).thenReturn(true);
-        when(clubMapper.existsRegion(3L)).thenReturn(true);
-        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClubForEdit());
-        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
-        when(clubMapper.existsRecruitingTeamMatch(1L, null)).thenReturn(true);
-
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> service.updateClub(7L, 1L, form));
-
-        assertThat(e.getMessage()).isEqualTo("모집 중인 팀 매치가 있어 종목을 변경할 수 없습니다.");
-        verify(clubMapper, never()).updateClub(any(Club.class));
     }
 
     @Test

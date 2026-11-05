@@ -75,7 +75,7 @@
           </div>
         </div>
         <div class="team-management-overview-block">
-          <div class="team-section-heading"><div><h2>동호회 소개</h2><p th:text="${managedClub.intro}">동호회 소개</p></div></div>
+          <div class="team-section-heading"><div><h2>동호회 소개</h2><p class="team-intro-text" th:text="${managedClub.intro}">동호회 소개</p></div></div>
           <div class="team-management-danger">
             <div><b th:text="${managedClub.leader ? '동호회 해체' : '동호회 탈퇴'}">동호회 탈퇴</b><span th:text="${managedClub.leader ? (managedClub.otherMembersRemain ? '동호회장 외 다른 동호회원이 남아 있어 해체할 수 없습니다. 동호회원을 먼저 정리해 주세요.' : '동호회장만 남아 있어 해체할 수 있습니다. 확인창에 동호회 이름을 입력해야 합니다.') : '동호회원 목록에서 내 계정이 제외됩니다.'}">안내</span></div>
             <button th:if="${managedClub.leader}" class="team-button team-button-danger" type="button" data-team-disband th:disabled="${managedClub.otherMembersRemain}" th:title="${managedClub.otherMembersRemain} ? '동호회장 외 동호회원이 남아 있습니다.' : null">동호회 해체</button>
@@ -142,7 +142,7 @@
 </main>
 
 <!-- 동호회 만들기 -->
-<dialog id="team-create-dialog" class="team-dialog" aria-labelledby="team-create-title">
+<dialog id="team-create-dialog" class="team-dialog is-wide" aria-labelledby="team-create-title">
   <form id="team-create-form" method="post" th:action="@{/teams}">
     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
     <div class="team-dialog-heading"><div><h2 id="team-create-title">새 동호회 만들기</h2><p>함께 운동할 동호회를 만들고 기본 정보를 입력하세요.</p></div><button class="team-dialog-close" type="button" data-dialog-close aria-label="닫기">×</button></div>
@@ -150,7 +150,7 @@
       <label class="team-form-field"><span>동호회 이름</span><input name="clubName" maxlength="30" required autocomplete="organization" /></label>
       <div class="team-form-grid">
         <label class="team-form-field"><span>종목</span><select name="sportId" required><option th:each="sport : ${sports}" th:value="${sport.sportId}" th:text="${sport.name}">종목</option></select></label>
-        <label class="team-form-field"><span>최대 동호회원 수</span><input name="maxMembers" type="number" min="2" max="30" required /></label>
+        <label class="team-form-field"><span>모집 정원</span><input name="maxMembers" type="number" min="2" max="30" required /></label>
       </div>
       <label class="team-form-field"><span>활동 지역</span><select name="regionId" required><option value="">지역 선택</option><option th:each="district : ${districts}" th:value="${district.regionId}" th:text="${district.name}">지역</option></select></label>
       <fieldset class="team-form-field team-activity-days"><legend>정기 활동 요일</legend><div class="team-activity-day-options" role="group" aria-label="정기 활동 요일 선택">
@@ -161,29 +161,28 @@
         <label><input type="checkbox" name="activityDays" value="5" /><span>금</span></label>
         <label><input type="checkbox" name="activityDays" value="6" /><span>토</span></label>
         <label><input type="checkbox" name="activityDays" value="7" /><span>일</span></label>
-      </div><small>요일 값은 월요일 1부터 일요일 7까지 전송합니다.</small></fieldset>
+      </div></fieldset>
       <div class="team-form-grid">
         <label class="team-form-field"><span>활동 시작 시간</span><input name="activityStartTime" type="time" required /></label>
         <label class="team-form-field"><span>활동 종료 시간</span><input name="activityEndTime" type="time" required /></label>
       </div>
       <p class="team-form-error" data-activity-error role="alert" hidden></p>
-      <label class="team-form-field"><span>동호회 소개</span><textarea name="intro" maxlength="240" required></textarea></label>
+      <label class="team-form-field"><span>동호회 소개</span><textarea name="intro" maxlength="500" required></textarea></label>
     </div>
     <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-primary" type="submit">동호회 만들기</button></div>
   </form>
 </dialog>
 
 <!-- 동호회 정보 수정 -->
-<dialog id="team-edit-dialog" class="team-dialog" aria-labelledby="team-edit-title">
+<dialog id="team-edit-dialog" class="team-dialog is-wide" aria-labelledby="team-edit-title">
   <form id="team-edit-form" method="post" th:if="${managedClub != null}" th:action="@{/teams/{clubId}(clubId=${managedClub.clubId})}">
     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
     <div class="team-dialog-heading"><div><h2 id="team-edit-title">동호회 정보 수정</h2><p>동호회 소개와 활동 정보를 수정합니다.</p></div><button class="team-dialog-close" type="button" data-dialog-close aria-label="닫기">×</button></div>
     <div class="team-dialog-body">
       <label class="team-form-field"><span>동호회 이름</span><input name="clubName" maxlength="30" required autocomplete="organization" th:value="${managedClub.clubName}" /></label>
       <div class="team-form-grid">
-        <label class="team-form-field"><span>종목</span><select name="sportId" required><option th:each="sport : ${sports}" th:value="${sport.sportId}" th:text="${sport.name}" th:selected="${managedClub.sportId == sport.sportId}">종목</option></select></label>
-        <label class="team-form-field"><span>최대 동호회원 수</span><input name="maxMembers" type="number" max="30" required th:attr="min=${managedClub.memberCount > 2 ? managedClub.memberCount : 2}" th:value="${managedClub.maxMembers}" /><small>현재 소속 인원보다 작은 값은 저장할 수 없습니다.</small></label>
         <label class="team-form-field"><span>모집 상태</span><select name="recruitStatus" required><option value="모집중" th:selected="${managedClub.recruitStatus == '모집중'}">모집 중</option><option value="마감" th:selected="${managedClub.recruitStatus == '마감'}">모집 마감</option></select></label>
+        <label class="team-form-field"><span>모집 정원</span><input name="maxMembers" type="number" max="30" required th:attr="min=${managedClub.memberCount > 2 ? managedClub.memberCount : 2}" th:value="${managedClub.maxMembers}" /></label>
       </div>
       <label class="team-form-field"><span>활동 지역</span><select name="regionId" required><option value="">지역 선택</option><option th:each="district : ${districts}" th:value="${district.regionId}" th:text="${district.name}" th:selected="${managedClub.regionId == district.regionId}">지역</option></select></label>
       <fieldset class="team-form-field team-activity-days"><legend>정기 활동 요일</legend><div class="team-activity-day-options" role="group" aria-label="정기 활동 요일 선택">
@@ -194,13 +193,13 @@
         <label><input type="checkbox" name="activityDays" value="5" th:checked="${managedClub.activityDays != null and #lists.contains(managedClub.activityDays, 5)}" /><span>금</span></label>
         <label><input type="checkbox" name="activityDays" value="6" th:checked="${managedClub.activityDays != null and #lists.contains(managedClub.activityDays, 6)}" /><span>토</span></label>
         <label><input type="checkbox" name="activityDays" value="7" th:checked="${managedClub.activityDays != null and #lists.contains(managedClub.activityDays, 7)}" /><span>일</span></label>
-      </div><small>요일 값은 월요일 1부터 일요일 7까지 전송합니다.</small></fieldset>
+      </div></fieldset>
       <div class="team-form-grid">
         <label class="team-form-field"><span>활동 시작 시간</span><input name="activityStartTime" type="time" required th:value="${managedClub.activityStartTime}" /></label>
         <label class="team-form-field"><span>활동 종료 시간</span><input name="activityEndTime" type="time" required th:value="${managedClub.activityEndTime}" /></label>
       </div>
       <p class="team-form-error" data-activity-error role="alert" hidden></p>
-      <label class="team-form-field"><span>동호회 소개</span><textarea name="intro" maxlength="240" required th:text="${managedClub.intro}">동호회 소개</textarea></label>
+      <label class="team-form-field"><span>동호회 소개</span><textarea name="intro" maxlength="500" required th:text="${managedClub.intro}">동호회 소개</textarea></label>
     </div>
     <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-primary" type="submit">변경 저장</button></div>
   </form>

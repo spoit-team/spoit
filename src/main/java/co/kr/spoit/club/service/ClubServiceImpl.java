@@ -44,7 +44,7 @@ public class ClubServiceImpl implements ClubService {
     private final ClubMapper clubMapper;
     private final MemberAccountLockService accountLockService;
     private static final int NAME_MAX_LENGTH = 30;
-    private static final int INTRO_MAX_LENGTH = 240;
+    private static final int INTRO_MAX_LENGTH = 500;
     private static final int MIN_MEMBERS = 2;
     private static final int MAX_MEMBERS = 30;
     private static final int MESSAGE_MAX_LENGTH = 200;
@@ -106,12 +106,16 @@ public class ClubServiceImpl implements ClubService {
         if (userId == null) {
             throw new IllegalArgumentException("로그인이 필요합니다.");
         }
-        // 1. 입력 정리/검사, 종목/지역 확인
+        // 1. 입력 정리/검사, 지역 확인
         Club club = toClub(null, form);
+        // 2. 종목 확인
+        if (form.getSportId() == null || !clubMapper.existsSport(form.getSportId())) {
+            throw new IllegalArgumentException("선택한 종목을 찾을 수 없습니다.");
+        }
         if (clubMapper.existsActiveClubName(club.getClubName())) {
             throw new ClubNameExistException();
         }
-        // 2. 저장(동호회,지역,동호회장 순서 모두 성공해야 함)
+        // 저장(동호회,지역,동호회장 순서 모두 성공해야 함)
         log.info("동호회 저장 직전: {}", club);
         try {
             clubMapper.insertClub(club);
@@ -133,7 +137,7 @@ public class ClubServiceImpl implements ClubService {
         return club.getClubId();
     }
 
-    // 만들기-수정 공통: 입력 정리-검사, 종목-지역 확인 후 Club으로
+    // 만들기-수정 공통: 입력 정리-검사, 지역 확인 후 Club으로
     private Club toClub(Long clubId, ClubCreateForm form) {
         if (form == null) {
             throw new IllegalArgumentException("입력 정보를 확인해 주세요.");
@@ -143,13 +147,13 @@ public class ClubServiceImpl implements ClubService {
         if (clubName.isEmpty() || clubName.length() > NAME_MAX_LENGTH) {
             throw new IllegalArgumentException("동호회 이름은 1~30자로 입력해 주세요.");
         }
-        String intro = trim(form.getIntro());
+        String intro = trim(form.getIntro()).replace("\r\n", "\n");
         if (intro.isEmpty() || intro.length() > INTRO_MAX_LENGTH) {
-            throw new IllegalArgumentException("동호회 소개는 1~240자로 입력해 주세요.");
+            throw new IllegalArgumentException("동호회 소개는 1~500자로 입력해 주세요.");
         }
         Integer maxMembers = form.getMaxMembers();
         if (maxMembers == null || maxMembers < MIN_MEMBERS || maxMembers > MAX_MEMBERS) {
-            throw new IllegalArgumentException("최대 동호회원 수는 2~30명으로 입력해주세요.");
+            throw new IllegalArgumentException("모집 정원은 2~30명으로 입력해주세요.");
         }
         String activityDays = normalizeDays(form.getActivityDays());
         LocalTime start = form.getActivityStartTime();
@@ -162,10 +166,6 @@ public class ClubServiceImpl implements ClubService {
             throw new IllegalArgumentException("활동 시작 시간과 종료시간이 같을 수 없습니다.");
         }
 
-        // 2. 종목,지역 확인
-        if (form.getSportId() == null || !clubMapper.existsSport(form.getSportId())) {
-            throw new IllegalArgumentException("선택한 종목을 찾을 수 없습니다.");
-        }
         if (form.getRegionId() == null || !clubMapper.existsRegion(form.getRegionId())) {
             throw new IllegalArgumentException("선택한 지역을 찾을 수 없습니다.");
         }
@@ -190,21 +190,15 @@ public class ClubServiceImpl implements ClubService {
         if (!"모집중".equals(club.getRecruitStatus()) && !"마감".equals(club.getRecruitStatus())) {
             throw new IllegalArgumentException("모집 상태 값이 올바르지 않습니다.");
         }
-        ClubSummary existingClub = getActiveClubForUpdate(clubId);
+        getActiveClubForUpdate(clubId);
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
             throw new IllegalArgumentException("동호회장만 동호회 정보를 수정할 수 있습니다.");
         }
         if (club.getMaxMembers() < clubMapper.countActiveMembers(clubId)) {
-            throw new IllegalArgumentException("최대 동호회원 수는 현재 동호회원 수보다 작을 수 없습니다.");
+            throw new IllegalArgumentException("모집 정원은 현재 동호회원 수보다 작을 수 없습니다.");
         }
         if (clubMapper.existsOtherActiveClubName(clubId, club.getClubName())) {
             throw new ClubNameExistException();
-        }
-        // 종목을 바꿀때만: 진행 중인 팀 매치와 종목이 어긋나지 않게
-        if (!club.getSportId().equals(existingClub.getSportId())) {
-            if (clubMapper.existsRecruitingTeamMatch(clubId, null)) {
-                throw new IllegalArgumentException("모집 중인 팀 매치가 있어 종목을 변경할 수 없습니다.");
-            }
         }
         try {
             clubMapper.updateClub(club);

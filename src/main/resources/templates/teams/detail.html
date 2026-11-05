@@ -41,7 +41,7 @@
       <div class="team-detail-layout">
         <section class="team-detail-info-group" aria-label="동호회 소개, 모집 상태">
           <div class="team-detail-main">
-            <section class="team-content-section"><h2>동호회 소개</h2><p th:text="${club.intro}">동호회 소개</p></section>
+            <section class="team-content-section"><h2>동호회 소개</h2><p class="team-intro-text" th:text="${club.intro}">동호회 소개</p></section>
           </div>
           <aside class="team-recruitment-panel" aria-label="동호회원 모집 상태">
             <h2 th:text="${club.recruiting ? '함께 운동할 동호회원을 찾고 있어요' : '지금은 신규 동호회원을 모집하지 않아요'}">모집 안내</h2>

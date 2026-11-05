@@ -629,6 +629,7 @@
 .team-content-section h2,
 .team-management-section h2 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -.025em; }
 .team-content-section p { margin: 9px 0 0; color: var(--color-ink-2); font-size: 13px; line-height: 1.8; }
+.team-intro-text { white-space: pre-line; overflow-wrap: anywhere; } 
 .team-roster-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; margin-top: 10px; }
 .team-detail-roster-group .team-content-section { border-top: 0; padding: 0; }
 .team-roster-person { display: flex; align-items: center; gap: 9px; padding: 9px 0; color: var(--color-ink-2); font-size: 12px; font-weight: 650; }
@@ -697,7 +698,8 @@
 .team-segmented-tabs button { min-height: 30px; border: 0; border-radius: 7px; background: transparent; padding: 0 10px; color: var(--color-muted); font-size: 11px; font-weight: 700; cursor: pointer; }
 .team-segmented-tabs button.is-active { background: #fff; color: var(--color-ink); box-shadow: 0 1px 3px rgb(19 21 25 / 10%); }
 
-.team-dialog { width: min(520px, calc(100% - 28px)); max-width: none; max-height: min(86vh, 760px); overflow: auto; border: 1px solid var(--color-line); border-radius: 16px; background: #fff; padding: 0; color: var(--color-ink); box-shadow: 0 24px 70px rgb(19 21 25 / 22%); }
+.team-dialog { margin: auto; width: min(520px, calc(100% - 28px)); max-width: none; max-height: min(86vh, 760px); overflow: auto; border: 1px solid var(--color-line); border-radius: 16px; background: #fff; padding: 0; color: var(--color-ink); box-shadow: 0 24px 70px rgb(19 21 25 / 22%); }
+.team-dialog.is-wide { width: min(780px, calc(100% - 28px)); }
 .team-dialog::backdrop { background: rgb(19 21 25 / 45%); backdrop-filter: blur(3px); }
 .team-dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--color-line); padding: 19px 21px 15px; }
 .team-dialog-heading h2 { margin: 0; font-size: 17px; font-weight: 850; }
