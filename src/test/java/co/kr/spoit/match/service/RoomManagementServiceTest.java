@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.time.Clock;
@@ -229,34 +231,80 @@ class RoomManagementServiceTest {
     }
 
     @Test
-    @DisplayName("상세는 신청·참가자를 결정적 순서의 화면 문구로 만들고 컬렉션은 비어 있지 않다")
-    void buildsDetailLabels() {
+    @DisplayName("팀 배정 전 상세는 모든 신청을 보여 주고 대기 신청만 승인·반려할 수 있으며 참가자 표는 비운다")
+    void buildsDetailBeforeAssignment() {
         RoomManagementRow room = row(9401L, "모집 중", 2, 8);
         given(mapper.findRoom(any())).willReturn(room);
         given(mapper.findApplications(any())).willReturn(List.of(
-                application("개인", "대기", "ROOM-TEST-9501", "신청자하나", null),
-                application("동호회", "확정", "ROOM-TEST-9504", "호스트비", "테스트 동호회")));
-        given(mapper.findParticipants(any())).willReturn(List.of(
-                participant("참가자둘", "확정", "A"),
-                participant("참가자셋", "대기", null)));
+                application(9501L, "개인", "대기", "신청자하나", null),
+                application(9504L, "동호회", "확정", "호스트비", " 테스트 동호회 ")));
 
-        RoomManagementDetail detail = service.findDetail(MANAGER_ID, 9401L);
+        // 경기(11/6 18:00) 전 시각으로 고정해 실행 날짜와 관계없이 승인·반려 가능 여부를 확인한다.
+        RoomManagementDetail detail = serviceAt(LocalDateTime.of(2026, 11, 5, 9, 0)).findDetail(MANAGER_ID, 9401L);
 
         assertThat(detail).isNotNull();
+        assertThat(detail.isTeamAssigned()).isFalse();
         assertThat(detail.getParticipation()).isEqualTo("2 / 8명");
         assertThat(detail.getStatusLabel()).isEqualTo("모집 중");
         assertThat(detail.getStatusTone()).isEqualTo("good");
         assertThat(detail.getApplications()).extracting(RoomManagementDetail.Application::getApplicantName)
-                .containsExactly("신청자하나", "테스트 동호회");
+                .containsExactly("신청자하나", "호스트비");
+        assertThat(detail.getApplications()).extracting(RoomManagementDetail.Application::getClubName)
+                .containsExactly(null, "테스트 동호회");
         assertThat(detail.getApplications()).extracting(RoomManagementDetail.Application::getKindLabel)
                 .containsExactly("개인 신청", "동호회 신청");
         assertThat(detail.getApplications()).extracting(RoomManagementDetail.Application::getStatusLabel)
                 .containsExactly("확정 대기", "참가 확정");
+        assertThat(detail.getApplications()).extracting(RoomManagementDetail.Application::isDecidable)
+                .containsExactly(true, false);
+        assertThat(detail.getApplications()).extracting(RoomManagementDetail.Application::getHistoryUserId)
+                .containsExactly(10501L, 10504L);
         assertThat(detail.getApplications().get(0).getCreatedAtLabel()).isEqualTo("2026-11-01 10:00");
+        assertThat(detail.getParticipants()).isEmpty();
+        verify(mapper, never()).findParticipants(any());
+    }
+
+    @Test
+    @DisplayName("팀 배정 후 상세는 확정 신청을 참가자 표로 옮기고 반려·취소 신청은 기록으로 남긴다")
+    void movesConfirmedToParticipantsAfterAssignment() {
+        RoomManagementRow room = row(9401L, "매칭 완료", 2, 8);
+        given(mapper.findRoom(any())).willReturn(room);
+        given(mapper.findApplications(any())).willReturn(List.of(
+                application(9501L, "개인", "반려", "신청자하나", null),
+                application(9502L, "개인", "확정", "참가자둘", null),
+                application(9503L, "동호회", "취소", "호스트비", "테스트 동호회")));
+        RoomManagementParticipantRow clubMember = participant("참가자셋", "확정", "B");
+        clubMember.setClubName("테스트 동호회");
+        given(mapper.findParticipants(any())).willReturn(List.of(
+                participant("참가자둘", "확정", "A"), clubMember));
+
+        RoomManagementDetail detail = service.findDetail(MANAGER_ID, 9401L);
+
+        assertThat(detail.isTeamAssigned()).isTrue();
+        assertThat(detail.getApplications()).extracting(RoomManagementDetail.Application::getStatusLabel)
+                .containsExactly("신청 반려", "신청 취소");
+        assertThat(detail.getApplications()).extracting(RoomManagementDetail.Application::isDecidable)
+                .containsOnly(false);
         assertThat(detail.getParticipants()).extracting(RoomManagementDetail.Participant::getTeamLabel)
-                .containsExactly("A팀", "미배정");
-        assertThat(detail.getParticipants()).extracting(RoomManagementDetail.Participant::getStatusLabel)
-                .containsExactly("참가 확정", "확정 대기");
+                .containsExactly("A팀", "B팀");
+        assertThat(detail.getParticipants()).extracting(RoomManagementDetail.Participant::getClubName)
+                .containsExactly(null, "테스트 동호회");
+    }
+
+    @Test
+    @DisplayName("이미 시작한 모집 중 경기의 대기 신청은 승인·반려 버튼을 두지 않는다")
+    void closesDecisionAfterStart() {
+        RoomManagementRow room = row(9401L, "모집 중", 2, 8);
+        room.setStartAt(LocalDateTime.of(2020, 1, 1, 10, 0));
+        room.setEndAt(LocalDateTime.of(2020, 1, 1, 12, 0));
+        given(mapper.findRoom(any())).willReturn(room);
+        given(mapper.findApplications(any())).willReturn(List.of(
+                application(9501L, "개인", "대기", "신청자하나", null)));
+
+        RoomManagementDetail detail = service.findDetail(MANAGER_ID, 9401L);
+
+        assertThat(detail.getApplications()).extracting(RoomManagementDetail.Application::isDecidable)
+                .containsExactly(false);
     }
 
     @Test
@@ -476,12 +524,13 @@ class RoomManagementServiceTest {
         return row;
     }
 
-    private static RoomManagementApplicationRow application(String type, String status, String receiptNo,
+    private static RoomManagementApplicationRow application(long applicationId, String type, String status,
             String applicantName, String clubName) {
         RoomManagementApplicationRow row = new RoomManagementApplicationRow();
+        row.setApplicationId(applicationId);
+        row.setApplicantUserId(applicationId + 1000);
         row.setApplicationType(type);
         row.setStatus(status);
-        row.setReceiptNo(receiptNo);
         row.setApplicantName(applicantName);
         row.setClubName(clubName);
         row.setCreatedAt(LocalDateTime.of(2026, 11, 1, 10, 0));

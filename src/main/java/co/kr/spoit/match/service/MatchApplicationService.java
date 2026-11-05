@@ -59,9 +59,10 @@ import lombok.RequiredArgsConstructor;
  * application_id로 연결해 만든다. 화면에 보이는 참가자는 확정된 행이다.</p>
  *
  * <p>팀 신청은 대표가 고른 팀원마다 신청 행을 하나씩 만들고 group_application_id(대표 행 id)로 묶는다.
- * 확정·취소는 묶음 전체를 한 번에 하고, 취소는 대표만 할 수 있다.</p>
+ * 취소는 대표만 할 수 있다.</p>
  *
- * <p>확정은 시설 관리자 승인으로만 한다({@link #confirm}). 정원이 다 차도 신청은 대기로 남는다.</p>
+ * <p>확정·반려는 시설 관리자가 운영 화면에서 신청 행 하나씩 처리한다({@link #confirm}, {@link #reject}).
+ * 팀 신청도 팀원마다 따로 처리하며, 정원이 다 차도 신청은 대기로 남는다.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -498,38 +499,56 @@ public class MatchApplicationService {
 
     /**
      * 신청 확정 (시설 관리자 승인): match_application → match_participant 연동.
-     * 참가자 행은 여기서만 만들며 application_id는 항상 채운다. 호출처(관리자 운영 화면)는 별도 구현.
+     * 참가자 행은 여기서만 만들며 application_id는 항상 채운다.
      *
-     * <p>RES-04 팀 신청 행이면 같은 묶음의 대기 행을 모두 함께 확정한다 (팀은 함께 들어오고 함께 나간다).</p>
+     * <p>팀 신청도 이 신청 행(팀원 한 명)만 확정한다. 담당 시설이 아닌 신청은 없는 신청과 같이 거절한다.</p>
      */
     @Transactional
-    public void confirm(long applicationId) {
+    public void confirm(long applicationId, long managerUserId) {
         LocalDateTime now = LocalDateTime.now(ZONE);
+        MatchApplication application = findForDecision(applicationId, managerUserId);
+        MatchRow match = lockMatchForDecision(application, now);
+        if (!confirmLocked(application.getApplicationId(), application.getApplicantUserId(), match, now)) {
+            throw new MatchApplyException("이미 처리된 신청입니다.");
+        }
+    }
+
+    /**
+     * 신청 반려 (시설 관리자): 대기 → 반려. 참가자 행은 만들지 않으므로 정원 자리가 돌아간다.
+     * 팀 신청도 이 신청 행(팀원 한 명)만 반려한다.
+     */
+    @Transactional
+    public void reject(long applicationId, long managerUserId) {
+        LocalDateTime now = LocalDateTime.now(ZONE);
+        MatchApplication application = findForDecision(applicationId, managerUserId);
+        lockMatchForDecision(application, now);
+        int updated = applicationMapper.markRejected(application.getApplicationId(),
+                ApplicationStatus.WAITING.dbValue(), ApplicationStatus.REJECTED.dbValue());
+        if (updated == 0) {
+            throw new MatchApplyException("이미 처리된 신청입니다.");
+        }
+    }
+
+    /** 다른 시설의 신청인지 존재하지 않는 신청인지 구분하지 않고 같은 문구로 거절한다. */
+    private MatchApplication findForDecision(long applicationId, long managerUserId) {
         MatchApplication application = applicationMapper.findById(applicationId);
-        if (application == null) {
+        if (application == null || applicationMapper.countManagedApplication(applicationId, managerUserId) == 0) {
             throw new MatchApplyException("신청 정보를 찾을 수 없습니다.");
         }
-        // 신청 접수와 같은 순서(매칭방 → 신청)로 잠가 교착을 피한다.
+        return application;
+    }
+
+    /** 신청 접수와 같은 순서(매칭방 → 신청)로 잠가 교착을 피하고, 모집 중·경기 전인지 확인한다. */
+    private MatchRow lockMatchForDecision(MatchApplication application, LocalDateTime now) {
         MatchRow match = applicationMapper.lockMatch(application.getMatchId());
         if (match == null) {
             throw new MatchApplyException("매칭방 정보를 찾을 수 없습니다.");
         }
-        if (!application.isTeamGroup()) {
-            if (!confirmLocked(application.getApplicationId(), application.getApplicantUserId(), match, now)) {
-                throw new MatchApplyException("이미 처리된 신청입니다.");
-            }
-            return;
+        if (!MatchStatus.RECRUITING.dbValue().equals(match.getStatus())
+                || match.getStartAt() == null || !match.getStartAt().isAfter(now)) {
+            throw new MatchApplyException("모집 중인 경기의 신청만 승인하거나 반려할 수 있습니다.");
         }
-        int confirmed = 0;
-        for (GroupMemberRow row : applicationMapper.findGroupMembers(application.getGroupApplicationId())) {
-            if (ApplicationStatus.WAITING.dbValue().equals(row.getStatus())
-                    && confirmLocked(row.getApplicationId(), row.getUserId(), match, now)) {
-                confirmed++;
-            }
-        }
-        if (confirmed == 0) {
-            throw new MatchApplyException("이미 처리된 신청입니다.");
-        }
+        return match;
     }
 
     /** @return 확정했으면 true, 이미 대기 상태가 아니면 false */

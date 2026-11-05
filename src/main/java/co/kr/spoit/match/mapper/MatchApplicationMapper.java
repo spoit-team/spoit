@@ -74,6 +74,15 @@ public interface MatchApplicationMapper {
                       @Param("confirmedStatus") String confirmedStatus,
                       @Param("now") LocalDateTime now);
 
+    /** 대기 → 반려. 이미 처리된 신청이면 0 */
+    int markRejected(@Param("applicationId") long applicationId,
+                     @Param("waitingStatus") String waitingStatus,
+                     @Param("rejectedStatus") String rejectedStatus);
+
+    /** 신청이 이 시설 관리자가 담당하는(삭제되지 않은) 시설의 매칭방 것이면 1, 아니면 0 */
+    int countManagedApplication(@Param("applicationId") long applicationId,
+                                @Param("managerUserId") long managerUserId);
+
     /** RES-05 신청 취소: 활성(대기·확정) 신청만 바꾼다. 이미 취소·반려됐으면 0 */
     int markCancelled(@Param("applicationId") long applicationId,
                       @Param("activeStatuses") List<String> activeStatuses,

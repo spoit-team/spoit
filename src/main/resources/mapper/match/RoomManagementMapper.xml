@@ -171,7 +171,6 @@
                u.nickname AS applicant_name,
                ma.application_type,
                ma.status,
-               ma.receipt_no,
                ma.created_at,
                c.club_name,
                ma.applicant_user_id
@@ -187,7 +186,7 @@
          ORDER BY ma.created_at, ma.application_id
     </select>
 
-    <!-- 참가자 명단: 담당 범위 확인 뒤 참가 순서 고정 -->
+    <!-- 참가자 명단: 담당 범위 확인 뒤 A팀 → B팀, 팀 안에서는 팀장 → 레이팅 높은 순으로 고정 -->
     <select id="findParticipants"
             parameterType="co.kr.spoit.match.dto.RoomManagementQuery"
             resultType="co.kr.spoit.match.dto.RoomManagementParticipantRow">
@@ -196,7 +195,8 @@
                mp.participation_status,
                mp.match_side,
                mp.joined_at,
-               mp.user_id
+               mp.user_id,
+               c.club_name
           FROM match_participant mp
           JOIN social_match sm ON sm.match_id = mp.match_id
           JOIN facility f      ON f.facility_id = sm.facility_id
@@ -204,12 +204,17 @@
           JOIN facility_manager fm ON fm.facility_id = f.facility_id
                                   AND fm.user_id = #{managerUserId}
           JOIN app_user u      ON u.user_id = mp.user_id
+          LEFT JOIN match_application ma ON ma.application_id = mp.application_id
+          LEFT JOIN club c     ON c.club_id = ma.club_id
          WHERE mp.match_id = #{matchId}
            AND mp.participation_status IN
                <foreach collection="participationStatuses" item="st" open="(" separator="," close=")">
                    #{st}
                </foreach>
-         ORDER BY mp.joined_at, mp.participant_id
+         ORDER BY CASE mp.match_side WHEN 'A' THEN 0 WHEN 'B' THEN 1 ELSE 2 END,
+                  CASE WHEN mp.participant_id IN (sm.captain_a_participant_id, sm.captain_b_participant_id)
+                       THEN 0 ELSE 1 END,
+                  mp.entry_mmr DESC, mp.participant_id
     </select>
 
     <!--

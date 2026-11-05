@@ -73,10 +73,10 @@ class MatchOperationsRouteTest {
     @DisplayName("상세는 실제 신청·참가자 명단과 상태를 렌더링하고 변경 폼은 두지 않는다")
     void rendersApplicationsAndParticipantsWithoutWriteForms() throws Exception {
         RoomManagementDetail detail = new RoomManagementDetail(500L, "토요 풋살",
-                "테스트 체육관", "풋살", "11/1(토) 10:00~12:00", "3 / 8명", "모집 중", "good",
-                List.of(new RoomManagementDetail.Application("김철수", "개인 신청", "참가 확정",
-                        "R-2026-0001", "2026-10-29 09:30", 21L)),
-                List.of(new RoomManagementDetail.Participant("이영희", "A팀", "참가 확정", 22L)));
+                "테스트 체육관", "풋살", "11/1(토) 10:00~12:00", "3 / 8명", "매칭 완료", "good", true,
+                List.of(new RoomManagementDetail.Application(31L, "김철수", null, "개인 신청", "신청 반려",
+                        "2026-10-29 09:30", 21L, false)),
+                List.of(new RoomManagementDetail.Participant("이영희", "주말 풋살 클럽", "A팀", "참가 확정", 22L)));
         when(roomManagementService.findDetail(7L, 500L)).thenReturn(detail);
 
         String html = mockMvc.perform(
@@ -84,12 +84,13 @@ class MatchOperationsRouteTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("김철수")))
                 .andExpect(content().string(containsString("개인 신청")))
-                .andExpect(content().string(containsString("R-2026-0001")))
                 .andExpect(content().string(containsString("2026-10-29 09:30")))
                 .andExpect(content().string(containsString("이영희")))
                 .andExpect(content().string(containsString("A팀")))
                 .andExpect(content().string(containsString("참가 확정")))
-                // 승인·반려·완료 처리 경로와 제출 폼이 남아 있으면 안 된다. 팀 배정은 폼 없이 fetch로 보낸다.
+                .andExpect(content().string(containsString("<span class=\"ops-club-chip\">주말 풋살 클럽</span>")))
+                .andExpect(content().string(not(containsString("접수 번호"))))
+                // 완료 처리 경로와 제출 폼이 남아 있으면 안 된다. 팀 배정·승인·반려는 폼 없이 fetch로 보낸다.
                 .andExpect(content().string(not(containsString("/admin/rooms/"))))
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
 
@@ -154,7 +155,7 @@ class MatchOperationsRouteTest {
      */
     private static RoomManagementDetail detail(Long matchId, String title) {
         return new RoomManagementDetail(matchId, title, "테스트 체육관", "풋살",
-                "2026년 11월 3일 (화) 10:00 ~ 12:00", "2 / 8명", "모집 중", "success",
+                "2026년 11월 3일 (화) 10:00 ~ 12:00", "2 / 8명", "모집 중", "success", false,
                 List.of(), List.of());
     }
 }

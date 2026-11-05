@@ -18,7 +18,6 @@ public class RoomManagementApplicationRow {
     private String applicationType;
     /** 대기 / 확정 / 취소 / 반려 */
     private String status;
-    private String receiptNo;
     private LocalDateTime createdAt;
     /** 동호회 신청이면 동호회명, 개인이면 null */
     private String clubName;

@@ -305,45 +305,107 @@ class MatchApplicationServiceTeamTest {
         verify(mapper, never()).insert(any(MatchApplication.class));
     }
 
-    /* ---------------- 확정 (시설 관리자 승인) ---------------- */
+    /* ---------------- 승인·반려 (시설 관리자) ---------------- */
+
+    private static final long MANAGER_ID = 7L;
 
     @Test
-    @DisplayName("팀 신청 행을 확정하면 묶음의 대기 행을 모두 확정하고 팀원마다 참가자 행을 만든다")
-    void confirmsWholeGroup() {
+    @DisplayName("팀 신청 행을 승인하면 그 팀원 한 명만 확정하고 참가자 행을 만든다")
+    void confirmsOnlyOneTeamMember() {
         given(mapper.findById(501L)).willReturn(groupRow(501L, 21L, 500L));
-        given(mapper.findGroupMembers(500L)).willReturn(List.of(
-                group(500L, LEADER_ID, "대기"), group(501L, 21L, "대기"), group(502L, 22L, "취소")));
-        given(mapper.markConfirmed(anyLong(), eq("대기"), eq("확정"), any())).willReturn(1);
+        given(mapper.countManagedApplication(501L, MANAGER_ID)).willReturn(1);
+        given(mapper.markConfirmed(eq(501L), eq("대기"), eq("확정"), any())).willReturn(1);
 
-        service.confirm(501L);
+        service.confirm(501L, MANAGER_ID);
 
-        ArgumentCaptor<Long> users = ArgumentCaptor.forClass(Long.class);
-        verify(mapper, times(2)).insertParticipant(anyLong(), eq(MATCH_ID), users.capture(), eq("확정"), any(), any());
-        assertThat(users.getAllValues()).containsExactly(LEADER_ID, 21L);
-        verify(mapper, never()).markConfirmed(eq(502L), anyString(), anyString(), any());
-    }
-
-    @Test
-    @DisplayName("개인 신청 확정은 그 신청 한 건만 참가자 행으로 만든다")
-    void confirmsIndividual() {
-        MatchApplication individual = MatchApplication.individual(MATCH_ID, LEADER_ID, "RCPT-1", LocalDateTime.now(KST));
-        individual.setApplicationId(600L);
-        given(mapper.findById(600L)).willReturn(individual);
-        given(mapper.markConfirmed(eq(600L), eq("대기"), eq("확정"), any())).willReturn(1);
-
-        service.confirm(600L);
-
-        verify(mapper).insertParticipant(eq(600L), eq(MATCH_ID), eq(LEADER_ID), eq("확정"), any(), any());
+        verify(mapper).insertParticipant(eq(501L), eq(MATCH_ID), eq(21L), eq("확정"), any(), any());
+        verify(mapper, times(1)).markConfirmed(anyLong(), anyString(), anyString(), any());
         verify(mapper, never()).findGroupMembers(anyLong());
     }
 
     @Test
-    @DisplayName("묶음에 대기 행이 없으면 이미 처리된 신청으로 거절한다")
-    void rejectsProcessedGroup() {
-        given(mapper.findById(500L)).willReturn(groupRow(500L, LEADER_ID, 500L));
-        given(mapper.findGroupMembers(500L)).willReturn(List.of(group(500L, LEADER_ID, "확정")));
+    @DisplayName("개인 신청 승인은 그 신청 한 건만 참가자 행으로 만든다")
+    void confirmsIndividual() {
+        MatchApplication individual = MatchApplication.individual(MATCH_ID, LEADER_ID, "RCPT-1", LocalDateTime.now(KST));
+        individual.setApplicationId(600L);
+        given(mapper.findById(600L)).willReturn(individual);
+        given(mapper.countManagedApplication(600L, MANAGER_ID)).willReturn(1);
+        given(mapper.markConfirmed(eq(600L), eq("대기"), eq("확정"), any())).willReturn(1);
 
-        assertThatThrownBy(() -> service.confirm(500L))
+        service.confirm(600L, MANAGER_ID);
+
+        verify(mapper).insertParticipant(eq(600L), eq(MATCH_ID), eq(LEADER_ID), eq("확정"), any(), any());
+    }
+
+    @Test
+    @DisplayName("이미 처리된 신청은 승인하지 않는다")
+    void rejectsProcessedConfirm() {
+        given(mapper.findById(500L)).willReturn(groupRow(500L, LEADER_ID, 500L));
+        given(mapper.countManagedApplication(500L, MANAGER_ID)).willReturn(1);
+        given(mapper.markConfirmed(eq(500L), eq("대기"), eq("확정"), any())).willReturn(0);
+
+        assertThatThrownBy(() -> service.confirm(500L, MANAGER_ID))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("이미 처리된 신청입니다.");
+        verify(mapper, never()).insertParticipant(anyLong(), anyLong(), anyLong(), anyString(), any(), any());
+    }
+
+    @Test
+    @DisplayName("담당 시설이 아닌 신청은 없는 신청과 같이 거절하고 매칭방을 잠그지 않는다")
+    void rejectsForeignManager() {
+        given(mapper.findById(501L)).willReturn(groupRow(501L, 21L, 500L));
+        given(mapper.countManagedApplication(501L, MANAGER_ID)).willReturn(0);
+
+        assertThatThrownBy(() -> service.confirm(501L, MANAGER_ID))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("신청 정보를 찾을 수 없습니다.");
+        assertThatThrownBy(() -> service.reject(501L, MANAGER_ID))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("신청 정보를 찾을 수 없습니다.");
+        verify(mapper, never()).lockMatch(anyLong());
+    }
+
+    @Test
+    @DisplayName("모집 중이 아닌 경기(팀 배정 완료 등)의 신청은 승인·반려하지 않는다")
+    void rejectsDecisionWhenNotRecruiting() {
+        MatchRow matched = match(10);
+        matched.setStatus("매칭 완료");
+        given(mapper.lockMatch(MATCH_ID)).willReturn(matched);
+        given(mapper.findById(501L)).willReturn(groupRow(501L, 21L, 500L));
+        given(mapper.countManagedApplication(501L, MANAGER_ID)).willReturn(1);
+
+        assertThatThrownBy(() -> service.confirm(501L, MANAGER_ID))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("모집 중인 경기의 신청만 승인하거나 반려할 수 있습니다.");
+        assertThatThrownBy(() -> service.reject(501L, MANAGER_ID))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("모집 중인 경기의 신청만 승인하거나 반려할 수 있습니다.");
+        verify(mapper, never()).markConfirmed(anyLong(), anyString(), anyString(), any());
+        verify(mapper, never()).markRejected(anyLong(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("팀 신청 행을 반려하면 그 팀원 한 명만 반려하고 참가자 행은 만들지 않는다")
+    void rejectsOnlyOneTeamMember() {
+        given(mapper.findById(502L)).willReturn(groupRow(502L, 22L, 500L));
+        given(mapper.countManagedApplication(502L, MANAGER_ID)).willReturn(1);
+        given(mapper.markRejected(502L, "대기", "반려")).willReturn(1);
+
+        service.reject(502L, MANAGER_ID);
+
+        verify(mapper, times(1)).markRejected(anyLong(), anyString(), anyString());
+        verify(mapper, never()).insertParticipant(anyLong(), anyLong(), anyLong(), anyString(), any(), any());
+        verify(mapper, never()).findGroupMembers(anyLong());
+    }
+
+    @Test
+    @DisplayName("이미 처리된 신청은 반려하지 않는다")
+    void rejectsProcessedReject() {
+        given(mapper.findById(502L)).willReturn(groupRow(502L, 22L, 500L));
+        given(mapper.countManagedApplication(502L, MANAGER_ID)).willReturn(1);
+        given(mapper.markRejected(502L, "대기", "반려")).willReturn(0);
+
+        assertThatThrownBy(() -> service.reject(502L, MANAGER_ID))
                 .isInstanceOf(MatchApplyException.class)
                 .hasMessage("이미 처리된 신청입니다.");
     }

@@ -41,7 +41,10 @@
   function membersOf(side) {
     return view.participants
       .filter(participant => (sides.get(participant.participantId) ?? null) === side)
-      .sort((left, right) => Number(right.entryMmr ?? 0) - Number(left.entryMmr ?? 0));
+      // 참가자 표와 같은 기준: 팀장 먼저, 그다음 레이팅 높은 순, 같으면 참가자 행 ID 순.
+      .sort((left, right) => Number(isCaptain(right)) - Number(isCaptain(left))
+        || Number(right.entryMmr ?? 0) - Number(left.entryMmr ?? 0)
+        || left.participantId - right.participantId);
   }
 
   function statsOf(members) {
@@ -77,7 +80,8 @@
         side !== null && moveButton(participant, null, '빼기')].filter(Boolean).join('')
       : '';
     return `<li class="ops-assignment-card" data-participant-id="${participant.participantId}"${canEdit ? ' draggable="true"' : ''}>
-      <span class="ops-assignment-name">${escapeHTML(participant.nickname)}${isCaptain(participant)
+      <span class="ops-assignment-name">${escapeHTML(participant.nickname)}${participant.clubName
+        ? ` <span class="ops-club-chip">${escapeHTML(participant.clubName)}</span>` : ''}${isCaptain(participant)
         ? ` <span class="ops-assignment-captain">${captainLabel}</span>` : ''}</span>
       <span class="ops-assignment-mmr">${formatMmr(participant.entryMmr)}</span>
       ${moves ? `<span class="ops-assignment-moves">${moves}</span>` : ''}
