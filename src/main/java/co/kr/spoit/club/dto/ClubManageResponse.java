@@ -7,6 +7,7 @@ import java.util.List;
 
 import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
+import co.kr.spoit.club.domain.ClubSchedule;
 import co.kr.spoit.club.domain.ClubSummary;
 import lombok.Builder;
 import lombok.Getter;
@@ -17,7 +18,6 @@ public class ClubManageResponse {
 
     private final Long clubId;
     private final String clubName;
-    private final String initials;
     private final Long sportId;
     private final String sportName;
     private final String areaLabel;
@@ -38,9 +38,13 @@ public class ClubManageResponse {
     private final List<ClubJoinRequestResponse> applications;
     private final Integer pendingApplicationCount;
     private final String recruitLabel;
+    private final String sportKey;
+    private final String tierKey;
+    private final int markTone;
+    private final List<ClubScheduleResponse> schedules;
 
     public static ClubManageResponse from(ClubSummary club, List<ClubMember> members, Long userId,
-            List<ClubJoinRequest> joinRequests) {
+            List<ClubJoinRequest> joinRequests, List<ClubSchedule> schedules) {
         String leaderName = "미정";
         boolean leader = false;
         List<ClubMemberResponse> memberResponses = new ArrayList<>();
@@ -60,12 +64,16 @@ public class ClubManageResponse {
             applications.add(ClubJoinRequestResponse.from(r));
         }
 
+        List<ClubScheduleResponse> scheduleResponses = new ArrayList<>();
+        for (ClubSchedule s : schedules) {
+            scheduleResponses.add(ClubScheduleResponse.from(s));
+        }
+
         boolean otherMembersRemain = members.size() > 1;
 
         return ClubManageResponse.builder()
                 .clubId(club.getClubId())
                 .clubName(club.getClubName())
-                .initials(ClubFormat.initials(club.getClubName()))
                 .sportId(club.getSportId())
                 .sportName(club.getSportName())
                 .areaLabel(ClubFormat.areaLabel(club.getAreaLabel()))
@@ -86,6 +94,10 @@ public class ClubManageResponse {
                 .pendingApplicationCount(applications.size())
                 .otherMembersRemain(otherMembersRemain)
                 .recruitLabel(ClubFormat.manageRecruitLabel(club))
+                .sportKey(ClubFormat.sportKey(club.getSportId()))
+                .tierKey(ClubFormat.tierKey(club.getAverageMmr()))
+                .markTone(ClubFormat.markTone(club.getClubId()))
+                .schedules(scheduleResponses)
                 .build();
 
     }

@@ -1,5 +1,6 @@
 package co.kr.spoit.club.service;
 
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +16,7 @@ import co.kr.spoit.club.domain.Club;
 import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
 import co.kr.spoit.club.domain.ClubRegionOption;
+import co.kr.spoit.club.domain.ClubSchedule;
 import co.kr.spoit.club.domain.ClubSportCount;
 import co.kr.spoit.club.domain.ClubSportOption;
 import co.kr.spoit.club.domain.ClubSummary;
@@ -270,7 +272,8 @@ public class ClubServiceImpl implements ClubService {
         if (clubMapper.existsActiveLeader(targetClubId, userId)) {
             joinRequests = clubMapper.selectPendingJoinRequests(targetClubId);
         }
-        return ClubManageResponse.from(club, members, userId, joinRequests);
+        List<ClubSchedule> schedules = clubMapper.selectUpcomingSchedules(targetClubId, LocalDateTime.now());
+        return ClubManageResponse.from(club, members, userId, joinRequests, schedules);
     }
 
     // 내 동호회 선택 버튼 응답

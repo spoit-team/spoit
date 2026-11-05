@@ -162,13 +162,11 @@
   cursor: pointer;
 }
 
-.team-sport-tab-emoji {
-  display: inline-grid;
-  width: 18px;
-  flex: 0 0 18px;
-  place-items: center;
-  font-size: 15px;
-  line-height: 1;
+.team-sport-tab-icon {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  margin: -14px;
 }
 
 .team-sport-tab:hover {
@@ -321,23 +319,34 @@
 }
 
 .team-mark {
-  display: grid;
+  position: relative;
+  display: block;
   width: 46px;
   height: 46px;
   flex: 0 0 46px;
-  place-items: center;
-  border-radius: 13px;
-  background: var(--color-match-soft);
-  color: var(--color-match-ink);
-  font-size: 12px;
-  font-weight: 850;
 }
 
-.team-mark[data-sport="basketball"] { background: #fff1e7; color: #9a5428; }
-.team-mark[data-sport="badminton"] { background: #eef0ff; color: #514c9a; }
-.team-mark[data-sport="tennis"] { background: #f0f6dc; color: #53651d; }
-.team-mark[data-sport="jokgu"] { background: #e8f3ff; color: #28618f; }
-.team-mark[data-sport="etc"] { background: var(--color-paper-soft); color: var(--color-ink-2); }
+.team-mark::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: var(--mark-tone);
+}
+
+.team-mark img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.team-mark.tone-1 { --mark-tone: #EEEDFE; }
+.team-mark.tone-2 { --mark-tone: #E1F5EE; }
+.team-mark.tone-3 { --mark-tone: #FAECE7; }
+.team-mark.tone-4 { --mark-tone: #FBEAF0; }
+.team-mark.tone-5 { --mark-tone: #E6F1FB; }
+.team-mark.tone-6 { --mark-tone: #FAEEDA; }
 
 .team-card-name {
   min-width: 0;
