@@ -3,6 +3,7 @@ package co.kr.spoit.match.controller;
 import static co.kr.spoit.member.domain.MemberPrincipalFixture.member;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -27,6 +28,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import co.kr.spoit.global.config.SecurityConfig;
 import co.kr.spoit.match.dto.JoinPage;
+import co.kr.spoit.match.dto.JoinPage.ConflictMatch;
+import co.kr.spoit.match.dto.JoinPage.ConflictPerson;
 import co.kr.spoit.match.dto.JoinPage.JoinMatch;
 import co.kr.spoit.match.dto.JoinPage.Person;
 import co.kr.spoit.match.dto.JoinPage.Selection;
@@ -99,6 +102,76 @@ class MatchTeamPageRenderTest {
                         containsString("name=\"clubMemberIds\" value=\"21\""),
                         containsString("name=\"clubMemberIds\" value=\"22\""),
                         containsString("팀 단위 참가"))));
+    }
+
+    @Test
+    @DisplayName("신청 내용 화면에 운영 규칙·취소·노쇼 안내 모달과 계정 정지 문구를 그린다")
+    void joinPageRendersRulesGuide() throws Exception {
+        given(applicationService.prepareTeam(MATCH_ID, 7L, 5L, List.of(21L, 22L))).willReturn(Optional.of(teamJoinPage()));
+
+        mockMvc.perform(get("/matches/{matchId}/apply/team", MATCH_ID)
+                        .param("clubId", "5")
+                        .param("clubMemberIds", "21,22")
+                        .with(user(member())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(allOf(
+                        containsString("id=\"rules-guide-open\""),
+                        containsString("id=\"rules-guide-dialog\""),
+                        containsString("저녁 배드민턴 · 내일 19:00~21:00"),
+                        containsString("매치 운영 규칙"),
+                        containsString("다른 매치와 시간이 겹치면 신청할 수 없습니다."),
+                        containsString("취소 안내"),
+                        containsString("노쇼 안내"),
+                        containsString("잦은 노쇼 시 일주일에서 한 달 사이의 계정 정지가 있을 수 있습니다."),
+                        containsString("id=\"rules-guide-confirm\""))));
+    }
+
+    @Test
+    @DisplayName("시간이 겹치면 신청 화면에 겹치는 회원·매치를 담은 모달을 그리고, 신청 버튼을 막는다")
+    void joinPageRendersTimeConflictModal() throws Exception {
+        JoinPage page = JoinPage.builder()
+                .match(teamJoinPage().getMatch())
+                .selection(teamJoinPage().getSelection())
+                .canReserve(false)
+                .capacityNotice("회원님 외 1명이 이미 참가 신청한 다른 매치와 시간이 겹칩니다.")
+                .timeConflicts(List.of(
+                        new ConflictPerson("회원", true, List.of(
+                                new ConflictMatch("성수 풋살 리그", "11/7(토) 18:00~20:00", "성수 구장", "참가 확정"))),
+                        new ConflictPerson("박민수", false, List.of(
+                                new ConflictMatch("주말 배드민턴", "11/7(토) 20:00~22:00", "강남 스포츠센터", "확정 대기")))))
+                .feeTotalText("0원")
+                .feeSummaryNote("")
+                .build();
+        given(applicationService.prepareTeam(MATCH_ID, 7L, 5L, List.of(21L, 22L))).willReturn(Optional.of(page));
+
+        mockMvc.perform(get("/matches/{matchId}/apply/team", MATCH_ID)
+                        .param("clubId", "5")
+                        .param("clubMemberIds", "21,22")
+                        .with(user(member())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(allOf(
+                        containsString("id=\"time-conflict-dialog\""),
+                        containsString("신청 시간이 겹칩니다"),
+                        containsString("회원 (나)"),
+                        containsString("성수 풋살 리그"),
+                        containsString("11/7(토) 18:00~20:00 · 성수 구장"),
+                        containsString("박민수"),
+                        containsString("확정 대기"),
+                        containsString("href=\"/mypage#reservations\""),
+                        containsString("id=\"continue-button\" type=\"submit\" class=\"join-button join-button-primary\" disabled"))));
+    }
+
+    @Test
+    @DisplayName("겹치지 않으면 시간 겹침 모달을 그리지 않는다")
+    void joinPageWithoutConflictHasNoModal() throws Exception {
+        given(applicationService.prepareTeam(MATCH_ID, 7L, 5L, List.of(21L, 22L))).willReturn(Optional.of(teamJoinPage()));
+
+        mockMvc.perform(get("/matches/{matchId}/apply/team", MATCH_ID)
+                        .param("clubId", "5")
+                        .param("clubMemberIds", "21,22")
+                        .with(user(member())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("time-conflict-dialog"))));
     }
 
     private static MatchDetailPage detailWithClub() {

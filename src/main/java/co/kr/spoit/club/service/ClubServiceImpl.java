@@ -14,12 +14,15 @@ import co.kr.spoit.club.domain.Club;
 import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
 import co.kr.spoit.club.domain.ClubRegionOption;
+import co.kr.spoit.club.domain.ClubSportCount;
 import co.kr.spoit.club.domain.ClubSportOption;
 import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.ClubSearchForm;
+import co.kr.spoit.club.dto.ClubSportTabResponse;
 import co.kr.spoit.club.dto.MyClubResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
 import lombok.RequiredArgsConstructor;
@@ -39,16 +42,31 @@ public class ClubServiceImpl implements ClubService {
     private static final int MESSAGE_MAX_LENGTH = 200;
     private static final int KICK_REASON_MAX_LENGTH = 200;
 
-    // 최신순 전체 조회(검색 미구현)
+    // 목록: 검색,필터,정렬 조건으로 조회
     @Override
-    public List<ClubCardResponse> findClubCards() {
-        List<ClubSummary> clubs = clubMapper.selectClubs(null, null, null, false, "recent");
+    public List<ClubCardResponse> findClubCards(ClubSearchForm filters) {
+        List<ClubSummary> clubs = clubMapper.selectClubs(filters);
 
         List<ClubCardResponse> cards = new ArrayList<>();
         for (ClubSummary club : clubs) {
             cards.add(ClubCardResponse.from(club));
         }
         return cards;
+    }
+
+    @Override
+    public List<ClubSportTabResponse> findSportTabs(Long selectedSportId) {
+        List<ClubSportCount> sports = clubMapper.selectClubSportCounts();
+        int total = 0;
+        for (ClubSportCount sport : sports) {
+            total += sport.getClubCount();
+        }
+        List<ClubSportTabResponse> tabs = new ArrayList<>();
+        tabs.add(ClubSportTabResponse.all(total, selectedSportId));
+        for (ClubSportCount sport : sports) {
+            tabs.add(ClubSportTabResponse.from(sport, selectedSportId));
+        }
+        return tabs;
     }
 
     @Override

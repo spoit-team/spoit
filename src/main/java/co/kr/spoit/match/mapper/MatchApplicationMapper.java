@@ -13,6 +13,7 @@ import co.kr.spoit.match.dto.MatchRow;
 import co.kr.spoit.match.dto.MyApplicationRow;
 import co.kr.spoit.match.dto.TeamClubRow;
 import co.kr.spoit.match.dto.TeamMemberRow;
+import co.kr.spoit.match.dto.TimeConflictRow;
 
 @Mapper
 public interface MatchApplicationMapper {
@@ -22,6 +23,24 @@ public interface MatchApplicationMapper {
      * 시설 행을 잠그기 전에 후보 id만 읽어, 잠금 순서를 시설 → 매칭방으로 맞춘다.
      */
     Long findFacilityId(@Param("matchId") long matchId);
+
+    /**
+     * 신청 회원 행 잠금 (id 순). 같은 회원의 다른 매치 신청을 한 줄로 세워 시간 겹침 검사가 서로 비껴가지 않게 한다.
+     * 트랜잭션의 첫 조회로 불러야 이후 일반 조회가 앞선 신청의 커밋 결과를 본다.
+     */
+    List<Long> lockUsers(@Param("userIds") List<Long> userIds);
+
+    /** 팀 신청 잠금 전 팀원 회원 id 조회. 잠금 읽기라 트랜잭션 스냅숏을 만들지 않는다. */
+    List<Long> lockClubMemberUserIds(@Param("clubMemberIds") List<Long> clubMemberIds);
+
+    /**
+     * 회원들이 이미 들어가 있는(활성 신청·참가) 다른 매치 중 이 매치와 시간이 겹치는 것.
+     * 끝나는 시각에 바로 시작하는 연속 매치는 겹치지 않는다. 취소된 매치는 제외한다.
+     */
+    List<TimeConflictRow> findTimeConflicts(@Param("matchId") long matchId,
+                                            @Param("userIds") List<Long> userIds,
+                                            @Param("applicationStatuses") List<String> applicationStatuses,
+                                            @Param("cancelledMatchStatus") String cancelledMatchStatus);
 
     /** 매칭방 행 잠금 (없거나 시설이 삭제됐으면 null). 같은 방 신청·확정을 직렬화한다. */
     MatchRow lockMatch(@Param("matchId") long matchId);
@@ -82,6 +101,20 @@ public interface MatchApplicationMapper {
 
     /** 같은 묶음의 신청 행 (대표가 먼저, 그다음 접수 순) */
     List<GroupMemberRow> findGroupMembers(@Param("groupApplicationId") long groupApplicationId);
+
+    /**
+     * 팀원 일부 취소 전 묶음 행 잠금 (findGroupMembers와 같은 순서).
+     * 잠금 읽기라 트랜잭션 앞부분의 스냅숏이 아닌 최신 상태를 읽는다.
+     */
+    List<GroupMemberRow> lockGroupMembers(@Param("groupApplicationId") long groupApplicationId);
+
+    /**
+     * 대표가 빠질 때 남은 팀원 행을 새 대표 행의 묶음으로 옮긴다.
+     * 아직 이전 묶음에 있는 행만 바꾸며, 바뀐 행 수를 돌려준다.
+     */
+    int moveGroup(@Param("applicationIds") List<Long> applicationIds,
+                  @Param("fromGroupApplicationId") long fromGroupApplicationId,
+                  @Param("toGroupApplicationId") long toGroupApplicationId);
 
     /** RES-06 내 신청 내역: 내가 낸 신청 + 내가 참가자로 들어간 신청 (경기 시작 순) */
     List<MyApplicationRow> findMyApplications(@Param("userId") long userId,

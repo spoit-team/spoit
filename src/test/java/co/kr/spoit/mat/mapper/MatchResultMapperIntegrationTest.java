@@ -180,15 +180,23 @@ class MatchResultMapperIntegrationTest extends AbstractMySqlMapperTest {
     }
 
     @Test
-    void findsCaptainsWithoutSubmissionInReminderWindow() {
-        // 팀장 70은 제출 행이 있어 빠지고 71(회원 4)만 대상이다. 구간은 시작을 빼고 끝을 넣는다.
+    void findsCaptainsWithoutResultOrEvaluationInReminderWindow() {
+        // 팀장 70(회원 3)은 결과는 냈지만 평가가 없고, 71(회원 4)은 둘 다 없다. 구간은 시작을 빼고 끝을 넣는다.
         assertThat(reminderTargets(END_AT.minusMinutes(1), END_AT))
                 .extracting(ReminderTarget::getMatchId, ReminderTarget::getUserId)
-                .containsExactly(tuple(7L, 4L));
+                .containsExactly(tuple(7L, 3L), tuple(7L, 4L));
         assertThat(reminderTargets(END_AT, END_AT.plusMinutes(1))).isEmpty();
         // 6은 같은 구간에 끝났지만 팀장이 없다.
         LocalDateTime match6EndAt = LocalDateTime.of(2026, 10, 25, 12, 0);
         assertThat(reminderTargets(match6EndAt.minusMinutes(1), match6EndAt)).isEmpty();
+
+        // 결과와 평가를 모두 낸 70은 빠지고, 평가만 낸 71은 결과가 없어 남는다.
+        insertEvaluation(70L, 71L);
+        insertEvaluation(71L, 70L);
+        sqlSession.clearCache();
+        assertThat(reminderTargets(END_AT.minusMinutes(1), END_AT))
+                .extracting(ReminderTarget::getMatchId, ReminderTarget::getUserId)
+                .containsExactly(tuple(7L, 4L));
     }
 
     @Test
@@ -232,6 +240,12 @@ class MatchResultMapperIntegrationTest extends AbstractMySqlMapperTest {
     private List<Long> submittableMatchIds(Long userId, LocalDateTime now) {
         return resultMapper.findResultSubmittableMatchIds(userId, "매칭 완료", "WAITING", "확정",
                 now.minusHours(24), now);
+    }
+
+    private void insertEvaluation(Long evaluatorId, Long targetId) {
+        jdbcTemplate.update("INSERT INTO match_evaluation (match_id, sport_id, evaluator_participant_id,"
+                + " target_participant_id, overall_score, status, submitted_at)"
+                + " VALUES (7, 1, ?, ?, NULL, '제출 완료', '2026-10-26 12:30:00')", evaluatorId, targetId);
     }
 
     // jdbcTemplate으로 바꾼 값은 MyBatis 1차 캐시가 모르므로, 같은 인자로 다시 조회하기 전에 캐시를 비운다.

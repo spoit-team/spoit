@@ -106,7 +106,7 @@ class CorePageRouteTest {
                 Arguments.of("/signup", "auth/signup", "회원가입"),
                 Arguments.of("/matches", "matches/cards", "참여 가능한 매칭방"),
                 Arguments.of("/matches/1", "matches/detail", "매칭방 목록"),
-                Arguments.of("/teams", "teams/list", "SPO:IT 팀"));
+                Arguments.of("/teams", "teams/list", "SPO:IT 동호회"));
     }
 
     private static Stream<Arguments> adminPageRoutes() {

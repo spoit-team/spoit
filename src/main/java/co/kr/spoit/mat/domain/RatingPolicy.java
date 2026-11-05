@@ -1,12 +1,13 @@
 package co.kr.spoit.mat.domain;
 
+import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 
-/** 레이팅 정책 숫자를 한 곳에 모은다. Elo 계산 값이나 공식이 바뀌면 ALGORITHM_VERSION도 함께 올린다. */
+/** 레이팅 정책 숫자를 한 곳에 모은다. Elo·평가 보정 값이나 공식이 바뀌면 ALGORITHM_VERSION도 함께 올린다. */
 public final class RatingPolicy {
 
-    public static final String ALGORITHM_VERSION = "ELO-K32-V1";
+    public static final String ALGORITHM_VERSION = "ELO-K32-V2";
 
     public static final int K_FACTOR = 32;
     public static final int PLACEMENT_K_FACTOR = 64;
@@ -15,8 +16,13 @@ public final class RatingPolicy {
 
     // sport_rating_history의 DECIMAL 자릿수와 맞춘다.
     public static final int MMR_SCALE = 2;
+    public static final int EVALUATION_SCORE_SCALE = 2;
     public static final int EXPECTED_SCORE_SCALE = 4;
     public static final RoundingMode ROUNDING = RoundingMode.HALF_UP;
+
+    // 평가 보정 = (평가 점수 - 기준 점수) x 계수. 평가 점수가 없으면 보정하지 않는다.
+    public static final int EVALUATION_BASE_SCORE = 5;
+    public static final BigDecimal EVALUATION_MULTIPLIER = BigDecimal.ONE;
 
     public static final int TIER_START_MMR = 800;
     public static final int TIER_DIVISION_SIZE = 50;

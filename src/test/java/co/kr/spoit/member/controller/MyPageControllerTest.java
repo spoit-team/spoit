@@ -121,7 +121,7 @@ class MyPageControllerTest {
         mockMvc.perform(get("/mypage").with(principal()))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("summary", hasEntry("representativeSportName", "농구")))
-                .andExpect(model().attribute("summary", hasEntry("representativeRatingText", "1015.66")));
+                .andExpect(model().attribute("summary", hasEntry("representativeRatingText", "배치 중 (4/5)")));
     }
 
     @Test
@@ -130,7 +130,7 @@ class MyPageControllerTest {
         given(memberService.findRegions(USER_ID)).willReturn(List.of());
         given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.empty());
         MyReservations.Entry entry = new MyReservations.Entry(1L, 3L, "풋살", "개인 신청", "확정 대기",
-                "text-book-ink", "매칭방", "내일 19:00~21:00 · 시설", "참가 1명", null, false, "신청 취소", false, null, false, null);
+                "text-book-ink", "매칭방", "내일 19:00~21:00 · 시설", "참가 1명", null, false, "신청 취소", false, null, false, List.of());
         given(reservationService.find(USER_ID)).willReturn(new MyReservations(List.of(entry), List.of(), 2, 1, 1));
 
         mockMvc.perform(get("/mypage").with(principal()))
@@ -162,6 +162,18 @@ class MyPageControllerTest {
                 .andExpect(redirectedUrl("/mypage?message="
                         + URLEncoder.encode("신청을 취소했습니다.", StandardCharsets.UTF_8) + "#reservations"));
         verify(applicationService).cancel(11L, USER_ID);
+    }
+
+    @Test
+    @DisplayName("팀 신청 대표가 고른 팀원과 새 대표를 함께 넘긴다")
+    void cancelTeamMembersPassesSelection() throws Exception {
+        mockMvc.perform(post("/mypage/applications/11/cancel").with(principal())
+                        .param("memberApplicationIds", "11", "13")
+                        .param("newLeaderApplicationId", "12"))
+                .andExpect(redirectedUrl("/mypage?message="
+                        + URLEncoder.encode("신청을 취소했습니다.", StandardCharsets.UTF_8) + "#reservations"));
+        verify(applicationService).cancel(11L, USER_ID, List.of(11L, 13L), 12L);
+        verify(applicationService, never()).cancel(anyLong(), anyLong());
     }
 
     @Test

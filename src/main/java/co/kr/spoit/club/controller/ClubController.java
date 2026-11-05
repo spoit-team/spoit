@@ -16,6 +16,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.service.ClubService;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -29,16 +30,20 @@ public class ClubController {
 
     private final ClubService clubService;
 
-    // 동호회 목록 화면(검색,필터,통계 미구현)
+    // 동호회 목록 화면(검색,필터)
     @GetMapping
-    public String list(Model model) {
-        List<ClubCardResponse> clubs = clubService.findClubCards();
+    public String list(ClubSearchForm filters, BindingResult bindingResult, Model model) {
+        // 숫자 칸에 글자가 오면 예외처리
+        if (bindingResult.hasErrors()) {
+            log.info("동호회 목록 검색 형식 오류: {}", bindingResult.getAllErrors());
+            return "redirect:/teams";
+        }
+        List<ClubCardResponse> clubs = clubService.findClubCards(filters);
         model.addAttribute("clubs", clubs);
         model.addAttribute("resultCount", clubs.size());
-        model.addAttribute("sportTabs", List.of());
-        model.addAttribute("statistics", List.of());
-        model.addAttribute("districts", List.of());
-        model.addAttribute("filters", null);
+        model.addAttribute("sportTabs", clubService.findSportTabs(filters.getSportId()));
+        model.addAttribute("districts", clubService.findRegionOptions());
+        model.addAttribute("filters", filters);
         return "teams/list";
     }
 
