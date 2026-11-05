@@ -8,6 +8,7 @@ import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.ClubWithdrawalBlocks;
 import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.dto.ClubSportTabResponse;
 import co.kr.spoit.club.dto.MyClubResponse;
@@ -68,4 +69,15 @@ public interface ClubService {
 
     // 동호회 정보 수정
     void updateClub(Long userId, Long clubId, ClubCreateForm form) throws ClubNameExistException;
+
+    /**
+     * 동호회 행을 잠그고 최신 값을 돌려준다. 없거나 해체됐으면 null.
+     *
+     * <p>다른 도메인이 동호회 행을 먼저 잠가야 할 때(팀 매치 신청의 잠금 순서) 사용한다.
+     * 반드시 쓰기 트랜잭션 안에서 호출해야 한다.</p>
+     */
+    co.kr.spoit.club.domain.ClubSummary lockActiveClub(Long clubId);
+
+    // 회원 탈퇴를 막는 동호회 소속(동호회장·모집 중 팀 매치 신청/참가)
+    ClubWithdrawalBlocks findWithdrawalBlocks(Long userId);
 }

@@ -13,7 +13,6 @@
   const facilityModal = document.getElementById('facility-modal');
   const facilityForm = document.getElementById('facility-form');
   const facilitySportOptions = Array.from(document.querySelectorAll('[data-facility-sport]'));
-  const maintenanceModal = document.getElementById('maintenance-modal');
   const facilityConfirmModal = document.getElementById('facility-confirm-modal');
   const facilityConfirmTitle = document.getElementById('facility-confirm-title');
   const facilityConfirmMessage = document.getElementById('facility-confirm-message');
@@ -44,7 +43,7 @@
   }
 
   function activeFacilityModals() {
-    return [roomEditorModal, facilityModal, maintenanceModal, facilityConfirmModal].filter(function (modal) {
+    return [roomEditorModal, facilityModal, facilityConfirmModal].filter(function (modal) {
       return modal && !modal.hidden;
     });
   }
@@ -445,14 +444,6 @@
       closeFacilityModal();
       return;
     }
-    if (target.closest('[data-open-maintenance]')) {
-      openModal(maintenanceModal, '#maintenance-date');
-      return;
-    }
-    if (target.closest('[data-close-maintenance]')) {
-      closeModal(maintenanceModal);
-      return;
-    }
     if (target.closest('[data-close-facility-confirm]')) {
       cancelFacilityConfirmation();
       return;
@@ -484,7 +475,7 @@
     }
   });
 
-  [roomEditorModal, facilityModal, maintenanceModal].forEach(function (modal) {
+  [roomEditorModal, facilityModal].forEach(function (modal) {
     modal?.addEventListener('click', function (event) {
       if (event.target !== modal) return;
       if (modal === facilityModal) closeFacilityModal();

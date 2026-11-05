@@ -6,8 +6,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -17,13 +17,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+import co.kr.spoit.club.service.ClubService;
 import co.kr.spoit.facility.service.FacilityReservationService;
 import co.kr.spoit.facility.service.FacilityScheduleUnavailableException;
 import co.kr.spoit.mat.domain.SportRating;
 import co.kr.spoit.mat.mapper.SportRatingMapper;
 import co.kr.spoit.match.domain.ApplicationStatus;
+import co.kr.spoit.match.domain.ApplicationType;
 import co.kr.spoit.match.domain.MatchApplication;
 import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.domain.ParticipationStatus;
@@ -39,12 +42,14 @@ import co.kr.spoit.match.dto.MatchDetailPage;
 import co.kr.spoit.match.dto.MatchDetailPage.TeamMemberOption;
 import co.kr.spoit.match.dto.MatchDetailPage.TeamOption;
 import co.kr.spoit.match.dto.MatchRow;
+import co.kr.spoit.match.dto.MatchTitleRow;
 import co.kr.spoit.match.dto.TeamClubRow;
 import co.kr.spoit.match.dto.TeamMemberRow;
 import co.kr.spoit.match.dto.TimeConflictRow;
 import co.kr.spoit.match.mapper.MatchApplicationMapper;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.mapper.MemberMapper;
+import co.kr.spoit.member.service.MemberAccountLockService;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -79,6 +84,10 @@ public class MatchApplicationService {
     private static final String INDIVIDUAL = "individual";
     private static final String TEAM = "team";
 
+    /** 개인 매치 신청이 탈퇴를 막는 매칭방 상태. "종료"는 경기 종료 후 스케줄러가 기록하므로 여기 없다. */
+    private static final List<String> BLOCKING_MATCH_STATUSES =
+            List.of(MatchStatus.RECRUITING.dbValue(), MatchStatus.MATCHED.dbValue());
+
     private static final String NO_TEAM_MEMBER = "함께 참가할 팀원을 한 명 이상 선택해 주세요.";
     private static final String INVALID_TEAM_MEMBER = "선택한 팀원 정보를 확인할 수 없습니다. 매치 상세에서 다시 선택해 주세요.";
 
@@ -90,6 +99,30 @@ public class MatchApplicationService {
     private final SportRatingMapper sportRatingMapper;
     private final MatchService matchService;
     private final FacilityReservationService facilityReservationService;
+    private final MemberAccountLockService accountLockService;
+    private final ClubService clubService;
+
+    /**
+     * 회원 탈퇴를 막는 진행 중 개인 매치 신청의 매치 제목.
+     *
+     * <p>대기·확정 신청이면서 매칭방이 모집 중이거나 매칭 완료일 때만 차단한다. "매칭 완료"는 경기가
+     * 아직 진행 중이라는 뜻이고, 경기 종료 후 스케줄러가 "종료"로 바꾸면 더 이상 막지 않는다.
+     * 종료·취소된 매치는 막지 않으므로 경기가 끝난 직후 탈퇴할 수 있다.</p>
+     *
+     * <p>같은 경기의 중복 신청은 한 번으로 접고, 제목이 같은 서로 다른 경기는 각각 남긴다.</p>
+     */
+    public List<String> findActiveIndividualMatchTitles(long userId) {
+        List<MatchTitleRow> rows = applicationMapper.findActiveIndividualMatchTitles(userId,
+                ApplicationType.INDIVIDUAL.dbValue(), ApplicationStatus.activeValues(),
+                BLOCKING_MATCH_STATUSES);
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        return rows.stream()
+                .map(MatchTitleRow::getTitle)
+                .filter(Objects::nonNull)
+                .toList();
+    }
 
     /** 신청 내용 화면. 신청할 수 없는 상태여도 화면은 보여 주고 사유를 안내한다. */
     public Optional<JoinPage> prepareIndividual(long matchId, long userId) {
@@ -184,20 +217,22 @@ public class MatchApplicationService {
      * 개인 신청 접수. 같은 매칭방 신청은 social_match 행 잠금으로 한 줄로 세운다.
      *
      * <p>기존 매칭방이라도 신청 시점의 시설 운영 일정·휴관을 다시 확인한다.
-     * 잠금 순서는 시설 → 매칭방으로 고정해 운영시간 변경·휴관 설정과 교착 없이 직렬화한다.
-     * 신청자 개인 조회는 잠금 전에 이미 스냅샷을 만들었을 수 있으므로, 시설 서비스가
-     * 현재 값을 잠금 조회로 다시 읽는다.</p>
+     * 잠금 순서는 시설 → 매칭방 → 신청자 계정으로 고정해 운영시간 변경·휴관 설정과 교착 없이 직렬화한다.
+     * 시설 id 조회처럼 잠금 전에 실행되는 일반 조회가 REPEATABLE READ 스냅샷을 일찍 만들면 잠금 뒤
+     * 정원·중복 확인이 낡은 값을 볼 수 있으므로 이 트랜잭션만 READ COMMITTED로 실행한다.</p>
      *
      * @return 접수 번호
      */
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public String applyIndividual(long matchId, long userId) {
         // 첫 조회로 회원 행을 잠가, 같은 회원의 다른 매치 신청이 끝난 뒤의 상태로 시간 겹침을 확인한다.
         applicationMapper.lockUsers(List.of(userId));
         LocalDateTime now = LocalDateTime.now(ZONE);
-        requireApplicableMember(userId, now);
 
         MatchRow match = lockForApply(matchId, now);
+        // 잠금 순서: 시설 → 매칭방 → 신청자 계정. 계정을 잠근 뒤 최신 값으로 탈퇴·정지를 다시 확인해야
+        // 동시 탈퇴가 신청 행을 남기지 않는다(잠금 전 조회는 스냅샷일 수 있다).
+        requireApplicableMemberLocked(userId, now);
         if (applicationMapper.existsActiveEntry(matchId, userId, ApplicationStatus.activeValues())) {
             throw new MatchApplyException("이미 참가 신청한 매칭방입니다.");
         }
@@ -219,7 +254,7 @@ public class MatchApplicationService {
      * @param clubMemberIds 함께 참가할 동호회원 (신청 대표 본인 제외, 1명 이상)
      * @return 대표 행의 접수 번호 (팀 접수 번호로 보여 준다)
      */
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public String applyTeam(long matchId, long userId, long clubId, List<Long> clubMemberIds) {
         List<Long> ids = distinctIds(clubMemberIds);
         if (ids.isEmpty()) {
@@ -233,6 +268,11 @@ public class MatchApplicationService {
         requireApplicableMember(userId, now);
 
         MatchRow match = lockForApply(matchId, now);
+        // 잠금 순서: 시설 → 매칭방 → 동호회 → 포함 계정. 동호회 행을 먼저 잠가야 동시 회장 위임(동호회 → 계정)과
+        // 순서가 같아진다. 여기서 계정을 먼저 잠그면 FK 삽입이 동호회 공유 잠금을 기다리며 교착이 생긴다.
+        if (clubService.lockActiveClub(clubId) == null) {
+            throw new MatchApplyException("팀으로 신청할 수 있는 동호회가 아닙니다.");
+        }
         TeamClubRow club = applicationMapper.findTeamClub(clubId, userId);
         if (club == null) {
             throw new MatchApplyException("팀으로 신청할 수 있는 동호회가 아닙니다.");
@@ -265,6 +305,34 @@ public class MatchApplicationService {
             selected.add(m);
         }
 
+        // 잠금 순서: 시설 → 매칭방 → 신청에 포함되는 모든 계정(식별자 오름차순).
+        // 대표와 팀원 계정을 함께 잠가야 동시 탈퇴가 팀 신청 행을 남기지 않는다.
+        List<Long> accountIds = new ArrayList<>();
+        accountIds.add(userId);
+        for (TeamMemberRow m : selected) {
+            accountIds.add(m.getUserId());
+        }
+        Map<Long, Member> lockedMembers = lockAccounts(accountIds);
+
+        // 잠근 최신 값으로 다시 확인한다(잠금 전 조회는 스냅샷일 수 있다).
+        Member leaderAccount = lockedMembers.get(userId);
+        if (leaderAccount == null || leaderAccount.getDeletedAt() != null) {
+            throw new MatchApplyException("탈퇴한 회원은 신청할 수 없습니다.");
+        }
+        if (leaderAccount.getPenaltyTime() != null && leaderAccount.getPenaltyTime().isAfter(now)) {
+            throw new MatchApplyException("이용 정지 기간에는 신청할 수 없습니다.");
+        }
+        for (TeamMemberRow m : selected) {
+            Member account = lockedMembers.get(m.getUserId());
+            // 목록 조회는 미탈퇴 회원만 주므로, 잠근 값이 없거나 탈퇴면 같은 안내로 되돌린다.
+            if (account == null || account.getDeletedAt() != null) {
+                throw new MatchApplyException(INVALID_TEAM_MEMBER);
+            }
+            if (account.getPenaltyTime() != null && account.getPenaltyTime().isAfter(now)) {
+                throw new MatchApplyException(m.getNickname() + "님은 이용 정지 기간이라 함께 신청할 수 없습니다.");
+            }
+        }
+
         int seats = 1 + selected.size();
         int occupied = countOccupied(matchId);
         if (occupied + seats > match.getMaxParticipants()) {
@@ -283,6 +351,20 @@ public class MatchApplicationService {
                     leader.getApplicationId(), newReceiptNo(now), now));
         }
         return leader.getReceiptNo();
+    }
+
+    /** 세션 principal은 로그인 시점 값이라, 계정을 잠근 뒤 최신 값으로 탈퇴·정지를 확인한다. */
+    private void requireApplicableMemberLocked(long userId, LocalDateTime now) {
+        Member member = accountLockService.lockById(userId);
+        if (member == null) {
+            throw new MatchApplyException("회원 정보를 확인할 수 없습니다.");
+        }
+        if (member.getDeletedAt() != null) {
+            throw new MatchApplyException("탈퇴한 회원은 신청할 수 없습니다.");
+        }
+        if (member.getPenaltyTime() != null && member.getPenaltyTime().isAfter(now)) {
+            throw new MatchApplyException("이용 정지 기간에는 신청할 수 없습니다.");
+        }
     }
 
     private void requireNoTimeConflict(long matchId, List<Long> userIds, long userId) {
@@ -349,6 +431,15 @@ public class MatchApplicationService {
         if (member.getPenaltyTime() != null && member.getPenaltyTime().isAfter(now)) {
             throw new MatchApplyException("이용 정지 기간에는 신청할 수 없습니다.");
         }
+    }
+
+    /** 여러 계정을 잠그고 식별자별 최신 값으로 돌려준다. 잠금 순서는 서비스가 식별자 오름차순으로 고정한다. */
+    private Map<Long, Member> lockAccounts(List<Long> userIds) {
+        Map<Long, Member> locked = new LinkedHashMap<>();
+        for (Member member : accountLockService.lockAllById(userIds)) {
+            locked.put(member.getUserId(), member);
+        }
+        return locked;
     }
 
     /** 시설 → 매칭방 순으로 잠그고, 운영 일정·모집 상태·시작 여부를 확인한 매칭방 */

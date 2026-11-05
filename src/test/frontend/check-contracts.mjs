@@ -183,6 +183,76 @@ for (const file of scripts) {
   }
 }
 
+/* ── 회원 탈퇴 확인창 계약 ────────────────────────────────────────────────
+   서버는 withdrawalBlocks(blocked·leaderClubNames·teamMatchClubNames·individualMatchNames)를
+   항상 내려주고, 화면은 그 값으로만 비밀번호 입력과 확인 버튼을 잠근다. 사유가 늘거나
+   잠금 조건이 화면에서 임의로 풀리면 사용자가 막힌 줄 모르고 탈퇴를 시도하므로 여기서 고정한다. */
+const profileSource = await readFile(path.join(resources, 'templates/mypage/profile.html'), 'utf8');
+const withdrawalDialog = profileSource.slice(
+  profileSource.indexOf('id="profile-withdrawal-dialog"'),
+  profileSource.indexOf('<script', profileSource.indexOf('id="profile-withdrawal-dialog"')));
+check(withdrawalDialog.length > 0, 'profile.html: withdrawal dialog missing');
+// 잠금은 서버 값 하나로만 정해진다. 클라이언트 임의 판단이나 사유별 분기를 두지 않는다.
+check(/th:attr="data-withdrawal-blocked=\$\{withdrawalBlocks != null and withdrawalBlocks\.blocked\} \? 'true' : null"/.test(withdrawalDialog),
+  'withdrawal dialog: lock state must come from withdrawalBlocks.blocked');
+check(/id="withdrawal-blocks"[\s\S]*?role="group"[\s\S]*?aria-labelledby="withdrawal-blocks-title"/.test(withdrawalDialog),
+  'withdrawal blocks: the blocker list must be a labelled group');
+check(/id="withdrawal-blocks"[\s\S]*?tabindex="-1"/.test(withdrawalDialog),
+  'withdrawal blocks: the blocker list must be able to take focus when the input is disabled');
+for (const [field, phrase] of [
+  ['leaderClubNames', '동호회장인 팀은 위임하거나 해체해 주세요'],
+  ['teamMatchClubNames', '모집 중인 팀 매치에 신청되어 있어요'],
+  ['individualMatchNames', '종료 상태가 아닌 매치에 신청되어 있어요']
+]) {
+  check(withdrawalDialog.includes(`withdrawalBlocks.${field}`),
+    `withdrawal blocks: ${field} must be rendered`);
+  check(withdrawalDialog.includes(`#lists.size(withdrawalBlocks.${field})`),
+    `withdrawal blocks: ${field} must show its count`);
+  check(withdrawalDialog.includes(`#strings.listJoin(withdrawalBlocks.${field}, ' · ')`),
+    `withdrawal blocks: ${field} must list the names`);
+  check(withdrawalDialog.includes(phrase), `withdrawal blocks: ${field} needs its guidance phrase`);
+}
+// 사실 관계: 실제 경기가 끝났어도 결과·평가 처리 전에는 저장 상태가 '매칭 완료'로 남는다.
+// 저장 상태는 '종료'만 허용 기준이고, 종료 시각·자동 처리·기간 보장은 화면에서 약속하지 않는다.
+check(/경기가 끝났더라도 결과 처리 전에는 <strong>매칭 완료<\/strong> 상태일 수 있습니다/.test(withdrawalDialog),
+  'withdrawal blocks: 매칭 완료 must be described as possibly-already-played');
+check(!/아직 끝나지 않은 상태|아직 종료되지 않은 매치/.test(withdrawalDialog),
+  'withdrawal blocks: must not claim the match has not finished');
+check(!/종료 시각이 지나면|자동으로 종료|스케줄|24시간|이내에|즉시 종료/.test(withdrawalDialog),
+  'withdrawal blocks: no scheduler/end-time/duration promise in the guidance');
+// 종료 상태 안내는 개인 매치 사유에만 참이다. 팀 사유만 있으면 위임·취소로 풀 수 있다.
+const withdrawalNoteTag = withdrawalDialog.match(/<p class="profile-withdrawal-block-note"[^>]*>/)?.[0] ?? '';
+check(withdrawalNoteTag.includes('th:if="${!#lists.isEmpty(withdrawalBlocks.individualMatchNames)}"'),
+  'withdrawal blocks: the 종료 guidance must render only for the individual blocker');
+check(/해당 매치가 종료 상태가 되거나 신청이 취소되면 이 제한이 해제됩니다/.test(withdrawalDialog),
+  'withdrawal blocks: the note must scope itself to the individual applications');
+check(/id="withdrawal-password"[^>]*th:disabled="\$\{withdrawalBlocks != null and withdrawalBlocks\.blocked\}"/.test(withdrawalDialog),
+  'withdrawal dialog: the password input must be disabled while blocked');
+check(/id="withdrawal-error"[^>]*role="alert"/.test(withdrawalDialog),
+  'withdrawal dialog: the password error must stay a live region');
+check(/th:href="@\{\/teams\/manage\}"/.test(withdrawalDialog)
+  && /th:href="@\{\/mypage#reservations\}"/.test(withdrawalDialog),
+  'withdrawal blocks: team and individual blockers must link to their own fix screens');
+// 필드를 숫자로 되돌리거나 임의로 늘리지 않는다.
+check(namedForms.get('profile-withdrawal-form')?.inputs.some(input => input.name === 'password'),
+  'profile-withdrawal-form: the password field must stay the only payload');
+const withdrawalScript = await readFile(path.join(resources, 'static/js/profile-edit.js'), 'utf8');
+check(withdrawalScript.includes('withdrawalIsBlocked'),
+  'profile-edit.js: the blocked state must gate the dialog');
+check(!/withdrawalConfirm\.disabled\s*=\s*false/.test(withdrawalScript),
+  'profile-edit.js: the confirm button must never be force-enabled');
+check(withdrawalScript.includes('withdrawalBlocks?.focus'),
+  'profile-edit.js: a blocked dialog must move focus to the blocker list');
+
+// 레이아웃: 비밀번호 입력이 대화상자 안쪽 여백을 넘지 않고, 사유가 길어져도 버튼이 보여야 한다.
+const mypageCss = await readFile(path.join(resources, 'static/css/mypage.css'), 'utf8');
+check(/\.profile-withdrawal-dialog-content \.auth-input\s*\{[^}]*box-sizing:\s*border-box/.test(mypageCss),
+  'mypage.css: the withdrawal password input must not overflow the dialog padding');
+check(/\.profile-withdrawal-actions\s*\{[^}]*position:\s*sticky/.test(mypageCss),
+  'mypage.css: the withdrawal actions must stay reachable while the dialog scrolls');
+check(/\.profile-withdrawal-block-label\s*\{[^}]*word-break:\s*keep-all/.test(mypageCss),
+  'mypage.css: Korean blocker labels must not break mid-word');
+
 /* ── 예약 운영 일정 화면 계약 ──────────────────────────────────────────────
    시설 관리 일정 화면은 백엔드 lane과 모델 키/폼 필드/경로를 공유한다.
    마크업이 조용히 어긋나면 저장 요청이 빈 값으로 나가므로 여기서 명시적으로 고정한다. */
@@ -269,7 +339,7 @@ check(facilityDateForm?.attributes.method?.toLowerCase() === 'post'
 // 6) 충돌 경고: 안전한 alertdialog, 전체 충돌 목록, 저장 우회/자동 취소 선택지 없음.
 const conflictModal = facilitySource.slice(
   facilitySource.indexOf('id="schedule-conflict-modal"'),
-  facilitySource.indexOf('id="maintenance-modal"'));
+  facilitySource.indexOf('id="facility-delete-blocked-modal"'));
 check(conflictModal.length > 0, 'facility.html: schedule conflict modal missing');
 check(conflictModal.includes('role="alertdialog"'),
   'schedule-conflict-modal: must stay an alertdialog');
@@ -291,7 +361,7 @@ check(!/type="submit"/.test(conflictModal) && !/data-force/.test(conflictModal),
 // 6-1) 시설 삭제 차단 경고: 일정 충돌 경고와 같은 alertdialog로 막는 매칭방 전체를 보여 준다.
 const deleteBlockModal = facilitySource.slice(
   facilitySource.indexOf('id="facility-delete-blocked-modal"'),
-  facilitySource.indexOf('id="maintenance-modal"'));
+  facilitySource.indexOf('th:replace="~{fragments/admin :: toast}"'));
 check(deleteBlockModal.length > 0, 'facility.html: facility delete blocked modal missing');
 check(deleteBlockModal.includes('role="alertdialog"'),
   'facility-delete-blocked-modal: must stay an alertdialog');
@@ -347,8 +417,8 @@ check(facilityScript.includes("target?.closest('#date-schedule-hour-grid')"),
   'admin-facility.js: date slot summary must be delegated so fragment swaps keep it working');
 
 /* ── 대시보드 시설 현황 계약 ──────────────────────────────────────────────
-   대시보드에서 실제로 연결된 것은 담당 시설 전체의 매칭방 현황뿐이다.
-   요청·점검은 서버 값이 없으므로 0건처럼 보이는 표시나 동작하지 않는 링크를 두지 않는다. */
+   대시보드에서 실제로 연결된 것은 담당 시설 전체의 매칭방 현황과 참가 신청 피드뿐이다.
+   민원·요청/점검·유지보수 화면은 제거되었으므로 그 흔적이 다시 생기면 여기서 막는다. */
 const dashboardSource = fragmentSlice(facilitySource, 'id="facility-dashboard"', 'id="facility-assets"');
 check(Boolean(dashboardSource), 'facility.html: dashboard view missing');
 for (const field of ['dashboard?.matchCount', 'dashboard?.recruitingCount',
@@ -360,16 +430,26 @@ check(dashboardSource?.includes('bar.matchCount') && dashboardSource?.includes('
   'facility.html: each hourly bar must expose its real match/completed counts');
 check(/th:aria-label="\$\{bar\.label[^"]*bar\.matchCount/.test(dashboardSource ?? ''),
   'facility.html: hourly bars need an aria-label with the hour and counts');
-// 연동 전 지표는 '연동 전'으로만 남기고 0건으로 렌더링하지 않는다.
-// 미처리 요청 카드는 민원·요청 화면과 함께 여전히 미연동이므로 값 대신 '연동 전'을 고정한다.
-for (const unlinked of ['openRequestCount', 'maintenanceCount']) {
-  check(!dashboardSource?.includes(unlinked),
-    `facility.html: unlinked dashboard field ${unlinked} must not be rendered`);
+// 지표는 실제 집계되는 두 값만 남는다. 없는 값을 0건이나 '연동 전'으로 그리지 않는다.
+for (const removed of ['openRequestCount', 'maintenanceCount', '미처리 요청', '점검 예정',
+  '연동 전', 'is-unlinked', 'metric-tag']) {
+  check(!dashboardSource?.includes(removed),
+    `facility.html: removed dashboard metric must not come back (${removed})`);
 }
-check((dashboardSource?.match(/연동 전/g) ?? []).length >= 2,
-  'facility.html: unlinked request/maintenance cards must say 연동 전 instead of 0건');
+check(dashboardSource?.includes('<div class="metric-grid two-metrics">'),
+  'facility.html: the dashboard must lay out exactly two metrics in one row');
+check((dashboardSource?.match(/class="card metric-card"/g) ?? []).length === 2,
+  'facility.html: the dashboard must render exactly two metric cards');
+// 두 칸짜리 지표 줄은 좁은 화면에서 한 칸씩 쌓이므로, 세로 구분선 대신 가로 구분선을 쓴다.
+const twoMetricRule = adminCss.match(/\.metric-grid\.two-metrics\s*\{([^}]*)\}/)?.[1] ?? '';
+check(/grid-template-columns:\s*repeat\(2,minmax\(0,1fr\)\)/.test(twoMetricRule),
+  'admin.css: two metrics must fill one row on wide screens');
+check(/\.metric-grid\.two-metrics \.metric-card:nth-child\(-n\+2\)\s*\{\s*border-bottom:\s*0/.test(adminCss),
+  'admin.css: a two-cell metric row must not draw a bottom divider under its only row');
+check(/@media \(max-width: 600px\)[\s\S]*\.metric-grid\.two-metrics\s*\{\s*grid-template-columns:\s*1fr/.test(adminCss),
+  'admin.css: two metrics must stack into one column on narrow screens');
 check(!/@\{[^}]*view='requests'/.test(dashboardSource ?? ''),
-  'facility.html: the dashboard must not link to the unbuilt requests view');
+  'facility.html: the dashboard must not link to the removed requests view');
 // 최근 요청 카드는 담당 시설 매칭방의 참가 신청(모든 상태, 최신 5건)으로 채운다.
 // 서버 계약은 dashboard.recentRequests의 여섯 필드이며, 이 카드는 조회 전용 상세로만 이어진다.
 const recentRequestFields = ['matchId', 'matchTitle', 'facilityName', 'applicantName',
@@ -642,6 +722,31 @@ check(/th:href="@\{\/admin\/facility/.test(facilitySidebar ?? ''),
   'admin.html: facility sidebar must keep its own menu links');
 check(/th:href="@\{\/admin\/system/.test(systemSidebar ?? ''),
   'admin.html: system sidebar must keep its own menu links');
+// 민원·요청, 점검·유지보수 화면은 백엔드 처리 없이 껍데기만 남아 있었으므로 메뉴에서 제거했다.
+// 되살아나면 화면에 없는 동작을 약속하게 되므로, 남은 메뉴와 함께 부재를 고정한다.
+for (const removed of ['facility-requests', 'facility-maintenance', '민원·요청', '점검·유지보수']) {
+  check(!(facilitySidebar ?? '').includes(removed),
+    `admin.html: removed facility menu entry must stay gone (${removed})`);
+}
+for (const kept of ['facility-dashboard', 'facility-assets', 'facility-schedule',
+  'facility-bookings', 'facility-stats', 'facility-content']) {
+  check((facilitySidebar ?? '').includes(kept),
+    `admin.html: facility sidebar must keep ${kept}`);
+}
+
+/* ── 제거된 시설 관리자 화면 계약 ──────────────────────────────────────────
+   민원·요청과 점검·유지보수는 서버 모델·핸들러가 없어 화면만 존재했다. 화면과 진입점,
+   모달·스크립트 연결이 다시 생기면 없는 동작을 약속하게 되므로 부재를 고정한다. */
+for (const removed of ['id="facility-requests"', 'id="facility-maintenance"',
+  'id="maintenance-modal"', 'id="maintenance-form"', 'data-open-maintenance',
+  'data-close-maintenance', '@{/admin/facility/requests', '@{/admin/facility/maintenance',
+  'requestMetrics', 'maintenanceMetrics', 'maintenanceFilters', '요청 목록', '점검 일지']) {
+  check(!facilitySource.includes(removed),
+    `facility.html: removed requests/maintenance UI must stay gone (${removed})`);
+}
+check(!facilityScript.includes('maintenanceModal') && !facilityScript.includes('maintenance-modal')
+  && !facilityScript.includes('data-open-maintenance') && !facilityScript.includes('data-close-maintenance'),
+  'admin-facility.js: maintenance modal handlers must be removed with the screen');
 
 // 실제 시설·시스템 템플릿의 모든 .admin-view가 대체 포커스 표시 대상(제목)을 가져야 한다.
 for (const file of ['templates/admin/facility.html', 'templates/admin/system.html']) {

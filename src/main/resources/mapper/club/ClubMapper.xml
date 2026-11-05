@@ -290,6 +290,40 @@
             </if>
     </select>
 
+    <!-- 탈퇴 차단 사유: 동호회장으로 있는 활성 소속(해체된 동호회 제외). 동호회 id 기준으로 한 번씩 -->
+    <select id="selectLeaderClubBlocks" resultType="co.kr.spoit.club.dto.ClubBlockRow">
+        SELECT c.club_id AS clubId, c.club_name AS clubName
+        FROM club_member m
+        JOIN club c ON c.club_id = m.club_id
+        WHERE m.user_id = #{userId}
+            AND m.role = '동호회장'
+            AND m.left_at IS NULL
+            AND c.deleted_at IS NULL
+        GROUP BY c.club_id, c.club_name
+        ORDER BY c.club_name, c.club_id
+    </select>
+
+    <!-- 탈퇴 차단 사유: 모집 중인 팀 매치에 신청자이거나 활성 참가자인 동호회. 동호회 id 기준으로 한 번씩.
+         동호회 단위 신청(application_type = '동호회')만 본다. 비정상 데이터로 개인 신청에 club_id가 붙어도
+         팀 사유로 잘못 분류하지 않는다. -->
+    <select id="selectRecruitingTeamMatchClubBlocks" resultType="co.kr.spoit.club.dto.ClubBlockRow">
+        SELECT c.club_id AS clubId, c.club_name AS clubName
+        FROM match_application ma
+        JOIN social_match sm ON sm.match_id = ma.match_id
+        JOIN club c ON c.club_id = ma.club_id
+        WHERE ma.club_id IS NOT NULL
+            AND ma.application_type = '동호회'
+            AND ma.status IN ('대기', '확정')
+            AND sm.status = '모집 중'
+            AND (ma.applicant_user_id = #{userId}
+                OR EXISTS (SELECT 1 FROM match_participant mp
+                WHERE mp.application_id = ma.application_id
+                AND mp.user_id = #{userId}
+                AND mp.participation_status IN ('대기', '확정')))
+        GROUP BY c.club_id, c.club_name
+        ORDER BY c.club_name, c.club_id
+    </select>
+
     <update id="updateMemberLeave">
         UPDATE club_member
         SET left_at = NOW(), leave_type = '탈퇴'

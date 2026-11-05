@@ -1,7 +1,11 @@
 package co.kr.spoit.member.controller;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasProperty;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -53,7 +57,9 @@ import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.member.dto.SignupRegion;
 import co.kr.spoit.member.dto.SportOption;
+import co.kr.spoit.member.dto.WithdrawalBlocks;
 import co.kr.spoit.member.service.MemberService;
+import co.kr.spoit.member.service.WithdrawalBlockedException;
 
 /** 마이페이지 화면이 세션 주체의 정보만 노출하는지 검증한다. DB 없이 standalone MockMvc를 쓴다. */
 class MyPageControllerTest {
@@ -77,6 +83,7 @@ class MyPageControllerTest {
         sportRatingService = mock(SportRatingService.class);
         reservationService = mock(MyReservationService.class);
         given(reservationService.find(anyLong())).willReturn(MyReservations.empty());
+        given(memberService.findWithdrawalBlocks(anyLong())).willReturn(WithdrawalBlocks.empty());
         applicationService = mock(MatchApplicationService.class);
         resultPageService = mock(MatchResultPageService.class);
         given(resultPageService.findResultSubmittableMatchIds(any())).willReturn(Set.of());
@@ -327,6 +334,90 @@ class MyPageControllerTest {
                 .andExpect(redirectedUrl("/login"));
 
         verify(memberService, never()).withdraw(anyLong(), anyString());
+    }
+
+    @Test
+    @DisplayName("동호회장이거나 팀 매치 신청 중이면 탈퇴하지 않고 세션을 유지한 채 사유를 안내한다")
+    void blockedWithdrawalKeepsSessionAndShowsReason() throws Exception {
+        willThrow(new WithdrawalBlockedException("탈퇴할 수 없습니다."))
+                .given(memberService).withdraw(USER_ID, RAW_PASSWORD);
+
+        mockMvc.perform(post("/mypage/withdrawal-requests").with(principal())
+                        .param("password", RAW_PASSWORD))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/mypage/profile?error="
+                        + URLEncoder.encode("탈퇴할 수 없습니다.", StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    @DisplayName("개인 매치 신청만 있어도 탈퇴하지 않고 세션을 유지한 채 사유를 안내한다")
+    void blockedIndividualMatchWithdrawalKeepsSession() throws Exception {
+        willThrow(new WithdrawalBlockedException("진행 중인 개인 매치 신청이 있어 탈퇴할 수 없습니다."))
+                .given(memberService).withdraw(USER_ID, RAW_PASSWORD);
+
+        mockMvc.perform(post("/mypage/withdrawal-requests").with(principal())
+                        .param("password", RAW_PASSWORD))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/mypage/profile?error="
+                        + URLEncoder.encode("진행 중인 개인 매치 신청이 있어 탈퇴할 수 없습니다.",
+                                StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    @DisplayName("프로필 화면에는 탈퇴 차단 사유를 담은 withdrawalBlocks를 항상 내려준다")
+    void profileCarriesWithdrawalBlocks() throws Exception {
+        given(memberService.findRegions(USER_ID)).willReturn(List.of());
+        given(memberService.findSports()).willReturn(List.of());
+        given(memberService.findSignupRegions()).willReturn(List.of());
+        given(memberService.findWithdrawalBlocks(USER_ID))
+                .willReturn(WithdrawalBlocks.of(List.of("강서 테니스회"), List.of("주말 풋살 클럽"),
+                        List.of("화요일 저녁 복식")));
+
+        mockMvc.perform(get("/mypage/profile").with(principal()))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("withdrawalBlocks",
+                        hasProperty("blocked", is(true))))
+                .andExpect(model().attribute("withdrawalBlocks",
+                        hasProperty("leaderClubNames", contains("강서 테니스회"))))
+                .andExpect(model().attribute("withdrawalBlocks",
+                        hasProperty("teamMatchClubNames", contains("주말 풋살 클럽"))))
+                .andExpect(model().attribute("withdrawalBlocks",
+                        hasProperty("individualMatchNames", contains("화요일 저녁 복식"))));
+    }
+
+    @Test
+    @DisplayName("탈퇴 차단 사유가 없으면 프로필 화면에 빈 목록과 blocked=false를 내려준다")
+    void profileCarriesEmptyWithdrawalBlocks() throws Exception {
+        given(memberService.findRegions(USER_ID)).willReturn(List.of());
+        given(memberService.findSports()).willReturn(List.of());
+        given(memberService.findSignupRegions()).willReturn(List.of());
+
+        mockMvc.perform(get("/mypage/profile").with(principal()))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("withdrawalBlocks", hasProperty("blocked", is(false))))
+                .andExpect(model().attribute("withdrawalBlocks", hasProperty("leaderClubNames", empty())))
+                .andExpect(model().attribute("withdrawalBlocks", hasProperty("teamMatchClubNames", empty())))
+                .andExpect(model().attribute("withdrawalBlocks", hasProperty("individualMatchNames", empty())));
+    }
+
+    @Test
+    @DisplayName("프로필 저장 오류로 다시 그릴 때도 탈퇴 차단 사유를 내려준다")
+    void errorRerenderCarriesWithdrawalBlocks() throws Exception {
+        given(memberService.findSports()).willReturn(List.of());
+        given(memberService.findSignupRegions()).willReturn(List.of());
+        given(memberService.findWithdrawalBlocks(USER_ID))
+                .willReturn(WithdrawalBlocks.of(List.of("강서 테니스회"), List.of(), List.of("화요일 저녁 복식")));
+        willThrow(new IllegalArgumentException("닉네임은 한글, 영문, 숫자, 밑줄로 2~12자 입력해 주세요."))
+                .given(memberService).updateProfile(eq(USER_ID), argThat(form -> true));
+
+        mockMvc.perform(post("/mypage/profile").with(principal())
+                        .param("nickname", "!")
+                        .param("phone", PHONE))
+                .andExpect(status().isOk())
+                .andExpect(view().name("mypage/profile"))
+                .andExpect(model().attribute("withdrawalBlocks", hasProperty("blocked", is(true))))
+                .andExpect(model().attribute("withdrawalBlocks",
+                        hasProperty("leaderClubNames", contains("강서 테니스회"))));
     }
 
     @Test

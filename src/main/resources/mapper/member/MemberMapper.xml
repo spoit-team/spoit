@@ -17,6 +17,17 @@
     </select>
 
     <!--
+      회원 행 잠금. 탈퇴·매치 신청·회장 위임이 같은 회원에서 겹치지 않도록 쓰기 트랜잭션에서만 쓴다.
+      잠금 조회는 스냅샷이 아니라 최신 커밋 값을 읽으므로 잠근 뒤의 deleted_at·penalty_time 확인이 유효하다.
+    -->
+    <select id="lockById" resultType="co.kr.spoit.member.domain.Member">
+        SELECT user_id, email, password_hash, nickname, phone, role, created_at, deleted_at, penalty_time
+        FROM app_user
+        WHERE user_id = #{userId}
+        FOR UPDATE
+    </select>
+
+    <!--
       회원 탈퇴는 deleted_at 기록으로 판단하는 소프트 삭제다.
       deleted_at IS NULL 조건으로 중복 탈퇴를 막고, 이용정지 종료 시각이 현재보다 뒤면 거부한다.
     -->

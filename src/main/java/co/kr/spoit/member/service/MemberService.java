@@ -8,6 +8,7 @@ import co.kr.spoit.member.dto.ProfileUpdateForm;
 import co.kr.spoit.member.dto.SignupForm;
 import co.kr.spoit.member.dto.SportOption;
 import co.kr.spoit.member.dto.SignupRegion;
+import co.kr.spoit.member.dto.WithdrawalBlocks;
 
 /**
  * 회원 조회·가입 계약. 컨트롤러가 매퍼를 직접 호출하지 않도록 유지한다.
@@ -40,4 +41,7 @@ public interface MemberService {
 
     /** 비밀번호를 재확인한 뒤 회원의 탈퇴 시각(deleted_at)을 기록한다. 소프트 삭제라 다른 행은 건드리지 않는다. */
     void withdraw(Long userId, String rawPassword);
+
+    /** 회원 탈퇴를 막는 동호회 소속·진행 중 개인 매치 신청을 조회한다. 없으면 빈 목록. */
+    WithdrawalBlocks findWithdrawalBlocks(Long userId);
 }

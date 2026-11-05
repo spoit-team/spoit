@@ -62,16 +62,6 @@ public class FacilityDashboard {
         return SCOPE_NAME;
     }
 
-    /** 민원·점검 도메인은 이번 범위가 아니므로 수치를 만들지 않는다. */
-    public Integer getOpenRequestCount() {
-        return null;
-    }
-
-    /** 점검 도메인은 이번 범위가 아니므로 수치를 만들지 않는다. */
-    public Integer getMaintenanceCount() {
-        return null;
-    }
-
     /** 최근 접수 신청 피드. 항목이 없으면 빈 목록이다. */
     public List<RecentRequest> getRecentRequests() {
         return recentRequests;
