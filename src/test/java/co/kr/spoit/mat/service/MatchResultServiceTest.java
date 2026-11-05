@@ -17,9 +17,12 @@ import co.kr.spoit.mat.domain.MatchResult;
 import co.kr.spoit.mat.domain.ReceivedEvaluation;
 import co.kr.spoit.mat.domain.ReminderTarget;
 import co.kr.spoit.mat.domain.ResultMatch;
+import co.kr.spoit.mat.domain.ResultPageMatch;
 import co.kr.spoit.mat.domain.ResultSubmission;
+import co.kr.spoit.mat.domain.ResultTeamMember;
 import co.kr.spoit.mat.dto.MatchResultResponse;
 import co.kr.spoit.mat.dto.MatchResultResponse.Outcome;
+import co.kr.spoit.mat.dto.MatchResultSummary;
 import co.kr.spoit.mat.dto.MatchResultView;
 import co.kr.spoit.mat.mapper.MatchAssignmentMapper;
 import co.kr.spoit.mat.mapper.MatchEvaluationMapper;
@@ -350,7 +353,8 @@ class MatchResultServiceTest {
         ResultMatch match = match("종료", "CONFIRMED", "APPLIED");
         match.setFinalResult("A_WIN");
         when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.of(match));
-        givenParticipants();
+        givenTeamMembers();
+        givenResultPageMatch();
 
         var summary = service.getSummary(MATCH_ID, 13L).orElseThrow();
 
@@ -366,9 +370,41 @@ class MatchResultServiceTest {
     }
 
     @Test
+    void summaryIncludesScheduleFacilityRosterAndDeadline() {
+        ResultMatch match = match("종료", "CONFIRMED", "APPLIED");
+        when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.of(match));
+        givenTeamMembers();
+        givenResultPageMatch();
+
+        var summary = service.getSummary(MATCH_ID, 13L).orElseThrow();
+
+        assertThat(summary.scheduleLabel()).isEqualTo("2026년 10월 30일 (금) 18:00 ~ 20:00");
+        assertThat(summary.facilityName()).isEqualTo("MAT 테스트 시설");
+        // 제출 마감은 경기 종료 24시간 뒤다.
+        assertThat(summary.deadlineLabel()).isEqualTo("2026년 10월 31일 (토) 20:00");
+        assertThat(summary.teams()).hasSize(2);
+
+        var teamA = summary.teams().get(0);
+        assertThat(teamA.side()).isEqualTo("A");
+        assertThat(teamA.mine()).isTrue();
+        // 팀장을 먼저 세우고, 취소 참가자는 로스터에서 빠진다.
+        assertThat(teamA.members()).extracting(MatchResultSummary.Member::nickname)
+                .containsExactly("에이스", "가나");
+        assertThat(teamA.members()).extracting(MatchResultSummary.Member::captain)
+                .containsExactly(true, false);
+
+        var teamB = summary.teams().get(1);
+        assertThat(teamB.side()).isEqualTo("B");
+        assertThat(teamB.mine()).isFalse();
+        assertThat(teamB.members()).extracting(MatchResultSummary.Member::nickname)
+                .containsExactly("베스트");
+    }
+
+    @Test
     void summaryIncludesOwnSubmissionForCaptain() {
         when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.of(match("매칭 완료", "SUBMITTED", "WAITING")));
-        givenParticipants();
+        givenTeamMembers();
+        givenResultPageMatch();
         givenActiveSubmissions(submission(20L, 2L, "A_WIN", "SUBMITTED"));
 
         var summary = service.getSummary(MATCH_ID, CAPTAIN_B_USER).orElseThrow();
@@ -380,9 +416,11 @@ class MatchResultServiceTest {
     @Test
     void deniesSummaryForNonParticipant() {
         when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.of(match("종료", "CONFIRMED", "APPLIED")));
-        givenParticipants();
+        givenTeamMembers();
 
         assertThatThrownBy(() -> service.getSummary(MATCH_ID, 99L)).isInstanceOf(AccessDeniedException.class);
+        // 다른 경기의 시설·로스터를 채우려 조회하지 않는다.
+        verify(resultMapper, never()).findResultPageMatch(anyLong());
     }
 
     @Test
@@ -391,6 +429,7 @@ class MatchResultServiceTest {
 
         assertThat(service.getSummary(MATCH_ID, CAPTAIN_A_USER)).isEmpty();
         verifyNoInteractions(participantMapper);
+        verify(resultMapper, never()).findConfirmedTeamMembers(anyLong(), anyString());
     }
 
     @Test
@@ -431,6 +470,21 @@ class MatchResultServiceTest {
                 participant(1L, CAPTAIN_A_USER, "A"),
                 participant(2L, CAPTAIN_B_USER, "B"),
                 participant(3L, 13L, "A")));
+    }
+
+    /** A팀장 1(회원 11)·확정 참가자 3(회원 13)은 A팀, B팀장 2(회원 12)는 B팀이다. 취소 참가자 4는 로스터에서 빠진다. */
+    private void givenTeamMembers() {
+        when(resultMapper.findConfirmedTeamMembers(MATCH_ID, "확정")).thenReturn(List.of(
+                teamMember(1L, CAPTAIN_A_USER, "에이스", "A"),
+                teamMember(2L, CAPTAIN_B_USER, "베스트", "B"),
+                teamMember(3L, 13L, "가나", "A")));
+    }
+
+    private void givenResultPageMatch() {
+        var pageMatch = new ResultPageMatch();
+        pageMatch.setMatchId(MATCH_ID);
+        pageMatch.setFacilityName("MAT 테스트 시설");
+        when(resultMapper.findResultPageMatch(MATCH_ID)).thenReturn(Optional.of(pageMatch));
     }
 
     private void givenActiveSubmissions(ResultSubmission... submissions) {
@@ -476,6 +530,15 @@ class MatchResultServiceTest {
         participant.setMatchSide(side);
         participant.setEntryMmr(new BigDecimal("1000.00"));
         return participant;
+    }
+
+    private static ResultTeamMember teamMember(Long participantId, Long userId, String nickname, String side) {
+        var member = new ResultTeamMember();
+        member.setParticipantId(participantId);
+        member.setUserId(userId);
+        member.setNickname(nickname);
+        member.setMatchSide(side);
+        return member;
     }
 
     private static ResultSubmission submission(Long submissionId, Long captainParticipantId, String result,

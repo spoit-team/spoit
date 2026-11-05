@@ -58,6 +58,16 @@
   border-left: 1px solid var(--color-line);
 }
 
+/* 사실이 한 줄을 넘으면(일시·시설·마감 포함) 다음 줄 첫 칸은 구분선 없이 시작한다. */
+.match-result-facts > div:nth-child(4n + 1) {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.match-result-facts > div:nth-child(n + 5) {
+  border-top: 1px solid var(--color-line);
+}
+
 .match-result-facts dt {
   color: var(--color-muted);
   font-size: 10px;

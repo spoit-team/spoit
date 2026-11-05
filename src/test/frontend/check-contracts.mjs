@@ -843,6 +843,17 @@ check(matchResultScript.includes('JSON.stringify({ result: pending })'),
   'match-result.js: submission must post {result} to the captain-only endpoint');
 check(!/myResult/.test(matchResultSource),
   'match-result.html: the other captain\'s submission values must not be rendered by the server');
+// 화면이 되살린 표시 정보(일시·시설·제출 마감·A/B팀 로스터)는 서버가 훅만 두고 스크립트가 요약 API 값으로 채운다.
+for (const field of ['schedule', 'facility', 'deadline']) {
+  check(matchResultSource.includes(`data-field="${field}"`),
+    `match-result.html: the summary must keep the data-field="${field}" hook for the result API`);
+}
+check(matchResultSource.includes('data-result-teams') && matchResultScript.includes('data-result-teams'),
+  'match-result.html: the A/B roster must be rendered by the script from the summary API');
+check(matchResultScript.includes('renderTeams') && matchResultScript.includes('member.nickname'),
+  'match-result.js: the roster must be drawn from the confirmed members\' nicknames');
+check(!/innerHTML\s*=/.test(matchResultScript),
+  'match-result.js: roster values must be rendered as text, never injected as HTML');
 
 if (failures.length) {
   console.error(failures.join('\n'));

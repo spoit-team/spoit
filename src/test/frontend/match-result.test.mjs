@@ -67,8 +67,9 @@ function resultPage(options = {}) {
   const submitSection = new SyNode({ hidden: true });
   const submitBody = new SyNode();
   const submitMessage = new SyNode({ hidden: true });
+  const teamsContainer = new SyNode();
 
-  ['matchId', 'side', 'resultStatus', 'ratingStatus', 'title'].forEach(field);
+  ['matchId', 'side', 'resultStatus', 'ratingStatus', 'title', 'schedule', 'facility', 'deadline'].forEach(field);
 
   const root = new SyNode();
   root.setAttribute('data-api-base', '/mypage/matches');
@@ -81,14 +82,18 @@ function resultPage(options = {}) {
     '[data-result-message]': stateMessage,
     '[data-result-submit]': submitSection,
     '[data-result-submit-body]': submitBody,
-    '[data-result-submit-message]': submitMessage
+    '[data-result-submit-message]': submitMessage,
+    '[data-result-teams]': teamsContainer
   };
   root.bySelectorAll = {
     '[data-field="matchId"]': [fields.matchId],
     '[data-field="side"]': [fields.side],
     '[data-field="resultStatus"]': [fields.resultStatus],
     '[data-field="ratingStatus"]': [fields.ratingStatus],
-    '[data-field="title"]': [fields.title]
+    '[data-field="title"]': [fields.title],
+    '[data-field="schedule"]': [fields.schedule],
+    '[data-field="facility"]': [fields.facility],
+    '[data-field="deadline"]': [fields.deadline]
   };
 
   const document = {
@@ -122,7 +127,7 @@ function resultPage(options = {}) {
 
   return {
     root, fields, summarySection, stateBody, stateMessage,
-    submitSection, submitBody, submitMessage, document, window, calls
+    submitSection, submitBody, submitMessage, teamsContainer, document, window, calls
   };
 }
 
@@ -135,7 +140,14 @@ function flush() {
   const page = resultPage({
     summary: {
       matchId: 42, status: 'CLOSED', resultStatus: 'CONFIRMED', ratingStatus: 'APPLIED',
-      finalResult: 'A_WIN', mySide: 'A', myResult: null
+      finalResult: 'A_WIN', mySide: 'A', myResult: null,
+      scheduleLabel: '2026년 10월 30일 (금) 18:00 ~ 20:00',
+      facilityName: 'MAT 테스트 시설',
+      deadlineLabel: '2026년 10월 31일 (토) 20:00',
+      teams: [
+        { side: 'A', mine: true, members: [{ nickname: '에이스', captain: true }, { nickname: '가나', captain: false }] },
+        { side: 'B', mine: false, members: [{ nickname: '베스트', captain: true }] }
+      ]
     },
     captain: { message: '이 경기의 팀장만 결과를 제출할 수 있습니다.' },
     captainStatus: 403
@@ -155,9 +167,23 @@ function flush() {
   assert.equal(page.summarySection.hidden, false, '요약 카드가 보여야 합니다.');
   assert.equal(page.fields.ratingStatus.textContent, '레이팅 반영 완료');
   assert.equal(page.fields.side.textContent, 'A팀');
+  assert.equal(page.fields.schedule.textContent, '2026년 10월 30일 (금) 18:00 ~ 20:00');
+  assert.equal(page.fields.facility.textContent, 'MAT 테스트 시설');
+  assert.equal(page.fields.deadline.textContent, '2026년 10월 31일 (토) 20:00');
   assert.equal(page.submitSection.hidden, true, '팀장이 아니면 제출 영역을 감춰야 합니다.');
   assert.equal(page.stateMessage.hidden, true, '팀장이 아닌 것은 오류가 아니므로 안내를 띄우지 않습니다.');
   assert.match(textOf(page.stateBody), /최종 결과/);
+
+  // A/B팀 로스터는 요약 API의 확정 참가자 닉네임으로만 그린다.
+  assert.equal(page.teamsContainer.children.length, 2, 'A/B 두 팀 로스터를 그려야 합니다.');
+  const [teamA, teamB] = page.teamsContainer.children;
+  assert.ok(hasClass(teamA, 'is-mine'), '내 진영 팀에 is-mine을 붙여야 합니다.');
+  assert.ok(!hasClass(teamB, 'is-mine'));
+  assert.match(textOf(teamA), /A팀/);
+  assert.match(textOf(teamA), /에이스/);
+  assert.match(textOf(teamA), /팀장/);
+  assert.match(textOf(teamA), /가나/);
+  assert.match(textOf(teamB), /베스트/);
 }
 
 /* ── 2) 팀장: 제출 선택지를 보여 주고 CSRF 헤더로 제출한다 ───────────── */

@@ -7,8 +7,10 @@ import co.kr.spoit.mat.domain.RatingStatus;
 import co.kr.spoit.mat.domain.ReceivedEvaluation;
 import co.kr.spoit.mat.domain.ReminderTarget;
 import co.kr.spoit.mat.domain.ResultMatch;
+import co.kr.spoit.mat.domain.ResultPageMatch;
 import co.kr.spoit.mat.domain.ResultStatus;
 import co.kr.spoit.mat.domain.ResultSubmission;
+import co.kr.spoit.mat.domain.ResultTeamMember;
 import co.kr.spoit.mat.domain.SubmissionStatus;
 import co.kr.spoit.mat.dto.MatchResultResponse;
 import co.kr.spoit.mat.dto.MatchResultResponse.Outcome;
@@ -24,10 +26,13 @@ import co.kr.spoit.notification.domain.NotificationType;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -59,6 +64,9 @@ public class MatchResultService {
     // RATING_CLOSED·ALREADY_APPLIED·ALREADY_EXCLUDED로 답하려고 함께 둔다.
     static final List<String> PLAYED_STATUSES =
             List.of(MatchStatus.MATCHED.dbValue(), MatchStatus.CLOSED.dbValue());
+    private static final DateTimeFormatter DATE_TIME =
+            DateTimeFormatter.ofPattern("yyyy년 M월 d일 (E) HH:mm", Locale.KOREAN);
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
     private static final String SIDE_A = "A";
     private static final String SIDE_B = "B";
     // 결과 확정과 레이팅 제외를 따로 알리지 않고, 경기가 종료로 바뀌는 한 번의 전환에서 같은 안내를 보낸다.
@@ -111,8 +119,9 @@ public class MatchResultService {
     }
 
     /**
-     * 확정 참가자가 본인 경기의 결과 처리 상태만 본다. 팀장 전용 {@link #getView}와 달리 상대 제출 결과나
-     * 마감·재제출 안내를 담지 않는다. 확정 참가자가 아니면 {@link AccessDeniedException}.
+     * 확정 참가자가 본인 경기의 결과 처리 상태와 화면에 보여 줄 경기 정보(일시·시설·양 팀 로스터·제출 마감)를 본다.
+     * 팀장 전용 {@link #getView}와 달리 상대 제출 결과나 재제출 안내를 담지 않는다.
+     * 확정 참가자가 아니면 {@link AccessDeniedException}.
      */
     @Transactional(readOnly = true)
     public Optional<MatchResultSummary> getSummary(long matchId, long userId) {
@@ -120,25 +129,51 @@ public class MatchResultService {
         if (match == null) {
             return Optional.empty();
         }
-        List<MatchParticipant> confirmed = AutoAssignmentService.confirmedOf(
-                participantMapper.findByMatchId(match.getMatchId()));
-        MatchParticipant me = confirmed.stream()
+        List<ResultTeamMember> confirmed = resultMapper.findConfirmedTeamMembers(matchId,
+                ParticipationStatus.CONFIRMED.dbValue());
+        ResultTeamMember me = confirmed.stream()
                 .filter(p -> Objects.equals(p.getUserId(), userId))
                 .findFirst()
                 .orElseThrow(() -> new AccessDeniedException("이 경기의 확정 참가자만 결과를 조회할 수 있습니다."));
+        String mySide = me.getMatchSide();
+        String facilityName = resultMapper.findResultPageMatch(matchId)
+                .map(ResultPageMatch::getFacilityName)
+                .orElse(null);
         return Optional.of(new MatchResultSummary(matchId, match.getStatus(), match.getResultStatus(),
-                match.getRatingStatus(), match.getFinalResult(), me.getMatchSide(), myResultOf(match, me)));
+                match.getRatingStatus(), match.getFinalResult(), mySide, myResultOf(match, me.getParticipantId()),
+                scheduleOf(match), facilityName, deadlineOf(match).format(DATE_TIME),
+                List.of(teamOf(SIDE_A, match.getCaptainAParticipantId(), mySide, confirmed),
+                        teamOf(SIDE_B, match.getCaptainBParticipantId(), mySide, confirmed))));
+    }
+
+    // 두 팀 로스터. 화면에는 확정 참가자의 닉네임과 팀장 여부만 내보내고 회원 번호는 담지 않는다.
+    private static MatchResultSummary.Team teamOf(String side, Long captainParticipantId, String mySide,
+                                                  List<ResultTeamMember> members) {
+        List<MatchResultSummary.Member> team = members.stream()
+                .filter(member -> side.equals(member.getMatchSide()))
+                .map(member -> new MatchResultSummary.Member(member.getNickname(),
+                        Objects.equals(member.getParticipantId(), captainParticipantId)))
+                .sorted(Comparator.comparing(MatchResultSummary.Member::captain).reversed())
+                .toList();
+        return new MatchResultSummary.Team(side, side.equals(mySide), team);
+    }
+
+    private static String scheduleOf(ResultMatch match) {
+        LocalDateTime start = match.getStartAt();
+        LocalDateTime end = match.getEndAt();
+        String endText = end.toLocalDate().equals(start.toLocalDate()) ? end.format(TIME) : end.format(DATE_TIME);
+        return start.format(DATE_TIME) + " ~ " + endText;
     }
 
     /** 본인이 팀장일 때만 본인이 제출한 결과를 채운다. 일반 확정 참가자에게는 제출 결과를 노출하지 않는다. */
-    private String myResultOf(ResultMatch match, MatchParticipant me) {
-        boolean captain = Objects.equals(me.getParticipantId(), match.getCaptainAParticipantId())
-                || Objects.equals(me.getParticipantId(), match.getCaptainBParticipantId());
+    private String myResultOf(ResultMatch match, Long myParticipantId) {
+        boolean captain = Objects.equals(myParticipantId, match.getCaptainAParticipantId())
+                || Objects.equals(myParticipantId, match.getCaptainBParticipantId());
         if (!captain) {
             return null;
         }
         return resultMapper.findActiveSubmissions(match.getMatchId(), SubmissionStatus.REPLACED.name()).stream()
-                .filter(s -> Objects.equals(me.getParticipantId(), s.getCaptainParticipantId()))
+                .filter(s -> Objects.equals(myParticipantId, s.getCaptainParticipantId()))
                 .map(ResultSubmission::getReportedResult)
                 .findFirst()
                 .orElse(null);
