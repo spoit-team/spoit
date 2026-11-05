@@ -176,5 +176,10 @@
     }
   });
 
+  // 평가 제출로 레이팅이 반영됐을 수 있어 평가 영역(match-evaluation.js)이 알리면 다시 조회한다.
+  document.addEventListener('match-evaluation:submitted', function () {
+    if (!busy) load();
+  });
+
   load();
 })(window);

@@ -3,6 +3,7 @@ package co.kr.spoit.web;
 import static co.kr.spoit.member.domain.MemberPrincipalFixture.member;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.stringContainsInOrder;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -90,6 +91,20 @@ class MatchResultPageRouteTest {
                 .andExpect(content().string(containsString("data-csrf-header=\"X-CSRF-TOKEN\"")))
                 .andExpect(content().string(containsString("/js/match-result.js")))
                 .andExpect(content().string(not(containsString("이 경기의 팀장만 결과를 제출할 수 있습니다"))));
+    }
+
+    @Test
+    @DisplayName("팀장에게는 결과 섹션 아래에 평가 섹션 자리와 평가 API 주소를 그린다")
+    void rendersEvaluationAreaBelowResultForCaptain() throws Exception {
+        givenMatch();
+        givenMembers(teamMember(1L, 7L, "박민서", "A"), teamMember(2L, 12L, "정하늘", "B"));
+
+        mockMvc.perform(get(PATH).with(user(member())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(stringContainsInOrder("id=\"match-result\"", "id=\"match-evaluation\"")))
+                .andExpect(content().string(containsString("data-evaluation-url=\"/mypage/matches/10/evaluation\"")))
+                .andExpect(content().string(containsString("선수 평가")))
+                .andExpect(content().string(containsString("/js/match-evaluation.js")));
     }
 
     @Test
