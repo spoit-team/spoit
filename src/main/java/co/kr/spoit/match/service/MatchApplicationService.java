@@ -8,7 +8,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -257,7 +256,6 @@ public class MatchApplicationService {
      */
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public String applyTeam(long matchId, long userId, long clubId, List<Long> clubMemberIds) {
-        LocalDateTime now = LocalDateTime.now(ZONE);
         List<Long> ids = distinctIds(clubMemberIds);
         if (ids.isEmpty()) {
             throw new MatchApplyException(NO_TEAM_MEMBER);
@@ -361,6 +359,14 @@ public class MatchApplicationService {
         if (member == null) {
             throw new MatchApplyException("회원 정보를 확인할 수 없습니다.");
         }
+        if (member.getDeletedAt() != null) {
+            throw new MatchApplyException("탈퇴한 회원은 신청할 수 없습니다.");
+        }
+        if (member.getPenaltyTime() != null && member.getPenaltyTime().isAfter(now)) {
+            throw new MatchApplyException("이용 정지 기간에는 신청할 수 없습니다.");
+        }
+    }
+
     private void requireNoTimeConflict(long matchId, List<Long> userIds, long userId) {
         List<ConflictPerson> conflicts = findConflicts(matchId, userIds, userId);
         if (!conflicts.isEmpty()) {

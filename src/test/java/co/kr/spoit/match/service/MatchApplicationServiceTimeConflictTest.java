@@ -25,6 +25,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
+import co.kr.spoit.club.domain.ClubSummary;
+import co.kr.spoit.club.service.ClubService;
 import co.kr.spoit.facility.service.FacilityReservationService;
 import co.kr.spoit.mat.mapper.SportRatingMapper;
 import co.kr.spoit.match.domain.MatchApplication;
@@ -40,6 +42,7 @@ import co.kr.spoit.match.dto.TimeConflictRow;
 import co.kr.spoit.match.mapper.MatchApplicationMapper;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.mapper.MemberMapper;
+import co.kr.spoit.member.service.MemberAccountLockService;
 
 /**
  * 이미 참가 신청한 다른 매치와 시간이 겹치면 개인·팀 신청을 막는다.
@@ -55,22 +58,24 @@ class MatchApplicationServiceTimeConflictTest {
     private static final long SPORT_ID = 2L;
 
     private MatchApplicationMapper mapper;
-    private MemberMapper memberMapper;
+    private MemberAccountLockService accountLockService;
     private MatchService matchService;
     private MatchApplicationService service;
 
     @BeforeEach
     void setUp() {
         mapper = mock(MatchApplicationMapper.class);
-        memberMapper = mock(MemberMapper.class);
+        MemberMapper memberMapper = mock(MemberMapper.class);
+        accountLockService = mock(MemberAccountLockService.class);
+        ClubService clubService = mock(ClubService.class);
         matchService = mock(MatchService.class);
         service = new MatchApplicationService(mapper, memberMapper, mock(SportRatingMapper.class),
-                matchService, mock(FacilityReservationService.class));
+                matchService, mock(FacilityReservationService.class), accountLockService, clubService);
 
-        Member me = new Member();
-        me.setUserId(USER_ID);
-        me.setNickname("박민서");
+        Member me = account(USER_ID);
         given(memberMapper.findById(USER_ID)).willReturn(Optional.of(me));
+        given(accountLockService.lockById(USER_ID)).willReturn(me);
+        given(clubService.lockActiveClub(CLUB_ID)).willReturn(new ClubSummary());
         given(mapper.findFacilityId(MATCH_ID)).willReturn(FACILITY_ID);
         given(mapper.lockMatch(MATCH_ID)).willReturn(match());
         given(mapper.countOccupiedSeats(anyLong(), anyList(), anyString())).willReturn(0);
@@ -83,7 +88,7 @@ class MatchApplicationServiceTimeConflictTest {
     /* ---------------- 접수 ---------------- */
 
     @Test
-    @DisplayName("개인 신청: 회원 행을 가장 먼저 잠그고, 겹치는 매치가 있으면 신청 행을 만들지 않는다")
+    @DisplayName("개인 신청: 계정을 잠근 뒤 겹치는 매치가 있으면 신청 행을 만들지 않는다")
     void individualConflictBlocksApply() {
         given(mapper.findTimeConflicts(eq(MATCH_ID), eq(List.of(USER_ID)), anyList(), eq("취소")))
                 .willReturn(List.of(conflict(USER_ID, "박민서", 9L, "확정")));
@@ -92,10 +97,8 @@ class MatchApplicationServiceTimeConflictTest {
                 .isInstanceOf(MatchApplyException.class)
                 .hasMessage("이미 참가 신청한 다른 매치와 시간이 겹칩니다.");
 
-        InOrder order = inOrder(mapper, memberMapper);
-        order.verify(mapper).lockUsers(List.of(USER_ID));
-        order.verify(memberMapper).findById(USER_ID);
-        order.verify(mapper).lockMatch(MATCH_ID);
+        InOrder order = inOrder(mapper, accountLockService);
+        order.verify(accountLockService).lockById(USER_ID);
         order.verify(mapper).findTimeConflicts(eq(MATCH_ID), eq(List.of(USER_ID)), anyList(), eq("취소"));
         verify(mapper, never()).insert(any(MatchApplication.class));
     }
@@ -110,21 +113,22 @@ class MatchApplicationServiceTimeConflictTest {
     }
 
     @Test
-    @DisplayName("팀 신청: 대표와 팀원 회원 행을 먼저 잠그고, 팀원이 겹치면 그 팀원 이름으로 막는다")
+    @DisplayName("팀 신청: 대표와 팀원의 계정을 잠근 뒤 시간이 겹치는 팀원의 이름을 안내한다")
     void teamMemberConflictBlocksApply() {
         given(mapper.lockClubMemberUserIds(List.of(101L, 102L))).willReturn(List.of(21L, 22L));
-        given(mapper.findTimeConflicts(eq(MATCH_ID), eq(List.of(USER_ID, 21L, 22L)), anyList(), eq("취소")))
+        List<Long> applicantIds = List.of(USER_ID, 21L, 22L);
+        given(accountLockService.lockAllById(applicantIds))
+                .willReturn(applicantIds.stream().map(MatchApplicationServiceTimeConflictTest::account).toList());
+        given(mapper.findTimeConflicts(eq(MATCH_ID), eq(applicantIds), anyList(), eq("취소")))
                 .willReturn(List.of(conflict(22L, "김지우", 9L, "대기")));
 
         assertThatThrownBy(() -> service.applyTeam(MATCH_ID, USER_ID, CLUB_ID, List.of(101L, 102L)))
                 .isInstanceOf(MatchApplyException.class)
                 .hasMessage("김지우님이 이미 참가 신청한 다른 매치와 시간이 겹칩니다.");
 
-        InOrder order = inOrder(mapper, memberMapper);
-        order.verify(mapper).lockClubMemberUserIds(List.of(101L, 102L));
-        order.verify(mapper).lockUsers(List.of(21L, 22L, USER_ID));
-        order.verify(memberMapper).findById(USER_ID);
-        order.verify(mapper).lockMatch(MATCH_ID);
+        InOrder order = inOrder(mapper, accountLockService);
+        order.verify(accountLockService).lockAllById(applicantIds);
+        order.verify(mapper).findTimeConflicts(eq(MATCH_ID), eq(applicantIds), anyList(), eq("취소"));
         verify(mapper, never()).insert(any(MatchApplication.class));
     }
 
@@ -176,6 +180,12 @@ class MatchApplicationServiceTimeConflictTest {
     }
 
     /* ---------------- fixtures ---------------- */
+
+    private static Member account(long userId) {
+        Member member = new Member();
+        member.setUserId(userId);
+        return member;
+    }
 
     private static MatchRow match() {
         LocalDateTime startAt = LocalDateTime.now(KST).plusDays(1);

@@ -838,6 +838,9 @@ class ClubServiceTest {
 
         assertThat(exception.getMessage()).isEqualTo("로그인이 필요합니다.");
         verify(clubMapper, never()).insertClubLeader(any(), any());
+    }
+
+    @Test
     @DisplayName("팀 평균 MMR로 실력 등급을 정하고, 기록이 없으면 배치 중")
     void 팀_평균_MMR로_실력_등급을_정한다() {
         ClubSummary none = club("모집중", "2,4", 19, 21);
