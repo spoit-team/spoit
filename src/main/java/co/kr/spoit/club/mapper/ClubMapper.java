@@ -1,5 +1,6 @@
 package co.kr.spoit.club.mapper;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.apache.ibatis.annotations.Mapper;
@@ -9,6 +10,7 @@ import co.kr.spoit.club.domain.Club;
 import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
 import co.kr.spoit.club.domain.ClubRegionOption;
+import co.kr.spoit.club.domain.ClubSchedule;
 import co.kr.spoit.club.domain.ClubSportCount;
 import co.kr.spoit.club.domain.ClubSportOption;
 import co.kr.spoit.club.domain.ClubSummary;
@@ -71,6 +73,9 @@ public interface ClubMapper {
 
         // 대기중 가입 신청 목록(먼저 신청 순)
         List<ClubJoinRequest> selectPendingJoinRequests(@Param("clubId") Long clubId);
+
+        // 관리 화면 예정 일정
+        List<ClubSchedule> selectUpcomingSchedules(@Param ("clubId") Long clubId, @Param ("now") LocalDateTime now);
 
         // 처리할 가입 신청(대기중)
         ClubJoinRequest selectPendingJoinRequestById(@Param("clubId") Long clubId,

@@ -17,7 +17,7 @@
     <article class="team-detail-card" th:attr="aria-label=${club.clubName + ' 팀 상세 정보'}">
       <section class="team-detail-hero">
         <div class="team-detail-heading">
-          <span class="team-mark" th:attr="data-sport=${club.sportId}" aria-hidden="true" th:text="${club.initials}">팀</span>
+          <span class="team-mark" th:classappend="${'tone-' + club.markTone}" aria-hidden="true"><img th:src="@{/images/club/sports/{key}.svg(key=${club.sportKey})}" alt=""><img th:src="@{/images/club/tiers/{key}.svg(key=${club.tierKey})}" alt=""></span>
           <div class="team-detail-copy">
             <h1 th:text="${club.clubName}">팀 이름</h1>
             <p><a class="team-detail-sport-link" th:href="@{/teams(sportId=${club.sportId})}" th:aria-label="${club.sportName + ' 팀 목록 보기'}" th:text="${club.sportName}">종목</a><span aria-hidden="true"> · </span><span th:text="${club.areaLabel}">지역</span></p>

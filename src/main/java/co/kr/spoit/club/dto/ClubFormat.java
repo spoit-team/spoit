@@ -3,6 +3,7 @@ package co.kr.spoit.club.dto;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.mat.domain.TierRank;
@@ -32,18 +33,32 @@ class ClubFormat {
         return areaLabel != null ? areaLabel : "지역 미정";
     }
 
-    // 종목 탭 임시 이모지(팀 아이콘 PR에서 SVG로 교체)
-    static String sportEmoji(Long sportId) {
-        if (sportId == null)
-            return "🏅";
+    // 종목 아이콘 파일 이름(images/club/sports) 모르는 종목은 별(etc)
+    static String sportKey(Long sportId) {
+        if (sportId == null) {
+            return "etc";
+        }
         return switch (sportId.intValue()) {
-            case 1 -> "🎾";
-            case 2 -> "⚽";
-            case 3 -> "🏐";
-            case 4 -> "🏀";
-            case 5 -> "🏸";
-            default -> "🏅";
+            case 1 -> "tennis";
+            case 2 -> "soccer";
+            case 3 -> "jokgu";
+            case 4 -> "basketball";
+            case 5 -> "badminton";
+            default -> "etc";
         };
+    }
+
+    // 동호회 실력 테두리 파일 이름(images/club/tiers) 배지랑 같이 TierRank로 정함
+    static String tierKey(Integer averageMmr) {
+        if (averageMmr == null) {
+            return "none";
+        }
+        return TierRank.of(BigDecimal.valueOf(averageMmr)).tier().name().toLowerCase(Locale.ROOT);
+    }
+
+    // 동호회별 배경색 번호 1~6
+    static int markTone(Long clubId) {
+        return (int) (clubId % 6) + 1;
     }
 
     // 팀 실력 등급
