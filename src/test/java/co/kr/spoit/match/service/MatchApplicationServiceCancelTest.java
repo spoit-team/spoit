@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -13,6 +14,7 @@ import static org.mockito.Mockito.verify;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,6 +28,7 @@ import co.kr.spoit.match.dto.MatchRow;
 import co.kr.spoit.match.mapper.MatchApplicationMapper;
 import co.kr.spoit.member.mapper.MemberMapper;
 import co.kr.spoit.member.service.MemberAccountLockService;
+import co.kr.spoit.notification.service.NotificationDispatcher;
 
 /** RES-05 신청 취소 규칙: 신청자 본인, 모집 중, 경기 시작 전, 활성 신청만 취소된다. */
 class MatchApplicationServiceCancelTest {
@@ -37,15 +40,17 @@ class MatchApplicationServiceCancelTest {
     private static final long MATCH_ID = 3L;
 
     private MatchApplicationMapper mapper;
+    private NotificationDispatcher notificationDispatcher;
     private MatchApplicationService service;
 
     @BeforeEach
     void setUp() {
         mapper = mock(MatchApplicationMapper.class);
+        notificationDispatcher = mock(NotificationDispatcher.class);
         service = new MatchApplicationService(mapper, mock(MemberMapper.class),
                 mock(SportRatingMapper.class), mock(MatchService.class),
                 mock(FacilityReservationService.class), mock(MemberAccountLockService.class),
-                mock(ClubService.class));
+                mock(ClubService.class), notificationDispatcher);
         given(mapper.findById(APPLICATION_ID)).willReturn(application(USER_ID));
     }
 
@@ -58,6 +63,22 @@ class MatchApplicationServiceCancelTest {
         service.cancel(APPLICATION_ID, USER_ID);
 
         verify(mapper).cancelParticipants(eq(APPLICATION_ID), anyList(), eq("취소"), any());
+    }
+
+    @Test
+    @DisplayName("본인 취소는 담당 시설 관리자에게 알리고 본인에게는 보내지 않는다")
+    void notifiesFacilityManagersOnly() {
+        given(mapper.lockMatch(MATCH_ID)).willReturn(match("모집 중", LocalDateTime.now(KST).plusDays(1)));
+        given(mapper.markCancelled(eq(APPLICATION_ID), anyList(), eq("취소"), eq(USER_ID), any())).willReturn(1);
+        given(mapper.findFacilityManagerUserIds(MATCH_ID)).willReturn(List.of(30L, 31L));
+
+        service.cancel(APPLICATION_ID, USER_ID);
+
+        verify(notificationDispatcher).notifyAfterCommit(List.of(30L, 31L), "MATCH_APPLICATION_CANCELLED",
+                "매칭 신청이 취소되었습니다", "매칭방 신청이 취소되었습니다. 신청 관리에서 확인해 주세요.",
+                MATCH_ID, APPLICATION_ID, null);
+        verify(notificationDispatcher, never()).notifyAfterCommit(argThat(ids -> ids.contains(USER_ID)),
+                anyString(), anyString(), anyString(), any(), any(), any());
     }
 
     @Test

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- 알림 항목 조각: notification-center.js가 API 응답으로 목록을 다시 그릴 때 복제해 사용합니다.
+     값은 모두 textContent로만 채우고, 이동 주소는 같은 출처의 상대 경로만 허용합니다. -->
+<article th:fragment="item" class="playon-notification-item" data-notification-id="">
+  <span class="playon-notification-dot" aria-hidden="true"></span>
+  <a class="playon-notification-link" data-field="link">
+    <div class="playon-notification-copy" data-field="copy">
+      <div class="playon-notification-meta"><span data-field="type">알림</span><span class="is-read-label" data-field="state">새 알림</span></div>
+      <h3 data-field="title">알림 제목</h3>
+      <p data-field="body">알림 내용</p>
+      <time data-field="time">시간</time>
+    </div>
+  </a>
+  <div class="playon-notification-actions">
+    <button type="button" class="playon-notification-action" data-notification-action="read" data-notification-id="">읽음</button>
+    <button type="button" class="playon-notification-action is-delete" data-notification-action="delete" data-notification-id="" aria-label="알림 삭제">삭제</button>
+  </div>
+</article>
+
+<!-- 마이페이지 알림 항목 조각: 마이페이지의 알림 목록과 공통 알림 모달이 같은 모양을 씁니다. -->
+<article th:fragment="mypageItem" class="mypage-notification-item" data-notification-id="">
+  <span aria-hidden="true"></span>
+  <a class="mypage-notification-link" data-field="link">
+    <div class="mypage-notification-copy" data-field="copy">
+      <div class="mypage-notification-meta"><span data-field="type">알림</span><span data-field="state">새 알림</span></div>
+      <h3 data-field="title">알림 제목</h3>
+      <p data-field="body">알림 내용</p>
+      <time data-field="time">시간</time>
+    </div>
+  </a>
+  <div class="mypage-notification-actions">
+    <button type="button" class="mypage-notification-action" data-notification-action="read" data-notification-id="">읽음</button>
+    <button type="button" class="mypage-notification-action is-delete" data-notification-action="delete" data-notification-id="" aria-label="알림 삭제">삭제</button>
+  </div>
+</article>
+
+<!-- 관리자 알림 항목 조각: 관리자 상단바 알림 모달이 같은 구조를 씁니다. -->
+<article th:fragment="adminItem" class="admin-notification-item" data-notification-id="">
+  <span class="admin-notification-dot" aria-hidden="true"></span>
+  <div class="admin-notification-copy">
+    <div class="admin-notification-meta"><span data-field="type">알림</span><span class="is-read-label" data-field="state">새 알림</span></div>
+    <a class="admin-notification-link" data-field="link">
+      <div data-field="copy">
+        <h3 data-field="title">알림 제목</h3>
+        <p data-field="body">알림 내용</p>
+        <time data-field="time">시간</time>
+      </div>
+    </a>
+  </div>
+  <div class="admin-notification-actions">
+    <button type="button" class="admin-button small" data-notification-action="read" data-notification-id="">읽음</button>
+    <button type="button" class="admin-button small" data-notification-action="delete" data-notification-id="" aria-label="알림 삭제">삭제</button>
+  </div>
+</article>
+
+<!-- 통합 알림 모달과 API·웹소켓 접속 정보.
+     JS가 없으면 이 모달은 열리지 않고, 헤더 종 아이콘의 /mypage#notifications 링크가 그대로 동작합니다. -->
+<div th:fragment="center(authenticated)" class="playon-notification-backdrop" id="notification-modal" hidden
+     data-notification-config data-notification-surface data-notification-dialog
+     th:attr="data-notification-api=@{/api/notifications},
+              data-notification-stream=@{/ws/notifications},
+              data-notification-authenticated=${authenticated},
+              data-notification-csrf-header=${_csrf?.headerName},
+              data-notification-csrf-token=${_csrf?.token}">
+  <section class="playon-notification-dialog" role="dialog" aria-modal="true" aria-labelledby="notification-modal-title" aria-describedby="notification-modal-description">
+    <header class="playon-notification-dialog-header">
+      <div><span>SPO:IT ALERT</span><h2 id="notification-modal-title">알림</h2><p id="notification-modal-description">예약과 팀 활동, 경기 결과 관련 알림입니다.</p></div>
+      <button type="button" class="playon-notification-close" data-notification-close aria-label="알림 창 닫기">×</button>
+    </header>
+    <p class="playon-notification-summary" data-notification-summary="long" aria-live="polite">알림 0건 · 미확인 0건</p>
+    <div class="playon-notification-list" data-notification-list data-empty-class="playon-notification-empty" aria-live="polite">
+      <p class="playon-notification-empty" data-notification-empty>확인할 알림이 없습니다.</p>
+    </div>
+    <footer class="playon-notification-dialog-footer">
+      <button type="button" class="playon-notification-text-button" data-notification-read-all>모두 읽음 처리</button>
+      <button type="button" class="playon-notification-done" data-notification-close>닫기</button>
+    </footer>
+  </section>
+  <!-- 목록을 다시 그릴 때 복제할 항목 원본. template 내용은 브라우저에서 실행되지 않습니다. -->
+  <template data-notification-item-template>
+    <article th:replace="~{fragments/notification :: item}"></article>
+  </template>
+  <p class="sr-only" data-notification-status role="status" aria-live="polite"></p>
+</div>
+
+</body>
+</html>

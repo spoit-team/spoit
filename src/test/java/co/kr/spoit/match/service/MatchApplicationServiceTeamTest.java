@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.Mockito.inOrder;
@@ -40,6 +41,7 @@ import co.kr.spoit.match.mapper.MatchApplicationMapper;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.mapper.MemberMapper;
 import co.kr.spoit.member.service.MemberAccountLockService;
+import co.kr.spoit.notification.service.NotificationDispatcher;
 
 /**
  * RES-04 팀 단위 신청: 대표가 고른 팀원마다 대기 신청 행을 만들고 대표 행 id로 묶는다.
@@ -59,6 +61,7 @@ class MatchApplicationServiceTeamTest {
     private SportRatingMapper sportRatingMapper;
     private MemberAccountLockService accountLockService;
     private ClubService clubService;
+    private NotificationDispatcher notificationDispatcher;
     private MatchApplicationService service;
 
     private final List<MatchApplication> inserted = new ArrayList<>();
@@ -70,9 +73,10 @@ class MatchApplicationServiceTeamTest {
         sportRatingMapper = mock(SportRatingMapper.class);
         accountLockService = mock(MemberAccountLockService.class);
         clubService = mock(ClubService.class);
+        notificationDispatcher = mock(NotificationDispatcher.class);
         service = new MatchApplicationService(mapper, memberMapper, sportRatingMapper,
                 mock(MatchService.class), mock(FacilityReservationService.class), accountLockService,
-                clubService);
+                clubService, notificationDispatcher);
 
         Member leader = new Member();
         leader.setUserId(LEADER_ID);
@@ -125,6 +129,18 @@ class MatchApplicationServiceTeamTest {
         assertThat(inserted).extracting(MatchApplication::getReceiptNo).doesNotHaveDuplicates();
         verify(mapper).markGroupLeader(leaderRow.getApplicationId());
         verify(mapper, never()).markConfirmed(anyLong(), anyString(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("팀 신청 접수는 묶음 전체를 한 번만 시설 관리자에게 알린다")
+    void notifiesManagerOnceForTeamApply() {
+        given(mapper.countOccupiedSeats(anyLong(), anyList(), anyString())).willReturn(0);
+        given(mapper.findFacilityManagerUserIds(MATCH_ID)).willReturn(List.of(30L, 30L));
+
+        service.applyTeam(MATCH_ID, LEADER_ID, CLUB_ID, List.of(101L, 102L));
+
+        verify(notificationDispatcher, times(1)).notifyAfterCommit(eq(List.of(30L)),
+                eq("MATCH_APPLICATION_RECEIVED"), anyString(), anyString(), eq(MATCH_ID), any(), isNull());
     }
 
     @Test
@@ -335,6 +351,24 @@ class MatchApplicationServiceTeamTest {
 
         verify(mapper).insertParticipant(eq(600L), eq(MATCH_ID), eq(LEADER_ID), eq("확정"), any(), any());
         verify(mapper, never()).findGroupMembers(anyLong());
+        verify(notificationDispatcher).notifyAfterCommit(List.of(LEADER_ID), "MATCH_APPLICATION_CONFIRMED",
+                "매칭 신청이 확정되었습니다", "참가 신청이 확정되었습니다. 매칭 상세에서 확인해 주세요.",
+                MATCH_ID, 600L, null);
+    }
+
+    @Test
+    @DisplayName("팀 신청 확정은 실제 확정된 참가자에게만 한 번 알린다")
+    void notifiesOnlyConfirmedGroupMembers() {
+        given(mapper.findById(501L)).willReturn(groupRow(501L, 21L, 500L));
+        given(mapper.findGroupMembers(500L)).willReturn(List.of(
+                group(500L, LEADER_ID, "대기"), group(501L, 21L, "대기"), group(502L, 22L, "취소")));
+        given(mapper.markConfirmed(anyLong(), eq("대기"), eq("확정"), any())).willReturn(1);
+
+        service.confirm(501L);
+
+        verify(notificationDispatcher).notifyAfterCommit(List.of(LEADER_ID, 21L),
+                "MATCH_APPLICATION_CONFIRMED", "매칭 신청이 확정되었습니다",
+                "참가 신청이 확정되었습니다. 매칭 상세에서 확인해 주세요.", MATCH_ID, 501L, null);
     }
 
     @Test

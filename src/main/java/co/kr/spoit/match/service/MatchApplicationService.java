@@ -50,6 +50,7 @@ import co.kr.spoit.match.mapper.MatchApplicationMapper;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.mapper.MemberMapper;
 import co.kr.spoit.member.service.MemberAccountLockService;
+import co.kr.spoit.notification.service.NotificationDispatcher;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -101,6 +102,7 @@ public class MatchApplicationService {
     private final FacilityReservationService facilityReservationService;
     private final MemberAccountLockService accountLockService;
     private final ClubService clubService;
+    private final NotificationDispatcher notificationDispatcher;
 
     /**
      * 회원 탈퇴를 막는 진행 중 개인 매치 신청의 매치 제목.
@@ -244,6 +246,12 @@ public class MatchApplicationService {
 
         MatchApplication application = MatchApplication.individual(matchId, userId, newReceiptNo(now), now);
         applicationMapper.insert(application);
+
+        // 커밋 후 담당 시설 관리자에게 접수 알림 (수신자는 서버가 확정한다)
+        notificationDispatcher.notifyAfterCommit(distinctIds(applicationMapper.findFacilityManagerUserIds(matchId)),
+                "MATCH_APPLICATION_RECEIVED", "매칭 신청이 접수되었습니다",
+                "매칭방에 새로운 참가 신청이 접수되었습니다. 신청 관리에서 확인해 주세요.",
+                matchId, application.getApplicationId(), null);
         return application.getReceiptNo();
     }
 
@@ -350,6 +358,12 @@ public class MatchApplicationService {
             applicationMapper.insert(MatchApplication.teamMember(matchId, m.getUserId(), clubId,
                     leader.getApplicationId(), newReceiptNo(now), now));
         }
+
+        // 묶음 전체를 한 번만 알린다(팀원 행 수만큼 중복 발송하지 않는다).
+        notificationDispatcher.notifyAfterCommit(distinctIds(applicationMapper.findFacilityManagerUserIds(matchId)),
+                "MATCH_APPLICATION_RECEIVED", "매칭 신청이 접수되었습니다",
+                "매칭방에 새로운 동호회 신청이 접수되었습니다. 신청 관리에서 확인해 주세요.",
+                matchId, leader.getApplicationId(), null);
         return leader.getReceiptNo();
     }
 
@@ -518,18 +532,29 @@ public class MatchApplicationService {
             if (!confirmLocked(application.getApplicationId(), application.getApplicantUserId(), match, now)) {
                 throw new MatchApplyException("이미 처리된 신청입니다.");
             }
+            notificationDispatcher.notifyAfterCommit(List.of(application.getApplicantUserId()),
+                    "MATCH_APPLICATION_CONFIRMED", "매칭 신청이 확정되었습니다",
+                    "참가 신청이 확정되었습니다. 매칭 상세에서 확인해 주세요.",
+                    match.getMatchId(), application.getApplicationId(), null);
             return;
         }
         int confirmed = 0;
+        List<Long> confirmedUserIds = new ArrayList<>();
         for (GroupMemberRow row : applicationMapper.findGroupMembers(application.getGroupApplicationId())) {
             if (ApplicationStatus.WAITING.dbValue().equals(row.getStatus())
                     && confirmLocked(row.getApplicationId(), row.getUserId(), match, now)) {
                 confirmed++;
+                confirmedUserIds.add(row.getUserId());
             }
         }
         if (confirmed == 0) {
             throw new MatchApplyException("이미 처리된 신청입니다.");
         }
+        // 확정된 참가자에게만 한 번씩 알린다.
+        notificationDispatcher.notifyAfterCommit(confirmedUserIds,
+                "MATCH_APPLICATION_CONFIRMED", "매칭 신청이 확정되었습니다",
+                "참가 신청이 확정되었습니다. 매칭 상세에서 확인해 주세요.",
+                match.getMatchId(), application.getApplicationId(), null);
     }
 
     /** @return 확정했으면 true, 이미 대기 상태가 아니면 false */
@@ -608,6 +633,8 @@ public class MatchApplicationService {
             if (targets.isEmpty() || !cancelMembersLocked(groupId, userId, targets, newLeaderApplicationId, now)) {
                 cancelGroupLocked(groupId, userId, now);
             }
+            // 묶음 취소는 한 번만 알린다(팀원 수만큼 중복 발송하지 않는다).
+            notifyCancelled(match.getMatchId(), application.getApplicationId());
             return;
         }
         int updated = applicationMapper.markCancelled(applicationId, ApplicationStatus.activeValues(),
@@ -617,6 +644,15 @@ public class MatchApplicationService {
         }
         applicationMapper.cancelParticipants(applicationId, ParticipationStatus.occupyingValues(),
                 ParticipationStatus.CANCELLED.dbValue(), now);
+        notifyCancelled(match.getMatchId(), application.getApplicationId());
+    }
+
+    /** 신청 취소를 담당 시설 관리자에게 알린다. 본인 취소이므로 본인에게는 보내지 않는다. */
+    private void notifyCancelled(long matchId, long applicationId) {
+        notificationDispatcher.notifyAfterCommit(distinctIds(applicationMapper.findFacilityManagerUserIds(matchId)),
+                "MATCH_APPLICATION_CANCELLED", "매칭 신청이 취소되었습니다",
+                "매칭방 신청이 취소되었습니다. 신청 관리에서 확인해 주세요.",
+                matchId, applicationId, null);
     }
 
     private void cancelGroupLocked(long groupId, long userId, LocalDateTime now) {

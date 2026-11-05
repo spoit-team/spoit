@@ -109,7 +109,7 @@ public class MyPageController {
         model.addAttribute("currentReservations", reservations.getCurrent());
         model.addAttribute("pastReservations", reservations.getPast());
         model.addAttribute("resultSubmitMatchIds", resultPageService.findResultSubmittableMatchIds(userId));
-        model.addAttribute("notifications", EMPTY_LIST);
+        // 알림 목록은 GlobalModelAdvice가 로그인 주체 기준으로 채운다. 여기서 덮어쓰지 않는다.
         model.addAttribute("message", blankToNull(message));
         return "mypage/index";
     }

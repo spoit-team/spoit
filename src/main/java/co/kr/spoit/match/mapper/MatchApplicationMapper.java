@@ -140,6 +140,11 @@ public interface MatchApplicationMapper {
                           @Param("entryMmr") BigDecimal entryMmr,
                           @Param("joinedAt") LocalDateTime joinedAt);
 
+    /* ---------------- 알림 수신자 ---------------- */
+
+    /** 매칭방 담당 시설의 관리자 회원 번호 (알림 수신자) */
+    List<Long> findFacilityManagerUserIds(@Param("matchId") long matchId);
+
     /* ---------------- RES-04 팀 신청 대상 ---------------- */
 
     /** 이 회원이 활성 회원인 해체되지 않은 동호회 중 종목이 같은 것 */

@@ -18,6 +18,7 @@ import co.kr.spoit.global.config.SecurityConfig;
 import co.kr.spoit.mat.domain.MatchResult;
 import co.kr.spoit.mat.dto.MatchResultResponse;
 import co.kr.spoit.mat.dto.MatchResultResponse.Outcome;
+import co.kr.spoit.mat.dto.MatchResultSummary;
 import co.kr.spoit.mat.dto.MatchResultView;
 import co.kr.spoit.mat.service.MatchResultService;
 import co.kr.spoit.member.domain.Member;
@@ -41,6 +42,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class MatchResultControllerTest {
 
     private static final String URL = "/mypage/matches/10/result";
+    private static final String SUMMARY_URL = "/mypage/matches/10/result/summary";
 
     @Autowired
     private MockMvc mockMvc;
@@ -79,6 +81,46 @@ class MatchResultControllerTest {
                 .andExpect(jsonPath("$.opponentResult").doesNotExist())
                 .andExpect(jsonPath("$.deadlineAt").value("2026-10-31T20:00:00"))
                 .andExpect(jsonPath("$.canSubmit").value(false));
+    }
+
+    @Test
+    void returnsParticipantSummary() throws Exception {
+        given(matchResultService.getSummary(10L, 7L)).willReturn(Optional.of(
+                new MatchResultSummary(10L, "종료", "CONFIRMED", "APPLIED", "A_WIN", "A", null)));
+
+        mockMvc.perform(get(SUMMARY_URL).with(user(member())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("종료"))
+                .andExpect(jsonPath("$.resultStatus").value("CONFIRMED"))
+                .andExpect(jsonPath("$.ratingStatus").value("APPLIED"))
+                .andExpect(jsonPath("$.mySide").value("A"))
+                .andExpect(jsonPath("$.myResult").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
+    void anonymousSummaryRequestRedirectsToLogin() throws Exception {
+        mockMvc.perform(get(SUMMARY_URL))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrlPattern("**/login"));
+
+        verify(matchResultService, never()).getSummary(anyLong(), anyLong());
+    }
+
+    @Test
+    void deniesSummaryToNonParticipant() throws Exception {
+        given(matchResultService.getSummary(10L, 7L))
+                .willThrow(new AccessDeniedException("확정 참가자 아님"));
+
+        mockMvc.perform(get(SUMMARY_URL).with(user(member())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void returnsNotFoundForMissingMatchSummary() throws Exception {
+        given(matchResultService.getSummary(10L, 7L)).willReturn(Optional.empty());
+
+        mockMvc.perform(get(SUMMARY_URL).with(user(member())))
+                .andExpect(status().isNotFound());
     }
 
     @Test

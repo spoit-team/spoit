@@ -1,0 +1,230 @@
+﻿// Dependency-free execution check: bun src/test/frontend/match-result.test.mjs
+// 경기 결과 화면이 확정 참가자에게는 요약 API만, 팀장에게는 제출 영역을 열어 주는지 확인합니다.
+import assert from 'node:assert/strict';
+
+globalThis.Element ??= class Element {};
+
+class SyNode extends Element {
+  constructor(properties = {}) {
+    super();
+    Object.assign(this, {
+      hidden: false, disabled: false, textContent: '', type: '', className: '', id: ''
+    }, properties);
+    this.attributes = {};
+    this.children = [];
+    this.classes = new Set();
+    this.listeners = {};
+    this.classList = {
+      add: name => this.classes.add(name),
+      remove: name => this.classes.delete(name),
+      contains: name => this.classes.has(name),
+      toggle: (name, active) => active ? this.classes.add(name) : this.classes.delete(name)
+    };
+  }
+  addEventListener(type, handler) { (this.listeners[type] ??= []).push(handler); }
+  setAttribute(name, value) { this.attributes[name] = String(value); }
+  getAttribute(name) { return this.attributes[name] ?? null; }
+  removeAttribute(name) { delete this.attributes[name]; }
+  focus() {}
+  closest(selector) {
+    if (selector === '[data-result]') return this.result ? this : null;
+    if (selector === '[data-action]') return this.action ? this : null;
+    return null;
+  }
+  querySelector(selector) { return (this.bySelector?.[selector]) ?? null; }
+  querySelectorAll(selector) { return (this.bySelectorAll?.[selector]) ?? []; }
+  replaceChildren(...nodes) { this.children = nodes; }
+  append(...nodes) { this.children.push(...nodes); }
+  appendChild(node) { this.children.push(node); return node; }
+  dispatch(type, event = {}) {
+    const payload = { target: this, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...event };
+    for (const handler of this.listeners[type] ?? []) handler(payload);
+    return payload;
+  }
+}
+
+function hasClass(node, name) {
+  return (node.className || '').split(/\s+/).includes(name) || node.classes.has(name);
+}
+
+function textOf(node) {
+  if (!node) return '';
+  return String(node.textContent || '') + node.children.map(textOf).join(' ');
+}
+
+function resultPage(options = {}) {
+  const { summary, captain, captainStatus = 200 } = options;
+  const calls = [];
+  const fields = {};
+  const field = name => {
+    const node = new SyNode();
+    fields[name] = node;
+    return node;
+  };
+  const summarySection = new SyNode({ hidden: true });
+  const stateBody = new SyNode();
+  const stateMessage = new SyNode({ hidden: true });
+  const submitSection = new SyNode({ hidden: true });
+  const submitBody = new SyNode();
+  const submitMessage = new SyNode({ hidden: true });
+
+  ['matchId', 'side', 'resultStatus', 'ratingStatus', 'title'].forEach(field);
+
+  const root = new SyNode();
+  root.setAttribute('data-api-base', '/mypage/matches');
+  root.setAttribute('data-match-id', '42');
+  root.setAttribute('data-csrf-header', 'X-CSRF-TOKEN');
+  root.setAttribute('data-csrf-token', 'csrf-value');
+  root.bySelector = {
+    '[data-result-summary]': summarySection,
+    '[data-result-body]': stateBody,
+    '[data-result-message]': stateMessage,
+    '[data-result-submit]': submitSection,
+    '[data-result-submit-body]': submitBody,
+    '[data-result-submit-message]': submitMessage
+  };
+  root.bySelectorAll = {
+    '[data-field="matchId"]': [fields.matchId],
+    '[data-field="side"]': [fields.side],
+    '[data-field="resultStatus"]': [fields.resultStatus],
+    '[data-field="ratingStatus"]': [fields.ratingStatus],
+    '[data-field="title"]': [fields.title]
+  };
+
+  const document = {
+    hidden: false,
+    activeElement: null,
+    addEventListener() {},
+    createElement(tagName) {
+      const node = new SyNode();
+      node.tagName = String(tagName).toUpperCase();
+      return node;
+    },
+    querySelector(selector) { return selector === '[data-result-root]' ? root : null; }
+  };
+
+  const window = {
+    location: { pathname: '/mypage/matches/42/result-page', href: 'http://localhost/mypage/matches/42/result-page' },
+    fetch(url, init) {
+      calls.push({ url, method: (init && init.method) || 'GET', init });
+      if (url.endsWith('/result/summary')) {
+        return Promise.resolve({
+          ok: true, redirected: false, status: 200,
+          json: () => Promise.resolve(summary)
+        });
+      }
+      return Promise.resolve({
+        ok: captainStatus === 200, redirected: false, status: captainStatus,
+        json: () => Promise.resolve(captain)
+      });
+    }
+  };
+
+  return {
+    root, fields, summarySection, stateBody, stateMessage,
+    submitSection, submitBody, submitMessage, document, window, calls
+  };
+}
+
+function flush() {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+/* ── 1) 일반 참가자: 요약만 읽고 팀장 제출 영역은 403으로 감춘다 ───────── */
+{
+  const page = resultPage({
+    summary: {
+      matchId: 42, status: 'CLOSED', resultStatus: 'CONFIRMED', ratingStatus: 'APPLIED',
+      finalResult: 'A_WIN', mySide: 'A', myResult: null
+    },
+    captain: { message: '이 경기의 팀장만 결과를 제출할 수 있습니다.' },
+    captainStatus: 403
+  });
+  globalThis.document = page.document;
+  globalThis.window = page.window;
+
+  await import('../../main/resources/static/js/match-result.js?participant');
+  await flush();
+  await flush();
+
+  assert.deepEqual(page.calls.map(call => call.url), [
+    '/mypage/matches/42/result/summary',
+    '/mypage/matches/42/result'
+  ], '확정 참가자는 요약 API를 먼저, 팀장 전용 조회는 그다음에 시도해야 합니다.');
+
+  assert.equal(page.summarySection.hidden, false, '요약 카드가 보여야 합니다.');
+  assert.equal(page.fields.ratingStatus.textContent, '레이팅 반영 완료');
+  assert.equal(page.fields.side.textContent, 'A팀');
+  assert.equal(page.submitSection.hidden, true, '팀장이 아니면 제출 영역을 감춰야 합니다.');
+  assert.equal(page.stateMessage.hidden, true, '팀장이 아닌 것은 오류가 아니므로 안내를 띄우지 않습니다.');
+  assert.match(textOf(page.stateBody), /최종 결과/);
+}
+
+/* ── 2) 팀장: 제출 선택지를 보여 주고 CSRF 헤더로 제출한다 ───────────── */
+{
+  const page = resultPage({
+    summary: {
+      matchId: 42, status: 'MATCHED', resultStatus: 'SUBMITTED', ratingStatus: 'WAITING',
+      finalResult: null, mySide: 'B', myResult: 'B_WIN'
+    },
+    captain: {
+      matchId: 42, mySide: 'B', myResult: null, opponentSubmitted: true, conflict: false,
+      opponentResult: null, finalResult: null, ratingStatus: 'WAITING', deadlineAt: null, canSubmit: true
+    }
+  });
+  globalThis.document = page.document;
+  globalThis.window = page.window;
+
+  await import('../../main/resources/static/js/match-result.js?captain');
+  await flush();
+  await flush();
+
+  assert.equal(page.submitSection.hidden, false, '팀장에게는 제출 영역을 열어야 합니다.');
+
+  const choices = page.submitBody.children.find(child => hasClass(child, 'match-result-choices'));
+  assert.ok(choices, '제출 가능한 팀장에게 결과 선택지를 보여 줘야 합니다.');
+  assert.equal(choices.children.length, 3);
+
+  const win = choices.children.find(child => child.getAttribute('data-result') === 'B_WIN');
+  win.result = true;
+  page.root.dispatch('click', { target: win });
+
+  const confirm = page.submitBody.children.find(child => hasClass(child, 'match-result-confirm'));
+  assert.ok(confirm, '고르면 제출 확인 단계를 보여 줘야 합니다.');
+
+  const actions = confirm.children.find(child => hasClass(child, 'match-result-confirm-actions'));
+  const submit = actions.children.find(child => child.getAttribute('data-action') === 'submit');
+  submit.action = true;
+  page.root.dispatch('click', { target: submit });
+  await flush();
+  await flush();
+
+  const post = page.calls.find(call => call.method === 'POST');
+  assert.ok(post, '확인 뒤에는 팀장 전용 결과 API로 제출해야 합니다.');
+  assert.equal(post.url, '/mypage/matches/42/result');
+  assert.deepEqual(JSON.parse(post.init.body), { result: 'B_WIN' });
+  assert.equal(post.init.headers['X-CSRF-TOKEN'], 'csrf-value');
+}
+
+/* ── 3) 결과가 없으면 빈 상태를 꾸며 내지 않고 서버 문구를 그대로 쓴다 ── */
+{
+  const page = resultPage({
+    summary: { message: '경기 정보를 찾을 수 없습니다.' },
+    captain: { message: '경기 정보를 찾을 수 없습니다.' },
+    captainStatus: 404
+  });
+  globalThis.document = page.document;
+  globalThis.window = page.window;
+
+  await import('../../main/resources/static/js/match-result.js?missing');
+  await flush();
+  await flush();
+
+  assert.equal(page.summarySection.hidden, true, '요약이 없으면 카드를 펼치지 않습니다.');
+  assert.equal(page.stateMessage.hidden, false);
+  assert.equal(page.stateMessage.textContent, '경기 정보를 찾을 수 없습니다.');
+  assert.equal(page.stateMessage.classes.has('is-error'), true);
+  assert.equal(page.submitSection.hidden, true);
+}
+
+console.log('PASS: result screen keeps the summary read-only for participants and gates submission to captains.');

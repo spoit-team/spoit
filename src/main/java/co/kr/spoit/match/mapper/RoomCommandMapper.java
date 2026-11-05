@@ -65,4 +65,12 @@ public interface RoomCommandMapper {
                            @Param("cancelledStatus") String cancelledStatus,
                            @Param("fromStatuses") List<String> fromStatuses,
                            @Param("now") LocalDateTime now);
+
+    /**
+     * 방 취소 알림 수신자. 상태를 바꾸기 전에 활성 신청자·활성 참가자의 회원 번호를 중복 없이 읽는다.
+     * match_application과 match_participant를 모두 포함한다.
+     */
+    List<Long> findCancelRecipientUserIds(@Param("matchId") Long matchId,
+                                          @Param("participationStatuses") List<String> participationStatuses,
+                                          @Param("applicationStatuses") List<String> applicationStatuses);
 }

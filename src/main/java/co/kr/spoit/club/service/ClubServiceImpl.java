@@ -32,6 +32,7 @@ import co.kr.spoit.club.dto.MyClubResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.service.MemberAccountLockService;
+import co.kr.spoit.notification.service.NotificationDispatcher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,6 +44,7 @@ public class ClubServiceImpl implements ClubService {
 
     private final ClubMapper clubMapper;
     private final MemberAccountLockService accountLockService;
+    private final NotificationDispatcher notificationDispatcher;
     private static final int NAME_MAX_LENGTH = 30;
     private static final int INTRO_MAX_LENGTH = 240;
     private static final int MIN_MEMBERS = 2;
@@ -318,6 +320,13 @@ public class ClubServiceImpl implements ClubService {
         // 4. 저장
         clubMapper.insertJoinRequest(clubId, userId, trimmedMessage.isEmpty() ? null : trimmedMessage);
         log.info("가입 신청 저장 완료: clubId={}, userId={}", clubId, userId);
+
+        // 5. 커밋 후 동호회장 알림 (동호회원 번호가 아닌 회원 번호)
+        Long joinRequestId = clubMapper.selectMyPendingJoinRequestId(clubId, userId);
+        notificationDispatcher.notifyAfterCommit(clubMapper.selectActiveLeaderUserIds(clubId),
+                "CLUB_JOIN_REQUESTED", "동호회 가입 신청이 접수되었습니다",
+                club.getClubName() + " 팀에 새로운 가입 신청이 도착했습니다. 팀 관리에서 확인해 주세요.",
+                null, null, joinRequestId);
     }
 
     // 가입 신청 승인: 잠금->동호회장->대기중->정원확인
@@ -338,21 +347,32 @@ public class ClubServiceImpl implements ClubService {
         clubMapper.updateJoinRequestStatus(joinRequestId, "승인");
         clubMapper.insertJoinedMember(clubId, request.getUserId());
         log.info("가입 신청 승인: clubId={}, joinRequestId={}", clubId, joinRequestId);
+
+        notificationDispatcher.notifyAfterCommit(List.of(request.getUserId()),
+                "CLUB_JOIN_APPROVED", "동호회 가입이 승인되었습니다",
+                club.getClubName() + " 팀 가입이 승인되었습니다. 팀 상세에서 확인해 주세요.",
+                null, null, joinRequestId);
     }
 
     // 가입신청 거절: 잠금-> 동호회장-> 상태확인
     @Override
     @Transactional
     public void rejectJoin(Long userId, Long clubId, Long joinRequestId) {
-        getActiveClubForUpdate(clubId);
+        ClubSummary club = getActiveClubForUpdate(clubId);
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
             throw new IllegalArgumentException("팀장만 가입 신청을 처리할 수 있습니다.");
         }
-        if (clubMapper.selectPendingJoinRequestById(clubId, joinRequestId) == null) {
+        ClubJoinRequest request = clubMapper.selectPendingJoinRequestById(clubId, joinRequestId);
+        if (request == null) {
             throw new IllegalArgumentException("이미 처리된 가입 신청입니다.");
         }
         clubMapper.updateJoinRequestStatus(joinRequestId, "거절");
         log.info("가입 신청 거절: clubId={}, joinRequestId={}", clubId, joinRequestId);
+
+        notificationDispatcher.notifyAfterCommit(List.of(request.getUserId()),
+                "CLUB_JOIN_REJECTED", "동호회 가입이 거절되었습니다",
+                club.getClubName() + " 팀 가입 신청이 거절되었습니다. 팀 상세에서 확인해 주세요.",
+                null, null, joinRequestId);
 
     }
 
@@ -380,7 +400,7 @@ public class ClubServiceImpl implements ClubService {
     @Override
     @Transactional
     public void transferLeader(Long userId, Long clubId, Long clubMemberId) {
-        getActiveClubForUpdate(clubId);
+        ClubSummary club = getActiveClubForUpdate(clubId);
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
             throw new IllegalArgumentException("팀장만 위임할 수 있습니다.");
         }
@@ -399,6 +419,12 @@ public class ClubServiceImpl implements ClubService {
         }
         clubMapper.updateRoleToMember(clubId, userId);
         log.info("동호회장 위임: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
+
+        // 알림 수신자는 동호회원 번호가 아닌 실제 회원 번호다.
+        notificationDispatcher.notifyAfterCommit(List.of(target.getUserId()),
+                "CLUB_LEADER_TRANSFERRED", "동호회장으로 위임되었습니다",
+                club.getClubName() + " 팀의 동호회장 자리를 위임받았습니다. 팀 관리에서 확인해 주세요.",
+                null, null, null, clubId);
     }
 
     // 동호회 탈퇴
@@ -426,7 +452,7 @@ public class ClubServiceImpl implements ClubService {
         if (reason.isEmpty() || reason.length() > KICK_REASON_MAX_LENGTH) {
             throw new IllegalArgumentException("추방 사유를 1~200자로 입력해 주세요.");
         }
-        getActiveClubForUpdate(clubId);
+        ClubSummary club = getActiveClubForUpdate(clubId);
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
             throw new IllegalArgumentException("팀장만 팀원을 추방할 수 있습니다.");
         }
@@ -439,6 +465,11 @@ public class ClubServiceImpl implements ClubService {
         }
         clubMapper.updateMemberKick(clubId, clubMemberId, reason);
         log.info("동호회원 추방: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
+
+        notificationDispatcher.notifyAfterCommit(List.of(target.getUserId()),
+                "CLUB_MEMBER_KICKED", "동호회에서 내보내졌습니다",
+                club.getClubName() + " 팀에서 내보내졌습니다.",
+                null, null, null, clubId);
     }
 
     // 동호회 해체

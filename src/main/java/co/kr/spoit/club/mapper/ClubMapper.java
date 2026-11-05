@@ -71,6 +71,9 @@ public interface ClubMapper {
         // 동호회장인지 확인
         boolean existsActiveLeader(@Param("clubId") Long clubId, @Param("userId") Long userId);
 
+        // 알림 수신자: 활성 동호회장 회원 번호
+        List<Long> selectActiveLeaderUserIds(@Param("clubId") Long clubId);
+
         // 대기중 가입 신청 목록(먼저 신청 순)
         List<ClubJoinRequest> selectPendingJoinRequests(@Param("clubId") Long clubId);
 
@@ -90,6 +93,9 @@ public interface ClubMapper {
         // 내 가입 신청 취소(대기중만)
         int cancelJoinRequest(@Param("clubId") Long clubId, @Param("joinRequestId") Long joinRequestId,
                         @Param("userId") Long userId);
+
+        // 알림 수신자: 활성 동호회원 번호(club_member_id)의 회원 번호. 동호회원 번호와 회원 번호를 구분한다.
+        Long selectActiveMemberUserId(@Param("clubId") Long clubId, @Param("clubMemberId") Long clubMemberId);
 
         // 동호회장 위임: 남을 동호회장으로
         int updateRoleToLeader(@Param("clubId") Long clubId, @Param("clubMemberId") Long clubMemberId);

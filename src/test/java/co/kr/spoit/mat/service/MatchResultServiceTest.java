@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -290,10 +291,42 @@ class MatchResultServiceTest {
     @Test
     void endsOnlyMatchesWhoseRatingIsProcessed() {
         when(resultMapper.findEndedMatchIds("매칭 완료", "APPLIED", "EXCLUDED", NOW)).thenReturn(List.of(MATCH_ID));
-        when(resultMapper.markEnded(MATCH_ID, "종료", "매칭 완료", "APPLIED", "EXCLUDED", NOW)).thenReturn(1);
 
         assertThat(service.findEndedMatchIds(NOW)).containsExactly(MATCH_ID);
+    }
+
+    @Test
+    void notifiesConfirmedParticipantsOnceWhenMatchEnds() {
+        givenParticipants();
+        when(resultMapper.markEnded(MATCH_ID, "종료", "매칭 완료", "APPLIED", "EXCLUDED", NOW)).thenReturn(1);
+
         assertThat(service.markEnded(MATCH_ID, NOW)).isTrue();
+
+        // 확정 참가자 3명에게 같은 안내를 한 번만 예약한다. 레이팅 반영·제외는 종류를 나누지 않는다.
+        verify(matchNotifier).notifyAfterCommit(List.of(CAPTAIN_A_USER, CAPTAIN_B_USER, 13L), MATCH_ID,
+                NotificationType.MATCH_RESULT_COMPLETED, "경기 결과 산정 완료",
+                "경기 결과 산정이 완료되었습니다. 자세한 내용은 경기 결과 페이지에서 확인해 주세요.");
+        verify(matchNotifier, times(1)).notifyAfterCommit(any(), anyLong(), any(), anyString(), anyString());
+    }
+
+    @Test
+    void doesNotNotifyAgainWhenMatchWasAlreadyEnded() {
+        when(resultMapper.markEnded(MATCH_ID, "종료", "매칭 완료", "APPLIED", "EXCLUDED", NOW)).thenReturn(0);
+
+        assertThat(service.markEnded(MATCH_ID, NOW)).isFalse();
+
+        verifyNoInteractions(participantMapper, matchNotifier);
+    }
+
+    @Test
+    void doesNotNotifyBeforeMatchEnd() {
+        // 종료 시각 전이거나 레이팅이 아직 WAITING이면 조건부 UPDATE가 0행이라 알림도 없어야 한다.
+        when(resultMapper.markEnded(MATCH_ID, "종료", "매칭 완료", "APPLIED", "EXCLUDED", END_AT.minusMinutes(1)))
+                .thenReturn(0);
+
+        assertThat(service.markEnded(MATCH_ID, END_AT.minusMinutes(1))).isFalse();
+
+        verifyNoInteractions(participantMapper, matchNotifier);
     }
 
     @Test
@@ -310,6 +343,54 @@ class MatchResultServiceTest {
                 "경기 결과·평가 미제출", body);
         verify(matchNotifier).notifyAfterCommit(List.of(21L), 20L, NotificationType.MATCH_RESULT_REMINDER,
                 "경기 결과·평가 미제출", body);
+    }
+
+    @Test
+    void summaryShowsOwnSideAndStatusForAnyConfirmedParticipant() {
+        ResultMatch match = match("종료", "CONFIRMED", "APPLIED");
+        match.setFinalResult("A_WIN");
+        when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.of(match));
+        givenParticipants();
+
+        var summary = service.getSummary(MATCH_ID, 13L).orElseThrow();
+
+        // 팀장이 아닌 확정 참가자: 본인 진영과 상태만 받고 제출 결과는 받지 않는다.
+        assertThat(summary.matchId()).isEqualTo(MATCH_ID);
+        assertThat(summary.status()).isEqualTo("종료");
+        assertThat(summary.resultStatus()).isEqualTo("CONFIRMED");
+        assertThat(summary.ratingStatus()).isEqualTo("APPLIED");
+        assertThat(summary.finalResult()).isEqualTo("A_WIN");
+        assertThat(summary.mySide()).isEqualTo("A");
+        assertThat(summary.myResult()).isNull();
+        verify(resultMapper, never()).findActiveSubmissions(anyLong(), anyString());
+    }
+
+    @Test
+    void summaryIncludesOwnSubmissionForCaptain() {
+        when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.of(match("매칭 완료", "SUBMITTED", "WAITING")));
+        givenParticipants();
+        givenActiveSubmissions(submission(20L, 2L, "A_WIN", "SUBMITTED"));
+
+        var summary = service.getSummary(MATCH_ID, CAPTAIN_B_USER).orElseThrow();
+
+        assertThat(summary.mySide()).isEqualTo("B");
+        assertThat(summary.myResult()).isEqualTo("A_WIN");
+    }
+
+    @Test
+    void deniesSummaryForNonParticipant() {
+        when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.of(match("종료", "CONFIRMED", "APPLIED")));
+        givenParticipants();
+
+        assertThatThrownBy(() -> service.getSummary(MATCH_ID, 99L)).isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void returnsEmptySummaryForMissingMatch() {
+        when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.empty());
+
+        assertThat(service.getSummary(MATCH_ID, CAPTAIN_A_USER)).isEmpty();
+        verifyNoInteractions(participantMapper);
     }
 
     @Test

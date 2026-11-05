@@ -209,6 +209,17 @@ class FacilityScheduleConcurrencyIntegrationTest {
             return;
         }
         txTemplate().executeWithoutResult(status -> {
+            // 신청·매칭방·회원을 참조하는 알림이 남아 있으면 아래 삭제가 FK로 막힌다.
+            // 이 테스트 대역의 회원·매칭방·신청만 대상으로 FK 역순(알림 → 신청)을 지킨다.
+            jdbcTemplate.update("""
+                    DELETE FROM notification
+                     WHERE recipient_user_id BETWEEN ? AND ?
+                        OR match_id BETWEEN ? AND ?
+                        OR application_id IN (
+                            SELECT application_id FROM match_application WHERE match_id BETWEEN ? AND ?
+                        )
+                    """, USER_ID_FIRST, USER_ID_LAST, MATCH_ID_FIRST, MATCH_ID_LAST,
+                    MATCH_ID_FIRST, MATCH_ID_LAST);
             jdbcTemplate.update("DELETE FROM match_participant WHERE match_id BETWEEN ? AND ?",
                     MATCH_ID_FIRST, MATCH_ID_LAST);
             jdbcTemplate.update("DELETE FROM match_application WHERE match_id BETWEEN ? AND ?",
