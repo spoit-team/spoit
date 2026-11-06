@@ -351,6 +351,9 @@ button { color: inherit; }
 .facility-map-preview span, .facility-map-preview small { color: var(--admin-muted); }
 .facility-map-preview small { font-size: 10px; }
 .stats-metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
+/* 예약 통계 기간 직접 입력: 드롭다운(.field-control 40px)과 같은 줄에 나란히 놓는다. */
+.heading-actions input[type="date"].field-control { min-width: 130px; }
+.heading-actions input[type="date"].field-control:disabled { background: var(--admin-paper); color: var(--admin-muted); }
 .metric-grid.three-metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
 .metric-grid.two-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
 .weekday-chart { display: grid; gap: 13px; padding: 18px 20px 20px; }
