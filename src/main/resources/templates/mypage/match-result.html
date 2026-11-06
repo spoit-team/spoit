@@ -9,7 +9,7 @@
     <div class="mypage-heading-copy">
       <p class="mypage-eyebrow">SPO:IT <span aria-hidden="true">/</span> MATCH RESULT</p>
       <h1 id="match-result-title">경기 결과 제출</h1>
-      <p>두 팀장이 같은 결과를 제출하면 경기 결과가 확정되고 레이팅에 반영됩니다.</p>
+      <p>두 팀장이 같은 결과를 제출하고 평가까지 마치면 레이팅에 반영됩니다.</p>
     </div>
     <a th:href="@{/mypage}" class="mypage-edit-link">마이페이지 <span aria-hidden="true">↗</span></a>
   </section>
@@ -72,11 +72,29 @@
         <p class="match-result-loading">제출 상태를 불러오는 중입니다.</p>
       </div>
     </section>
+
+    <!-- 평가 영역: match-evaluation.js가 평가 조회 API 응답으로 대상과 항목을 그린다. 제출은 폼 없이 fetch로 보낸다. -->
+    <section id="match-evaluation" class="mypage-section match-result-section match-evaluation-section" aria-labelledby="match-evaluation-heading"
+             th:data-evaluation-url="@{/mypage/matches/{matchId}/evaluation(matchId=${page.matchId})}"
+             th:data-csrf-header="${_csrf?.headerName}" th:data-csrf-token="${_csrf?.token}">
+      <div class="mypage-section-heading">
+        <span class="mypage-section-index" aria-hidden="true">02</span>
+        <div>
+          <h2 id="match-evaluation-heading">선수 평가</h2>
+          <p>함께 뛴 선수를 항목마다 0~10점으로 평가합니다. 보지 못한 항목은 관찰 불가로 고르고, 제출한 평가는 고칠 수 없습니다.</p>
+        </div>
+      </div>
+      <p class="auth-message match-result-message" data-evaluation-message role="status" aria-live="polite" hidden></p>
+      <div class="match-result-body" data-evaluation-body aria-live="polite">
+        <p class="match-result-loading">평가 정보를 불러오는 중입니다.</p>
+      </div>
+    </section>
   </th:block>
 </main>
 
 <script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/site-menu.js}"></script>
 <script th:if="${page != null and page.captain}" th:src="@{/js/match-result.js}"></script>
+<script th:if="${page != null and page.captain}" th:src="@{/js/match-evaluation.js}"></script>
 </body>
 </html>

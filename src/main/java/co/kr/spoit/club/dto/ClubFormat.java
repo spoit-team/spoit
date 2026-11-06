@@ -18,7 +18,7 @@ class ClubFormat {
                 && club.getMemberCount() < club.getMaxMembers();
     }
 
-    // 관리 화면 모집 문구: 팀장이 닫음 / 정원 참 구분
+    // 관리 화면 모집 문구: 동호회장이 닫음 / 정원 참 구분
     static String manageRecruitLabel(ClubSummary club) {
         if (isRecruiting(club)) {
             return "모집 중";
@@ -61,7 +61,7 @@ class ClubFormat {
         return (int) (clubId % 6) + 1;
     }
 
-    // 팀 실력 등급
+    // 동호회 실력 등급
     static String tierLabel(Integer averageMmr) {
         if (averageMmr == null) {
             return "기록 없음";
@@ -93,12 +93,5 @@ class ClubFormat {
                 ? "익일 " + club.getActivityEndTime()
                 : String.valueOf(club.getActivityEndTime());
         return String.join(", ", names) + " " + club.getActivityStartTime() + " - " + endText;
-    }
-
-    static String footerNote(boolean recruiting, ClubSummary club) {
-        if (!recruiting) {
-            return "모집이 마감된 팀입니다.";
-        }
-        return "모집 자리: " + (club.getMaxMembers() - club.getMemberCount()) + "명";
     }
 }

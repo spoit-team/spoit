@@ -19,6 +19,17 @@ public class ClubSearchFormTest {
         assertThat(form.getQuery()).isNull();
     }
 
+    @Test 
+    @DisplayName ("LIKE 검색어는 %, _, ! 앞에 !를 붙이고, 검색칸 표시는 입력 그대로 둔다")
+    void 검색어_LIKE_이스케이프(){
+        ClubSearchForm form = new ClubSearchForm();
+        form.setQ(" 100%_! ");
+        assertThat(form.getQuery()).isEqualTo("100%_!");
+        assertThat(form.getLikeQuery()).isEqualTo("100!%!_!!");
+        form.setQ("강남");
+        assertThat(form.getLikeQuery()).isEqualTo("강남");
+    }
+
     @Test
     @DisplayName("실력 단계를 MMR 구간으로 바꾸고, 잘못된 단계는 조건에서 뺀다")
     void 실력_단계_구간() {

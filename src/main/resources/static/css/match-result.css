@@ -389,3 +389,194 @@
     flex: 1;
   }
 }
+
+/* 선수 평가. 팀 묶음은 요약의 .match-result-team 표기를, 상태·확인 단계는 결과 섹션의 클래스를 그대로 쓴다. */
+
+.match-evaluation-team {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.match-evaluation-table {
+  width: 100%;
+  margin-top: 10px;
+  border-collapse: collapse;
+}
+
+.match-evaluation-table thead th {
+  padding: 0 6px 8px;
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.match-evaluation-table tbody tr { border-top: 1px solid var(--color-line); }
+
+.match-evaluation-table tbody th {
+  min-width: 96px;
+  padding: 8px 6px 8px 0;
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 750;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.match-evaluation-table td { padding: 8px 6px; }
+
+.match-evaluation-select {
+  width: 100%;
+  min-width: 84px;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 8px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.match-evaluation-select.is-missing {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.match-evaluation-select:disabled {
+  cursor: not-allowed;
+  opacity: .6;
+}
+
+.match-evaluation-fill { text-align: right; }
+
+.match-evaluation-fill-button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 8px;
+  background: var(--color-paper);
+  color: var(--color-ink-2);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.match-evaluation-fill-button:hover:not(:disabled) {
+  border-color: var(--color-book);
+  color: var(--color-book-ink);
+}
+
+.match-evaluation-fill-button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+.match-evaluation-fill-button:focus-visible {
+  outline: 2px solid var(--color-book);
+  outline-offset: 2px;
+}
+
+[data-evaluation-missing]:empty { display: none; }
+
+.match-evaluation-missing {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 22%, transparent);
+  border-radius: 10px;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.match-evaluation-missing ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+}
+
+.match-evaluation-missing b {
+  margin-right: 4px;
+  font-weight: 800;
+}
+
+.match-evaluation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.match-evaluation-actions p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.match-evaluation-actions button {
+  flex: 0 0 auto;
+  padding-inline: 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* 좁은 폭에서는 표 대신 선수별 카드로 보인다. 같은 선택 칸을 그대로 쓰고, 항목 이름은 data-label로 붙인다. */
+@media (max-width: 820px) {
+  .match-evaluation-team { overflow-x: visible; }
+
+  .match-evaluation-table thead { display: none; }
+
+  .match-evaluation-table,
+  .match-evaluation-table tbody,
+  .match-evaluation-table td { display: block; }
+
+  .match-evaluation-table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--color-line);
+    border-radius: 10px;
+    background: var(--color-paper);
+  }
+
+  .match-evaluation-table tbody tr + tr { margin-top: 10px; }
+
+  .match-evaluation-table tbody th {
+    grid-row: 1;
+    grid-column: 1;
+    align-self: center;
+    min-width: 0;
+    padding: 0;
+    font-size: 13px;
+  }
+
+  .match-evaluation-table td { padding: 0; }
+
+  .match-evaluation-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    color: var(--color-muted);
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .match-evaluation-fill {
+    grid-row: 1;
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .match-evaluation-select { min-width: 0; }
+}
+
+@media (max-width: 520px) {
+  .match-evaluation-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

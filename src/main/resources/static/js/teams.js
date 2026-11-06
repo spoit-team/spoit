@@ -52,7 +52,7 @@
         return;
       }
       navigator.clipboard.writeText(window.location.href)
-        .then(function () { announce('팀 링크를 복사했습니다.'); })
+        .then(function () { announce('동호회 링크를 복사했습니다.'); })
         .catch(function () { announce('현재 브라우저에서 링크 복사를 사용할 수 없습니다.'); });
     }
   });

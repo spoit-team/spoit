@@ -23,15 +23,12 @@ public class ClubDetailResponse {
     private final Integer maxMembers;
     private final String tierLabel;
     private final String time;
-    private final String footerNote;
     private final String sportKey;
     private final String tierKey;
     private final int markTone;
 
     private final String founded;
     private final String intro;
-    private final String leaderName;
-    private final String leaderInitials;
     private final List<ClubMemberResponse> members;
 
     private final boolean member;
@@ -42,18 +39,12 @@ public class ClubDetailResponse {
             Long userId, Long pendingJoinRequestId) {
         boolean recruiting = ClubFormat.isRecruiting(club);
 
-        String leaderName = "미정";
-        String leaderInitials = "미정";
         boolean member = false;
         boolean manager = false;
         List<ClubMemberResponse> memberResponses = new ArrayList<>();
         for (ClubMember m : members) {
             ClubMemberResponse response = ClubMemberResponse.from(m, userId);
             memberResponses.add(response);
-            if (response.isLeader()) {
-                leaderName = response.getNickname();
-                leaderInitials = response.getInitials();
-            }
             if (response.isCurrent()) {
                 member = true;
                 manager = response.isLeader();
@@ -68,15 +59,12 @@ public class ClubDetailResponse {
                 .memberCount(club.getMemberCount())
                 .maxMembers(club.getMaxMembers())
                 .time(ClubFormat.time(club))
-                .footerNote(ClubFormat.footerNote(recruiting, club))
                 .founded(club.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy.MM.dd")))
-                .leaderInitials(leaderInitials)
                 .members(memberResponses)
                 .sportId(club.getSportId())
                 .sportName(club.getSportName())
                 .areaLabel(ClubFormat.areaLabel(club.getAreaLabel()))
                 .intro(club.getIntro())
-                .leaderName(leaderName)
                 .member(member)
                 .manager(manager)
                 .pendingJoinRequestId(pendingJoinRequestId)
