@@ -113,6 +113,8 @@ DDL에 명시된 값은 저장 계약으로 인정하되, 계산 정책으로 �
 
 ### 검증 범위
 
+아래 표의 테스트 건수는 초기 조회 골격 작업 당시의 기록이다. 이후 테스트가 추가될 수 있으므로 현재 테스트 수나 통과 결과를 뜻하지 않는다.
+
 `AbstractMySqlMapperTest`는 `@MybatisTest`로 실제 프로덕션 Mapper를 등록하고 `@AutoConfigureTestDatabase(replace = NONE)`으로 실제 MySQL을 사용한다. Mock Mapper나 H2로 대체하지 않는다. underscore-to-camel-case 설정을 끈 상태에서 SQL의 명시적 별칭이 Java 필드에 매핑되는지 확인한다.
 
 | 테스트 | 검증 내용 |
@@ -253,8 +255,9 @@ GitHub Actions는 설정만 변경했고 원격 실행은 하지 않았다. CI�
 ## 11. 알림과 결과 화면 연결
 
 - `GET /mypage/matches/{matchId}/result-form`은 `MatchResultPageController`가 확정 참가자 여부를 확인한 뒤 결과 화면을 렌더링한다. 화면은 `/result/summary`로 본인 경기의 결과·레이팅 상태를 조회한다. 기존 `/result` 조회·제출은 팀장 전용 권한을 유지한다.
+- 2026-11-05에 리베이스 과정에서 축소됐던 결과 화면의 경기 정보를 복원했다. `MatchResultSummary`는 기존 결과·레이팅 상태에 더해 `scheduleLabel`(경기 일시), `facilityName`, `deadlineLabel`(제출 마감), A/B 팀 `teams`(확정 참가자 닉네임과 팀장 여부)를 담는다. `MatchResultService.getSummary`가 `ResultPageMatch`의 시설명과 `ResultTeamMember`의 확정 참가자 로스터로 이 값을 채우고, `match-result.js`가 모든 값을 `textContent`로 그린다. 로스터에는 회원 번호를 넣지 않으며, 팀장은 목록 앞에 표시된다. 팀장에게는 본인이 제출한 결과를 제공하지만 상대 팀장의 제출 결과는 노출하지 않는다.
 - 자동·수동 팀 배정, 자동 취소, 결과 불일치·리마인더는 `MatchNotifier`에서 공통 `NotificationDispatcher`로 위임한다. `markEnded`가 실제로 한 행을 종료로 바꾼 경우에만 확정 참가자에게 `MATCH_RESULT_COMPLETED`를 예약한다. 레이팅 반영·제외 모두 같은 완료 안내를 사용한다.
-- 현재 `NotificationDispatcher`는 알림 서비스로 즉시 위임하며 저장은 업무 트랜잭션에 `REQUIRED`로 참여한다. 저장 실패는 업무 롤백으로 이어질 수 있고, 전송만 커밋 후 `/user/queue/notifications`로 실행한다. 아웃박스와 재시도 작업자는 없어 커밋 후 전송 장애는 DB 알림함에서 복구한다. 초기 계획의 수신자별 별도 저장 트랜잭션과는 다른 현재 동작이다.
+- 현재 `NotificationDispatcher`는 수신자를 중복 제거한 뒤 `NotificationService.notifyRecipients`로 즉시 위임한다. `notifyRecipients`의 `@Transactional`(기본 `REQUIRED`)은 호출자의 업무 트랜잭션에 참여해 알림을 저장하고, 커밋 후 동기화 콜백에서 `/user/queue/notifications` 전송을 예약한다. 업무 트랜잭션이 있으면 저장 실패가 업무 롤백으로 이어질 수 있고, 스케줄러 리마인더처럼 업무 트랜잭션이 없는 호출은 알림 서비스가 새 트랜잭션으로 저장한다. 아웃박스와 재시도 작업자는 없어 커밋 직후 전송 실패나 서버 종료 시 실시간 전송은 놓칠 수 있지만 DB 알림함에서 복구한다. 전송 실패는 로그만 남기고 저장 결과에 영향을 주지 않는다. 초기 계획의 수신자별 별도 저장 트랜잭션과는 다른 현재 동작이다.
 - 매칭 참가 신청은 여전히 대기 상태로 접수된다. `MatchApplicationService.confirm`에는 확정 알림을 연결했지만 운영 호출 경로는 없다. 팀 배정은 이미 확정된 참가자를 대상으로 하며 신청을 자동 승인하지 않는다.
 
 ### 초기 구현 시 검증 기록

@@ -88,6 +88,7 @@ class MatchResultControllerTest {
     void returnsParticipantSummary() throws Exception {
         given(matchResultService.getSummary(10L, 7L)).willReturn(Optional.of(
                 new MatchResultSummary(10L, "종료", "CONFIRMED", "APPLIED", "A_WIN", "A", null,
+                        "토요 풋살", "풋살",
                         "2026년 10월 30일 (금) 18:00 ~ 20:00", "MAT 테스트 시설", "2026년 10월 31일 (토) 20:00",
                         List.of(new MatchResultSummary.Team("A", true,
                                 List.of(new MatchResultSummary.Member("에이스", true)))))));
@@ -99,6 +100,8 @@ class MatchResultControllerTest {
                 .andExpect(jsonPath("$.ratingStatus").value("APPLIED"))
                 .andExpect(jsonPath("$.mySide").value("A"))
                 .andExpect(jsonPath("$.myResult").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.title").value("토요 풋살"))
+                .andExpect(jsonPath("$.sportName").value("풋살"))
                 .andExpect(jsonPath("$.facilityName").value("MAT 테스트 시설"))
                 .andExpect(jsonPath("$.teams[0].members[0].nickname").value("에이스"));
     }

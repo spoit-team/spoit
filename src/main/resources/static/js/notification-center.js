@@ -52,7 +52,7 @@
   let refreshPromise = null;
   let refreshQueued = false;
   let stateVersion = 0;
-  let paused = false;
+  let paused = document.hidden;
   let disposed = false;
   let modalOpener = null;
 
@@ -92,7 +92,7 @@
         if (fresh) announce('새 알림: ' + (fresh.title || '알림이 도착했습니다.'));
       }
     }).catch(function () {
-      // 네트워크·서버 오류는 조용히 넘긴다. 다음 재조회나 재연결에서 복구된다.
+      // 네트워크·서버 오류는 다음 주기 조회나 실시간 요청에서 복구된다.
     });
   }
 
@@ -106,7 +106,7 @@
 
   /* 동시에 여러 번 조회하지 않고, 조회 중 새 요청이 오면 한 번만 이어서 실행한다. */
   function refresh() {
-    if (!authenticated || disposed) return;
+    if (!authenticated || disposed || paused) return;
     if (refreshPromise) {
       refreshQueued = true;
       return;
@@ -133,35 +133,32 @@
     if (focusToken) restoreFocus(focusToken);
   }
 
-  /* 목록 안에서 초점이 있던 위치를 알림 번호와 동작 이름으로 기억한다. */
+  /* 같은 알림이 여러 목록에 표시되므로 초점이 있던 목록도 기억한다. */
   function captureFocus() {
     const active = document.activeElement;
     if (!(active instanceof Element)) return null;
-    const action = active.closest('[data-notification-action]');
-    if (action) {
-      const item = action.closest('[data-notification-id]');
-      return { action: action.getAttribute('data-notification-action'), id: item && item.getAttribute('data-notification-id') };
-    }
-    if (active.closest('[data-notification-read-all]')) return { action: 'read-all' };
-    return null;
+    const surface = active.closest('[data-notification-surface]');
+    if (!surface) return null;
+    const readAll = active.closest('[data-notification-read-all]');
+    if (readAll) return { surface, readAll };
+    const item = active.closest('article[data-notification-id]');
+    return item ? {
+      surface,
+      id: item.getAttribute('data-notification-id'),
+      action: active.getAttribute('data-notification-action')
+    } : null;
   }
 
-  function restoreFocus(token) {
-    let target = null;
-    if (token.action === 'read-all') {
-      target = document.querySelector('[data-notification-read-all]');
-    } else if (token.id) {
-      const selector = '[data-notification-id="' + cssEscape(token.id) + '"]';
-      surfaces.some(function (surface) {
-        const item = surface.querySelector(selector);
-        if (!item) return false;
-        const button = item.querySelector('[data-notification-action="' + token.action + '"]');
-        target = button && !button.hidden ? button : item.querySelector('[data-field="link"]') || item;
-        return Boolean(target);
-      });
-    }
-    // 사라진 알림이었으면 초점을 억지로 옮기지 않고, 숨은 버튼에 머무르지 않게 한다.
-    if (target && typeof target.focus === 'function') target.focus({ preventScroll: true });
+  function restoreFocus({ surface, readAll, id, action }) {
+    // 모두 읽음 버튼은 다시 만들지 않으므로 활성 상태면 초점이 그대로 남는다.
+    if (readAll && !readAll.disabled) return;
+    const item = id ? surface.querySelector('article[data-notification-id="' + cssEscape(id) + '"]') : null;
+    const button = action && item?.querySelector('[data-notification-action="' + action + '"]');
+    const target = button || item?.querySelector('[data-field="link"][href]')
+      || item?.querySelector('[data-notification-action="delete"]')
+      || surface.querySelector('[data-notification-close], [data-close-admin-notifications]') || surface;
+    if (target === surface && !surface.hasAttribute('tabindex')) surface.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: true });
   }
 
   /* 선택자에 넣을 값을 이스케이프한다. 알림 번호는 숫자지만 방어적으로 처리한다. */
@@ -249,8 +246,8 @@
     const id = String(item.notificationId);
     const readButton = node.querySelector('[data-notification-action="read"]');
     if (readButton) {
-      readButton.hidden = Boolean(item.read);
-      readButton.setAttribute('data-notification-id', id);
+      if (item.read) readButton.remove();
+      else readButton.setAttribute('data-notification-id', id);
     }
     const deleteButton = node.querySelector('[data-notification-action="delete"]');
     if (deleteButton) {
@@ -407,6 +404,10 @@
       }
     }
 
+    if (target.closest('[data-open-admin-notifications]')) {
+      refresh();
+      return;
+    }
     if (target.closest('[data-notification-open]')) {
       // 알림 창이 없는 화면(JS 미지원·미인증)에서는 링크 기본 이동을 그대로 둡니다.
       if (!dialog) return;
@@ -523,15 +524,11 @@
 
   function connect() {
     if (!authenticated || disposed || paused || socket) return;
-    if (!streamUrl || typeof global.WebSocket !== 'function') {
-      startPolling();
-      return;
-    }
+    // 연결 중에도 전송을 놓치거나 직전 조회에 실패하면 주기 조회로 복구한다.
+    startPolling();
+    if (!streamUrl || typeof global.WebSocket !== 'function') return;
     const url = socketUrl(streamUrl);
-    if (!url) {
-      startPolling();
-      return;
-    }
+    if (!url) return;
     let next;
     try {
       // native STOMP는 WebSocket 하위 프로토콜 협상이 필요하다. 서버가 허용하는 STOMP 버전을 순서대로 제안한다.
@@ -561,7 +558,6 @@
       parsed.frames.forEach(function (item) {
         if (item.command === 'CONNECTED') {
           reconnectDelay = RECONNECT_MIN;
-          stopPolling();
           try {
             next.send(frame('SUBSCRIBE', { id: SUBSCRIPTION_ID, destination: DESTINATION, ack: 'auto' }));
           } catch (error) {
@@ -610,8 +606,6 @@
       reconnectTimer = 0;
       if (disposed || paused) return;
       connect();
-      // 실시간 연결 없이 오래 머무는 경우에도 배지가 뒤처지지 않도록 주기 조회를 켠다.
-      startPolling();
     }, delay);
   }
 
@@ -673,7 +667,8 @@
     }
   });
 
-  if (!authenticated) return;
-  refresh();
-  connect();
+  if (!paused) {
+    refresh();
+    connect();
+  }
 })(window);

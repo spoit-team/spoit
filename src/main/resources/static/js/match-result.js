@@ -21,6 +21,7 @@
   const evaluationSection = root.querySelector('#match-evaluation');
 
   const FALLBACK = {
+    401: '로그인이 만료되었습니다. 다시 로그인해 주세요.',
     403: '이 경기의 확정 참가자만 결과를 확인할 수 있습니다.',
     404: '경기 정보를 찾을 수 없습니다.'
   };
@@ -63,7 +64,7 @@
     return global.fetch(url, config).then(function (response) {
       // 로그인 세션이 끝나면 로그인 화면 HTML이 온다. 그것을 결과 JSON으로 쓰지 않는다.
       if (response.redirected) {
-        return { ok: false, status: 401, data: null, message: '로그인이 만료되었습니다. 다시 로그인해 주세요.' };
+        return { ok: false, status: 401, data: null, message: FALLBACK[401] };
       }
       return response.json().catch(function () { return null; }).then(function (data) {
         const message = (data && data.message) || FALLBACK[response.status] || '요청을 처리하지 못했습니다.';
@@ -271,15 +272,14 @@
     if (!summary) return;
     if (summarySection) summarySection.hidden = false;
     setField('matchId', '#' + summary.matchId);
+    setField('title', summary.title || '경기 결과');
+    setField('sport', summary.sportName || 'SPO:IT MATCH');
     setField('side', sideText(summary.mySide));
     setField('resultStatus', resultStatusText(summary.resultStatus));
     setField('ratingStatus', ratingText(summary.ratingStatus));
     setField('schedule', summary.scheduleLabel);
     setField('facility', summary.facilityName);
     setField('deadline', summary.deadlineLabel);
-    setField('title', summary.finalResult
-      ? '최종 결과 ' + resultText(summary.finalResult)
-      : '경기 결과를 확인하고 있습니다');
     renderTeams();
   }
 
@@ -349,7 +349,7 @@
         '최종 결과 ' + resultText(summary.finalResult), '레이팅에 반영되었습니다.'));
     } else if (summary.ratingStatus === 'EXCLUDED') {
       stateBody.appendChild(stateCard('레이팅 제외', 'is-excluded', '레이팅 반영에서 제외된 경기입니다.',
-        summary.finalResult ? '최종 결과 ' + resultText(summary.finalResult) : '제출 마감까지 결과가 확정되지 않았습니다.'));
+        summary.finalResult ? '최종 결과 ' + resultText(summary.finalResult) : null));
     } else if (summary.finalResult) {
       stateBody.appendChild(stateCard('결과 확정', 'is-confirmed',
         '최종 결과 ' + resultText(summary.finalResult), '레이팅 반영을 기다리고 있습니다.'));
@@ -403,6 +403,7 @@
     return request(url).then(function (result) {
       if (!result.ok || !result.data || !result.data.matchId) {
         summary = null;
+        if (summarySection) summarySection.hidden = true;
         if (stateMessage) showMessage(stateMessage, result, 'error');
         renderState();
         return false;
@@ -423,9 +424,14 @@
         evaluationSection.hidden = true;
       }
       // 403은 "팀장이 아님"이다. 오류가 아니라 제출 영역을 감추는 신호로 쓴다.
-      if (result.status === 403 || result.status === 401 || !result.ok || !result.data) {
+      if (result.status === 403) {
         captain = null;
         if (submitSection) submitSection.hidden = true;
+        return;
+      }
+      if (!result.ok || !result.data?.mySide) {
+        captain = null;
+        renderCaptainLoadError(result);
         return;
       }
       captain = result.data;
@@ -436,6 +442,29 @@
         evaluationSection.dispatchEvent(new Event('match-result:captain'));
       }
     });
+  }
+
+  function renderCaptainLoadError(result) {
+    if (!submitSection || !submitBody) return;
+    const error = document.createElement('p');
+    error.className = 'match-result-error';
+    error.textContent = '제출 상태를 불러오지 못했습니다. ' + result.message;
+
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'mypage-secondary-button match-result-retry';
+    retry.textContent = result.status === 401 ? '다시 로그인' : '다시 시도';
+    retry.addEventListener('click', function () {
+      retry.disabled = true;
+      if (result.status === 401) {
+        global.location.reload();
+      } else {
+        loadCaptain();
+      }
+    });
+
+    submitBody.replaceChildren(error, retry);
+    submitSection.hidden = false;
   }
 
   function submitResult() {

@@ -73,4 +73,7 @@ public interface RoomCommandMapper {
     List<Long> findCancelRecipientUserIds(@Param("matchId") Long matchId,
                                           @Param("participationStatuses") List<String> participationStatuses,
                                           @Param("applicationStatuses") List<String> applicationStatuses);
+
+    /** 취소 처리자와 알림 수신자의 FK 검사에 필요한 공유 잠금을 대기 없이 확보한다. */
+    List<Long> lockCancellationAccounts(@Param("userIds") List<Long> userIds);
 }

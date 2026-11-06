@@ -33,8 +33,8 @@
                 data-csrf-token=${_csrf?.token}">
 
     <section class="match-result-summary" aria-labelledby="match-result-match-title" hidden data-result-summary>
-      <p class="match-result-sport" th:text="${page != null and page.sportName != null ? page.sportName : 'SPO:IT MATCH'}">SPO:IT MATCH</p>
-      <h2 id="match-result-match-title" data-field="title" th:text="${page != null and page.title != null ? page.title : '경기 결과'}">경기 결과</h2>
+      <p class="match-result-sport" data-field="sport">SPO:IT MATCH</p>
+      <h2 id="match-result-match-title" data-field="title">경기 결과</h2>
       <dl class="match-result-facts">
         <div><dt>경기 번호</dt><dd data-field="matchId">—</dd></div>
         <div><dt>일시</dt><dd data-field="schedule">—</dd></div>

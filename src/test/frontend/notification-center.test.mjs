@@ -69,6 +69,40 @@ function buildItem() {
   };
 }
 
+function renderItemsIn(surface, list, template) {
+  const clones = [];
+  template.content = { firstElementChild: { cloneNode() {
+    const clone = buildItem();
+    clone.item.querySelector = selector => {
+      const field = /^\[data-field="(.+?)"\](\[href\])?$/.exec(selector);
+      if (field) {
+        const node = clone.fields[field[1]];
+        return node && (!field[2] || node.hasAttribute('href')) ? node : null;
+      }
+      if (selector === '[data-notification-action="read"]') return clone.readButton.removed ? null : clone.readButton;
+      if (selector === '[data-notification-action="delete"]') return clone.deleteButton;
+      return null;
+    };
+    clone.readButton.remove = () => { clone.readButton.removed = true; };
+    for (const button of [clone.readButton, clone.deleteButton]) {
+      button.selectors = ['button[data-notification-action]'];
+      button.closest = selector => {
+        if (selector === '[data-notification-surface]') return surface;
+        if (selector === 'article[data-notification-id]') return clone.item;
+        return Node.prototype.closest.call(button, selector);
+      };
+    }
+    clones.push(clone);
+    return clone.item;
+  } } };
+  const baseQuery = surface.querySelector.bind(surface);
+  surface.querySelector = selector => {
+    const item = /^article\[data-notification-id="(.+)"\]$/.exec(selector);
+    return item ? list.children.find(child => child.getAttribute('data-notification-id') === item[1]) : baseQuery(selector);
+  };
+  return clones;
+}
+
 function notificationPage(options = {}) {
   const calls = [];
   const sockets = [];
@@ -203,37 +237,26 @@ function flush() {
 
 /* ── 2) 로그인: API로 배지를 갱신하고 CONNECT → SUBSCRIBE 순서로 구독한다 ── */
 {
+  let snapshot = {
+    unreadCount: 2,
+    items: [
+      { notificationId: 11, read: false, type: '매칭', title: '신청이 접수되었습니다', body: '본문', time: '방금', href: '/mypage#reservations' },
+      { notificationId: 10, read: true, type: '팀', title: '가입 승인', body: '본문', time: '1시간 전', href: 'https://evil.example/x' }
+    ]
+  };
+  let failNextGet = false;
   const page = notificationPage({
-    apiResponse: {
-      unreadCount: 2,
-      items: [
-        { notificationId: 11, read: false, type: '매칭', title: '신청이 접수되었습니다', body: '본문', time: '방금', href: '/mypage#reservations' },
-        { notificationId: 10, read: true, type: '팀', title: '가입 승인', body: '본문', time: '1시간 전', href: 'https://evil.example/x' }
-      ]
+    apiResponse: () => snapshot,
+    onFetch(call) {
+      if (call.method !== 'GET' || !failNextGet) return null;
+      failNextGet = false;
+      return Promise.resolve({ ok: false, status: 503 });
     }
   });
   globalThis.document = page.document;
   globalThis.window = page.window;
 
-  const clones = [];
-  const fixture = buildItem();
-  page.template.content = { firstElementChild: fixture.item };
-  const fieldsFor = fixtureRef => selector => {
-    const match = /^\[data-field="(.+)"\]$/.exec(selector);
-    if (match) return fixtureRef.fields[match[1]] || null;
-    if (selector === '[data-notification-action="read"]') return fixtureRef.readButton;
-    if (selector === '[data-notification-action="delete"]') return fixtureRef.deleteButton;
-    return null;
-  };
-  fixture.item.querySelector = fieldsFor(fixture);
-  fixture.link.querySelector = selector => selector === '[data-field="copy"]' ? fixture.copy : null;
-  fixture.item.cloneNode = () => {
-    const clone = buildItem();
-    clone.item.querySelector = fieldsFor(clone);
-    clone.link.querySelector = selector => selector === '[data-field="copy"]' ? clone.copy : null;
-    clones.push(clone);
-    return clone.item;
-  };
+  const clones = renderItemsIn(page.surface, page.list, page.template);
 
   await import('../../main/resources/static/js/notification-center.js?member');
   await flush();
@@ -274,11 +297,26 @@ function flush() {
   assert.equal(clones[1]?.link.getAttribute('href') ?? null, null,
     '외부 출처 알림 주소는 링크로 만들지 않아야 합니다.');
   assert.equal(clones[0]?.link.getAttribute('href'), '/mypage#reservations');
+  assert.equal(clones[1].item.querySelector('[data-notification-action="read"]'), null,
+    '이미 읽은 알림의 읽음 버튼은 렌더링하지 않아야 합니다.');
+
+  // 메시지를 받은 직후 조회가 실패해도 연결된 상태의 다음 주기 조회로 복구한다.
+  snapshot = { ...snapshot, unreadCount: 3 };
+  failNextGet = true;
+  socket.message('MESSAGE\n\n\u0000');
+  await flush();
+  assert.equal(page.badge.textContent, '2');
+  assert.equal(page.timers.intervals.length, 1);
+  assert.ok(!page.timers.cleared.includes('interval:1'), '연결 후에도 주기 조회를 유지해야 합니다.');
+  page.timers.intervals[0].handler();
+  await flush();
+  assert.equal(page.badge.textContent, '3');
 
   // 화면을 숨기면 소켓을 닫고 주기 조회를 멈춘다.
   page.document.hidden = true;
   page.document.dispatch('visibilitychange');
   assert.equal(socket.readyState, 3, '문서가 숨겨지면 소켓을 닫아야 합니다.');
+  assert.ok(page.timers.cleared.includes('interval:1'), '숨김 상태에서는 주기 조회를 멈춰야 합니다.');
   assert.ok(!page.sockets.some(item => item.readyState === 1), '숨김 상태에서 새 연결을 열지 않아야 합니다.');
 
   // 다시 보이면 재조회하고 재연결한다.
@@ -298,6 +336,81 @@ function flush() {
   await flush();
   assert.equal(page.sockets.length, 3, '캐시에서 복원하면 소켓을 다시 연결해야 합니다.');
   assert.ok(page.calls.length > beforeRestore, '캐시에서 복원하면 서버 상태를 다시 조회해야 합니다.');
+}
+
+/* 관리자 알림 창을 열면 다음 주기 조회를 기다리지 않는다. */
+{
+  let snapshot = { items: [], unreadCount: 0 };
+  const page = notificationPage({ apiResponse: () => snapshot });
+  globalThis.document = page.document;
+  globalThis.window = page.window;
+  await import('../../main/resources/static/js/notification-center.js?admin-opener');
+  await flush();
+
+  snapshot = { items: [], unreadCount: 1 };
+  const adminOpener = new Node({ selectors: ['[data-open-admin-notifications]'] });
+  page.document.dispatch('click', { target: adminOpener });
+  await flush();
+  assert.equal(page.badge.textContent, '1');
+}
+
+/* 마이페이지 본문과 알림 창에 같은 알림이 있어도 초점을 창 밖으로 보내지 않는다. */
+{
+  const first = { notificationId: 7, read: false, href: '/mypage#reservations' };
+  const second = { notificationId: 8, read: false, href: '/mypage#reservations' };
+  let snapshot = { items: [first, second], unreadCount: 2 };
+  const page = notificationPage({
+    apiResponse: () => snapshot,
+    onFetch(call) {
+      if (call.url === '/api/notifications/7/read') {
+        snapshot = { items: [{ ...first, read: true }, second], unreadCount: 1 };
+      } else if (call.url === '/api/notifications/read-all') {
+        snapshot = { items: snapshot.items.map(item => ({ ...item, read: true })), unreadCount: 0 };
+      } else if (call.url === '/api/notifications/7/delete') {
+        snapshot = { items: snapshot.items.filter(item => item.notificationId !== 7), unreadCount: 0 };
+      }
+      return null;
+    }
+  });
+  const modalList = new Node();
+  const modalTemplate = new Node();
+  const modalReadAll = new Node({ selectors: ['[data-notification-read-all]'] });
+  modalReadAll.closest = selector => selector === '[data-notification-surface]'
+    ? page.dialog : Node.prototype.closest.call(modalReadAll, selector);
+  Object.assign(page.dialog.bySelector, {
+    '[data-notification-list]': modalList,
+    'template[data-notification-item-template]': modalTemplate,
+    '[data-notification-close], [data-close-admin-notifications]': page.closeButton
+  });
+  page.dialog.bySelectorAll['[data-notification-read-all]'] = [modalReadAll];
+  const originalQuery = page.document.querySelectorAll.bind(page.document);
+  page.document.querySelectorAll = selector => selector === '[data-notification-surface]'
+    ? [page.surface, page.dialog] : originalQuery(selector);
+  renderItemsIn(page.surface, page.list, page.template);
+  renderItemsIn(page.dialog, modalList, modalTemplate);
+  page.opener.selectors = ['[data-notification-open]'];
+  globalThis.document = page.document;
+  globalThis.window = page.window;
+  await import('../../main/resources/static/js/notification-center.js?modal-focus');
+  await flush();
+  page.document.dispatch('click', { target: page.opener });
+  assert.equal(page.dialog.hidden, false);
+
+  const activate = async button => {
+    button.focus();
+    page.document.dispatch('click', { target: button });
+    await flush();
+  };
+  await activate(modalList.children[0].querySelector('[data-notification-action="read"]'));
+  assert.equal(page.document.activeElement, modalList.children[0].querySelector('[data-field="link"]'));
+
+  await activate(modalReadAll);
+  assert.equal(modalReadAll.disabled, true);
+  assert.equal(page.document.activeElement, page.closeButton);
+
+  await activate(modalList.children[0].querySelector('[data-notification-action="delete"]'));
+  assert.equal(modalList.children.length, 1);
+  assert.equal(page.document.activeElement, page.closeButton);
 }
 
 /* 명령이 끝난 뒤 이전 조회가 완료되어도 최종 화면은 명령 이후 서버 상태를 따른다. */
