@@ -179,6 +179,10 @@
   color: #fff;
 }
 
+.team-sport-tab.is-active .team-sport-tab-icon {
+  filter: brightness(0) invert(1);
+}
+
 .team-sport-tab-count {
   border-radius: 999px;
   background: var(--color-paper-soft);
