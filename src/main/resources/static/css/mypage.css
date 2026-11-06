@@ -561,7 +561,8 @@
 }
 
 .mypage-match-history-status { color: var(--color-match-ink); font-weight: 750; }
-.mypage-match-history-status.is-complete { color: var(--color-muted); }
+.mypage-match-history-status.is-draw { color: var(--color-muted); }
+.mypage-match-history-status.is-loss { color: var(--color-danger); }
 .mypage-match-history-chevron { color: var(--color-faint); font-size: 16px; transition: transform .15s; }
 .mypage-match-history-item.is-open .mypage-match-history-chevron { transform: rotate(180deg); }
 
@@ -588,6 +589,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.mypage-match-history-score strong.is-down { color: var(--color-danger); }
+.mypage-match-history-score strong.is-zero { color: var(--color-muted); }
 
 .mypage-match-history-detail {
   margin: 0 4px 12px 74px;
@@ -621,15 +625,6 @@
   line-height: 1;
 }
 
-.mypage-match-player-score strong span {
-  margin-left: 4px;
-  color: var(--color-muted);
-  font-size: 9px;
-  font-weight: 650;
-}
-
-.mypage-match-player-score .mypage-rating-meter { width: 110px; }
-
 .mypage-match-team-averages {
   display: flex;
   align-items: center;
@@ -657,6 +652,7 @@
 
 .mypage-match-team-averages i.is-team-a { background: var(--color-match); }
 .mypage-match-team-averages b { color: var(--color-ink-2); font-variant-numeric: tabular-nums; }
+.mypage-match-team-averages small { color: var(--color-book-ink); font-size: 9px; font-weight: 800; }
 
 .mypage-match-history-facts {
   display: grid;
@@ -668,13 +664,6 @@
 .mypage-match-history-facts div { min-width: 0; }
 .mypage-match-history-facts dt { color: var(--color-muted); font-size: 9px; }
 .mypage-match-history-facts dd { margin: 3px 0 0; color: var(--color-ink-2); font-size: 10px; font-weight: 700; overflow-wrap: anywhere; }
-
-.mypage-match-history-note {
-  margin: 11px 0 0;
-  color: var(--color-muted);
-  font-size: 9px;
-  line-height: 1.55;
-}
 
 .mypage-match-history-empty {
   margin: 0;

@@ -21,7 +21,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import co.kr.spoit.global.config.SecurityConfig;
+import co.kr.spoit.mat.mapper.MyRatingRecordMapper;
 import co.kr.spoit.mat.service.MatchResultPageService;
+import co.kr.spoit.mat.service.MyRatingRecordService;
 import co.kr.spoit.mat.service.SportRatingService;
 import co.kr.spoit.match.dto.MyReservations;
 import co.kr.spoit.match.dto.MyReservations.Entry;
@@ -35,11 +37,15 @@ import co.kr.spoit.member.service.MemberUserDetailsService;
 
 /** RES-04 팀 신청 대표의 취소 폼에만 팀원 선택 확인창 데이터가 붙는지 실제 템플릿으로 검증한다. */
 @WebMvcTest(controllers = MyPageController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, MyRatingRecordService.class})
 class MyPageTeamCancelRenderTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    // 레이팅 이력은 이 테스트 대상이 아니라, mock mapper가 돌려주는 빈 목록으로 그린다.
+    @MockitoBean
+    private MyRatingRecordMapper recordMapper;
 
     @MockitoBean
     private MemberService memberService;
