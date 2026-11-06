@@ -266,8 +266,10 @@ public class ClubServiceImpl implements ClubService {
         if (clubMapper.existsActiveLeader(targetClubId, userId)) {
             joinRequests = clubMapper.selectPendingJoinRequests(targetClubId);
         }
-        List<ClubSchedule> schedules = clubMapper.selectUpcomingSchedules(targetClubId, LocalDateTime.now());
-        return ClubManageResponse.from(club, members, userId, joinRequests, schedules);
+        LocalDateTime now = LocalDateTime.now();
+        List<ClubSchedule> upcomingSchedules = clubMapper.selectUpcomingSchedules(targetClubId, now);
+        List<ClubSchedule> recentSchedules = clubMapper.selectRecentSchedules(targetClubId, now);
+        return ClubManageResponse.from(club, members, userId, joinRequests, upcomingSchedules, recentSchedules);
     }
 
     // 내 동호회 선택 버튼 응답

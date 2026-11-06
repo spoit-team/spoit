@@ -82,7 +82,7 @@ public class ClubController {
         model.addAttribute("managedClubs", clubService.findMyClubs(userId, activeClubId));
         model.addAttribute("managedClub", managedClub);
         String activeTab = "team";
-        if ("members".equals(tab) || "applications".equals(tab)) {
+        if ("members".equals(tab) || "upcoming".equals(tab) || "recent".equals(tab) || "applications".equals(tab)) {
             activeTab = tab;
         }
         model.addAttribute("tab", activeTab);

@@ -27,6 +27,8 @@
   <nav class="team-management-tabs" role="tablist" aria-label="동호회 관리 메뉴" th:if="${managedClub != null}">
     <a class="team-management-tab" th:classappend="${tab == 'team'} ? 'is-active' : ''" role="tab" id="management-tab-team" aria-controls="management-panel" th:aria-selected="${tab == 'team'}" th:tabindex="${tab == 'team'} ? 0 : -1" th:href="@{/teams/manage(clubId=${managedClub.clubId}, tab='team')}">내 동호회</a>
     <a class="team-management-tab" th:classappend="${tab == 'members'} ? 'is-active' : ''" role="tab" id="management-tab-members" aria-controls="management-panel" th:aria-selected="${tab == 'members'}" th:tabindex="${tab == 'members'} ? 0 : -1" th:href="@{/teams/manage(clubId=${managedClub.clubId}, tab='members')}">동호회원 <span th:text="${managedClub.memberCount}">0</span></a>
+    <a class="team-management-tab" th:classappend="${tab == 'upcoming'} ? 'is-active' : ''" role="tab" id="management-tab-upcoming" aria-controls="management-panel" th:aria-selected="${tab == 'upcoming'}" th:tabindex="${tab == 'upcoming'} ? 0 : -1" th:href="@{/teams/manage(clubId=${managedClub.clubId}, tab='upcoming')}">예정 일정 <span th:text="${#lists.size(managedClub.upcomingSchedules)}">0</span></a>
+    <a class="team-management-tab" th:classappend="${tab == 'recent'} ? 'is-active' : ''" role="tab" id="management-tab-recent" aria-controls="management-panel" th:aria-selected="${tab == 'recent'}" th:tabindex="${tab == 'recent'} ? 0 : -1" th:href="@{/teams/manage(clubId=${managedClub.clubId}, tab='recent')}">지난 일정 <span th:text="${#lists.size(managedClub.recentSchedules)}">0</span></a>
     <a th:if="${managedClub.leader}" class="team-management-tab" th:classappend="${tab == 'applications'} ? 'is-active' : ''" role="tab" id="management-tab-applications" aria-controls="management-panel" th:aria-selected="${tab == 'applications'}" th:tabindex="${tab == 'applications'} ? 0 : -1" th:href="@{/teams/manage(clubId=${managedClub.clubId}, tab='applications')}">가입 신청 
       <span th:text="${managedClub.pendingApplicationCount != null ? managedClub.pendingApplicationCount : 0}">0</span></a>
   </nav>
@@ -64,23 +66,38 @@
           <div class="team-summary-item"><div class="team-summary-label">모집 상태</div><div class="team-summary-value" th:text="${managedClub.recruitLabel}">모집 상태</div></div>
         </div>
         <div class="team-management-overview-block">
-          <div class="team-section-heading"><div><h2>예정 일정</h2><p>동호회에서 함께할 다음 활동을 확인하세요.</p></div><span class="team-badge" th:text="${#lists.size(managedClub.schedules) + '건'}">0건</span></div>
-          <div class="team-schedule-list">
-            <article th:each="schedule : ${managedClub.schedules}" class="team-schedule-row">
-              <time class="team-schedule-date" th:attr="datetime=${schedule.date}" th:text="${schedule.dateLabel}">일정</time>
-              <div><div class="team-schedule-title" th:text="${schedule.title}">일정 제목</div><div class="team-schedule-meta" th:text="${schedule.place}">장소</div></div>
-              <span class="team-schedule-time" th:text="${schedule.time}">시간</span>
-            </article>
-            <p th:if="${#lists.isEmpty(managedClub.schedules)}" class="team-management-empty">등록된 예정 일정이 없습니다.</p>
-          </div>
-        </div>
-        <div class="team-management-overview-block">
           <div class="team-section-heading"><div><h2>동호회 소개</h2><p class="team-intro-text" th:text="${managedClub.intro}">동호회 소개</p></div></div>
           <div class="team-management-danger">
             <div><b th:text="${managedClub.leader ? '동호회 해체' : '동호회 탈퇴'}">동호회 탈퇴</b><span th:text="${managedClub.leader ? (managedClub.otherMembersRemain ? '동호회장 외 다른 동호회원이 남아 있어 해체할 수 없습니다. 동호회원을 먼저 정리해 주세요.' : '동호회장만 남아 있어 해체할 수 있습니다. 확인창에 동호회 이름을 입력해야 합니다.') : '동호회원 목록에서 내 계정이 제외됩니다.'}">안내</span></div>
             <button th:if="${managedClub.leader}" class="team-button team-button-danger" type="button" data-team-disband th:disabled="${managedClub.otherMembersRemain}" th:title="${managedClub.otherMembersRemain} ? '동호회장 외 동호회원이 남아 있습니다.' : null">동호회 해체</button>
             <button th:if="${!managedClub.leader}" class="team-button team-button-danger" type="button" data-team-leave>동호회 탈퇴</button>
           </div> 
+        </div>
+      </section>
+
+      <!-- 예정 일정 -->
+      <section th:if="${tab == 'upcoming'}" class="team-management-section">
+        <div class="team-section-heading"><div><h2>예정 일정</h2><p>동호회에서 함께할 다음 활동을 확인하세요.</p></div><span class="team-badge" th:text="${#lists.size(managedClub.upcomingSchedules) + '건'}">0건</span></div>
+        <div class="team-schedule-list">
+          <article th:each="schedule : ${managedClub.upcomingSchedules}" class="team-schedule-row">
+            <time class="team-schedule-date" th:attr="datetime=${schedule.date}" th:text="${schedule.dateLabel}">일정</time>
+            <div><div class="team-schedule-title" th:text="${schedule.title}">일정 제목</div><div class="team-schedule-meta" th:text="${schedule.place}">장소</div></div>
+            <span class="team-schedule-time" th:text="${schedule.time}">시간</span>
+          </article>
+          <p th:if="${#lists.isEmpty(managedClub.upcomingSchedules)}" class="team-management-empty">등록된 예정 일정이 없습니다.</p>
+        </div>
+      </section>
+
+      <!-- 지난 일정 -->
+      <section th:if="${tab == 'recent'}" class="team-management-section">
+        <div class="team-section-heading"><div><h2>지난 일정</h2><p>동호회에서 함께 뛴 경기입니다.</p></div><span class="team-badge" th:text="${#lists.size(managedClub.recentSchedules) + '건'}">0건</span></div>
+        <div class="team-schedule-list">
+          <article th:each="schedule : ${managedClub.recentSchedules}" class="team-schedule-row">
+            <time class="team-schedule-date" th:attr="datetime=${schedule.date}" th:text="${schedule.dateLabel}">일정</time>
+            <div><div class="team-schedule-title" th:text="${schedule.title}">일정 제목</div><div class="team-schedule-meta" th:text="${schedule.place}">장소</div></div>
+            <span class="team-schedule-time" th:text="${schedule.time}">시간</span>
+          </article>
+          <p th:if="${#lists.isEmpty(managedClub.recentSchedules)}" class="team-management-empty">아직 함께 뛴 경기가 없습니다.</p>
         </div>
       </section>
 

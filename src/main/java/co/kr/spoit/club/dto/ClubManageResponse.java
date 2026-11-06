@@ -41,10 +41,11 @@ public class ClubManageResponse {
     private final String sportKey;
     private final String tierKey;
     private final int markTone;
-    private final List<ClubScheduleResponse> schedules;
+    private final List<ClubScheduleResponse> upcomingSchedules;
+    private final List<ClubScheduleResponse> recentSchedules;
 
     public static ClubManageResponse from(ClubSummary club, List<ClubMember> members, Long userId,
-            List<ClubJoinRequest> joinRequests, List<ClubSchedule> schedules) {
+            List<ClubJoinRequest> joinRequests, List<ClubSchedule> upcomingSchedules, List<ClubSchedule> recentSchedules) {
         String leaderName = "미정";
         boolean leader = false;
         List<ClubMemberResponse> memberResponses = new ArrayList<>();
@@ -64,9 +65,14 @@ public class ClubManageResponse {
             applications.add(ClubJoinRequestResponse.from(r));
         }
 
-        List<ClubScheduleResponse> scheduleResponses = new ArrayList<>();
-        for (ClubSchedule s : schedules) {
-            scheduleResponses.add(ClubScheduleResponse.from(s));
+        List<ClubScheduleResponse> upcomingResponses = new ArrayList<>();
+        for (ClubSchedule s : upcomingSchedules) {
+            upcomingResponses.add(ClubScheduleResponse.from(s));
+        }
+
+        List<ClubScheduleResponse> recentResponses = new ArrayList<>();
+        for (ClubSchedule s : recentSchedules) {
+            recentResponses.add(ClubScheduleResponse.from(s));
         }
 
         boolean otherMembersRemain = members.size() > 1;
@@ -97,7 +103,8 @@ public class ClubManageResponse {
                 .sportKey(ClubFormat.sportKey(club.getSportId()))
                 .tierKey(ClubFormat.tierKey(club.getAverageMmr()))
                 .markTone(ClubFormat.markTone(club.getClubId()))
-                .schedules(scheduleResponses)
+                .upcomingSchedules(upcomingResponses)
+                .recentSchedules(recentResponses)
                 .build();
 
     }

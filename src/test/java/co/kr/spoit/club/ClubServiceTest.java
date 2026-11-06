@@ -286,12 +286,12 @@ class ClubServiceTest {
 
         ClubManageResponse managed = service.findManagedClub(7L, 1L);
 
-        assertThat(managed.getSchedules()).hasSize(2);
-        assertThat(managed.getSchedules().get(0).getDate()).isEqualTo("2026-11-07");
-        assertThat(managed.getSchedules().get(0).getDateLabel()).isEqualTo("11.07 (토)");
-        assertThat(managed.getSchedules().get(0).getTime()).isEqualTo("18:00 - 20:00");
-        assertThat(managed.getSchedules().get(0).getPlace()).isEqualTo("성동 풋살장");
-        assertThat(managed.getSchedules().get(1).getTime()).isEqualTo("23:00 - 익일 01:00");
+        assertThat(managed.getUpcomingSchedules()).hasSize(2);
+        assertThat(managed.getUpcomingSchedules().get(0).getDate()).isEqualTo("2026-11-07");
+        assertThat(managed.getUpcomingSchedules().get(0).getDateLabel()).isEqualTo("11.07 (토)");
+        assertThat(managed.getUpcomingSchedules().get(0).getTime()).isEqualTo("18:00 - 20:00");
+        assertThat(managed.getUpcomingSchedules().get(0).getPlace()).isEqualTo("성동 풋살장");
+        assertThat(managed.getUpcomingSchedules().get(1).getTime()).isEqualTo("23:00 - 익일 01:00");
     }
 
     @Test
