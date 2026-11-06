@@ -12,8 +12,10 @@
       <p th:if="${message != null}" class="admin-flash" role="status" th:text="${message}">처리 결과</p>
       <p th:if="${error != null}" class="admin-flash is-error" role="alert" th:text="${error}">요청을 처리하지 못했습니다.</p>
 
-      <!-- 대시보드 -->
-      <section class="admin-view" id="facility-dashboard" data-view-title="대시보드">
+      <!-- 대시보드는 사용자가 해시로 화면을 바꾸기 전까지 보이는 첫 화면이다.
+           서버가 view에 맞는 섹션만 보이게 렌더링해, 스크립트 실행 전에 대시보드가
+           잠깐 그려졌다가 다른 화면으로 바뀌는 깜빡임을 막는다. -->
+      <section class="admin-view" id="facility-dashboard" data-view-title="대시보드" th:hidden="${view != 'dashboard'}">
         <div class="page-heading">
           <div class="page-heading-copy">
             <div class="page-eyebrow"><span th:text="${scopeName != null ? scopeName : '담당 시설'}">담당 시설 전체</span> · 시설 운영</div>
@@ -89,7 +91,7 @@
       </section>
 
       <!-- 시설·공간 관리 -->
-      <section class="admin-view" id="facility-assets" data-view-title="시설·공간 관리" hidden>
+      <section class="admin-view" id="facility-assets" data-view-title="시설·공간 관리" th:hidden="${view != 'assets'}">
         <div class="page-heading">
           <div class="page-heading-copy"><div class="page-eyebrow">시설 운영 · 소속 시설 한정</div><h1>시설·공간 관리</h1><p>담당 시설의 위치, 이용 종목, 대관 가능 구역과 운영 상태를 관리합니다.</p></div>
           <div class="heading-actions"><button class="admin-button primary" type="button" data-open-facility>＋ 시설 등록</button></div>
@@ -115,7 +117,7 @@
       </section>
 
       <!-- 예약 운영 일정 -->
-      <section class="admin-view" id="facility-schedule" data-view-title="예약 운영 일정" hidden>
+      <section class="admin-view" id="facility-schedule" data-view-title="예약 운영 일정" th:hidden="${view != 'schedule'}">
         <div class="page-heading">
           <div class="page-heading-copy"><div class="page-eyebrow">시설 운영 · 예약 조건</div><h1>예약 운영 일정</h1><p>예약 가능 시간, 최대 참가 인원과 휴관·점검에 따른 변경 일정을 설정합니다.</p></div>
           <div class="heading-actions">
@@ -140,7 +142,7 @@
       </section>
 
       <!-- 매칭방 관리 -->
-      <section class="admin-view" id="facility-bookings" data-view-title="매칭방 관리" hidden>
+      <section class="admin-view" id="facility-bookings" data-view-title="매칭방 관리" th:hidden="${view != 'bookings'}">
         <div class="page-heading">
           <div class="page-heading-copy"><div class="page-eyebrow">매칭방 관리</div><h1>매칭방 관리</h1><p>담당 시설의 매칭방을 방 번호·이름·상태로 찾습니다. 방을 선택하면 참가 신청과 참가자 내역을 조회할 수 있습니다.</p></div>
           <div class="heading-actions"><button class="admin-button primary" type="button" data-open-room-editor>＋ 매칭방 생성</button></div>
@@ -189,32 +191,38 @@
       </section>
 
       <!-- 예약 통계 -->
-      <section class="admin-view" id="facility-stats" data-view-title="예약 통계" hidden>
+      <section class="admin-view" id="facility-stats" data-view-title="예약 통계" th:hidden="${view != 'stats'}">
         <div class="page-heading">
           <div class="page-heading-copy"><div class="page-eyebrow">시설 운영 · 성과 분석</div><h1>예약 통계</h1><p>담당 시설의 예약량과 인기 요일·시간대를 확인합니다.</p></div>
-          <form class="heading-actions" method="get" th:action="@{/admin/facility}">
-            <input type="hidden" name="view" value="stats" />
+          <form class="heading-actions" method="post" th:action="@{/admin/facility/stats}">
+            <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
             <label class="sr-only" for="facility-stats-facility">통계 시설</label>
-            <select class="field-control" id="facility-stats-facility" name="facilityId"><option th:each="facility : ${facilities}" th:value="${facility.facilityId}" th:text="${facility.name}" th:selected="${selectedFacility?.facilityId == facility.facilityId}">시설</option></select>
+            <select class="field-control" id="facility-stats-facility" name="facilityId"><option value="" th:selected="${selectedFacility?.facilityId == null}">-시설 선택-</option><option th:each="facility : ${facilities}" th:value="${facility.facilityId}" th:text="${facility.name}" th:selected="${selectedFacility?.facilityId == facility.facilityId}">시설</option></select>
             <label class="sr-only" for="facility-stats-period">통계 기간</label>
-            <select class="field-control" id="facility-stats-period" name="period"><option value="7" th:selected="${stats?.period == 7}">최근 7일</option><option value="30" th:selected="${stats?.period == 30}">최근 30일</option><option value="90" th:selected="${stats?.period == 90}">최근 90일</option></select>
+            <select class="field-control" id="facility-stats-period" name="period" data-stats-period><option value="7" th:selected="${stats?.requestedPeriod == '7'}">최근 7일</option><option value="30" th:selected="${stats?.requestedPeriod == '30'}">최근 30일</option><option value="90" th:selected="${stats?.requestedPeriod == '90'}">최근 90일</option><option value="custom" th:selected="${stats?.requestedPeriod == 'custom'}">직접 입력</option></select>
+            <label class="sr-only" for="facility-stats-period-from">통계 시작일</label>
+            <input class="field-control" id="facility-stats-period-from" name="periodFrom" type="date" data-stats-period-from th:value="${stats?.periodFrom}" />
+            <label class="sr-only" for="facility-stats-period-to">통계 종료일</label>
+            <input class="field-control" id="facility-stats-period-to" name="periodTo" type="date" data-stats-period-to th:value="${stats?.periodTo}" />
             <button class="admin-button small" type="submit">조회</button>
           </form>
         </div>
         <div class="metric-grid stats-metrics">
           <article class="card metric-card"><div class="metric-top">매칭방 수</div><div class="metric-value"><span th:text="${stats?.bookingCount ?: 0}">0</span><small>개</small></div><div class="metric-foot">선택한 기간 · 취소 제외</div></article>
-          <article class="card metric-card"><div class="metric-top">현재 참가 인원</div><div class="metric-value"><span th:text="${stats?.participantCount ?: 0}">0</span><small>명</small></div><div class="metric-foot">시설 관리자 제외 · 매칭방 참가자 합계</div></article>
+          <article class="card metric-card"><div class="metric-top">현재 참가 인원</div><div class="metric-value"><span th:text="${stats?.participantCount ?: 0}">0</span><small>명</small></div><div class="metric-foot">대기·확정 참가자 합계</div></article>
           <article class="card metric-card"><div class="metric-top">가장 인기 있는 요일</div><div class="metric-value" th:text="${stats?.popularDay ?: '—'}">—</div><div class="metric-foot">예약 집중 시간 <span th:text="${stats?.peakTime ?: '—'}">—</span></div></article>
+          <article class="card metric-card"><div class="metric-top">신청 수</div><div class="metric-value"><span th:text="${stats?.applicationTotal ?: 0}">0</span><small>건</small></div><div class="metric-foot">개인 <span th:text="${stats?.individualCount ?: 0}">0</span> · 동호회 <span th:text="${stats?.clubCount ?: 0}">0</span></div></article>
+          <article class="card metric-card"><div class="metric-top">승인율</div><div class="metric-value"><span th:text="${stats?.approvalRate ?: 0}">0</span><small>%</small></div><div class="metric-foot">확정 <span th:text="${stats?.approvedCount ?: 0}">0</span>건</div></article>
         </div>
         <div class="dashboard-grid equal stats-detail-grid">
           <article class="card"><div class="card-heading"><div><h2>요일별 매칭방 비중</h2><p>최근 <span th:text="${stats?.periodLabel ?: '30일'}">30일</span> 생성된 매칭방의 이용 요일 분포</p></div></div><div class="weekday-chart" aria-label="요일별 매칭방 비중"><div class="weekday-row" th:each="weekday : ${stats?.weekdays}"><span th:text="${weekday.label}">월</span><div class="progress-track"><i class="progress-fill" th:classappend="${weekday.tone}" th:style="'width:' + ${weekday.percent ?: 0} + '%'"></i></div><b class="weekday-value" th:text="${(weekday.percent ?: 0) + '%'}">0%</b></div></div></article>
           <article class="card"><div class="card-heading"><div><h2>인기 예약 시간대</h2><p>선택 기간에 생성된 방 수 기준</p></div></div><div class="popular-hours-chart" id="facility-stat-hours-chart" aria-label="인기 시간대별 매칭방 그래프"><div class="popular-hour-row" th:each="hour : ${stats?.popularHours}"><div class="popular-hour-header"><span><b th:text="${hour.label}">시간</b></span><strong th:text="${hour.count + '개 방'}">0개 방</strong></div><div class="popular-hour-track" role="img" th:attr="aria-label=${hour.label + ' 매칭방 ' + hour.count + '개'}"><i th:style="'width:' + ${hour.height ?: 0} + '%'"></i></div></div><p th:if="${#lists.isEmpty(stats?.popularHours)}" class="table-empty">집계된 예약 시간대가 없습니다.</p></div></article>
         </div>
-        <div class="notice-strip"><strong>통계 기준</strong><p>선택 기간에 생성된 매칭방 중 취소된 방을 제외해 집계합니다. 서버 집계 결과가 없으면 빈 상태로 표시합니다.</p></div>
+        <div class="notice-strip"><strong>통계 기준</strong><p>선택 기간에 시작일이 포함된 매칭방 중 취소된 방을 제외해 집계합니다. 서버 집계 결과가 없으면 빈 상태로 표시합니다.</p></div>
       </section>
 
       <!-- 공지·이용 수칙 -->
-      <section class="admin-view" id="facility-content" data-view-title="공지·이용 수칙" hidden>
+      <section class="admin-view" id="facility-content" data-view-title="공지·이용 수칙" th:hidden="${view != 'content'}">
         <div class="page-heading">
           <div class="page-heading-copy"><div class="page-eyebrow">시설 정보</div><h1>공지·이용 수칙</h1><p>시설 이용자에게 표시되는 공지와 운영 수칙을 관리합니다.</p></div>
           <div class="heading-actions"><button class="admin-button primary" type="button" disabled title="콘텐츠 편집 API 연동 후 사용할 수 있습니다.">＋ 콘텐츠 작성</button></div>

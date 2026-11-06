@@ -280,6 +280,43 @@
     updateRoomEditorCapacity();
   }
 
+  /* ---------------- 예약 통계 기간 ---------------- */
+
+  /* 기간 드롭다운이 7/30/90일이면 오늘 기준 날짜를 채워 잠그고,
+     '직접 입력'을 고를 때만 사용자가 날짜를 고칠 수 있다. 최종 기간 판정은 서버가 한다. */
+  const statsPeriodSelect = document.querySelector('[data-stats-period]');
+  const statsPeriodFrom = document.querySelector('[data-stats-period-from]');
+  const statsPeriodTo = document.querySelector('[data-stats-period-to]');
+
+  function formatDateInput(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return year + '-' + month + '-' + day;
+  }
+
+  function syncStatsPeriod() {
+    if (!statsPeriodSelect || !statsPeriodFrom || !statsPeriodTo) return;
+    const days = Number(statsPeriodSelect.value);
+    const custom = statsPeriodSelect.value === 'custom';
+    statsPeriodFrom.disabled = !custom;
+    statsPeriodTo.disabled = !custom;
+    if (custom || !days) return;
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1));
+    statsPeriodFrom.value = formatDateInput(start);
+    statsPeriodTo.value = formatDateInput(today);
+  }
+
+  statsPeriodSelect?.addEventListener('change', syncStatsPeriod);
+  syncStatsPeriod();
+
+  /* 통계 조회는 시설을 골라야 의미가 있다. 시설 미선택(-시설 선택-)으로 제출하면
+     서버는 빈 통계를 돌려주므로, 보내기 전에 화면에서 먼저 알린다.
+     판정의 최종 책임은 서버에 있지만 여기서는 불필요한 요청을 막는다. */
+  const statsFilterForm = document.querySelector('#facility-stats form');
+  const statsFacilitySelect = document.getElementById('facility-stats-facility');
+
   /* ---------------- 매칭방 시설 사진 ---------------- */
 
   const ROOM_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
@@ -540,6 +577,18 @@
   document.addEventListener('submit', function (event) {
     const form = event.target;
     if (!(form instanceof HTMLFormElement)) return;
+
+    if (form === statsFilterForm) {
+      /* 시설 미선택이면 서버로 보내지 않는다. 경고 방식은 다른 검증과 같은 토스트를 쓴다. */
+      if (statsFacilitySelect && !statsFacilitySelect.value) {
+        event.preventDefault();
+        const warning = '통계를 조회할 시설을 선택해 주세요.';
+        if (admin && typeof admin.toast === 'function') admin.toast(warning, true);
+        else global.alert(warning);
+        statsFacilitySelect.focus();
+      }
+      return;
+    }
 
     if (form.matches('.facility-delete-form')) {
       /* 확인을 마친 제출은 그대로 서버로 보낸다. */
