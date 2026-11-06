@@ -61,10 +61,10 @@ class ClubFormat {
         return (int) (clubId % 6) + 1;
     }
 
-    // 동호회 실력 등급
+    // 동호회 실력 등급: 배치 마친 동호회원이 없으면 배치 중
     static String tierLabel(Integer averageMmr) {
         if (averageMmr == null) {
-            return "기록 없음";
+            return "배치 중";
         }
         return TierRank.of(BigDecimal.valueOf(averageMmr)).tier().label();
     }

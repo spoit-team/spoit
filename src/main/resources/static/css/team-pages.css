@@ -571,7 +571,7 @@
 
 .team-management-summary {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1px;
   overflow: hidden;
   margin-top: 20px;
@@ -747,7 +747,6 @@
   .team-management-section { padding: 17px; }
   .team-detail-summary,
   .team-management-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .team-management-summary .team-summary-item:last-child { grid-column: 1 / -1;}
   .team-detail-summary .team-summary-item { padding: 11px 10px; }
   .team-detail-summary .team-summary-item:nth-child(odd) { border-left: 0; padding-left: 0; }
   .team-detail-summary .team-summary-item:nth-child(even) { padding-left: 12px; }
@@ -768,3 +767,18 @@
   .team-card:hover,
   .team-button:active { transform: none; }
 }
+
+/* 동호회 이력 창: 이름 버튼, 요약 칸, 최근 레이팅 변동 */
+.team-history-name { border: 0; background: none; padding: 0; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.team-history-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.team-history-kv { border-radius: 9px; background: var(--color-paper-soft); padding: 10px 12px; }
+.team-history-kv small { display: block; color: var(--color-muted); font-size: 11px; }
+.team-history-kv b { font-size: 14px; }
+.team-history-section h3 { margin: 0 0 8px; font-size: 13px; }
+.team-history-changes { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.team-history-change { display: flex; justify-content: space-between; font-size: 12px; }
+.team-history-delta.is-up { color: #1a7f37; }
+.team-history-delta.is-down { color: #c62828; }
+.team-history-delta.is-flat { color: var(--color-muted); }
+.team-history-penalties { display: flex; flex-wrap: wrap; gap: 6px; }
+.team-history-empty { margin: 0; color: var(--color-muted); font-size: 12px; }

@@ -5,12 +5,14 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.TreeSet;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
 
 import co.kr.spoit.club.domain.Club;
 import co.kr.spoit.club.domain.ClubJoinRequest;
@@ -25,11 +27,19 @@ import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.ClubMemberHistoryView;
 import co.kr.spoit.club.dto.ClubWithdrawalBlocks;
 import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.dto.ClubSportTabResponse;
 import co.kr.spoit.club.dto.MyClubResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
+import co.kr.spoit.mat.domain.RatingStatus;
+import co.kr.spoit.mat.dto.ParticipantHistoryView;
+import co.kr.spoit.mat.dto.SportRatingResponse;
+import co.kr.spoit.mat.mapper.ParticipantHistoryMapper;
+import co.kr.spoit.mat.service.SportRatingService;
+import co.kr.spoit.match.domain.MatchStatus;
+import co.kr.spoit.match.domain.ParticipationStatus;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.service.MemberAccountLockService;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +59,16 @@ public class ClubServiceImpl implements ClubService {
     private static final int MAX_MEMBERS = 30;
     private static final int MESSAGE_MAX_LENGTH = 200;
     private static final int KICK_REASON_MAX_LENGTH = 200;
+
+    private final SportRatingService sportRatingService;
+    private final ParticipantHistoryMapper historyMapper;
+    // MAT ParticipantHistoryService와 같은 값(그쪽은 private이라 복사)
+    // 신고·제재는 시스템 관리 담당 도메인이라 enum이 없어 db/seed.sql의 report.status·penalty.status 값을
+    // 쓴다.
+    private static final String REPORT_CONFIRMED = "처리 완료";
+    private static final String PENALTY_ACTIVE = "적용 중";
+    private static final String NO_RATING_LABEL = "기록 없음";
+    private static final int RECENT_CHANGE_LIMIT = 5;
 
     // 목록: 검색,필터,정렬 조건으로 조회
     @Override
@@ -316,6 +336,74 @@ public class ClubServiceImpl implements ClubService {
         log.info("가입 신청 저장 완료: clubId={}, userId={}", clubId, userId);
     }
 
+    // 가입 신청자 개인 이력: MAT ParticipantHistoryService.getHistory와 같은 흐름(검사/닉네임/종목만 동호회
+    // 기준)
+    @Override
+    public Optional<ParticipantHistoryView> findApplicantHistory(Long clubId, Long joinRequestId, Long userId,
+            LocalDateTime now) {
+
+        ClubSummary club = clubMapper.selectClubDetail(clubId);
+        if (club == null) {
+            return Optional.empty();
+        }
+        if (!clubMapper.existsActiveLeader(clubId, userId)) {
+            throw new AccessDeniedException("동호회장만 가입 신청자 이력을 볼 수 있습니다.");
+        }
+        // 이 동호회의 대기중 신청만(다른 동호회 신청 번호로 조회 못 하게)
+        ClubJoinRequest request = clubMapper.selectPendingJoinRequestById(clubId, joinRequestId);
+        if (request == null) {
+            return Optional.empty();
+        }
+        Long applicantUserId = request.getUserId();
+
+        SportRatingResponse rating = sportRatingService.findByUserIdAndSportId(applicantUserId, club.getSportId())
+                .orElse(null);
+
+        return Optional.of(new ParticipantHistoryView(request.getNickname(),
+                rating == null ? NO_RATING_LABEL : rating.tierLabel(),
+                rating == null ? 0 : rating.ratedMatchCount(),
+                historyMapper.findRecentChanges(applicantUserId, club.getSportId(), RECENT_CHANGE_LIMIT).stream()
+                        .map(change -> new ParticipantHistoryView.RecentChange(change.getCalculatedAt(),
+                                change.getFinalDelta()))
+                        .toList(),
+                historyMapper.countExcludedMatches(applicantUserId, ParticipationStatus.CONFIRMED.dbValue(),
+                        RatingStatus.EXCLUDED.name(), MatchStatus.MATCHED.dbValue(), MatchStatus.CLOSED.dbValue()),
+                historyMapper.countReports(applicantUserId, REPORT_CONFIRMED),
+                historyMapper.findActivePenalties(applicantUserId, PENALTY_ACTIVE, now).stream()
+                        .map(penalty -> new ParticipantHistoryView.Penalty(penalty.getPenaltyType(),
+                                penalty.getEndAt()))
+                        .toList()));
+    }
+
+    @Override
+    public Optional<ClubMemberHistoryView> findMemberHistory(Long clubId, Long clubMemberId, LocalDateTime now) {
+        ClubSummary club = clubMapper.selectClubDetail(clubId);
+        if (club == null) {
+            return Optional.empty();
+        }
+        // 이 동호회 활성 회원만(동호회장 포함, 다른 동호회 회원 번호로 조회 못 하게)
+        ClubMember member = clubMapper.selectActiveMemberWithLeaderById(clubId, clubMemberId);
+        if (member == null) {
+            return Optional.empty();
+        }
+        Long memberUserId = member.getUserId();
+
+        SportRatingResponse rating = sportRatingService.findByUserIdAndSportId(memberUserId, club.getSportId())
+                .orElse(null);
+        return Optional.of(new ClubMemberHistoryView(
+                member.getNickname(),
+                rating == null ? NO_RATING_LABEL : rating.tierLabel(),
+                clubMapper.countClubRatedMatches(clubId, memberUserId, club.getSportId()),
+                clubMapper.selectClubRecentChanges(clubId, memberUserId, club.getSportId(), RECENT_CHANGE_LIMIT)
+                        .stream()
+                        .map(c -> new ParticipantHistoryView.RecentChange(c.getCalculatedAt(), c.getFinalDelta()))
+                        .toList(),
+                clubMapper.countClubExcludedMatches(clubId, memberUserId, ParticipationStatus.CONFIRMED.dbValue(),
+                        RatingStatus.EXCLUDED.name(), MatchStatus.MATCHED.dbValue(), MatchStatus.CLOSED.dbValue()),
+                clubMapper.selectLastClubMatchAt(clubId, memberUserId, ParticipationStatus.CONFIRMED.dbValue(),
+                        MatchStatus.MATCHED.dbValue(), MatchStatus.CLOSED.dbValue(), now)));
+    }
+
     // 가입 신청 승인: 잠금->동호회장->대기중->정원확인
     @Override
     @Transactional
@@ -465,7 +553,9 @@ public class ClubServiceImpl implements ClubService {
     /**
      * 동호회 행을 잠그고 최신 값을 돌려준다. 없거나 해체됐으면 null.
      *
-     * <p>팀 매치 신청처럼 다른 도메인이 동호회 행을 먼저 잠가야 할 때 쓴다. 쓰기 트랜잭션 전용이다.</p>
+     * <p>
+     * 팀 매치 신청처럼 다른 도메인이 동호회 행을 먼저 잠가야 할 때 쓴다. 쓰기 트랜잭션 전용이다.
+     * </p>
      */
     @Override
     public ClubSummary lockActiveClub(Long clubId) {

@@ -21,12 +21,16 @@ import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.ClubMemberHistoryView;
 import co.kr.spoit.club.dto.ClubWithdrawalBlocks;
 import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.dto.ClubSportTabResponse;
 import co.kr.spoit.club.dto.MyClubResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
 import co.kr.spoit.club.service.ClubServiceImpl;
+import co.kr.spoit.mat.dto.ParticipantHistoryView;
+import co.kr.spoit.mat.mapper.ParticipantHistoryMapper;
+import co.kr.spoit.mat.service.SportRatingService;
 import co.kr.spoit.club.service.ClubService.ClubNameExistException;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.service.MemberAccountLockService;
@@ -44,6 +48,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class ClubServiceTest {
@@ -53,6 +58,12 @@ class ClubServiceTest {
 
     @Mock
     private MemberAccountLockService accountLockService;
+
+    @Mock
+    private SportRatingService sportRatingService;
+
+    @Mock
+    private ParticipantHistoryMapper historyMapper;
 
     @InjectMocks
     private ClubServiceImpl service;
@@ -183,14 +194,14 @@ class ClubServiceTest {
         verify(clubMapper, never()).insertClub(any(Club.class));
     }
 
-    @Test 
-    @DisplayName ("동호회 소개가 500자를 넘으면 저장하지 않는다")
+    @Test
+    @DisplayName("동호회 소개가 500자를 넘으면 저장하지 않는다")
     void 동호회_소개가_500자를_넘으면_거부한다() {
         ClubCreateForm form = validForm();
         form.setIntro("가".repeat(501));
 
-        IllegalArgumentException e =  assertThrows(IllegalArgumentException.class, () -> service.createClub(7L, form));
-        
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> service.createClub(7L, form));
+
         assertThat(e.getMessage()).isEqualTo("동호회 소개는 1~500자로 입력해 주세요.");
         verify(clubMapper, never()).insertClub(any(Club.class));
     }
@@ -860,7 +871,7 @@ class ClubServiceTest {
     }
 
     @Test
-    @DisplayName("동호회 평균 MMR로 실력 등급을 정하고, 기록이 없으면 기록없음으로 표시 ")
+    @DisplayName("동호회 평균 MMR로 실력 등급을 정하고, 배치 마친 동호회원이 없으면 배치 중으로 표시")
     void 동호회_평균_MMR로_실력_등급을_정한다() {
         ClubSummary none = club("모집중", "2,4", 19, 21);
         ClubSummary gold = club("모집중", "2,4", 19, 21);
@@ -871,13 +882,80 @@ class ClubServiceTest {
 
         List<ClubCardResponse> cards = service.findClubCards(new ClubSearchForm());
 
-        assertThat(cards.get(0).getTierLabel()).isEqualTo("기록 없음");
+        assertThat(cards.get(0).getTierLabel()).isEqualTo("배치 중");
         assertThat(cards.get(1).getTierLabel()).isEqualTo("골드");
         assertThat(cards.get(2).getTierLabel()).isEqualTo("실버");
         assertThat(cards.get(0).getTierKey()).isEqualTo("none");
         assertThat(cards.get(1).getTierKey()).isEqualTo("gold");
         assertThat(cards.get(2).getTierKey()).isEqualTo("silver");
 
+    }
+
+    // 동호회 이력 창
+    @Test
+    @DisplayName("동호회장이 아니면 가입 신청자 이력을 볼 수 없다")
+    void 동호회장이_아니면_신청자_이력_거부() {
+        when(clubMapper.selectClubDetail(1L)).thenReturn(detailClub());
+        when(clubMapper.existsActiveLeader(1L, 4L)).thenReturn(false);
+
+        assertThrows(AccessDeniedException.class,
+                () -> service.findApplicantHistory(1L, 10L, 4L, LocalDateTime.now()));
+    }
+
+    @Test
+    @DisplayName("이 동호회의 대기중 신청이 아니면 빈 결과")
+    void 대기중_신청이_아니면_빈_결과() {
+        when(clubMapper.selectClubDetail(1L)).thenReturn(detailClub());
+        when(clubMapper.existsActiveLeader(1L, 1L)).thenReturn(true);
+        when(clubMapper.selectPendingJoinRequestById(1L, 10L)).thenReturn(null);
+
+        assertThat(service.findApplicantHistory(1L, 10L, 1L, LocalDateTime.now())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("가입 신청자 이력은 동호회장이 아니라 신청자 기준으로 동호회 종목을 조회한다")
+    void 신청자_기준으로_조회() {
+        ClubJoinRequest request = new ClubJoinRequest();
+        request.setUserId(7L);
+        request.setNickname("서은지");
+        when(clubMapper.selectClubDetail(1L)).thenReturn(detailClub());
+        when(clubMapper.existsActiveLeader(1L, 1L)).thenReturn(true);
+        when(clubMapper.selectPendingJoinRequestById(1L, 10L)).thenReturn(request);
+
+        ParticipantHistoryView view = service.findApplicantHistory(1L, 10L, 1L, LocalDateTime.now()).orElseThrow();
+
+        assertThat(view.nickname()).isEqualTo("서은지");
+        assertThat(view.tierLabel()).isEqualTo("기록 없음");
+        verify(sportRatingService).findByUserIdAndSportId(7L, 1L);
+        verify(historyMapper).countReports(7L, "처리 완료");
+    }
+
+    @Test
+    @DisplayName("이 동호회 활성 회원이 아니면 동호회원 이력은 빈 결과")
+    void 활성_회원이_아니면_빈_결과() {
+        when(clubMapper.selectClubDetail(1L)).thenReturn(detailClub());
+        when(clubMapper.selectActiveMemberWithLeaderById(1L, 20L)).thenReturn(null);
+
+        assertThat(service.findMemberHistory(1L, 20L, LocalDateTime.now())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("동호회원 이력은 이 동호회 경기 기준으로 센다")
+    void 동호회원_이력은_동호회_경기_기준() {
+        ClubMember member = member("박도윤", "동호회장");
+        member.setUserId(4L);
+        LocalDateTime lastMatch = LocalDateTime.of(2026, 10, 30, 19, 0);
+        when(clubMapper.selectClubDetail(1L)).thenReturn(detailClub());
+        when(clubMapper.selectActiveMemberWithLeaderById(1L, 20L)).thenReturn(member);
+        when(clubMapper.countClubRatedMatches(1L, 4L, 1L)).thenReturn(3);
+        when(clubMapper.selectLastClubMatchAt(any(), any(), any(), any(), any(), any())).thenReturn(lastMatch);
+
+        ClubMemberHistoryView view = service.findMemberHistory(1L, 20L, LocalDateTime.now()).orElseThrow();
+
+        assertThat(view.nickname()).isEqualTo("박도윤");
+        assertThat(view.ratedMatchCount()).isEqualTo(3);
+        assertThat(view.lastClubMatchAt()).isEqualTo(lastMatch);
+        verify(clubMapper).selectClubRecentChanges(1L, 4L, 1L, 5);
     }
 
     // 추방할 동호회원(동호회원 번호 3, 회원 번호만)
