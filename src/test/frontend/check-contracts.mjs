@@ -419,6 +419,15 @@ check(facilityScript.includes("target?.closest('#date-schedule-hour-grid')"),
    민원·요청/점검·유지보수 화면은 제거되었으므로 그 흔적이 다시 생기면 여기서 막는다. */
 const dashboardSource = fragmentSlice(facilitySource, 'id="facility-dashboard"', 'id="facility-assets"');
 check(Boolean(dashboardSource), 'facility.html: dashboard view missing');
+// 섹션 표시 여부는 스크립트가 아니라 서버가 view로 결정한다. 하드코딩 hidden이면
+// POST/Redirect/Get 진입 시 JS 실행 전에 대시보드가 먼저 그려졌다가 바뀌는 깜빡임이 생긴다.
+for (const [id, key] of [['facility-dashboard', 'dashboard'], ['facility-assets', 'assets'],
+  ['facility-schedule', 'schedule'], ['facility-bookings', 'bookings'],
+  ['facility-stats', 'stats'], ['facility-content', 'content']]) {
+  check(new RegExp(`<section class="admin-view" id="${id}"[^>]*th:hidden="\\$\\{view != '${key}'\\}"`)
+    .test(facilitySource),
+    `facility.html: ${id} must be hidden by the server view model, not a hardcoded hidden`);
+}
 for (const field of ['dashboard?.matchCount', 'dashboard?.recruitingCount',
   'dashboard?.hourlyBars', 'dashboard?.recentMatches', 'todayLabel', 'scopeName']) {
   check(dashboardSource?.includes(field), `facility.html: dashboard must render ${field}`);
@@ -624,6 +633,45 @@ check(/data-cancel-room/.test(roomRowActions)
   'facility.html: the destructive room cancel must keep its danger styling');
 check(!/class="table-link/.test(roomRowActions),
   'facility.html: row actions must not fall back to plain text links');
+
+/* ── 예약 통계 화면 계약 ────────────────────────────────────────────────────
+   통계 화면은 POST 폼으로 조회 조건을 서버에 넘기고(다른 관리자 변경 요청과 같은 관례),
+   서버가 계산한 값만 그립니다. 기간 직접 입력(periodFrom/periodTo)과
+   시설 미선택(-시설 선택-) 상태가 계약입니다. */
+const statsSource = fragmentSlice(facilitySource, 'id="facility-stats"', 'id="facility-content"');
+check(Boolean(statsSource), 'facility.html: stats view missing');
+const statsForm = fragmentSlice(statsSource ?? '', '<form class="heading-actions"', '</form>') ?? '';
+check(statsForm.length > 0, 'facility.html: the stats filter form is missing');
+check(/method="post"/.test(statsForm),
+  'facility.html: the stats filter must submit as a POST form');
+check(statsForm.includes('@{/admin/facility/stats}'),
+  'facility.html: the stats filter must post to the dedicated stats route');
+for (const field of ['name="facilityId"', 'name="period"', 'name="periodFrom"', 'name="periodTo"']) {
+  check(statsForm.includes(field), `facility.html: the stats filter must keep the ${field} input`);
+}
+check(/<option value=""[^>]*>-시설 선택-<\/option>/.test(statsForm),
+  'facility.html: the stats facility select must start from an unselected -시설 선택- option');
+check(/<option value="custom"[^>]*>직접 입력<\/option>/.test(statsForm),
+  'facility.html: the stats period select must offer 직접 입력');
+check(/name="periodFrom"[^>]*type="date"/.test(statsForm)
+  && /name="periodTo"[^>]*type="date"/.test(statsForm),
+  'facility.html: custom stats periods must use native date inputs');
+/* custom은 일수가 7/30/90과 같아도 "직접 입력"을 유지해야 한다. 일수 비교로 되돌아가지 않게 고정한다. */
+check(statsForm.includes("${stats?.requestedPeriod == 'custom'}"),
+  'facility.html: the stats period select must restore 직접 입력 from requestedPeriod');
+check(!/stats\.period != 7 and stats\.period != 30/.test(statsForm),
+  'facility.html: the stats period select must not infer 직접 입력 from the day count');
+check(statsSource?.includes('${stats?.applicationTotal ?: 0}')
+  && statsSource?.includes('${stats?.individualCount ?: 0}')
+  && statsSource?.includes('${stats?.clubCount ?: 0}')
+  && statsSource?.includes('${stats?.approvalRate ?: 0}')
+  && statsSource?.includes('${stats?.approvedCount ?: 0}'),
+  'facility.html: the stats view must render the application metrics from stats');
+check(!/시설 관리자 제외/.test(statsSource ?? ''),
+  'facility.html: participant count no longer excludes the facility manager');
+const statsNotice = fragmentSlice(statsSource ?? '', 'class="notice-strip"', '</div>') ?? '';
+check(statsNotice.length > 0 && !/생성된 매칭방/.test(statsNotice),
+  'facility.html: the stats basis notice must describe the start_at range, not creation time');
 
 const operationsSource = await readFile(path.join(resources, 'templates/admin/operations.html'), 'utf8');
 check(operationsSource.includes('th:if="${match == null}"'),

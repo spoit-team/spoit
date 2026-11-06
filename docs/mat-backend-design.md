@@ -198,6 +198,13 @@ GitHub Actions는 설정만 변경했고 원격 실행은 하지 않았다. CI�
 - 시설 대시보드가 실제 집계를 사용한다. `RoomManagementService.findDashboard`가 담당 활성 시설의 매칭방 행을 상태·시각으로 집계해 `FacilityAdminController`의 화면 모델로 전달한다.
 - 시스템 관리자 페이지 컨트롤러는 `web.CorePageController`에서 `admin.controller.SystemAdminController`로 옮겨졌고, 모니터링 dashboard는 `SystemMonitoringService`의 실제 측정치를 쓰며 `POST /admin/system/monitoring`이 같은 모델을 JSON으로 돌려준다.
 
+### 2026-11-06 추가 구현 상태
+
+- 참가 신청 승인·반려 API가 추가됐다(`ce842cc`). `MatchApplicationDecisionController`가 `/admin/operations/**`의 `ROLE_FACILITY_MANAGER` 규칙 아래에서 `POST /admin/operations/applications/{applicationId}/confirm`·`/reject`를 노출하고, `MatchApplicationService.confirm`·`reject`에 위임한다. 서비스는 신청 row와 담당 시설 여부(`countManagedApplication`)를 확인하고 매칭방을 잠근 뒤 모집 중·시작 전 조건을 재검증한다. 승인은 `markConfirmed`로 신청을 확정하고 `insertParticipant`로 참가자 행을 만들며 확정 알림(MATCH_APPLICATION_CONFIRMED)을 커밋 후 보내고, 반려는 `markRejected`로 참가자 행 없이 반려 처리한다. `MatchApplicationMapper`에는 `markConfirmed`·`markRejected`·`countManagedApplication`이 추가됐다.
+- 운영 화면에 승인·반려 UI가 연결됐다(`1596b50`). `admin/operations.html`의 `#ops-applications`가 `data-decision-url`로 API 기본 경로를 넘기고 `match-application-decision.js`가 승인·반려를 fetch + CSRF 헤더로 호출하며 성공 시 페이지를 새로 고친다. `RoomManagementService.findDetail`은 모집 중이고 시작 전인 경기의 대기 신청에 `decidable`을 표시하며, `RoomManagementMapper.xml`의 집계도 대기 신청과 확정 참가자를 같은 기준으로 센다.
+- 프런트엔드 계약 검사를 승인·반려 API에 맞춰 갱신했다. `src/test/frontend/check-contracts.mjs`가 라우트·폼·마크업 계약을 검증한다.
+- 시설 통계 집계와 조회 화면이 구현됐다(`353dce6`). `FacilityAdminController`는 `view=stats`일 때 `FacilityStatsService.load`를 호출하며 기존 `stats` null 하드코딩을 대체했다. `FacilityStatsService`(신규)는 `existsFacilityManager`로 담당 시설을 선검사한 뒤 `FacilityStatsMapper`(신규 XML)의 5개 쿼리(매칭방 수·참가 인원·신청 수·요일별 방 수·시간대별 방 수)로 집계한다. 모든 쿼리는 `social_match → facility(deleted_at IS NULL) → facility_manager(fm.user_id = 인증 주체)` 조인으로 담당 범위를 SQL 레벨에서도 재제한한다. 기간은 매칭방 `start_at` 기준이며 `status <> '취소'`만 세고, 7/30/90일 또는 직접 입력 기간(시작일 00:00:00~종료일 23:59:59)으로 정규화한다. 신청 수는 대표 행만(`group_application_id IS NULL OR = application_id`) 세고 개인·동호회·확정 건수를 함께 돌려준다. 화면(`admin/facility.html` stats 섹션)은 지표 카드 5개와 요일별·시간대별 CSS 막대 차트(최대값 대비 상대 %)로 표시하고, `POST /admin/facility/stats`는 조건을 쿼리로 되돌리는 PRG 리다이렉트다. `admin-facility.js`는 기간 select와 date 입력을 동기화하고 시설 미선택 제출을 막는다.
+
 ## 9. 이번 변경 파일과 이유 (초기 조회 골격 작업)
 
 | 파일 | 이유 |
@@ -367,3 +374,55 @@ MAT 트랜잭션은 `social_match`를 한 행만 잠그고, `sport_rating`은 �
   - JVM 기본 시간대: MAT 알림의 생성·읽음 시각은 기본 시간대의 `LocalDateTime.now()`다(`NotificationServiceImpl.notifyRecipients`, `NotificationApiController`). 배포 이미지는 `TZ=Asia/Seoul`로 이 값을 맞춘다(`Dockerfile`).
   - DB 시간대: DB가 채우는 `CURRENT_TIMESTAMP` 열(MAT에서는 `sport_rating.updated_at`)은 MySQL 세션 시간대를 따른다. 저장소의 DB URL에는 `serverTimezone=Asia/Seoul`이 있지만, 운영 URL은 환경 변수 `SPRING_DATASOURCE_URL`로 주입한다(`Dockerfile` 주석). 운영 URL에 이 값이 있는지, 이 값이 세션 시간대까지 바꾸는지는 확인이 필요하다.
 - **단식 경기의 평가 [정책]**: 단식(팀당 1명)은 평가자가 상대 한 명뿐이라 감정이 보정에 섞일 수 있다. 보정은 (평가 점수 − 5) × 1이라 ±5로 제한되어(`RatingCalculator.evaluationDelta`) 영향은 작다고 보고, 팀 논의로 지금처럼 평가하기로 했다. 운영 데이터가 쌓이면 단식 평가 보정과 실제 결과의 관계를 보고 다시 정한다(예: 단식만 보정 폭 축소).
+## 14. 이후 수정된 문제와 방법 (yongminp42 커밋 기준, 2026-10-28 이후)
+
+아래는 2026-10-28 이후 yongminp42 작성 커밋을 대상으로, 커밋 메시지가 아니라 실제 diff와 현재 소스를 대조해 정리한 기록이다. 다른 작성자의 커밋은 분석에서 제외했다.
+
+### 결과 화면 정보 소실과 복원
+
+`af5a0b8`(refactor(mat), 2026-11-05)은 같은 결과 화면을 서버 모델(`MatchResultPage` + `MatchResultPageService.getPage`)과 JSON API(`MatchResultService.getSummary` + `match-result.js`) 두 경로로 구현하면서 `scheduleOf`·`teamOf`·팀장 판정·마감 계산이 각각 복제돼 있던 것을 JSON 단일화로 정리했다. 이 커밋에서 `MatchResultPage` DTO와 `getPage`가 삭제되고, `MatchResultPageService`에는 마이페이지 카드용 `findResultSubmittableMatchIds`만 남았다.
+
+직후 리베이스(develop 화면 병합)에서 경기 일시·시설명·제출 마감·A/B 로스터가 화면에서 사라졌다. `dd1d645`(fix(match), 2026-11-05, 리베이스 후 `26ee4a7`)이 `MatchResultSummary`에 `scheduleLabel`·`facilityName`·`deadlineLabel`·`teams`를 추가하고, `MatchResultService.getSummary`가 `ResultPageMatch`의 시설명과 확정 참가자 로스터로 그 값을 채우게 했다. 이어 `ddaebc1`이 `title`·`sportName`까지 summary로 옮겨, JS가 제목을 고정 문구로 덮어쓰던 문제를 없앴다.
+
+`match-result.js`는 서버 값을 `createElement` + `textContent`로만 렌더해 닉네임에 섞인 마크업이 실행되지 않게 한다. 템플릿(`mypage/match-result.html`)에는 `page.matchId`, `page.mySide` 같은 `page.*` 참조가 일부 남아 있으나 서버가 그 모델을 더 이상 넘기지 않는 죽은 참조이며, 미정리 상태다.
+
+### 알림 기능 후속 결함 5종
+
+`ddaebc1`(fix(common), 2026-11-06, 리베이스 전 `8c214ba`)에서 알림 클라이언트와 서버 쪽 결함을 함께 고쳤다.
+
+- 숨은 탭: `notification-center.js`의 `paused` 초기값이 false여서 숨은 탭에서도 조회·소켓 연결이 시작됐다 → `let paused = document.hidden`으로 초기화하고 `refresh` 진입부에 `paused` 가드를 추가했다.
+- 폴링·배지: STOMP `CONNECTED`에서 `stopPolling()`을 호출해 전송이 유실되면 배지가 뒤처졌고, 첫 연결이 실패한 구간에는 폴링 자체가 없었다 → `connect()`가 소켓 생성 전에 항상 `startPolling()`을 호출하고 `CONNECTED`의 `stopPolling()` 호출을 제거했다.
+- 포커스: 같은 알림이 헤더·관리자 등 여러 surface에 렌더되는데 초점 복원이 첫 surface로 튀었다 → 포커스 토큰에 대상 `surface`를 포함해 `restoreFocus`가 같은 surface 안에서 찾게 했고, 읽은 알림의 읽음 버튼은 `hidden` 처리 대신 DOM에서 `remove()`한다.
+- 배포 스키마: 알림 스키마가 적용되지 않은 DB로 배포하면 알림 저장이 실패한다 → `NotificationSchemaCheck`(신규, `main`)이 `notification.club_id → club.club_id` FK 존재를 메타데이터로 확인하고 없으면 예외로 배포를 중단하며, `deploy.yml`이 기존 컨테이너 교체 전에 이 검사를 실행한다.
+- 매칭방 취소 교착: 취소가 시설·매칭방 락을 잡은 채 알림 저장이 필요로 하는 `app_user` 공유락을 기다려 지연·교착 위험이 있었다(신청 경로는 계정 → 매칭방 순서로 락을 잡는다) → `RoomCommandService.cancel`에 `Isolation.READ_COMMITTED`를 적용하고, 수신자 확정 직후 `lockCancellationAccounts()`가 `app_user`를 id 오름차순으로 `FOR SHARE NOWAIT` 조회하며, MySQL 락 대기 타임아웃(3572)이면 사용자 안내 예외로 변환한다.
+
+### 머지·리베이스 잔재 결함
+
+`c8a8a5a`(fix, 2026-11-05): 복구된 머지에서 `MatchApplicationService.applyTeam`에 `LocalDateTime now`가 중복 선언되고 `LinkedHashMap` import가 겹쳐 컴파일이 깨졌으며, `requireApplicableMember` 본문이 잘려 탈퇴·이용정지 검사가 사라져 있었다 → 중복 선언·import를 제거하고 두 검사를 복원했다.
+
+`46855fb`(fix(common), 2026-10-27): 관리자 스크립트 IIFE를 `})();`로 호출해 인자 없이 실행되면서 `global`(window)이 undefined가 되어 모달·탭·사이드바 초기화가 전부 죽었다 → `})(window);`로 마감했다.
+
+### 스케줄러 등록·토글 결함
+
+`c7ff7cb`(fix(common), 2026-11-03): `spoit.match-start-scheduler.enabled=false`로 꺼도 `MatchResultScheduler`가 `@Component`로 컴포넌트 스캔에 등록돼 계속 실행됐다 → `@Component`를 제거하고 `MatSchedulingConfig`의 `@Bean`으로만 등록해 설정값이 실제로 효력을 갖게 했다.
+
+`98d8458`(feat(admin), 2026-11-02): `@EnableScheduling`이 mat 설정에 있어 매치 스케줄러를 끄면 시스템 모니터링 수집까지 함께 멈췄다 → `@EnableScheduling`을 전역 `global.config.SchedulingConfig`로 옮겨 두 기능의 활성화 조건을 분리했다.
+
+### 시설 종목·삭제 보호
+
+`38ae978`(fix(facility), 2026-10-28): 종목 수정이 전량 삭제 후 재삽입이라 유지한 종목의 `default_*` 값이 초기화됐고, 매칭방이 참조 중인 종목을 해제하면 FK 오류(1451)가 그대로 노출됐으며, 모집 중·매칭 완료 방이 있는 시설도 삭제가 시도됐다 → 시설·매칭방 행을 `FOR UPDATE`로 잠근 뒤 현재 매핑을 읽어 추가/삭제 diff만 반영하고, 삭제는 차단 상태(RECRUITING·MATCHED)만 막으며, 경합 중 발생한 FK 오류는 사용자 안내 예외로 변환한다.
+
+`26f2d8f`(feat(facility), 2026-10-29): 삭제가 막혀도 어떤 매칭방 때문인지 알 수 없었다 → `FacilityDeleteBlockedException`(신규)이 차단 매칭방 목록을 담아 화면 경고로 전달한다.
+
+`693deca`(feat(facility), 2026-10-27): 시설 등록·수정·삭제 POST가 보안 matcher 누락으로 403이었다 → `/admin/facilities`, `/admin/facilities/**` 규칙과 핸들러를 추가했다.
+
+### 운영 절 개선 계열(참고)
+
+- `b66359c`(fix(facility), 2026-10-29): 일정 화면의 달력·시간 선택 동작과 앵커 이동 시 가려지는 문제를 고쳤다.
+- `0ee7250`(fix(common), 2026-11-04): 모바일 메뉴 바깥 클릭 판정을 `contains(event.target)`에서 `event.composedPath().includes(...)`로 바꿔 그림자 DOM·재렌더 환경에서도 메뉴가 닫히게 했다.
+- `1b90f19`(feat(admin), 2026-11-03): 대시보드의 최근 요청 목록을 스텁에서 담당 시설 매칭방 신청 실데이터 조회로 바꿨다.
+- `c08939e`(feat(user), 2026-11-03): 탈퇴 차단 사유를 클라이언트가 아니라 서버가 판정해 내려주도록 정리했다.
+- `894875e`(refactor(common), 2026-11-04): 연결되지 않은 민원·유지보수 모달과 요청 모델 참조를 정리했다.
+- `bd645bf`(refactor(facility), 2026-10-29): 화면에 연결되지 않은 모집 마감 기능과 `deadline_hours` 컬럼을 제거했다.
+
+이 절은 yongminp42 작성 커밋만 분석했으며, 다른 작성자의 fix 커밋(예: `ed62c15` 결과 제출 후 안내, `2d388b7` 클럽 티어 배치 기준 변경)은 별도 문서화 대상이다.

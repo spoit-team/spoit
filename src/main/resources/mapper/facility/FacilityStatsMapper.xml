@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="co.kr.spoit.facility.mapper.FacilityStatsMapper">
+
+    <!--
+      시설 관리자 조회 공통 FROM (RoomManagementMapper.managedRoomFrom과 같은 기준).
+      담당자(facility_manager)로 범위를 제한하고 삭제된 시설은 제외한다.
+      facility_manager PK가 (facility_id, user_id)이므로 조인으로 행이 늘지 않는다.
+    -->
+    <sql id="managedRoomFrom">
+        FROM social_match sm
+        JOIN facility f  ON f.facility_id = sm.facility_id
+                        AND f.deleted_at IS NULL
+        JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                AND fm.user_id = #{managerUserId}
+        JOIN sport s     ON s.sport_id = sm.sport_id
+    </sql>
+
+    <!--
+      통계 대상 매칭방 조건: 선택 시설, start_at 구간, 취소 제외.
+      범위는 [startAt, endAt] 양끝 포함이며 경계 변환은 서비스가 맡는다.
+    -->
+    <sql id="targetRoomWhere">
+        WHERE sm.facility_id = #{facilityId}
+          AND sm.start_at &gt;= #{startAt}
+          AND sm.start_at &lt;= #{endAt}
+          AND sm.status &lt;&gt; '취소'
+    </sql>
+
+    <select id="countMatches" resultType="long">
+        SELECT COUNT(*)
+        <include refid="managedRoomFrom"/>
+        <include refid="targetRoomWhere"/>
+    </select>
+
+    <!-- 취소된 방은 대상에서 빠지므로 참가자 행도 그 방 기준으로 함께 제외된다. -->
+    <select id="sumParticipants" resultType="long">
+        SELECT COUNT(*)
+          FROM match_participant mp
+          JOIN social_match sm ON sm.match_id = mp.match_id
+          JOIN facility f      ON f.facility_id = sm.facility_id
+                              AND f.deleted_at IS NULL
+          JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                  AND fm.user_id = #{managerUserId}
+         WHERE sm.facility_id = #{facilityId}
+           AND sm.start_at &gt;= #{startAt}
+           AND sm.start_at &lt;= #{endAt}
+           AND sm.status &lt;&gt; '취소'
+           AND mp.participation_status IN ('대기', '확정')
+    </select>
+
+    <!--
+      팀 신청은 팀원마다 행이 있으므로 대표 행만 센다
+      (group_application_id IS NULL OR = application_id).
+    -->
+    <select id="countApplications" resultType="co.kr.spoit.facility.dto.ApplicationCountSummary">
+        SELECT COUNT(*) AS total,
+               COALESCE(SUM(CASE WHEN ma.application_type = '개인' THEN 1 ELSE 0 END), 0) AS individual_count,
+               COALESCE(SUM(CASE WHEN ma.application_type = '동호회' THEN 1 ELSE 0 END), 0) AS club_count,
+               COALESCE(SUM(CASE WHEN ma.status = '확정' THEN 1 ELSE 0 END), 0) AS approved_count
+          FROM match_application ma
+          JOIN social_match sm ON sm.match_id = ma.match_id
+          JOIN facility f      ON f.facility_id = sm.facility_id
+                              AND f.deleted_at IS NULL
+          JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                  AND fm.user_id = #{managerUserId}
+         WHERE sm.facility_id = #{facilityId}
+           AND sm.start_at &gt;= #{startAt}
+           AND sm.start_at &lt;= #{endAt}
+           AND sm.status &lt;&gt; '취소'
+           AND (ma.group_application_id IS NULL
+                OR ma.group_application_id = ma.application_id)
+    </select>
+
+    <select id="countByWeekday" resultType="co.kr.spoit.facility.dto.WeekdayRoomCount">
+        SELECT DAYOFWEEK(sm.start_at) AS weekday,
+               COUNT(*)               AS room_count
+        <include refid="managedRoomFrom"/>
+        <include refid="targetRoomWhere"/>
+        GROUP BY DAYOFWEEK(sm.start_at)
+    </select>
+
+    <select id="countByHour" resultType="co.kr.spoit.facility.dto.HourRoomCount">
+        SELECT HOUR(sm.start_at) AS hour,
+               COUNT(*)          AS room_count
+        <include refid="managedRoomFrom"/>
+        <include refid="targetRoomWhere"/>
+        GROUP BY HOUR(sm.start_at)
+    </select>
+
+</mapper>
