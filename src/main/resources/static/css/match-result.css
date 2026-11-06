@@ -217,6 +217,8 @@
 
 .match-result-error { color: var(--color-danger); }
 
+.match-result-retry { justify-self: start; }
+
 .match-result-choices {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -65,6 +65,13 @@ jobs:
           echo "▶ 이미지 받기: ${IMAGE}:${TAG}"
           docker pull "${IMAGE}:${TAG}"
 
+          echo "▶ 알림 스키마 확인"
+          docker run --rm --entrypoint java \
+            --env-file /home/ec2-user/spoit/.env \
+            "${IMAGE}:${TAG}" \
+            -Dloader.main=co.kr.spoit.notification.NotificationSchemaCheck \
+            -cp app.jar org.springframework.boot.loader.launch.PropertiesLauncher
+
           echo "▶ 기존 컨테이너 교체"
           docker stop spoit 2>/dev/null || true
           docker rm spoit 2>/dev/null || true

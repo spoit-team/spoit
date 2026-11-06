@@ -370,7 +370,7 @@ class MatchResultServiceTest {
     }
 
     @Test
-    void summaryIncludesScheduleFacilityRosterAndDeadline() {
+    void summaryIncludesMatchDetailsAndRoster() {
         ResultMatch match = match("종료", "CONFIRMED", "APPLIED");
         when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.of(match));
         givenTeamMembers();
@@ -378,6 +378,8 @@ class MatchResultServiceTest {
 
         var summary = service.getSummary(MATCH_ID, 13L).orElseThrow();
 
+        assertThat(summary.title()).isEqualTo("토요 풋살");
+        assertThat(summary.sportName()).isEqualTo("풋살");
         assertThat(summary.scheduleLabel()).isEqualTo("2026년 10월 30일 (금) 18:00 ~ 20:00");
         assertThat(summary.facilityName()).isEqualTo("MAT 테스트 시설");
         // 제출 마감은 경기 종료 24시간 뒤다.
@@ -483,6 +485,8 @@ class MatchResultServiceTest {
     private void givenResultPageMatch() {
         var pageMatch = new ResultPageMatch();
         pageMatch.setMatchId(MATCH_ID);
+        pageMatch.setTitle("토요 풋살");
+        pageMatch.setSportName("풋살");
         pageMatch.setFacilityName("MAT 테스트 시설");
         when(resultMapper.findResultPageMatch(MATCH_ID)).thenReturn(Optional.of(pageMatch));
     }

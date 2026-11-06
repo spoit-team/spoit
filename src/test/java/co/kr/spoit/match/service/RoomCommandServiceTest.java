@@ -273,15 +273,17 @@ class RoomCommandServiceTest {
     }
 
     @Test
-    @DisplayName("수신자는 방 상태를 바꾸기 전에 읽는다")
-    void collectsCancelRecipientsBeforeStatusChange() {
+    @DisplayName("수신자를 읽고 FK 검사에 필요한 계정을 잠근 뒤 방 상태를 바꾼다")
+    void locksCancellationAccountsBeforeStatusChange() {
         givenEditable("모집 중", LocalDateTime.of(2026, 11, 8, 10, 0));
         given(mapper.cancelRoom(eq(MATCH_ID), eq("취소"), any(), eq(NOW))).willReturn(1);
+        given(mapper.findCancelRecipientUserIds(eq(MATCH_ID), any(), any())).willReturn(List.of(21L));
 
         service.cancel(MANAGER_ID, MATCH_ID);
 
         InOrder order = inOrder(mapper);
         order.verify(mapper).findCancelRecipientUserIds(eq(MATCH_ID), any(), any());
+        order.verify(mapper).lockCancellationAccounts(List.of(21L, MANAGER_ID));
         order.verify(mapper).cancelRoom(eq(MATCH_ID), eq("취소"), any(), eq(NOW));
     }
 

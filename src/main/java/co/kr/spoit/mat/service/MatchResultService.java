@@ -119,7 +119,7 @@ public class MatchResultService {
     }
 
     /**
-     * 확정 참가자가 본인 경기의 결과 처리 상태와 화면에 보여 줄 경기 정보(일시·시설·양 팀 로스터·제출 마감)를 본다.
+     * 확정 참가자가 본인 경기의 결과 처리 상태와 화면에 보여 줄 경기 정보 및 양 팀 로스터를 본다.
      * 팀장 전용 {@link #getView}와 달리 상대 제출 결과나 재제출 안내를 담지 않는다.
      * 확정 참가자가 아니면 {@link AccessDeniedException}.
      */
@@ -136,12 +136,13 @@ public class MatchResultService {
                 .findFirst()
                 .orElseThrow(() -> new AccessDeniedException("이 경기의 확정 참가자만 결과를 조회할 수 있습니다."));
         String mySide = me.getMatchSide();
-        String facilityName = resultMapper.findResultPageMatch(matchId)
-                .map(ResultPageMatch::getFacilityName)
-                .orElse(null);
+        Optional<ResultPageMatch> pageMatch = resultMapper.findResultPageMatch(matchId);
         return Optional.of(new MatchResultSummary(matchId, match.getStatus(), match.getResultStatus(),
                 match.getRatingStatus(), match.getFinalResult(), mySide, myResultOf(match, me.getParticipantId()),
-                scheduleOf(match), facilityName, deadlineOf(match).format(DATE_TIME),
+                pageMatch.map(ResultPageMatch::getTitle).orElse(null),
+                pageMatch.map(ResultPageMatch::getSportName).orElse(null),
+                scheduleOf(match), pageMatch.map(ResultPageMatch::getFacilityName).orElse(null),
+                deadlineOf(match).format(DATE_TIME),
                 List.of(teamOf(SIDE_A, match.getCaptainAParticipantId(), mySide, confirmed),
                         teamOf(SIDE_B, match.getCaptainBParticipantId(), mySide, confirmed))));
     }

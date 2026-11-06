@@ -156,4 +156,15 @@
          ORDER BY recipient
     </select>
 
+    <select id="lockCancellationAccounts" resultType="java.lang.Long" flushCache="true">
+        SELECT user_id
+          FROM app_user
+         WHERE user_id IN
+               <foreach collection="userIds" item="id" open="(" separator="," close=")">
+                   #{id}
+               </foreach>
+         ORDER BY user_id
+           FOR SHARE NOWAIT
+    </select>
+
 </mapper>
