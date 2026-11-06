@@ -9,6 +9,7 @@
   const escapeHTML = global.PlayOnUI.escapeHTML;
   const title = dialog.querySelector('[data-history-title]');
   const body = dialog.querySelector('[data-history-body]');
+  const kicker = dialog.querySelector('[data-history-kicker]');
 
   const ERROR_MESSAGES = {
     403: '동호회장만 가입 신청자 이력을 볼 수 있습니다.',
@@ -34,8 +35,9 @@
   }
 
   function renderState(heading, message, retry) {
-    body.innerHTML = `<p class="team-dialog-summary"><strong>${escapeHTML(heading)}</strong><br>${escapeHTML(message)}</p>`
-      + (retry ? '<p><button class="team-button team-button-quiet team-button-compact" type="button" data-history-retry>다시 시도</button></p>' : '');
+    body.innerHTML = `<div class="team-history-state"><b>${escapeHTML(heading)}</b><p>${escapeHTML(message)}</p>`
+      + (retry ? '<p><button class="team-history-button" type="button" data-history-retry>다시 시도</button></p>' : '')
+      + '</div>';
   }
 
   function kv(label, value) {
@@ -56,7 +58,7 @@
     const penaltyList = penalties.length
       ? '<div class="team-history-penalties">' + penalties.map(penalty => {
         const until = penalty.endAt ? formatDate(penalty.endAt) + '까지' : '기한 없음';
-        return `<span class="team-badge">${escapeHTML(penalty.penaltyType)} · ${escapeHTML(until)}</span>`;
+        return `<span class="team-history-badge">${escapeHTML(penalty.penaltyType)} · ${escapeHTML(until)}</span>`;
       }).join('') + '</div>'
       : '<p class="team-history-empty">적용 중인 제재가 없습니다.</p>';
 
@@ -106,6 +108,8 @@
 
   function open(trigger) {
     opener = trigger;
+    // 제목 위 작은 글씨: 가입 신청자 이력 / 동호회 이력 (이름 버튼의 data-history-label)
+    kicker.textContent = trigger.dataset.historyLabel || '이력';
     if (!dialog.open) dialog.showModal();
     load({ url: trigger.dataset.historyUrl, name: trigger.textContent.trim() });
   }
