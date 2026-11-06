@@ -9,7 +9,18 @@
     <div class="mypage-heading-copy">
       <p class="mypage-eyebrow">SPO:IT <span aria-hidden="true">/</span> MATCH RESULT</p>
       <h1 id="match-result-title">경기 결과 제출</h1>
-      <p>두 팀장이 같은 결과를 제출하고 평가까지 마치면 레이팅에 반영됩니다.</p>
+      <!-- 단계 상태는 match-result.js가 결과·평가 조회 응답으로 바꾼다 -->
+      <ol th:if="${page != null and page.captain}" class="match-result-steps" data-result-steps aria-label="결과 반영 단계">
+        <li class="match-result-step" data-step="result">
+          <span class="match-result-step-index" aria-hidden="true">1</span><strong>결과 제출</strong><small data-step-state>대기</small>
+        </li>
+        <li class="match-result-step" data-step="evaluation">
+          <span class="match-result-step-index" aria-hidden="true">2</span><strong>선수 평가</strong><small data-step-state>대기</small>
+        </li>
+        <li class="match-result-step" data-step="rating">
+          <span class="match-result-step-index" aria-hidden="true">3</span><strong>레이팅 반영</strong><small data-step-state>대기</small>
+        </li>
+      </ol>
     </div>
     <a th:href="@{/mypage}" class="mypage-edit-link">마이페이지 <span aria-hidden="true">↗</span></a>
   </section>
@@ -64,7 +75,7 @@
         <span class="mypage-section-index" aria-hidden="true">01</span>
         <div>
           <h2 id="match-result-heading">결과 제출</h2>
-          <p>결과가 다르면 마감 전까지 다시 제출할 수 있습니다. 마감까지 확정되지 않으면 레이팅에 반영되지 않습니다.</p>
+          <p th:text="${page.deadlineLabel + '까지 제출하고, 결과가 다르면 다시 제출할 수 있습니다.'}">마감까지 제출하고, 결과가 다르면 다시 제출할 수 있습니다.</p>
         </div>
       </div>
       <p class="auth-message match-result-message" data-result-message role="status" aria-live="polite" hidden></p>
@@ -81,7 +92,7 @@
         <span class="mypage-section-index" aria-hidden="true">02</span>
         <div>
           <h2 id="match-evaluation-heading">선수 평가</h2>
-          <p>함께 뛴 선수를 항목마다 0~10점으로 평가합니다. 보지 못한 항목은 관찰 불가로 고르고, 제출한 평가는 고칠 수 없습니다.</p>
+          <p>모든 칸을 0~10점이나 관찰 불가로 고르고, 제출한 평가는 고칠 수 없습니다.</p>
         </div>
       </div>
       <p class="auth-message match-result-message" data-evaluation-message role="status" aria-live="polite" hidden></p>

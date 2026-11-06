@@ -94,6 +94,19 @@ class MatchResultPageRouteTest {
     }
 
     @Test
+    @DisplayName("팀장에게는 헤더에 결과 제출·선수 평가·레이팅 반영 단계 바를, 결과 섹션에 제출 마감을 그린다")
+    void rendersStepsAndDeadlineForCaptain() throws Exception {
+        givenMatch();
+        givenMembers(teamMember(1L, 7L, "박민서", "A"), teamMember(2L, 12L, "정하늘", "B"));
+
+        mockMvc.perform(get(PATH).with(user(member())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(stringContainsInOrder("data-result-steps",
+                        "결과 제출", "선수 평가", "레이팅 반영", "class=\"match-result-summary\"")))
+                .andExpect(content().string(containsString("2026년 11월 4일 (수) 12:00까지 제출하고, 결과가 다르면 다시 제출할 수 있습니다.")));
+    }
+
+    @Test
     @DisplayName("팀장에게는 결과 섹션 아래에 평가 섹션 자리와 평가 API 주소를 그린다")
     void rendersEvaluationAreaBelowResultForCaptain() throws Exception {
         givenMatch();
@@ -121,6 +134,7 @@ class MatchResultPageRouteTest {
                 .andExpect(content().string(not(containsString("토요 풋살"))))
                 .andExpect(content().string(not(containsString("박민서"))))
                 .andExpect(content().string(not(containsString("data-result-url"))))
+                .andExpect(content().string(not(containsString("data-result-steps"))))
                 .andExpect(content().string(not(containsString("/js/match-result.js"))));
     }
 
@@ -132,7 +146,8 @@ class MatchResultPageRouteTest {
         mockMvc.perform(get(PATH).with(user(member())))
                 .andExpect(status().isNotFound())
                 .andExpect(content().string(containsString("경기 정보를 찾을 수 없습니다.")))
-                .andExpect(content().string(not(containsString("data-result-url"))));
+                .andExpect(content().string(not(containsString("data-result-url"))))
+                .andExpect(content().string(not(containsString("data-result-steps"))));
     }
 
     /** A팀장은 참가자 1, B팀장은 참가자 2 */

@@ -14,16 +14,19 @@
   const csrfToken = root.dataset.csrfToken;
   const body = root.querySelector('[data-result-body]');
   const messageBox = root.querySelector('[data-result-message]');
+  const steps = document.querySelector('[data-result-steps]');
 
   const RESULTS = ['A_WIN', 'DRAW', 'B_WIN'];
   const RESULT_LABELS = { A_WIN: 'A팀 승', DRAW: '무승부', B_WIN: 'B팀 승' };
+  const STEP_LABELS = { done: '완료', current: '진행 중', waiting: '대기', excluded: '제외' };
   const FALLBACK_MESSAGES = {
     403: '이 경기의 팀장만 결과를 제출할 수 있습니다.',
     404: '경기 정보를 찾을 수 없습니다.'
   };
 
-  let view = null;      // 결과 조회 응답
-  let pending = null;   // 확인 단계에 올린 결과
+  let view = null;        // 결과 조회 응답
+  let evaluation = null;  // 평가 조회 응답의 submitted·canSubmit. 평가 영역(match-evaluation.js)이 알려 준다.
+  let pending = null;     // 확인 단계에 올린 결과
   let busy = false;
 
   function teamLabel(result) {
@@ -101,6 +104,42 @@
     body.innerHTML = parts.join('');
   }
 
+  /* 단계 바는 응답이 온 쪽부터 그린다. 응답이 없는 단계는 대기로 둔다.
+     서버가 결과 확정 전에도 평가를 받으므로 1·2단계가 함께 진행 중일 수 있다. */
+  function resultStep() {
+    if (!view) return 'waiting';
+    if (view.finalResult) return 'done';
+    const processed = view.ratingStatus === 'APPLIED' || view.ratingStatus === 'EXCLUDED';
+    return !processed && (view.canSubmit || view.myResult) ? 'current' : 'waiting';
+  }
+
+  function evaluationStep() {
+    if (!evaluation) return 'waiting';
+    if (evaluation.submitted) return 'done';
+    return evaluation.canSubmit ? 'current' : 'waiting';
+  }
+
+  // 확정 뒤 내 평가가 끝났거나 낼 수 없으면 반영만 남는다. 평가 응답이 없으면 알 수 없어 대기로 둔다.
+  function ratingStep() {
+    if (!view) return 'waiting';
+    if (view.ratingStatus === 'APPLIED') return 'done';
+    if (view.ratingStatus === 'EXCLUDED') return 'excluded';
+    return view.finalResult && evaluation && !evaluation.canSubmit ? 'current' : 'waiting';
+  }
+
+  function renderSteps() {
+    if (!steps) return;
+    const states = { result: resultStep(), evaluation: evaluationStep(), rating: ratingStep() };
+    for (const step of steps.querySelectorAll('[data-step]')) {
+      const state = states[step.dataset.step];
+      step.classList.toggle('is-done', state === 'done');
+      step.classList.toggle('is-current', state === 'current');
+      step.querySelector('[data-step-state]').textContent = STEP_LABELS[state];
+      if (state === 'current') step.setAttribute('aria-current', 'step');
+      else step.removeAttribute('aria-current');
+    }
+  }
+
   // 불일치는 제출 자체는 성공이지만 다시 확인해야 하므로 성공색을 쓰지 않는다.
   function showMessage(result) {
     messageBox.textContent = result.message;
@@ -140,10 +179,12 @@
     if (!result.ok || !result.data.mySide) {
       view = null;
       body.innerHTML = `<p class="match-result-error">${escapeHTML(result.message)}</p>`;
+      renderSteps();
       return;
     }
     view = result.data;
     render();
+    renderSteps();
   }
 
   async function submit() {
@@ -181,6 +222,11 @@
     if (busy) return;
     messageBox.hidden = true;
     load();
+  });
+
+  document.addEventListener('match-evaluation:loaded', function (event) {
+    evaluation = event.detail;
+    renderSteps();
   });
 
   load();
