@@ -488,7 +488,7 @@
 
   /* ── 이벤트 ─────────────────────────────────────────────────────── */
 
-  root.addEventListener('click', function (event) {
+  submitSection?.addEventListener('click', function (event) {
     const target = event.target instanceof Element ? event.target : null;
     if (!target || !captain) return;
 

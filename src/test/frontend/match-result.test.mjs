@@ -223,15 +223,24 @@ function flush() {
 
   const win = choices.children.find(child => child.getAttribute('data-result') === 'B_WIN');
   win.result = true;
-  page.root.dispatch('click', { target: win });
+  page.submitSection.dispatch('click', { target: win });
 
   const confirm = page.submitBody.children.find(child => hasClass(child, 'match-result-confirm'));
   assert.ok(confirm, '고르면 제출 확인 단계를 보여 줘야 합니다.');
 
+  // 평가 영역의 같은 동작 이름은 공통 래퍼까지만 버블링한다.
+  for (const action of ['submit', 'cancel']) {
+    const evaluationButton = new SyNode({ action: true });
+    evaluationButton.setAttribute('data-action', action);
+    page.root.dispatch('click', { target: evaluationButton });
+    assert.ok(page.submitBody.children.includes(confirm), '평가 동작은 결과 확인 상태를 바꾸지 않습니다.');
+    assert.ok(!page.calls.some(call => call.method === 'POST'), '평가 동작은 경기 결과를 제출하지 않습니다.');
+  }
+
   const actions = confirm.children.find(child => hasClass(child, 'match-result-confirm-actions'));
   const submit = actions.children.find(child => child.getAttribute('data-action') === 'submit');
   submit.action = true;
-  page.root.dispatch('click', { target: submit });
+  page.submitSection.dispatch('click', { target: submit });
   // 제출 요청과 상태 재조회 사이에 열람 권한이 바뀌었다.
   canViewResult = false;
   await flush();

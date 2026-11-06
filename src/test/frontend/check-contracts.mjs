@@ -643,20 +643,28 @@ check(operationsSource.includes('th:each="roomApplication : ${match.applications
 check(!/th:each="application\s*:/.test(operationsSource),
   'operations.html: the application loop variable must not use the reserved name "application"');
 for (const field of ['roomApplication.applicantName', 'roomApplication.kindLabel',
-  'roomApplication.statusLabel', 'roomApplication.receiptNo', 'roomApplication.createdAtLabel',
+  'roomApplication.statusLabel', 'roomApplication.createdAtLabel',
   'participant.name', 'participant.teamLabel', 'participant.statusLabel']) {
   check(operationsSource.includes(field), `operations.html: ${field} must be rendered`);
 }
 check(operationsSource.includes('#lists.isEmpty(match.applications)')
   && operationsSource.includes('#lists.isEmpty(match.participants)'),
   'operations.html: both lists need an empty state');
-// 조회 전용: 쓰기 폼·제출 버튼·없는 getter(seats/members 등)를 참조하지 않는다.
+// 승인·반려와 팀 배정은 폼 없이 API로 처리한다.
 check(!/<form\b/.test(operationsSource) && !/th:action=/.test(operationsSource),
-  'operations.html: the read-only detail must not contain write forms');
+  'operations.html: write actions must not use forms');
 check(!/type="submit"/.test(operationsSource),
-  'operations.html: the read-only detail must not offer submit actions');
-check(!/opsApplication|match\.pendingGroups|match\.teamA|match\.canAssign|match\.status ==/.test(operationsSource),
-  'operations.html: unimplemented confirm/reject/assign/complete controls must stay out of the page');
+  'operations.html: API actions must use regular buttons');
+check(!/opsApplication|match\.pendingGroups|match\.teamA\b|match\.canAssign|match\.status ==/.test(operationsSource)
+  && !/data-(?:action|decision)="complete"/.test(operationsSource),
+  'operations.html: unsupported model bindings and completion controls must stay out of the page');
+check(operationsSource.includes('th:data-decision-url="@{/admin/operations/applications}"')
+  && operationsSource.includes('th:if="${roomApplication.decidable}"'),
+  'operations.html: application decisions must use the operations API and be gated per row');
+for (const decision of ['confirm', 'reject']) {
+  const action = new RegExp(String.raw`data-decision="${decision}"\s+th:data-application-id="\$\{roomApplication\.applicationId\}"`);
+  check(action.test(operationsSource), `operations.html: ${decision} must target the application row ID`);
+}
 check(operationsSource.includes('@{/admin/facility(view=\'bookings\')}'),
   'operations.html: the detail must link back to the booking list');
 
