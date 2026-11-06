@@ -23,6 +23,21 @@ public class ClubSearchForm {
         return q.trim();
     }
 
+    public String getLikeQuery() {
+        String query = getQuery();
+        if (query == null) {
+            return null;
+        }
+        StringBuilder escaped = new StringBuilder();
+        for (char c : query.toCharArray()) {
+            if (c == '!' || c == '%' || c == '_') {
+                escaped.append('!');
+            }
+            escaped.append(c);
+        }
+        return escaped.toString();
+    }
+
     public boolean isRecruitingOnly() {
         return recruiting;
     }

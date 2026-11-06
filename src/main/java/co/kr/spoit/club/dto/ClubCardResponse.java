@@ -19,7 +19,6 @@ public class ClubCardResponse {
     private final String tierLabel;
     private final Integer maxMembers;
     private final String time;
-    private final String footerNote;
     private final String sportKey;
     private final String tierKey;
     private final int markTone;
@@ -35,11 +34,10 @@ public class ClubCardResponse {
                 .sportName(club.getSportName())
                 .areaLabel(ClubFormat.areaLabel(club.getAreaLabel()))
                 .recruiting(recruiting)
-                .statusLabel(recruiting ? "팀원 모집 중" : "모집 마감")
+                .statusLabel(recruiting ? "모집 중" : "모집 마감")
                 .memberCount(club.getMemberCount())
                 .maxMembers(club.getMaxMembers())
                 .time(ClubFormat.time(club))
-                .footerNote(ClubFormat.footerNote(recruiting, club))
                 .tierLabel(ClubFormat.tierLabel(club.getAverageMmr()))
                 .sportKey(ClubFormat.sportKey(club.getSportId()))
                 .tierKey(ClubFormat.tierKey(club.getAverageMmr()))

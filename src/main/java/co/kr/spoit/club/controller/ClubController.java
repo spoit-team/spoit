@@ -82,7 +82,7 @@ public class ClubController {
         model.addAttribute("managedClubs", clubService.findMyClubs(userId, activeClubId));
         model.addAttribute("managedClub", managedClub);
         String activeTab = "team";
-        if ("members".equals(tab) || "applications".equals(tab)) {
+        if ("members".equals(tab) || "upcoming".equals(tab) || "recent".equals(tab) || "applications".equals(tab)) {
             activeTab = tab;
         }
         model.addAttribute("tab", activeTab);
@@ -117,7 +117,7 @@ public class ClubController {
         }
 
         log.info("동호회 생성 완료: clubId={}", clubId);
-        redirectAttributes.addFlashAttribute("message", "팀을 만들었습니다.");
+        redirectAttributes.addFlashAttribute("message", "동호회를 만들었습니다.");
         return "redirect:/teams/manage?clubId=" + clubId;
     }
 
@@ -145,7 +145,7 @@ public class ClubController {
             redirectAttributes.addFlashAttribute("error", exception.getMessage());
             return "redirect:/teams/manage?clubId=" + clubId;
         }
-        redirectAttributes.addFlashAttribute("message", "팀 정보를 수정했습니다.");
+        redirectAttributes.addFlashAttribute("message", "동호회 정보를 수정했습니다.");
         return "redirect:/teams/manage?clubId=" + clubId;
     }
 
@@ -226,7 +226,7 @@ public class ClubController {
         log.info("동호회장 위임 요청: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
         try {
             clubService.transferLeader(userId, clubId, clubMemberId);
-            redirectAttributes.addFlashAttribute("message", "팀장을 위임했습니다.");
+            redirectAttributes.addFlashAttribute("message", "동호회장을 위임했습니다.");
         } catch (IllegalArgumentException exception) {
             log.warn("동호회장 위임 거부: clubId={}, clubMemberId={}, {}", clubId, clubMemberId, exception.getMessage());
             redirectAttributes.addFlashAttribute("error", exception.getMessage());
@@ -247,7 +247,7 @@ public class ClubController {
             redirectAttributes.addFlashAttribute("error", exception.getMessage());
             return "redirect:/teams/manage?clubId=" + clubId;
         }
-        redirectAttributes.addFlashAttribute("message", "팀을 탈퇴했습니다.");
+        redirectAttributes.addFlashAttribute("message", "동호회를 탈퇴했습니다.");
         return "redirect:/teams/manage";
     }
 
@@ -261,7 +261,7 @@ public class ClubController {
         log.info("동호회원 추방 요청: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
         try {
             clubService.kickMember(userId, clubId, clubMemberId, kickReason);
-            redirectAttributes.addFlashAttribute("message", "팀원을 추방했습니다.");
+            redirectAttributes.addFlashAttribute("message", "동호회원을 추방했습니다.");
         } catch (IllegalArgumentException exception) {
             log.warn("동호회원 추방 거부: clubId={}, clubMemberId={}, {}", clubId, clubMemberId, exception.getMessage());
             redirectAttributes.addFlashAttribute("error", exception.getMessage());
@@ -283,7 +283,7 @@ public class ClubController {
             redirectAttributes.addFlashAttribute("error", exception.getMessage());
             return "redirect:/teams/manage?clubId=" + clubId;
         }
-        redirectAttributes.addFlashAttribute("message", "팀을 해체했습니다.");
+        redirectAttributes.addFlashAttribute("message", "동호회를 해체했습니다.");
         return "redirect:/teams/manage";
     }
 }
