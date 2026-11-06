@@ -61,20 +61,6 @@
   </div>
 </header>
 
-<!-- 매치 상세·신청 화면 헤더 -->
-<header th:fragment="simpleHeader(active)" class="match-join-header">
-  <div class="match-join-header-inner">
-    <a th:href="@{/matches}" class="flex shrink-0 items-center gap-2.5" aria-label="SPO:IT 홈">
-      <img class="size-[34px] shrink-0" th:src="@{/images/spoit-mark.svg}" alt="" aria-hidden="true" />
-      <span class="flex flex-col leading-none"><b class="text-[16px] font-extrabold tracking-[-.04em]">SPO<span style="color:#5FAE4E">:</span>IT</b><small class="mt-1 hidden whitespace-nowrap text-[8px] font-medium tracking-[.01em] text-faint xl:block">SPORTS · PEOPLE · CONNECTION</small></span>
-    </a>
-    <nav class="match-join-header-nav" aria-label="주요 메뉴">
-      <a th:href="@{/matches}" th:aria-current="${active == 'matches' ? 'page' : null}">매칭방 찾기</a>
-      <a th:href="@{/mypage#reservations}">내 신청 내역</a>
-    </nav>
-  </div>
-</header>
-
 <!-- 공통 푸터 -->
 <footer th:fragment="siteFooter" class="bg-white py-9">
   <div class="wrap">
