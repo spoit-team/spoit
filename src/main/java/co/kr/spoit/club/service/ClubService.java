@@ -1,6 +1,8 @@
 package co.kr.spoit.club.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import co.kr.spoit.club.domain.ClubRegionOption;
 import co.kr.spoit.club.domain.ClubSportOption;
@@ -8,10 +10,13 @@ import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.ClubMemberHistoryView;
 import co.kr.spoit.club.dto.ClubWithdrawalBlocks;
 import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.dto.ClubSportTabResponse;
 import co.kr.spoit.club.dto.MyClubResponse;
+import co.kr.spoit.club.dto.MyJoinRequestResponse;
+import co.kr.spoit.mat.dto.ParticipantHistoryView;
 
 public interface ClubService {
 
@@ -46,6 +51,16 @@ public interface ClubService {
     // 가입 신청
     void applyJoin(Long userId, Long clubId, String message);
 
+    // 내 가입 신청 목록(대기중) - 관리 화면 맨위
+    List<MyJoinRequestResponse> findMyPendingJoinRequests(Long userId);
+
+    // 가입 신청자 개인 이력(동호회장만)
+    Optional<ParticipantHistoryView> findApplicantHistory(Long clubId, Long joinRequestId, Long userId,
+            LocalDateTime now);
+
+    // 동호회 이력(로그인 회원 누구나)
+    Optional<ClubMemberHistoryView> findMemberHistory(Long clubId, Long clubMemberId, LocalDateTime now);
+
     // 가입 신청 승인
     void approveJoin(Long userId, Long clubId, Long joinRequestId);
 
@@ -73,8 +88,10 @@ public interface ClubService {
     /**
      * 동호회 행을 잠그고 최신 값을 돌려준다. 없거나 해체됐으면 null.
      *
-     * <p>다른 도메인이 동호회 행을 먼저 잠가야 할 때(팀 매치 신청의 잠금 순서) 사용한다.
-     * 반드시 쓰기 트랜잭션 안에서 호출해야 한다.</p>
+     * <p>
+     * 다른 도메인이 동호회 행을 먼저 잠가야 할 때(팀 매치 신청의 잠금 순서) 사용한다.
+     * 반드시 쓰기 트랜잭션 안에서 호출해야 한다.
+     * </p>
      */
     co.kr.spoit.club.domain.ClubSummary lockActiveClub(Long clubId);
 

@@ -16,6 +16,7 @@ import co.kr.spoit.club.domain.ClubSportOption;
 import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.club.dto.ClubBlockRow;
 import co.kr.spoit.club.dto.ClubSearchForm;
+import co.kr.spoit.mat.domain.RecentRatingChange;
 
 @Mapper
 public interface ClubMapper {
@@ -77,11 +78,33 @@ public interface ClubMapper {
         // 대기중 가입 신청 목록(먼저 신청 순)
         List<ClubJoinRequest> selectPendingJoinRequests(@Param("clubId") Long clubId);
 
+        // 내 가입 신청 목록(대기중, 최근 신청 순)
+        List<ClubJoinRequest> selectMyPendingJoinRequests(@Param("userId") Long userId);
+
         // 관리 화면 예정 일정
-        List<ClubSchedule> selectUpcomingSchedules(@Param ("clubId") Long clubId, @Param ("now") LocalDateTime now);
+        List<ClubSchedule> selectUpcomingSchedules(@Param("clubId") Long clubId, @Param("now") LocalDateTime now);
 
         // 관리 화면 지난 일정
-        List<ClubSchedule> selectRecentSchedules(@Param ("clubId") Long clubId, @Param ("now") LocalDateTime now);
+        List<ClubSchedule> selectRecentSchedules(@Param("clubId") Long clubId, @Param("now") LocalDateTime now);
+
+        // 동호회 이력 화면
+        ClubMember selectActiveMemberWithLeaderById(@Param("clubId") Long clubId,
+                        @Param("clubMemberId") Long clubMemberId);
+
+        int countClubRatedMatches(@Param("clubId") Long clubId, @Param("userId") Long userId,
+                        @Param("sportId") Long sportId);
+
+        List<RecentRatingChange> selectClubRecentChanges(@Param("clubId") Long clubId, @Param("userId") Long userId,
+                        @Param("sportId") Long sportId, @Param("limit") int limit);
+
+        int countClubExcludedMatches(@Param("clubId") Long clubId, @Param("userId") Long userId,
+                        @Param("confirmedStatus") String confirmedStatus,
+                        @Param("excludedStatus") String excludedStatus,
+                        @Param("matchedStatus") String matchedStatus, @Param("closedStatus") String closedStatus);
+
+        LocalDateTime selectLastClubMatchAt(@Param("clubId") Long clubId, @Param("userId") Long userId,
+                        @Param("confirmedStatus") String confirmedStatus, @Param("matchedStatus") String matchedStatus,
+                        @Param("closedStatus") String closedStatus, @Param("now") LocalDateTime now);
 
         // 처리할 가입 신청(대기중)
         ClubJoinRequest selectPendingJoinRequestById(@Param("clubId") Long clubId,

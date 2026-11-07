@@ -246,11 +246,26 @@
         ORDER BY r.requested_at ASC
     </select>
 
+    <select id="selectMyPendingJoinRequests" resultType="co.kr.spoit.club.domain.ClubJoinRequest">
+        SELECT r.request_id AS joinRequestId
+                ,r.club_id AS clubId
+                ,c.club_name AS clubName
+                ,r.requested_at AS requestedAt
+        FROM club_join_request r
+        JOIN club c ON c.club_id = r.club_id
+        WHERE r.user_id = #{userId}
+            AND r.status = '대기중'
+            AND c.deleted_at IS NULL
+        ORDER BY r.requested_at DESC
+    </select>
+
     <select id="selectPendingJoinRequestById" resultType="co.kr.spoit.club.domain.ClubJoinRequest">
-        SELECT request_id AS joinRequestId
-            ,user_id AS userId
-        FROM club_join_request
-        WHERE club_id = #{clubId} AND request_id = #{joinRequestId} AND status = '대기중'
+        SELECT r.request_id AS joinRequestId
+            ,r.user_id AS userId
+            ,u.nickname AS nickname
+        FROM club_join_request r
+        JOIN app_user u ON r.user_id = u.user_id
+        WHERE r.club_id = #{clubId} AND r.request_id = #{joinRequestId} AND r.status = '대기중'
     </select>
 
     <update id="updateJoinRequestStatus">
@@ -329,6 +344,66 @@
             AND sm.status IN ('매칭 완료', '종료')
             AND sm.end_at &lt; #{now}
             ORDER BY sm.start_at DESC, sm.match_id DESC
+    </select>
+
+    <!-- 이력 대상 동호회원 조회: 동호회장도 포함 (selectActiveMemberById는 동호회원만) -->
+    <select id="selectActiveMemberWithLeaderById" resultType="co.kr.spoit.club.domain.ClubMember">
+        SELECT m.club_member_id AS clubMemberId
+            ,m.user_id AS userId
+            ,u.nickname AS nickname
+        FROM club_member m
+        JOIN app_user u ON u.user_id = m.user_id
+        WHERE m.club_id = #{clubId} AND m.club_member_id = #{clubMemberId}
+            AND m.left_at IS NULL
+    </select>
+
+    <!-- 동호회 경기 레이팅 반영 수 -->
+    <select id="countClubRatedMatches" resultType="int">
+        SELECT COUNT(*)
+        FROM sport_rating_history h
+        JOIN match_participant mp ON mp.participant_id = h.participant_id
+        JOIN match_application ma ON ma.application_id = mp.application_id
+        WHERE h.user_id = #{userId} AND h.sport_id = #{sportId}
+            AND ma.club_id = #{clubId} AND ma.application_type = '동호회'
+    </select>
+
+    <!-- 동호회 경기 최근 레이팅 변동 (MAT findRecentChanges와 같은 정렬) -->
+    <select id="selectClubRecentChanges" resultType="co.kr.spoit.mat.domain.RecentRatingChange">
+        SELECT h.calculated_at AS calculatedAt
+            ,h.final_delta AS finalDelta
+        FROM sport_rating_history h
+        JOIN match_participant mp ON mp.participant_id = h.participant_id
+        JOIN match_application ma ON ma.application_id = mp.application_id
+        WHERE h.user_id = #{userId} AND h.sport_id = #{sportId}
+            AND ma.club_id = #{clubId} AND ma.application_type = '동호회'
+        ORDER BY h.calculated_at DESC, h.history_id DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 동호회 경기 중 레이팅 제외 수 (MAT countExcludedMatches와 같은 조건) -->
+    <select id="countClubExcludedMatches" resultType="int">
+        SELECT COUNT(DISTINCT mp.match_id)
+        FROM match_participant mp
+        JOIN social_match sm ON sm.match_id = mp.match_id
+        JOIN match_application ma ON ma.application_id = mp.application_id
+        WHERE mp.user_id = #{userId}
+            AND mp.participation_status = #{confirmedStatus}
+            AND sm.rating_status = #{excludedStatus}
+            AND sm.status IN (#{matchedStatus}, #{closedStatus})
+            AND ma.club_id = #{clubId} AND ma.application_type = '동호회'
+    </select>
+
+    <!-- 마지막 동호회 경기일 (지난 일정 탭과 같은 기준, 없으면 NULL) -->
+    <select id="selectLastClubMatchAt" resultType="java.time.LocalDateTime">
+        SELECT MAX(sm.start_at)
+        FROM match_participant mp
+        JOIN social_match sm ON sm.match_id = mp.match_id
+        JOIN match_application ma ON ma.application_id = mp.application_id
+        WHERE mp.user_id = #{userId}
+            AND mp.participation_status = #{confirmedStatus}
+            AND sm.status IN (#{matchedStatus}, #{closedStatus})
+            AND sm.end_at &lt; #{now}
+            AND ma.club_id = #{clubId} AND ma.application_type = '동호회'
     </select>
     
     <!-- 탈퇴 차단 사유: 동호회장으로 있는 활성 소속(해체된 동호회 제외). 동호회 id 기준으로 한 번씩 -->
