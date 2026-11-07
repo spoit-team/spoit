@@ -48,6 +48,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import co.kr.spoit.mat.dto.SportRatingResponse;
 import co.kr.spoit.mat.service.MatchResultPageService;
+import co.kr.spoit.mat.service.MyRatingRecordService;
 import co.kr.spoit.mat.service.SportRatingService;
 import co.kr.spoit.match.dto.MyReservations;
 import co.kr.spoit.match.service.MatchApplicationService;
@@ -88,7 +89,8 @@ class MyPageControllerTest {
         resultPageService = mock(MatchResultPageService.class);
         given(resultPageService.findResultSubmittableMatchIds(any())).willReturn(Set.of());
         mockMvc = MockMvcBuilders.standaloneSetup(new MyPageController(
-                memberService, sportRatingService, reservationService, applicationService, resultPageService)).build();
+                memberService, sportRatingService, reservationService, applicationService, resultPageService,
+                mock(MyRatingRecordService.class))).build();
     }
 
     @Test

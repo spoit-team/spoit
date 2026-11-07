@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import co.kr.spoit.mat.dto.SportRatingResponse;
 import co.kr.spoit.mat.service.MatchResultPageService;
+import co.kr.spoit.mat.service.MyRatingRecordService;
 import co.kr.spoit.mat.service.SportRatingService;
 import co.kr.spoit.match.dto.MyReservations;
 import co.kr.spoit.match.service.MatchApplicationService;
@@ -69,6 +70,7 @@ public class MyPageController {
     private final MyReservationService reservationService;
     private final MatchApplicationService applicationService;
     private final MatchResultPageService resultPageService;
+    private final MyRatingRecordService ratingRecordService;
 
     /** 폼 바인딩 대상 필드를 제한해 의도하지 않은 값 주입을 막는다. */
     @InitBinder("profileUpdateForm")
@@ -85,7 +87,8 @@ public class MyPageController {
     /** 마이페이지 요약 화면. 비로그인 상태는 세션 주체가 없어 빈 값으로 렌더링된다. */
     @GetMapping("/mypage")
     public String myPage(Authentication authentication, HttpServletRequest request, Model model,
-            @RequestParam(name = "message", required = false) String message) {
+            @RequestParam(name = "message", required = false) String message,
+            @RequestParam(name = "recordSport", required = false) String recordSport) {
         // 신청 취소 폼이 있으므로 지연 생성되는 CSRF 토큰을 렌더링 전에 확정한다.
         // standalone MockMvc에서는 시큐리티 필터가 없어 속성이 비어 있을 수 있다.
         if (request.getAttribute(CsrfToken.class.getName()) instanceof CsrfToken csrfToken) {
@@ -99,13 +102,8 @@ public class MyPageController {
         model.addAttribute("member", memberView(principal));
         model.addAttribute("summary", summaryView(userId, reservations));
         model.addAttribute("otherSports", EMPTY_LIST);
-        model.addAttribute("sports", EMPTY_LIST);
-        model.addAttribute("selectedSport", "all");
-        model.addAttribute("historyTotalCount", 0);
-        model.addAttribute("historyFilterLabel", "전체 종목");
-        model.addAttribute("historyCount", 0);
-        model.addAttribute("history", EMPTY_LIST);
-        model.addAttribute("historyEmptyNote", "확정된 경기 기록이 없습니다.");
+        // 종목 필터 값이 잘못돼도 오류 없이 전체로 보이도록 문자열로 받아 서비스에 넘긴다.
+        model.addAttribute("records", ratingRecordService.find(userId, recordSport));
         model.addAttribute("currentReservations", reservations.getCurrent());
         model.addAttribute("pastReservations", reservations.getPast());
         model.addAttribute("resultSubmitMatchIds", resultPageService.findResultSubmittableMatchIds(userId));
