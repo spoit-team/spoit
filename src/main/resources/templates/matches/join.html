@@ -2,7 +2,7 @@
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head('매치 참가 신청 · SPO:IT', 'SPO:IT 매칭방 신청 내용을 확인하고 참가 신청을 접수합니다.', ${ {'match-join.css'} })}"></head>
 <body class="match-join-body">
-<header th:replace="~{fragments/layout :: simpleHeader('matches')}"></header>
+<header th:replace="~{fragments/layout :: siteHeader('matches')}"></header>
 
 <main class="match-join-wrap">
   <a th:href="@{/matches}" class="match-join-back"><span aria-hidden="true">←</span> 매칭방 목록</a>
@@ -206,6 +206,7 @@
 <footer th:replace="~{fragments/layout :: simpleFooter}"></footer>
 
 <script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/site-menu.js}"></script>
 <script th:src="@{/js/match-join-page.js}" th:attr="data-completed=${completed}"></script>
 </body>
 </html>
