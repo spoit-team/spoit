@@ -101,7 +101,8 @@ public class TeamAssignmentService {
         if (rejection.isPresent()) {
             return rejection.get();
         }
-        AssignmentResult result = autoAssignmentService.evaluate(match, participantMapper.findByMatchId(matchId));
+        List<MatchParticipant> participants = participantMapper.findByMatchId(matchId);
+        AssignmentResult result = autoAssignmentService.evaluate(match, participants);
         if (result.outcome() != Outcome.READY) {
             return result;
         }
@@ -109,6 +110,7 @@ public class TeamAssignmentService {
         save(match, assignment.teamAParticipantIds(), assignment.teamBParticipantIds(),
                 assignment.captainAParticipantId(), assignment.captainBParticipantId(),
                 AssignmentMethod.AUTO, managerUserId, LocalDateTime.now(ZONE));
+        notifyAssigned(matchId, participants, "관리자가 자동 배정으로 팀을 확정했습니다.");
         return AssignmentResult.assigned();
     }
 
@@ -133,6 +135,7 @@ public class TeamAssignmentService {
         }
         save(match, teamA, teamB, captainOf(teamA, confirmed), captainOf(teamB, confirmed),
                 AssignmentMethod.MANUAL, managerUserId, LocalDateTime.now(ZONE));
+        notifyAssigned(matchId, participants, "관리자가 수동 배정으로 팀을 확정했습니다.");
         return AssignmentResult.assigned();
     }
 
@@ -185,11 +188,7 @@ public class TeamAssignmentService {
                 save(match, assignment.teamAParticipantIds(), assignment.teamBParticipantIds(),
                         assignment.captainAParticipantId(), assignment.captainBParticipantId(),
                         AssignmentMethod.AUTO, null, now);
-                List<Long> recipients = AutoAssignmentService.confirmedOf(participants).stream()
-                        .map(MatchParticipant::getUserId)
-                        .toList();
-                matchNotifier.notifyAfterCommit(recipients, matchId, NotificationType.MATCH_AUTO_ASSIGNED,
-                        "경기 팀 배정 완료", "경기 시작 시각이 되어 팀이 자동으로 배정되었습니다.");
+                notifyAssigned(matchId, participants, "경기 시작 시각이 되어 팀이 자동으로 배정되었습니다.");
                 log.info("경기 시작 자동 배정: matchId={}, 차이={}", matchId, assignment.mmrDifference());
                 return StartResult.ASSIGNED;
             }
@@ -205,6 +204,16 @@ public class TeamAssignmentService {
                 return StartResult.SKIPPED;
             }
         }
+    }
+
+    /** 배정 확정 커밋 뒤 확정 참가자에게만 알린다. 대기·취소 참가자는 받지 않는다. */
+    private void notifyAssigned(long matchId, List<MatchParticipant> participants, String body) {
+        List<Long> recipients = AutoAssignmentService.confirmedOf(participants).stream()
+                .map(MatchParticipant::getUserId)
+                .distinct()
+                .toList();
+        matchNotifier.notifyAfterCommit(recipients, matchId, NotificationType.MATCH_AUTO_ASSIGNED,
+                "경기 팀 배정 완료", body);
     }
 
     private StartResult cancel(AssignmentMatch match, LocalDateTime now, String reason, String noticeBody) {

@@ -81,6 +81,7 @@ public class ClubController {
 
         model.addAttribute("managedClubs", clubService.findMyClubs(userId, activeClubId));
         model.addAttribute("managedClub", managedClub);
+        model.addAttribute("myJoinRequests", clubService.findMyPendingJoinRequests(userId));
         String activeTab = "team";
         if ("members".equals(tab) || "upcoming".equals(tab) || "recent".equals(tab) || "applications".equals(tab)) {
             activeTab = tab;
@@ -205,6 +206,8 @@ public class ClubController {
     // 가입 신청 취소
     @PostMapping("/{clubId}/applications/{joinRequestId}/cancel")
     public String cancel(@PathVariable("clubId") Long clubId, @PathVariable("joinRequestId") Long joinRequestId,
+            @RequestParam(value = "returnTab", required = false) String returnTab,
+            @RequestParam(value = "returnClubId", required = false) Long returnClubId,
             @AuthenticationPrincipal MemberPrincipal principal, RedirectAttributes redirectAttributes) {
         Long userId = principal.getUserId();
         log.info("가입 신청 취소 요청: clubId={}, joinRequestId={}, userId={}", clubId, joinRequestId, userId);
@@ -214,6 +217,13 @@ public class ClubController {
         } catch (IllegalArgumentException exception) {
             log.warn("가입 신청 취소 거부: clubId={}, joinRequestId={}, {}", clubId, joinRequestId, exception.getMessage());
             redirectAttributes.addFlashAttribute("error", exception.getMessage());
+        }
+        if (returnTab != null){
+            if(returnClubId != null){
+                redirectAttributes.addAttribute("clubId", returnClubId);
+            }
+            redirectAttributes.addAttribute("tab", returnTab);
+            return "redirect:/teams/manage";
         }
         return "redirect:/teams/" + clubId;
     }

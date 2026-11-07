@@ -1617,72 +1617,28 @@
 .mypage-notification-action.is-delete:hover { border-color: #e6c8c4; color: #a43a35; }
 .mypage-notification-empty { padding: 28px 12px; color: var(--color-muted); font-size: 12px; text-align: center; }
 
-.mypage-notification-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgb(19 21 25 / 48%);
-}
-
-.mypage-notification-backdrop[hidden] { display: none; }
-.mypage-notification-dialog {
-  display: flex;
-  width: min(100%, 560px);
-  max-height: min(86vh, 720px);
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 78%);
-  border-radius: 16px;
-  background: var(--color-paper);
-  box-shadow: 0 24px 60px rgb(19 21 25 / 25%);
-}
-.mypage-notification-dialog-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 23px 24px 16px;
-  border-bottom: 1px solid var(--color-line);
-}
-.mypage-notification-dialog-header span { color: var(--color-book-ink); font-size: 9px; font-weight: 800; letter-spacing: .08em; }
-.mypage-notification-dialog-header h2 { margin: 4px 0 0; color: var(--color-ink); font-size: 20px; font-weight: 800; letter-spacing: -.035em; }
-.mypage-notification-dialog-header p { margin: 4px 0 0; color: var(--color-muted); font-size: 11px; line-height: 1.5; }
-.mypage-notification-close {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: var(--color-paper-soft);
-  color: var(--color-muted);
-  font-size: 20px;
-}
-.mypage-notification-close:hover { background: var(--color-line); color: var(--color-ink); }
-.mypage-notification-modal-summary { padding: 12px 24px 0; color: var(--color-muted); font-size: 10px; font-weight: 700; }
-.mypage-notification-dialog .mypage-notification-list { min-height: 120px; flex: 1; overflow: auto; padding: 0 24px; }
-.mypage-notification-dialog-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 24px 20px; border-top: 1px solid var(--color-line); }
-.mypage-notification-dialog-footer .mypage-text-button { margin: 0; }
-.mypage-notification-done {
-  min-height: 38px;
-  padding: 0 15px;
-  border: 1px solid var(--color-ink);
-  border-radius: 8px;
-  background: var(--color-ink);
-  color: white;
-  font-size: 11px;
-  font-weight: 800;
-}
-.mypage-notification-done:hover { background: var(--color-ink-2); }
-.mypage-page.has-notification-modal { overflow: hidden; }
+/* 알림 창 자체의 모양은 notification-center.css가 맡는다(헤더·마이페이지·관리자가 같은 조각을 쓴다). */
 
 .mypage-notifications-heading {
   align-items: flex-start;
 }
+
+/* 마이페이지 메뉴의 미확인 수: 배지처럼 좁게 유지하고 0건이면 숨긴다. */
+.mypage-nav-count {
+  display: inline-grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  padding-inline: 5px;
+  border-radius: 999px;
+  background: var(--color-book-soft);
+  color: var(--color-book-ink);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.mypage-nav-count[hidden] { display: none; }
 
 .mypage-unread-count {
   color: var(--color-book-ink);
@@ -2005,15 +1961,6 @@
     justify-self: start;
     margin: 0;
   }
-}
-
-@media (max-width: 520px) {
-  .mypage-notification-backdrop { align-items: end; padding: 0; }
-  .mypage-notification-dialog { width: 100%; max-height: 88vh; border-right: 0; border-bottom: 0; border-left: 0; border-radius: 16px 16px 0 0; }
-  .mypage-notification-dialog-header { padding: 20px 18px 14px; }
-  .mypage-notification-modal-summary { padding-right: 18px; padding-left: 18px; }
-  .mypage-notification-dialog .mypage-notification-list { padding-right: 18px; padding-left: 18px; }
-  .mypage-notification-dialog-footer { padding-right: 18px; padding-left: 18px; }
 }
 
 @media (max-width: 360px) {

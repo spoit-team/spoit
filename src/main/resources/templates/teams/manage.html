@@ -16,6 +16,29 @@
 
   <p th:if="${message != null}" id="team-management-message" class="team-status-message" role="status" th:text="${message}">동호회 관리 안내</p>
   <p th:if="${error != null}" id="team-management-error" class="team-status-message is-error" role="alert" th:text="${error}">동호회 관리 요청을 처리하지 못했습니다.</p>
+  <!-- 내 가입 신청: 대기중만, 소속 동호회가 없어도 보임 -->
+  <section th:if="${!#lists.isEmpty(myJoinRequests)}" class="team-management-section" aria-labelledby="my-join-requests-title">
+    <div class="team-section-heading">
+      <div><h2 id="my-join-requests-title">내 가입 신청</h2><p>동호회장이 승인하면 동호회원이 됩니다.</p></div>
+      <span class="team-badge" th:text="${#lists.size(myJoinRequests) + '건'}">0건</span>
+    </div>
+    <div class="team-application-list">
+      <article th:each="joinRequest : ${myJoinRequests}" class="team-application-row">
+        <div class="team-application-copy">
+          <div class="team-member-name"><a th:href="@{/teams/{clubId}(clubId=${joinRequest.clubId})}" th:text="${joinRequest.clubName}">동호회 이름</a></div>
+          <p th:text="${'신청 ' + joinRequest.date + ' · 대기중'}">신청일 · 대기중</p>
+        </div>
+        <div class="team-application-actions">
+          <form method="post" th:action="@{/teams/{clubId}/applications/{joinRequestId}/cancel(clubId=${joinRequest.clubId}, joinRequestId=${joinRequest.joinRequestId})}">
+            <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+            <input type="hidden" name="returnTab" th:value="${tab}" />
+            <input type="hidden" th:if="${managedClub != null}" name="returnClubId" th:value="${managedClub.clubId}" />
+            <button class="team-button team-button-quiet team-button-compact" type="submit">신청 취소</button>
+          </form>
+        </div>
+      </article>
+    </div>
+  </section>
 
   <div id="managed-team-selector" class="managed-team-selector">
     <span th:if="${!#lists.isEmpty(managedClubs)}" class="managed-team-label">관리할 동호회</span>
@@ -112,15 +135,19 @@
           <article th:each="member : ${managedClub.members}" class="team-row">
             <div class="team-member-identity">
               <span class="team-roster-avatar" aria-hidden="true" th:text="${member.initials}">동호회</span>
-              <div><div class="team-member-name" th:text="${member.nickname + (member.current ? ' · 나' : '')}"></div><div class="team-member-handle" th:text="${'가입 ' + member.joined}">가입일</div></div>
-            </div>
+              <div><div class="team-member-name"><button class="team-history-name" type="button" data-history-label="동호회 이력"
+                th:data-history-url="@{/teams/{clubId}/members/{clubMemberId}/history(clubId=${managedClub.clubId}, clubMemberId=${member.clubMemberId})}"
+                th:aria-label="${member.nickname + ' 동호회 이력 보기'}" th:text="${member.nickname}">동호회원</button><th:block th:if="${member.current}"> · 나</th:block></div><div class="team-member-handle" th:text="${'가입 ' + member.joined}">가입일</div>
+              </div>
+              </div>
             <div class="team-row-actions">
               <span th:if="${member.leader}" class="team-member-role">동호회장</span>
               <!-- <span th:if="${member.leader or !managedClub.leader}" class="team-member-role" th:text="${member.leader ? '동호회장' : '동호회원'}">동호회원</span> -->
                <th:block th:if="${managedClub.leader and !member.leader}">
                 <button class="team-button team-button-quiet team-button-compact" type="button" data-team-transfer th:attr="data-member-id=${member.clubMemberId},data-member-name=${member.nickname}">동호회장 위임</button>
                 <button class="team-button team-button-danger team-button-compact" type="button" data-team-remove-member th:attr="data-member-id=${member.clubMemberId},data-member-name=${member.nickname}">추방</button>
-            </div>
+               </th:block>
+              </div>
           </article>
         </div>
         <!--추방 미구현: <p class="team-management-note">동호회장 위임과 동호회원 추방은 서버에 요청되며, 처리 결과는 감사 기록과 함께 저장됩니다.</p> -->
@@ -135,7 +162,9 @@
         <div class="team-application-list">
           <article th:each="joinRequest : ${managedClub.applications}" class="team-application-row">
             <div class="team-application-copy">
-              <div class="team-member-name"><span th:text="${joinRequest.nickname}">신청자</span></div>
+              <div class="team-member-name"><button class="team-history-name" type="button" data-history-label="가입 신청자 이력"
+                th:data-history-url="@{/teams/{clubId}/applications/{joinRequestId}/history(clubId=${managedClub.clubId}, joinRequestId=${joinRequest.joinRequestId})}"
+                th:aria-label="${joinRequest.nickname + ' 이력 보기'}" th:text="${joinRequest.nickname}">신청자</button></div>
               <p th:text="${'신청 ' + joinRequest.date}">신청 날짜</p>
               <p th:if="${joinRequest.message != null}" class="team-application-message" th:text="${joinRequest.message}">신청 메시지</p>
             </div>
@@ -242,7 +271,6 @@
     <div class="team-dialog-heading"><div><h2 id="team-remove-title">동호회원을 추방할까요?</h2><p>추방 전에 대상을 확인해 주세요.</p></div><button class="team-dialog-close" type="button" data-dialog-close aria-label="닫기">×</button></div>
     <div class="team-dialog-body"><p class="team-dialog-summary"><strong id="team-remove-member-name">동호회원</strong> 님을 동호회에서 제외합니다. 이 작업은 서버에 기록되며 되돌릴 수 없습니다.</p>
     <label class="team-form-field"><span>추방 사유</span><textarea id="team-remove-reason" name="kickReason" rows="3" maxlength="200" required></textarea></label></div>
-  </div>
     <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-danger" type="submit">추방</button></div>
   </form>
 </dialog>
@@ -270,11 +298,21 @@
     <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-danger" type="submit">동호회 해체</button></div>
   </form>
 </dialog>
+<!-- 이력 창: team-history.js가 이름 버튼을 누르면 이력 조회 결과로 본문을 채움 -->
+<dialog id="team-history-dialog" class="team-dialog team-history-dialog" aria-labelledby="team-history-title">
+  <div class="team-history-header"><div><p class="team-history-kicker" data-history-kicker>이력</p><h2 id="team-history-title" data-history-title>이력</h2></div><button class="team-history-close" type="button" data-history-close aria-label="이력 닫기">×</button></div>
+  <div class="team-history-body" data-history-body aria-live="polite"></div>
+  <div class="team-history-footer"><button class="team-history-button" type="button" data-history-close>닫기</button></div>
+</dialog>
 
 <div id="team-management-toast" class="team-toast" role="status" aria-live="polite" hidden></div>
+
+<!-- 헤더 종 아이콘에서 여는 통합 알림 창 -->
+<div th:replace="~{fragments/notification :: center(${currentMember != null})}"></div>
 
 <script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/site-menu.js}"></script>
 <script th:src="@{/js/team-management.js}"></script>
+<script th:src="@{/js/team-history.js}"></script>
 </body>
 </html>

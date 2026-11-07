@@ -16,6 +16,7 @@ import co.kr.spoit.club.domain.ClubSportOption;
 import co.kr.spoit.club.domain.ClubSummary;
 import co.kr.spoit.club.dto.ClubBlockRow;
 import co.kr.spoit.club.dto.ClubSearchForm;
+import co.kr.spoit.mat.domain.RecentRatingChange;
 
 @Mapper
 public interface ClubMapper {
@@ -71,14 +72,39 @@ public interface ClubMapper {
         // 동호회장인지 확인
         boolean existsActiveLeader(@Param("clubId") Long clubId, @Param("userId") Long userId);
 
+        // 알림 수신자: 활성 동호회장 회원 번호
+        List<Long> selectActiveLeaderUserIds(@Param("clubId") Long clubId);
+
         // 대기중 가입 신청 목록(먼저 신청 순)
         List<ClubJoinRequest> selectPendingJoinRequests(@Param("clubId") Long clubId);
 
+        // 내 가입 신청 목록(대기중, 최근 신청 순)
+        List<ClubJoinRequest> selectMyPendingJoinRequests(@Param("userId") Long userId);
+
         // 관리 화면 예정 일정
-        List<ClubSchedule> selectUpcomingSchedules(@Param ("clubId") Long clubId, @Param ("now") LocalDateTime now);
+        List<ClubSchedule> selectUpcomingSchedules(@Param("clubId") Long clubId, @Param("now") LocalDateTime now);
 
         // 관리 화면 지난 일정
-        List<ClubSchedule> selectRecentSchedules(@Param ("clubId") Long clubId, @Param ("now") LocalDateTime now);
+        List<ClubSchedule> selectRecentSchedules(@Param("clubId") Long clubId, @Param("now") LocalDateTime now);
+
+        // 동호회 이력 화면
+        ClubMember selectActiveMemberWithLeaderById(@Param("clubId") Long clubId,
+                        @Param("clubMemberId") Long clubMemberId);
+
+        int countClubRatedMatches(@Param("clubId") Long clubId, @Param("userId") Long userId,
+                        @Param("sportId") Long sportId);
+
+        List<RecentRatingChange> selectClubRecentChanges(@Param("clubId") Long clubId, @Param("userId") Long userId,
+                        @Param("sportId") Long sportId, @Param("limit") int limit);
+
+        int countClubExcludedMatches(@Param("clubId") Long clubId, @Param("userId") Long userId,
+                        @Param("confirmedStatus") String confirmedStatus,
+                        @Param("excludedStatus") String excludedStatus,
+                        @Param("matchedStatus") String matchedStatus, @Param("closedStatus") String closedStatus);
+
+        LocalDateTime selectLastClubMatchAt(@Param("clubId") Long clubId, @Param("userId") Long userId,
+                        @Param("confirmedStatus") String confirmedStatus, @Param("matchedStatus") String matchedStatus,
+                        @Param("closedStatus") String closedStatus, @Param("now") LocalDateTime now);
 
         // 처리할 가입 신청(대기중)
         ClubJoinRequest selectPendingJoinRequestById(@Param("clubId") Long clubId,
@@ -93,6 +119,9 @@ public interface ClubMapper {
         // 내 가입 신청 취소(대기중만)
         int cancelJoinRequest(@Param("clubId") Long clubId, @Param("joinRequestId") Long joinRequestId,
                         @Param("userId") Long userId);
+
+        // 알림 수신자: 활성 동호회원 번호(club_member_id)의 회원 번호. 동호회원 번호와 회원 번호를 구분한다.
+        Long selectActiveMemberUserId(@Param("clubId") Long clubId, @Param("clubMemberId") Long clubMemberId);
 
         // 동호회장 위임: 남을 동호회장으로
         int updateRoleToLeader(@Param("clubId") Long clubId, @Param("clubMemberId") Long clubMemberId);

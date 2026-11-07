@@ -1,5 +1,6 @@
 package co.kr.spoit.club.dto;
 
+import co.kr.spoit.global.common.SportIconKey;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,17 +36,7 @@ class ClubFormat {
 
     // 종목 아이콘 파일 이름(images/club/sports) 모르는 종목은 별(etc)
     static String sportKey(Long sportId) {
-        if (sportId == null) {
-            return "etc";
-        }
-        return switch (sportId.intValue()) {
-            case 1 -> "tennis";
-            case 2 -> "soccer";
-            case 3 -> "jokgu";
-            case 4 -> "basketball";
-            case 5 -> "badminton";
-            default -> "etc";
-        };
+        return SportIconKey.of(sportId);
     }
 
     // 동호회 실력 테두리 파일 이름(images/club/tiers) 배지랑 같이 TierRank로 정함
@@ -61,10 +52,10 @@ class ClubFormat {
         return (int) (clubId % 6) + 1;
     }
 
-    // 동호회 실력 등급
+    // 동호회 실력 등급: 배치 마친 동호회원이 없으면 배치 중
     static String tierLabel(Integer averageMmr) {
         if (averageMmr == null) {
-            return "기록 없음";
+            return "배치 중";
         }
         return TierRank.of(BigDecimal.valueOf(averageMmr)).tier().label();
     }

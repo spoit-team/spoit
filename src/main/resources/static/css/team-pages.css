@@ -179,6 +179,10 @@
   color: #fff;
 }
 
+.team-sport-tab.is-active .team-sport-tab-icon {
+  filter: brightness(0) invert(1);
+}
+
 .team-sport-tab-count {
   border-radius: 999px;
   background: var(--color-paper-soft);
@@ -571,7 +575,7 @@
 
 .team-management-summary {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1px;
   overflow: hidden;
   margin-top: 20px;
@@ -747,7 +751,6 @@
   .team-management-section { padding: 17px; }
   .team-detail-summary,
   .team-management-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .team-management-summary .team-summary-item:last-child { grid-column: 1 / -1;}
   .team-detail-summary .team-summary-item { padding: 11px 10px; }
   .team-detail-summary .team-summary-item:nth-child(odd) { border-left: 0; padding-left: 0; }
   .team-detail-summary .team-summary-item:nth-child(even) { padding-left: 12px; }
@@ -768,3 +771,45 @@
   .team-card:hover,
   .team-button:active { transform: none; }
 }
+
+/* 동호회 이력 창: 시설 관리자 참가자 이력 모달(admin.css·participant-history.css)과 같은 모양, 값만 옮겨 옴 */
+.team-history-name { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; text-decoration: underline; text-decoration-color: #dee0e5; text-underline-offset: 3px; cursor: pointer; }
+.team-history-name:hover { color: #004ba4; text-decoration-color: currentColor; }
+
+.team-history-dialog { width: min(560px, calc(100% - 28px)); border: 1px solid rgb(255 255 255 / 70%); box-shadow: 0 24px 48px -16px rgb(19 21 25 / 25%); }
+.team-history-dialog::backdrop { background: rgb(19 21 25 / 46%); backdrop-filter: none; }
+.team-history-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 21px 23px 0; }
+.team-history-header h2 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -.035em; }
+.team-history-kicker { margin: 0 0 2px; color: #004ba4; font-size: 10px; font-weight: 800; letter-spacing: .04em; }
+.team-history-close { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border: 0; border-radius: 50%; background: #fafafb; color: #6e727c; font-size: 17px; cursor: pointer; }
+.team-history-close:hover { background: #e7e8ec; color: #131519; }
+.team-history-body { padding: 18px 23px 20px; }
+.team-history-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 0 23px 22px; }
+.team-history-button { display: inline-flex; min-height: 32px; align-items: center; justify-content: center; padding: 0 10px; border: 1px solid #dee0e5; border-radius: 9px; background: #fff; color: #3e424b; font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.team-history-button:hover { border-color: #9da1aa; background: #fafafb; color: #131519; }
+.team-history-close:focus-visible,
+.team-history-button:focus-visible { outline: 2px solid #266dc6; outline-offset: 2px; }
+
+.team-history-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 12px; margin-bottom: 18px; }
+.team-history-kv { min-width: 0; }
+.team-history-kv small { display: block; color: #9da1aa; font-size: 9.5px; font-weight: 700; }
+.team-history-kv b { display: block; overflow: hidden; margin-top: 2px; color: #3e424b; font-size: 10.5px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.team-history-section + .team-history-section { margin-top: 16px; }
+.team-history-section h3 { margin: 0 0 8px; color: #131519; font-size: 12px; font-weight: 800; }
+.team-history-empty { margin: 0; color: #6e727c; font-size: 11.5px; }
+
+.team-history-changes { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.team-history-change { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 10px; border-radius: 8px; background: #fafafb; font-size: 11.5px; }
+.team-history-change time { color: #6e727c; font-variant-numeric: tabular-nums; }
+.team-history-delta { font-weight: 800; font-variant-numeric: tabular-nums; }
+.team-history-delta.is-up { color: #006630; }
+.team-history-delta.is-down { color: #a62e2c; }
+.team-history-delta.is-flat { color: #6e727c; }
+
+.team-history-penalties { display: flex; flex-wrap: wrap; gap: 6px; }
+.team-history-badge { display: inline-flex; min-height: 22px; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 99px; background: #fff2cf; color: #754b0d; font-size: 10px; font-weight: 800; }
+.team-history-badge::before { width: 5px; height: 5px; border-radius: 50%; background: currentColor; content: ""; }
+
+.team-history-state { padding: 28px 12px; color: #6e727c; text-align: center; }
+.team-history-state b { display: block; color: #3e424b; font-size: 13px; }
+.team-history-state p { margin: 4px 0 0; font-size: 11px; }

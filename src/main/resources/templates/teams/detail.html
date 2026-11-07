@@ -53,7 +53,9 @@
             <button th:if="${!club.member and club.pendingJoinRequestId == null and club.recruiting}" class="team-button team-button-primary" type="button" data-team-apply>가입 신청하기</button>
             <button th:if="${!club.member and club.pendingJoinRequestId == null and !club.recruiting}" class="team-button team-button-quiet" type="button" disabled>모집이 마감되었습니다</button>
             <section class="team-detail-roster-group" aria-label="동호회원 목록">
-            <section class="team-content-section"><h2 th:text="${'동호회원 ' + club.memberCount + '명'}">동호회원</h2><div class="team-roster-list"><div th:each="person : ${club.members}" class="team-roster-person"><span class="team-roster-avatar" aria-hidden="true" th:text="${person.initials}">동호회</span><span th:text="${person.nickname + (person.leader ? ' · 동호회장' : '')}">동호회원</span></div></div></section>
+            <section class="team-content-section"><h2 th:text="${'동호회원 ' + club.memberCount + '명'}">동호회원</h2><div class="team-roster-list"><div th:each="person : ${club.members}" class="team-roster-person"><span class="team-roster-avatar" aria-hidden="true" th:text="${person.initials}">동호회</span><span><button class="team-history-name" type="button" data-history-label="동호회 이력"
+              th:data-history-url="@{/teams/{clubId}/members/{clubMemberId}/history(clubId=${club.clubId}, clubMemberId=${person.clubMemberId})}"
+              th:aria-label="${person.nickname + ' 동호회 이력 보기'}" th:text="${person.nickname}">동호회원</button><th:block th:if="${person.leader}"> · 동호회장</th:block></span></div></div></section>
             </section>
           </aside>
         </section>
@@ -74,11 +76,21 @@
     <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-primary" type="submit">가입 신청 보내기</button></div>
   </form>
 </dialog>
+<!-- 이력 창: team-history.js가 이름 버튼을 누르면 이력 조회 결과로 본문을 채움 -->
+<dialog id="team-history-dialog" class="team-dialog team-history-dialog" aria-labelledby="team-history-title">
+  <div class="team-history-header"><div><p class="team-history-kicker" data-history-kicker>이력</p><h2 id="team-history-title" data-history-title>이력</h2></div><button class="team-history-close" type="button" data-history-close aria-label="이력 닫기">×</button></div>
+  <div class="team-history-body" data-history-body aria-live="polite"></div>
+  <div class="team-history-footer"><button class="team-history-button" type="button" data-history-close>닫기</button></div>
+</dialog>
 
 <div id="team-toast" class="team-toast" role="status" aria-live="polite" hidden></div>
+
+<!-- 헤더 종 아이콘에서 여는 통합 알림 창 -->
+<div th:replace="~{fragments/notification :: center(${currentMember != null})}"></div>
 
 <script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/site-menu.js}"></script>
 <script th:src="@{/js/teams.js}"></script>
+<script th:src="@{/js/team-history.js}"></script>
 </body>
 </html>

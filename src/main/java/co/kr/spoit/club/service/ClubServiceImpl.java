@@ -5,12 +5,14 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.TreeSet;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
 
 import co.kr.spoit.club.domain.Club;
 import co.kr.spoit.club.domain.ClubJoinRequest;
@@ -25,13 +27,23 @@ import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.ClubMemberHistoryView;
 import co.kr.spoit.club.dto.ClubWithdrawalBlocks;
 import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.dto.ClubSportTabResponse;
 import co.kr.spoit.club.dto.MyClubResponse;
+import co.kr.spoit.club.dto.MyJoinRequestResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
+import co.kr.spoit.mat.domain.RatingStatus;
+import co.kr.spoit.mat.dto.ParticipantHistoryView;
+import co.kr.spoit.mat.dto.SportRatingResponse;
+import co.kr.spoit.mat.mapper.ParticipantHistoryMapper;
+import co.kr.spoit.mat.service.SportRatingService;
+import co.kr.spoit.match.domain.MatchStatus;
+import co.kr.spoit.match.domain.ParticipationStatus;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.service.MemberAccountLockService;
+import co.kr.spoit.notification.service.NotificationDispatcher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,12 +55,23 @@ public class ClubServiceImpl implements ClubService {
 
     private final ClubMapper clubMapper;
     private final MemberAccountLockService accountLockService;
+    private final NotificationDispatcher notificationDispatcher;
     private static final int NAME_MAX_LENGTH = 30;
     private static final int INTRO_MAX_LENGTH = 500;
     private static final int MIN_MEMBERS = 2;
     private static final int MAX_MEMBERS = 30;
     private static final int MESSAGE_MAX_LENGTH = 200;
     private static final int KICK_REASON_MAX_LENGTH = 200;
+
+    private final SportRatingService sportRatingService;
+    private final ParticipantHistoryMapper historyMapper;
+    // MAT ParticipantHistoryService와 같은 값(그쪽은 private이라 복사)
+    // 신고·제재는 시스템 관리 담당 도메인이라 enum이 없어 db/seed.sql의 report.status·penalty.status 값을
+    // 쓴다.
+    private static final String REPORT_CONFIRMED = "처리 완료";
+    private static final String PENALTY_ACTIVE = "적용 중";
+    private static final String NO_RATING_LABEL = "기록 없음";
+    private static final int RECENT_CHANGE_LIMIT = 5;
 
     // 목록: 검색,필터,정렬 조건으로 조회
     @Override
@@ -314,6 +337,94 @@ public class ClubServiceImpl implements ClubService {
         // 4. 저장
         clubMapper.insertJoinRequest(clubId, userId, trimmedMessage.isEmpty() ? null : trimmedMessage);
         log.info("가입 신청 저장 완료: clubId={}, userId={}", clubId, userId);
+
+        // 5. 커밋 후 동호회장 알림 (동호회원 번호가 아닌 회원 번호)
+        Long joinRequestId = clubMapper.selectMyPendingJoinRequestId(clubId, userId);
+        notificationDispatcher.notifyAfterCommit(clubMapper.selectActiveLeaderUserIds(clubId),
+                "CLUB_JOIN_REQUESTED", "동호회 가입 신청이 접수되었습니다",
+                club.getClubName() + " 팀에 새로운 가입 신청이 도착했습니다. 팀 관리에서 확인해 주세요.",
+                null, null, joinRequestId);
+    }
+
+    // 내 가입 신청 목록
+    @Override
+    public List<MyJoinRequestResponse> findMyPendingJoinRequests(Long userId) {
+        List<ClubJoinRequest> requests = clubMapper.selectMyPendingJoinRequests(userId);
+
+        List<MyJoinRequestResponse> result = new ArrayList<>();
+        for (ClubJoinRequest request : requests) {
+            result.add(MyJoinRequestResponse.from(request));
+        }
+        return result;
+
+    }
+
+    // 가입 신청자 개인 이력: MAT ParticipantHistoryService.getHistory와 같은 흐름(검사/닉네임/종목만 동호회
+    // 기준)
+    @Override
+    public Optional<ParticipantHistoryView> findApplicantHistory(Long clubId, Long joinRequestId, Long userId,
+            LocalDateTime now) {
+
+        ClubSummary club = clubMapper.selectClubDetail(clubId);
+        if (club == null) {
+            return Optional.empty();
+        }
+        if (!clubMapper.existsActiveLeader(clubId, userId)) {
+            throw new AccessDeniedException("동호회장만 가입 신청자 이력을 볼 수 있습니다.");
+        }
+        // 이 동호회의 대기중 신청만(다른 동호회 신청 번호로 조회 못 하게)
+        ClubJoinRequest request = clubMapper.selectPendingJoinRequestById(clubId, joinRequestId);
+        if (request == null) {
+            return Optional.empty();
+        }
+        Long applicantUserId = request.getUserId();
+
+        SportRatingResponse rating = sportRatingService.findByUserIdAndSportId(applicantUserId, club.getSportId())
+                .orElse(null);
+
+        return Optional.of(new ParticipantHistoryView(request.getNickname(),
+                rating == null ? NO_RATING_LABEL : rating.tierLabel(),
+                rating == null ? 0 : rating.ratedMatchCount(),
+                historyMapper.findRecentChanges(applicantUserId, club.getSportId(), RECENT_CHANGE_LIMIT).stream()
+                        .map(change -> new ParticipantHistoryView.RecentChange(change.getCalculatedAt(),
+                                change.getFinalDelta()))
+                        .toList(),
+                historyMapper.countExcludedMatches(applicantUserId, ParticipationStatus.CONFIRMED.dbValue(),
+                        RatingStatus.EXCLUDED.name(), MatchStatus.MATCHED.dbValue(), MatchStatus.CLOSED.dbValue()),
+                historyMapper.countReports(applicantUserId, REPORT_CONFIRMED),
+                historyMapper.findActivePenalties(applicantUserId, PENALTY_ACTIVE, now).stream()
+                        .map(penalty -> new ParticipantHistoryView.Penalty(penalty.getPenaltyType(),
+                                penalty.getEndAt()))
+                        .toList()));
+    }
+
+    @Override
+    public Optional<ClubMemberHistoryView> findMemberHistory(Long clubId, Long clubMemberId, LocalDateTime now) {
+        ClubSummary club = clubMapper.selectClubDetail(clubId);
+        if (club == null) {
+            return Optional.empty();
+        }
+        // 이 동호회 활성 회원만(동호회장 포함, 다른 동호회 회원 번호로 조회 못 하게)
+        ClubMember member = clubMapper.selectActiveMemberWithLeaderById(clubId, clubMemberId);
+        if (member == null) {
+            return Optional.empty();
+        }
+        Long memberUserId = member.getUserId();
+
+        SportRatingResponse rating = sportRatingService.findByUserIdAndSportId(memberUserId, club.getSportId())
+                .orElse(null);
+        return Optional.of(new ClubMemberHistoryView(
+                member.getNickname(),
+                rating == null ? NO_RATING_LABEL : rating.tierLabel(),
+                clubMapper.countClubRatedMatches(clubId, memberUserId, club.getSportId()),
+                clubMapper.selectClubRecentChanges(clubId, memberUserId, club.getSportId(), RECENT_CHANGE_LIMIT)
+                        .stream()
+                        .map(c -> new ParticipantHistoryView.RecentChange(c.getCalculatedAt(), c.getFinalDelta()))
+                        .toList(),
+                clubMapper.countClubExcludedMatches(clubId, memberUserId, ParticipationStatus.CONFIRMED.dbValue(),
+                        RatingStatus.EXCLUDED.name(), MatchStatus.MATCHED.dbValue(), MatchStatus.CLOSED.dbValue()),
+                clubMapper.selectLastClubMatchAt(clubId, memberUserId, ParticipationStatus.CONFIRMED.dbValue(),
+                        MatchStatus.MATCHED.dbValue(), MatchStatus.CLOSED.dbValue(), now)));
     }
 
     // 가입 신청 승인: 잠금->동호회장->대기중->정원확인
@@ -334,21 +445,32 @@ public class ClubServiceImpl implements ClubService {
         clubMapper.updateJoinRequestStatus(joinRequestId, "승인");
         clubMapper.insertJoinedMember(clubId, request.getUserId());
         log.info("가입 신청 승인: clubId={}, joinRequestId={}", clubId, joinRequestId);
+
+        notificationDispatcher.notifyAfterCommit(List.of(request.getUserId()),
+                "CLUB_JOIN_APPROVED", "동호회 가입이 승인되었습니다",
+                club.getClubName() + " 팀 가입이 승인되었습니다. 팀 상세에서 확인해 주세요.",
+                null, null, joinRequestId);
     }
 
     // 가입신청 거절: 잠금-> 동호회장-> 상태확인
     @Override
     @Transactional
     public void rejectJoin(Long userId, Long clubId, Long joinRequestId) {
-        getActiveClubForUpdate(clubId);
+        ClubSummary club = getActiveClubForUpdate(clubId);
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
             throw new IllegalArgumentException("동호회장만 가입 신청을 처리할 수 있습니다.");
         }
-        if (clubMapper.selectPendingJoinRequestById(clubId, joinRequestId) == null) {
+        ClubJoinRequest request = clubMapper.selectPendingJoinRequestById(clubId, joinRequestId);
+        if (request == null) {
             throw new IllegalArgumentException("이미 처리된 가입 신청입니다.");
         }
         clubMapper.updateJoinRequestStatus(joinRequestId, "거절");
         log.info("가입 신청 거절: clubId={}, joinRequestId={}", clubId, joinRequestId);
+
+        notificationDispatcher.notifyAfterCommit(List.of(request.getUserId()),
+                "CLUB_JOIN_REJECTED", "동호회 가입이 거절되었습니다",
+                club.getClubName() + " 팀 가입 신청이 거절되었습니다. 팀 상세에서 확인해 주세요.",
+                null, null, joinRequestId);
 
     }
 
@@ -376,7 +498,7 @@ public class ClubServiceImpl implements ClubService {
     @Override
     @Transactional
     public void transferLeader(Long userId, Long clubId, Long clubMemberId) {
-        getActiveClubForUpdate(clubId);
+        ClubSummary club = getActiveClubForUpdate(clubId);
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
             throw new IllegalArgumentException("동호회장만 위임할 수 있습니다.");
         }
@@ -395,6 +517,12 @@ public class ClubServiceImpl implements ClubService {
         }
         clubMapper.updateRoleToMember(clubId, userId);
         log.info("동호회장 위임: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
+
+        // 알림 수신자는 동호회원 번호가 아닌 실제 회원 번호다.
+        notificationDispatcher.notifyAfterCommit(List.of(target.getUserId()),
+                "CLUB_LEADER_TRANSFERRED", "동호회장으로 위임되었습니다",
+                club.getClubName() + " 팀의 동호회장 자리를 위임받았습니다. 팀 관리에서 확인해 주세요.",
+                null, null, null, clubId);
     }
 
     // 동호회 탈퇴
@@ -422,7 +550,7 @@ public class ClubServiceImpl implements ClubService {
         if (reason.isEmpty() || reason.length() > KICK_REASON_MAX_LENGTH) {
             throw new IllegalArgumentException("추방 사유를 1~200자로 입력해 주세요.");
         }
-        getActiveClubForUpdate(clubId);
+        ClubSummary club = getActiveClubForUpdate(clubId);
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
             throw new IllegalArgumentException("동호회장만 동호회원을 추방할 수 있습니다.");
         }
@@ -435,6 +563,11 @@ public class ClubServiceImpl implements ClubService {
         }
         clubMapper.updateMemberKick(clubId, clubMemberId, reason);
         log.info("동호회원 추방: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
+
+        notificationDispatcher.notifyAfterCommit(List.of(target.getUserId()),
+                "CLUB_MEMBER_KICKED", "동호회에서 내보내졌습니다",
+                club.getClubName() + " 팀에서 내보내졌습니다.",
+                null, null, null, clubId);
     }
 
     // 동호회 해체
@@ -465,7 +598,9 @@ public class ClubServiceImpl implements ClubService {
     /**
      * 동호회 행을 잠그고 최신 값을 돌려준다. 없거나 해체됐으면 null.
      *
-     * <p>팀 매치 신청처럼 다른 도메인이 동호회 행을 먼저 잠가야 할 때 쓴다. 쓰기 트랜잭션 전용이다.</p>
+     * <p>
+     * 팀 매치 신청처럼 다른 도메인이 동호회 행을 먼저 잠가야 할 때 쓴다. 쓰기 트랜잭션 전용이다.
+     * </p>
      */
     @Override
     public ClubSummary lockActiveClub(Long clubId) {
