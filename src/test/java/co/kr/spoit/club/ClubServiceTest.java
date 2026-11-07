@@ -26,6 +26,7 @@ import co.kr.spoit.club.dto.ClubWithdrawalBlocks;
 import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.dto.ClubSportTabResponse;
 import co.kr.spoit.club.dto.MyClubResponse;
+import co.kr.spoit.club.dto.MyJoinRequestResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
 import co.kr.spoit.club.service.ClubServiceImpl;
 import co.kr.spoit.mat.dto.ParticipantHistoryView;
@@ -331,6 +332,25 @@ class ClubServiceTest {
         assertThat(clubs).hasSize(2);
         assertThat(clubs.get(0).isActive()).isFalse();
         assertThat(clubs.get(1).isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("내 대기중 가입 신청을 동호회 이름과 신청일로 바꾼다")
+    void 내_가입_신청을_화면용으로_바꾼다() {
+        ClubJoinRequest request = new ClubJoinRequest();
+        request.setJoinRequestId(5L);
+        request.setClubId(1L);
+        request.setClubName("강남 풋살 클럽");
+        request.setRequestedAt(LocalDateTime.of(2026, 10, 20, 20, 10));
+        when(clubMapper.selectMyPendingJoinRequests(16L)).thenReturn(List.of(request));
+
+        List<MyJoinRequestResponse> requests = service.findMyPendingJoinRequests(16L);
+
+        assertThat(requests).hasSize(1);
+        assertThat(requests.get(0).getJoinRequestId()).isEqualTo(5L);
+        assertThat(requests.get(0).getClubId()).isEqualTo(1L);
+        assertThat(requests.get(0).getClubName()).isEqualTo("강남 풋살 클럽");
+        assertThat(requests.get(0).getDate()).isEqualTo("2026.10.20");
     }
 
     @Test

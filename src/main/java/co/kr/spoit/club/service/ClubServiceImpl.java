@@ -32,6 +32,7 @@ import co.kr.spoit.club.dto.ClubWithdrawalBlocks;
 import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.dto.ClubSportTabResponse;
 import co.kr.spoit.club.dto.MyClubResponse;
+import co.kr.spoit.club.dto.MyJoinRequestResponse;
 import co.kr.spoit.club.mapper.ClubMapper;
 import co.kr.spoit.mat.domain.RatingStatus;
 import co.kr.spoit.mat.dto.ParticipantHistoryView;
@@ -334,6 +335,19 @@ public class ClubServiceImpl implements ClubService {
         // 4. 저장
         clubMapper.insertJoinRequest(clubId, userId, trimmedMessage.isEmpty() ? null : trimmedMessage);
         log.info("가입 신청 저장 완료: clubId={}, userId={}", clubId, userId);
+    }
+
+    // 내 가입 신청 목록
+    @Override
+    public List<MyJoinRequestResponse> findMyPendingJoinRequests(Long userId) {
+        List<ClubJoinRequest> requests = clubMapper.selectMyPendingJoinRequests(userId);
+
+        List<MyJoinRequestResponse> result = new ArrayList<>();
+        for (ClubJoinRequest request : requests) {
+            result.add(MyJoinRequestResponse.from(request));
+        }
+        return result;
+
     }
 
     // 가입 신청자 개인 이력: MAT ParticipantHistoryService.getHistory와 같은 흐름(검사/닉네임/종목만 동호회

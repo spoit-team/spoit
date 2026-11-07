@@ -75,6 +75,9 @@ public interface ClubMapper {
         // 대기중 가입 신청 목록(먼저 신청 순)
         List<ClubJoinRequest> selectPendingJoinRequests(@Param("clubId") Long clubId);
 
+        // 내 가입 신청 목록(대기중, 최근 신청 순)
+        List<ClubJoinRequest> selectMyPendingJoinRequests(@Param("userId") Long userId);
+
         // 관리 화면 예정 일정
         List<ClubSchedule> selectUpcomingSchedules(@Param("clubId") Long clubId, @Param("now") LocalDateTime now);
 

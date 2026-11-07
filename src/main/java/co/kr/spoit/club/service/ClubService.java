@@ -15,6 +15,7 @@ import co.kr.spoit.club.dto.ClubWithdrawalBlocks;
 import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.dto.ClubSportTabResponse;
 import co.kr.spoit.club.dto.MyClubResponse;
+import co.kr.spoit.club.dto.MyJoinRequestResponse;
 import co.kr.spoit.mat.dto.ParticipantHistoryView;
 
 public interface ClubService {
@@ -49,6 +50,9 @@ public interface ClubService {
 
     // 가입 신청
     void applyJoin(Long userId, Long clubId, String message);
+
+    // 내 가입 신청 목록(대기중) - 관리 화면 맨위
+    List<MyJoinRequestResponse> findMyPendingJoinRequests(Long userId);
 
     // 가입 신청자 개인 이력(동호회장만)
     Optional<ParticipantHistoryView> findApplicantHistory(Long clubId, Long joinRequestId, Long userId,

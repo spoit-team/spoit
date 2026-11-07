@@ -240,6 +240,19 @@
         ORDER BY r.requested_at ASC
     </select>
 
+    <select id="selectMyPendingJoinRequests" resultType="co.kr.spoit.club.domain.ClubJoinRequest">
+        SELECT r.request_id AS joinRequestId
+                ,r.club_id AS clubId
+                ,c.club_name AS clubName
+                ,r.requested_at AS requestedAt
+        FROM club_join_request r
+        JOIN club c ON c.club_id = r.club_id
+        WHERE r.user_id = #{userId}
+            AND r.status = '대기중'
+            AND c.deleted_at IS NULL
+        ORDER BY r.requested_at DESC
+    </select>
+
     <select id="selectPendingJoinRequestById" resultType="co.kr.spoit.club.domain.ClubJoinRequest">
         SELECT r.request_id AS joinRequestId
             ,r.user_id AS userId
