@@ -439,6 +439,11 @@ public class ClubServiceImpl implements ClubService {
         if (request == null) {
             throw new IllegalArgumentException("이미 처리된 가입 신청입니다.");
         }
+        // 신청자 계정을 동호회 다음에 잠그고, 잠근 값으로 탈퇴를 확인한다(위임과 같은 순서)
+        Member applicant = accountLockService.lockById(request.getUserId());
+        if (applicant == null || applicant.getDeletedAt() != null) {
+            throw new IllegalArgumentException("탈퇴한 회원의 신청이라 승인할 수 없습니다. 거절해 주세요.");
+        }
         if (clubMapper.countActiveMembers(clubId) >= club.getMaxMembers()) {
             throw new IllegalArgumentException("정원이 가득 찬 동호회입니다.");
         }
@@ -610,15 +615,15 @@ public class ClubServiceImpl implements ClubService {
         return clubMapper.selectActiveClubForUpdate(clubId);
     }
 
-    // 회원 탈퇴 차단 사유: 동호회장 소속과 모집 중 팀 매치 신청·참가 동호회를 동호회별로 한 번씩 모은다
+    // 회원 탈퇴 차단 사유: 가입한 동호회(동호회장·동호회원)를 동호회별로 한 번씩 모은다.
     @Override
     public ClubWithdrawalBlocks findWithdrawalBlocks(Long userId) {
         if (userId == null || userId <= 0) {
             return ClubWithdrawalBlocks.empty();
         }
         return ClubWithdrawalBlocks.of(
-                clubNames(clubMapper.selectLeaderClubBlocks(userId)),
-                clubNames(clubMapper.selectRecruitingTeamMatchClubBlocks(userId)));
+                clubNames(clubMapper.selectLeaderClubBlocks(userId)));
+
     }
 
     /** 조회 결과를 화면 표시용 동호회 이름 목록으로 바꾼다. 조회가 id 기준으로 이미 고유하므로 그대로 둔다. */

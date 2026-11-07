@@ -9,11 +9,11 @@
 -- 다른 쓰기와 동시에 실행하면 ID 경합으로 롤백될 수 있다. 외래키 검사는 켜 둔다.
 -- 모두 공통 테스트 전용 비밀번호: WithdrawTest123! (실서비스 사용 금지).
 -- 계정 (모두 @example.invalid):
--- withdraw-free: 탈퇴 성공 / withdraw-leader: 회장 차단
--- withdraw-team: 모집 중 팀 매치 차단 / withdraw-individual-recruiting: 개인 모집 차단
+-- withdraw-free: 탈퇴 성공 / withdraw-leader: 동호회 가입 차단
+-- withdraw-team: 동호회 가입 + 매치 신청 차단 / withdraw-individual-recruiting: 개인 모집 차단
 -- withdraw-individual-matched: 개인 매칭 완료 차단 / withdraw-cancelled: 탈퇴 성공
--- withdraw-ended: 탈퇴 성공 / withdraw-club-leader: 회장 및 팀 매치 차단
--- withdraw-club-member: 팀 매치 차단 / withdraw-opponent: 탈퇴 성공
+-- withdraw-ended: 탈퇴 성공 / withdraw-club-leader: 동호회 가입 + 매치 신청 차단
+-- withdraw-club-member: 동호회 가입 + 매치 신청 차단 / withdraw-opponent: 동호회 가입 차단
 -- 매치 일정은 실행 시각 기준이다. 시작 시각 경과 후 스케줄러가 상태를 변경할 수 있다.
 
 SET NAMES utf8mb4;
@@ -193,7 +193,7 @@ INSERT INTO operating_rule (facility_id, weekday, open_time, close_time, end_nex
 
 -- 동호회 ---------------------------------------------------------------
 -- v_club + 1: withdraw-leader 가 동호회장 -> leaderClubNames 차단
--- v_club + 2: withdraw-team 이 동호회원 -> 모집 중 팀 매치 신청으로 teamMatchClubNames 차단
+-- v_club + 2: withdraw-team 이 동호회원 -> leaderClubNames 차단, 모집 중 팀 매치 신청은 individualMatchNames 차단
 --       (withdraw-team 은 동호회장이 아니다)
 INSERT INTO club (club_id, sport_id, club_name, intro, max_members, recruit_status,
                   image_url, activity_days, activity_start_time, activity_end_time,

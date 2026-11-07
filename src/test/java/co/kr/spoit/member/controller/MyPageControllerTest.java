@@ -372,7 +372,7 @@ class MyPageControllerTest {
         given(memberService.findSports()).willReturn(List.of());
         given(memberService.findSignupRegions()).willReturn(List.of());
         given(memberService.findWithdrawalBlocks(USER_ID))
-                .willReturn(WithdrawalBlocks.of(List.of("강서 테니스회"), List.of("주말 풋살 클럽"),
+                .willReturn(WithdrawalBlocks.of(List.of("강서 테니스회"),
                         List.of("화요일 저녁 복식")));
 
         mockMvc.perform(get("/mypage/profile").with(principal()))
@@ -381,8 +381,6 @@ class MyPageControllerTest {
                         hasProperty("blocked", is(true))))
                 .andExpect(model().attribute("withdrawalBlocks",
                         hasProperty("leaderClubNames", contains("강서 테니스회"))))
-                .andExpect(model().attribute("withdrawalBlocks",
-                        hasProperty("teamMatchClubNames", contains("주말 풋살 클럽"))))
                 .andExpect(model().attribute("withdrawalBlocks",
                         hasProperty("individualMatchNames", contains("화요일 저녁 복식"))));
     }
@@ -398,7 +396,6 @@ class MyPageControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("withdrawalBlocks", hasProperty("blocked", is(false))))
                 .andExpect(model().attribute("withdrawalBlocks", hasProperty("leaderClubNames", empty())))
-                .andExpect(model().attribute("withdrawalBlocks", hasProperty("teamMatchClubNames", empty())))
                 .andExpect(model().attribute("withdrawalBlocks", hasProperty("individualMatchNames", empty())));
     }
 
@@ -408,7 +405,7 @@ class MyPageControllerTest {
         given(memberService.findSports()).willReturn(List.of());
         given(memberService.findSignupRegions()).willReturn(List.of());
         given(memberService.findWithdrawalBlocks(USER_ID))
-                .willReturn(WithdrawalBlocks.of(List.of("강서 테니스회"), List.of(), List.of("화요일 저녁 복식")));
+                .willReturn(WithdrawalBlocks.of(List.of("강서 테니스회"), List.of("화요일 저녁 복식")));
         willThrow(new IllegalArgumentException("닉네임은 한글, 영문, 숫자, 밑줄로 2~12자 입력해 주세요."))
                 .given(memberService).updateProfile(eq(USER_ID), argThat(form -> true));
 

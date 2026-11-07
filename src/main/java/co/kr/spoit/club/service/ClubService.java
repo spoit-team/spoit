@@ -95,6 +95,6 @@ public interface ClubService {
      */
     co.kr.spoit.club.domain.ClubSummary lockActiveClub(Long clubId);
 
-    // 회원 탈퇴를 막는 동호회 소속(동호회장·모집 중 팀 매치 신청/참가)
+    // 회원 탈퇴를 막는 동호회 소속(동호회장·동호회원)
     ClubWithdrawalBlocks findWithdrawalBlocks(Long userId);
 }

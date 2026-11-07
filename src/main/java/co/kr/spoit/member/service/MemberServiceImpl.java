@@ -45,8 +45,8 @@ public class MemberServiceImpl implements MemberService {
 
     /** 탈퇴를 막는 소속·신청이 남아 있을 때의 기본 안내 문구. */
     static final String WITHDRAWAL_BLOCKED_MESSAGE =
-            "동호회장으로 있거나 진행 중인 팀·개인 매치에 신청된 내역이 있어 탈퇴할 수 없습니다. "
-                    + "팀 관리에서 회장을 위임하거나 진행 중인 매치 신청을 정리한 뒤 다시 시도해 주세요.";
+        "동호회에 가입되어 있거나 진행 중인 매치에 신청된 내역이 있어 탈퇴할 수 없습니다. "
+                + "동호회를 탈퇴하고(동호회장은 위임 또는 해체) 매치 신청을 정리한 뒤 다시 시도해 주세요.";
 
     /** 서버가 UTC여도 한국 시간 기준으로 탈퇴·정지 시각을 비교한다. */
     private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
@@ -202,7 +202,7 @@ public class MemberServiceImpl implements MemberService {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
         // 탈퇴 직전에 차단 사유를 다시 읽는다(잠금 획득 후 첫 조회). 동호회 조건은 club 도메인이,
-        // 개인 매치 신청 조건은 match 도메인이 판단한다. 화면 값은 신뢰하지 않으므로 POST 우회도 막힌다.
+        // 매치 신청(개인·동호회) 조건은 match 도메인이 판단한다. 화면 값은 신뢰하지 않으므로 POST 우회도 막힌다.
         WithdrawalBlocks blocks = findWithdrawalBlocks(userId);
         if (blocks.isBlocked()) {
             throw new WithdrawalBlockedException(WITHDRAWAL_BLOCKED_MESSAGE);
@@ -221,11 +221,10 @@ public class MemberServiceImpl implements MemberService {
         if (userId == null || userId <= 0) {
             return WithdrawalBlocks.empty();
         }
-        // 동호회 조건은 club 도메인이, 개인 매치 신청 조건은 match 도메인이 판단한다.
+        // 동호회 조건은 club 도메인이, 매치 신청(개인·동호회) 조건은 match 도메인이 판단한다.
         ClubWithdrawalBlocks clubBlocks = clubService.findWithdrawalBlocks(userId);
         List<String> leaderClubNames = clubBlocks == null ? List.of() : clubBlocks.getLeaderClubNames();
-        List<String> teamMatchClubNames = clubBlocks == null ? List.of() : clubBlocks.getTeamMatchClubNames();
-        return WithdrawalBlocks.of(leaderClubNames, teamMatchClubNames,
+        return WithdrawalBlocks.of(leaderClubNames,
                 matchApplicationService.findActiveIndividualMatchTitles(userId));
     }
 

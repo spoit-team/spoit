@@ -1,6 +1,6 @@
 // Run from the repository root: bun src/test/frontend/profile-withdrawal-blocks.test.mjs
 // 회원 탈퇴 확인창의 차단 상태만 확인합니다. 서버는 withdrawalBlocks(blocked·leaderClubNames·
-// teamMatchClubNames·individualMatchNames)를 항상 내려주고, 화면은 그 값으로 비밀번호 입력과
+// individualMatchNames)를 항상 내려주고, 화면은 그 값으로 비밀번호 입력과
 // 확인 버튼을 잠급니다. 스크립트가 그 잠금을 풀지 않는지, 막히지 않았을 때는 기존 동작 그대로인지 봅니다.
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -164,8 +164,7 @@ assert.match(dialogMarkup, /th:if="\$\{withdrawalBlocks != null and withdrawalBl
   '사유 목록은 막혔을 때만 그린다');
 
 for (const [field, label] of [
-  ['leaderClubNames', '동호회장인 팀은 위임하거나 해체해 주세요'],
-  ['teamMatchClubNames', '모집 중인 팀 매치에 신청되어 있어요'],
+  ['leaderClubNames', '동호회에 가입되어 있어요'],
   ['individualMatchNames', '종료 상태가 아닌 매치에 신청되어 있어요']
 ]) {
   assert.ok(dialogMarkup.includes(`withdrawalBlocks.${field}`), `${field} 사유를 그려야 한다`);
@@ -175,7 +174,7 @@ for (const [field, label] of [
     `${field} 이름을 이어서 보여 줘야 한다`);
 }
 
-/* 개인 매치 안내 문구는 사실과 맞아야 한다.
+/* 매치 안내 문구는 사실과 맞아야 한다.
    실제 경기는 끝났어도 결과·평가 처리 전에는 저장 상태가 '매칭 완료'로 남는다. */
 assert.match(dialogMarkup, /경기가 끝났더라도 결과 처리 전에는 <strong>매칭 완료<\/strong> 상태일 수 있습니다/,
   '끝난 경기도 결과 처리 전에는 매칭 완료로 남을 수 있음을 알려야 한다');
@@ -187,7 +186,7 @@ assert.doesNotMatch(dialogMarkup, /아직 종료되지 않은 매치/,
 assert.doesNotMatch(dialogMarkup, /종료 시각이 지나면|자동으로 종료|스케줄|24시간|며칠|이내에|즉시 종료/,
   '시간·자동 처리에 대한 보장을 화면에 쓰지 않는다');
 
-/* 종료 상태 안내는 개인 매치 사유에만 해당한다. 팀 사유만 있으면 위임·취소로 풀 수 있으므로 붙이지 않는다. */
+/* 종료 상태 안내는 매치 신청(개인·동호회) 사유에만 해당한다. 동호회 가입 사유만 있으면 동호회 탈퇴로 풀 수 있으므로 붙이지 않는다. */
 const noteTag = dialogMarkup.match(/<p class="profile-withdrawal-block-note"[^>]*>/)?.[0] ?? '';
 assert.ok(noteTag.length > 0, '개인 매치 안내 문구가 있어야 한다');
 assert.match(noteTag, /th:if="\$\{!#lists\.isEmpty\(withdrawalBlocks\.individualMatchNames\)\}"/,
@@ -195,12 +194,12 @@ assert.match(noteTag, /th:if="\$\{!#lists\.isEmpty\(withdrawalBlocks\.individual
 assert.match(dialogMarkup, /해당 매치가 종료 상태가 되거나 신청이 취소되면 이 제한이 해제됩니다/,
   '안내가 개인 매치 신청에 대한 것임을 밝힌다');
 
-/* 링크: 팀 사유는 팀 관리, 개인 매치 사유는 신청 내역으로 보낸다. */
-assert.match(dialogMarkup, /th:href="@\{\/teams\/manage\}"[\s\S]*?팀 관리로 가기/,
-  '팀 사유는 팀 관리로 이어져야 한다');
+/* 링크: 동호회 사유는 팀 관리, 매치 사유는 신청 내역으로 보낸다. */
+assert.match(dialogMarkup, /th:href="@\{\/teams\/manage\}"[\s\S]*?동호회 관리로 가기/,
+  '동호회 사유는 동호회 관리로 이어져야 한다');
 assert.match(dialogMarkup, /th:href="@\{\/mypage#reservations\}"[\s\S]*?신청 내역 보기/,
   '개인 매치 사유는 신청 내역으로 이어져야 한다');
-assert.doesNotMatch(dialogMarkup, /<button[^>]*>\s*팀 관리로 가기/,
+assert.doesNotMatch(dialogMarkup, /<button[^>]*>\s*동호회 관리로 가기/,
   '사유 해결은 이동 링크여야 하고 제출 버튼이면 안 된다');
 
 /* 잠금 대상과 기존 폼 계약은 그대로다. */
@@ -218,4 +217,4 @@ assert.match(dialogMarkup, /탈퇴를 막는 항목을 정리한 뒤 비밀번�
 assert.match(dialogMarkup, /비밀번호를 입력하면 확인 버튼이 활성화됩니다/,
   '막히지 않았을 때의 기존 안내는 유지한다');
 
-console.log('PASS: profile withdrawal blocks — locked input/submit, three blocker groups, preserved form contract');
+console.log('PASS: profile withdrawal blocks — locked input/submit, two blocker groups, preserved form contract');

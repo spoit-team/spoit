@@ -118,28 +118,15 @@ class MemberServiceImplWithdrawalTest {
     }
 
     @Test
-    @DisplayName("동호회장으로 있으면 탈퇴 시각을 기록하지 않고 차단 예외를 던진다")
+    @DisplayName("동호회에 가입되어 있으면 탈퇴 시각을 기록하지 않고 차단 예외를 던진다")
     void blocksLeaderWithdrawal() {
         when(accountLockService.lockById(USER_ID)).thenReturn(member());
         when(clubService.findWithdrawalBlocks(USER_ID))
-                .thenReturn(ClubWithdrawalBlocks.of(List.of("강서 테니스회"), List.of()));
+                .thenReturn(ClubWithdrawalBlocks.of(List.of("강서 테니스회")));
 
         assertThatThrownBy(() -> memberService.withdraw(USER_ID, RAW_PASSWORD))
                 .isInstanceOf(WithdrawalBlockedException.class)
                 .hasMessageContaining("탈퇴할 수 없습니다");
-
-        verify(memberMapper, never()).recordWithdrawal(anyLong(), any(), any());
-    }
-
-    @Test
-    @DisplayName("모집 중인 팀 매치에 신청 중이면 탈퇴 시각을 기록하지 않는다")
-    void blocksRecruitingTeamMatchWithdrawal() {
-        when(accountLockService.lockById(USER_ID)).thenReturn(member());
-        when(clubService.findWithdrawalBlocks(USER_ID))
-                .thenReturn(ClubWithdrawalBlocks.of(List.of(), List.of("주말 풋살 클럽")));
-
-        assertThatThrownBy(() -> memberService.withdraw(USER_ID, RAW_PASSWORD))
-                .isInstanceOf(WithdrawalBlockedException.class);
 
         verify(memberMapper, never()).recordWithdrawal(anyLong(), any(), any());
     }
@@ -177,14 +164,13 @@ class MemberServiceImplWithdrawalTest {
     @DisplayName("탈퇴 차단 사유 조회는 club·match 도메인 서비스를 조합하고 개인 매치 이름을 함께 담는다")
     void findWithdrawalBlocksComposesDomainServices() {
         when(clubService.findWithdrawalBlocks(USER_ID))
-                .thenReturn(ClubWithdrawalBlocks.of(List.of("강서 테니스회"), List.of("주말 풋살 클럽")));
+                .thenReturn(ClubWithdrawalBlocks.of(List.of("강서 테니스회")));
         when(matchApplicationService.findActiveIndividualMatchTitles(USER_ID))
                 .thenReturn(List.of("화요일 저녁 복식"));
 
         WithdrawalBlocks blocks = memberService.findWithdrawalBlocks(USER_ID);
 
         assertThat(blocks.getLeaderClubNames()).containsExactly("강서 테니스회");
-        assertThat(blocks.getTeamMatchClubNames()).containsExactly("주말 풋살 클럽");
         assertThat(blocks.getIndividualMatchNames()).containsExactly("화요일 저녁 복식");
         assertThat(blocks.isBlocked()).isTrue();
     }

@@ -19,7 +19,6 @@ import co.kr.spoit.club.service.ClubService;
 import co.kr.spoit.facility.service.FacilityReservationService;
 import co.kr.spoit.mat.mapper.SportRatingMapper;
 import co.kr.spoit.match.domain.ApplicationStatus;
-import co.kr.spoit.match.domain.ApplicationType;
 import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.dto.MatchTitleRow;
 import co.kr.spoit.match.mapper.MatchApplicationMapper;
@@ -51,7 +50,7 @@ class MatchApplicationServiceWithdrawalBlockTest {
 
     @Test
     @DisplayName("탈퇴 차단 조회는 매치 id로 중복을 접고 같은 제목의 다른 매치는 각각 남긴다")    void keepsDistinctMatchesWithSameTitle() {
-        given(applicationMapper.findActiveIndividualMatchTitles(anyLong(), any(), any(), any()))
+        given(applicationMapper.findActiveIndividualMatchTitles(anyLong(), any(), any()))
                 .willReturn(List.of(matchTitle(11L, "풋살 매치"), matchTitle(12L, "풋살 매치")));
 
         List<String> titles = service.findActiveIndividualMatchTitles(USER_ID);
@@ -62,7 +61,7 @@ class MatchApplicationServiceWithdrawalBlockTest {
     @Test
     @DisplayName("차단 조회는 개인 신청의 대기·확정과 매칭방 모집 중·매칭 완료 상태로 제한한다")
     void queriesOnlyActiveIndividualApplicationsOfOngoingMatches() {
-        given(applicationMapper.findActiveIndividualMatchTitles(anyLong(), any(), any(), any()))
+        given(applicationMapper.findActiveIndividualMatchTitles(anyLong(), any(), any()))
                 .willReturn(List.of(matchTitle(11L, "화요일 저녁 복식")));
 
         List<String> titles = service.findActiveIndividualMatchTitles(USER_ID);
@@ -72,7 +71,6 @@ class MatchApplicationServiceWithdrawalBlockTest {
         ArgumentCaptor<List<String>> applicationStatuses = ArgumentCaptor.forClass(List.class);
         ArgumentCaptor<List<String>> matchStatuses = ArgumentCaptor.forClass(List.class);
         verify(applicationMapper).findActiveIndividualMatchTitles(eq(USER_ID),
-                eq(ApplicationType.INDIVIDUAL.dbValue()),
                 applicationStatuses.capture(), matchStatuses.capture());
 
         assertThat(applicationStatuses.getValue())

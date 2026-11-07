@@ -44,7 +44,7 @@ class MatchApplicationMapperWithdrawalBlockTest {
 
         // 대기 신청은 match_participant 행이 없을 수 있으므로 신청자 컬럼으로 찾아야 한다.
         assertThat(sql).contains("ma.applicant_user_id = #{userId}");
-        assertThat(sql).contains("ma.application_type = #{applicationType}");
+        assertThat(sql).doesNotContain("ma.application_type");
         assertThat(sql).contains("ma.status IN");
         assertThat(sql).contains("sm.status IN");
         // 중복은 경기 id로 접는다. 제목으로 접으면 제목이 같은 다른 경기가 사라진다.
