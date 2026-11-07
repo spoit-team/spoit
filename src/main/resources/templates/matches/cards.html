@@ -32,6 +32,7 @@
                th:aria-current="${sport.sportId == search.sportId ? 'true' : null}"
                th:classappend="${sport.sportId == search.sportId} ? 'border-ink bg-ink text-white shadow-md' : 'border-line-strong bg-white text-ink-2 hover:-translate-y-px hover:border-faint hover:text-ink'"
                class="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-3.5 text-[13px] font-semibold transition">
+              <img class="sport-tab-icon" th:src="@{/images/club/sports/{key}.svg(key=${sport.sportKey})}" alt="" aria-hidden="true" />
               <span th:text="${sport.name}">전체</span>
               <span th:classappend="${sport.sportId == search.sportId} ? 'border-white/20 bg-white/15 text-white' : 'border-line bg-paper-soft text-faint'"
                     class="rounded-full border px-2 py-0.5 text-[11px] font-bold" th:text="${sport.count}">0</span>
