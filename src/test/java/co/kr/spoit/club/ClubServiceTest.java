@@ -3,6 +3,9 @@ package co.kr.spoit.club;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
@@ -35,6 +38,7 @@ import co.kr.spoit.mat.service.SportRatingService;
 import co.kr.spoit.club.service.ClubService.ClubNameExistException;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.service.MemberAccountLockService;
+import co.kr.spoit.notification.service.NotificationDispatcher;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -65,6 +69,9 @@ class ClubServiceTest {
 
     @Mock
     private ParticipantHistoryMapper historyMapper;
+
+    @Mock 
+    private NotificationDispatcher notificationDispatcher;
 
     @InjectMocks
     private ClubServiceImpl service;
@@ -391,6 +398,72 @@ class ClubServiceTest {
         InOrder order = inOrder(clubMapper);
         order.verify(clubMapper).updateJoinRequestStatus(5L, "승인");
         order.verify(clubMapper).insertJoinedMember(1L, 8L);
+    }
+
+    // 알림: 수신자는 동호회원 번호가 아닌 회원 번호로 확정한다
+    @Test
+    @DisplayName("가입 신청이 접수되면 동호회장 회원 번호로 알림을 등록한다")
+    void 가입_신청_접수는_동호회장에게_알린다() {
+        ClubSummary club = lockedClub("모집중", 10);
+        club.setClubName("강남 농구 크루");
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(club);
+        when(clubMapper.selectMyPendingJoinRequestId(1L, 7L)).thenReturn(null, 5L);
+        when(clubMapper.countActiveMembers(1L)).thenReturn(3);
+        when(clubMapper.selectActiveLeaderUserIds(1L)).thenReturn(List.of(9L, 10L));
+
+        service.applyJoin(7L, 1L, "안녕하세요");
+
+        verify(notificationDispatcher).notifyAfterCommit(eq(List.of(9L, 10L)), eq("CLUB_JOIN_REQUESTED"),
+                any(), contains("강남 농구 크루"), isNull(), isNull(), eq(5L));
+    }
+
+    @Test
+    @DisplayName("가입 승인·거절은 신청자 회원 번호로 알린다")
+    void 가입_승인_거절은_신청자에게_알린다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectPendingJoinRequestById(1L, 5L)).thenReturn(pendingRequest(8L));
+        when(clubMapper.countActiveMembers(1L)).thenReturn(3);
+
+        service.approveJoin(7L, 1L, 5L);
+        service.rejectJoin(7L, 1L, 5L);
+
+        verify(notificationDispatcher).notifyAfterCommit(eq(List.of(8L)), eq("CLUB_JOIN_APPROVED"),
+                any(), any(), isNull(), isNull(), eq(5L));
+        verify(notificationDispatcher).notifyAfterCommit(eq(List.of(8L)), eq("CLUB_JOIN_REJECTED"),
+                any(), any(), isNull(), isNull(), eq(5L));
+    }
+
+    @Test
+    @DisplayName("회장 위임은 동호회원 번호가 아니라 실제 새 회장 회원 번호로 알린다")
+    void 회장_위임은_실제_회원에게_알린다() {
+        ClubSummary club = lockedClub("모집중", 10);
+        club.setClubName("강남 농구 크루");
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(club);
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.updateRoleToLeader(1L, 3L)).thenReturn(1);
+        when(clubMapper.selectActiveMemberById(1L, 3L)).thenReturn(kickTarget(8L));
+        when(accountLockService.lockById(8L)).thenReturn(account(8L));
+
+        service.transferLeader(7L, 1L, 3L);
+
+        verify(notificationDispatcher).notifyAfterCommit(eq(List.of(8L)), eq("CLUB_LEADER_TRANSFERRED"),
+                any(), contains("강남 농구 크루"), isNull(), isNull(), isNull(), eq(1L));
+    }
+
+    @Test
+    @DisplayName("추방 알림은 추방된 동호회원의 실제 회원 번호로 보낸다")
+    void 추방은_대상_회원에게_알린다() {
+        ClubSummary club = lockedClub("모집중", 10);
+        club.setClubName("강남 농구 크루");
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(club);
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectActiveMemberById(1L, 3L)).thenReturn(kickTarget(8L));
+
+        service.kickMember(7L, 1L, 3L, "불참");
+
+        verify(notificationDispatcher).notifyAfterCommit(eq(List.of(8L)), eq("CLUB_MEMBER_KICKED"),
+                any(), contains("강남 농구 크루"), isNull(), isNull(), isNull(), eq(1L));
     }
 
     @Test

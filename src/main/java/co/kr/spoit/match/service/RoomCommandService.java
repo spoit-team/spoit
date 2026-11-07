@@ -1,18 +1,25 @@
 package co.kr.spoit.match.service;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -31,6 +38,7 @@ import co.kr.spoit.match.dto.RoomCommand;
 import co.kr.spoit.match.dto.RoomEditTarget;
 import co.kr.spoit.match.dto.RoomForm;
 import co.kr.spoit.match.mapper.RoomCommandMapper;
+import co.kr.spoit.notification.service.NotificationDispatcher;
 
 /**
  * 시설 관리자의 담당 시설 매칭방 생성·수정·취소를 담당한다.
@@ -60,6 +68,8 @@ public class RoomCommandService {
 
     private static final Logger log = LoggerFactory.getLogger(RoomCommandService.class);
 
+    private static final int MYSQL_LOCK_NOWAIT = 3572;
+
     /** 수정·취소할 수 있는 방 상태 */
     static final List<String> EDITABLE_STATUSES = List.of(
             MatchStatus.RECRUITING.dbValue(), MatchStatus.MATCHED.dbValue());
@@ -68,21 +78,25 @@ public class RoomCommandService {
     private final FacilityReservationService reservationService;
     private final FacilityCapacityService capacityService;
     private final PhotoStorage photoStorage;
+    private final NotificationDispatcher notificationDispatcher;
     private final Clock clock;
 
     @Autowired
     public RoomCommandService(RoomCommandMapper roomCommandMapper,
             FacilityReservationService reservationService, FacilityCapacityService capacityService,
-            PhotoStorage photoStorage) {
-        this(roomCommandMapper, reservationService, capacityService, photoStorage, Clock.system(ZONE));
+            PhotoStorage photoStorage, NotificationDispatcher notificationDispatcher) {
+        this(roomCommandMapper, reservationService, capacityService, photoStorage, notificationDispatcher,
+                Clock.system(ZONE));
     }
 
     RoomCommandService(RoomCommandMapper roomCommandMapper, FacilityReservationService reservationService,
-            FacilityCapacityService capacityService, PhotoStorage photoStorage, Clock clock) {
+            FacilityCapacityService capacityService, PhotoStorage photoStorage,
+            NotificationDispatcher notificationDispatcher, Clock clock) {
         this.roomCommandMapper = roomCommandMapper;
         this.reservationService = reservationService;
         this.capacityService = capacityService;
         this.photoStorage = photoStorage;
+        this.notificationDispatcher = notificationDispatcher;
         this.clock = clock;
     }
 
@@ -142,11 +156,18 @@ public class RoomCommandService {
         roomCommandMapper.updateRoom(command(target.getMatchId(), null, details, schedule, null, photoChange));
     }
 
-    /** 담당 시설 매칭방을 취소하고, 대기·확정 신청과 참가자도 함께 취소한다. */
+    /** 시설·매칭방을 잠근 뒤 그 시점의 활성 신청·참가자를 취소하고 알림을 저장한다. */
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void cancel(Long managerUserId, Long matchId) {
         requireManager(managerUserId);
         RoomEditTarget target = lockEditableRoom(managerUserId, matchId);
         LocalDateTime now = now();
+
+        // 잠금을 기다리는 동안 커밋된 신청도 포함해, 상태를 바꾸기 전에 수신자를 확정한다.
+        List<Long> recipients = distinctUserIds(
+                roomCommandMapper.findCancelRecipientUserIds(target.getMatchId(),
+                        ParticipationStatus.occupyingValues(), ApplicationStatus.activeValues()));
+        lockCancellationAccounts(managerUserId, recipients);
 
         int updated = roomCommandMapper.cancelRoom(target.getMatchId(), MatchStatus.CANCELLED.dbValue(),
                 EDITABLE_STATUSES, now);
@@ -157,6 +178,38 @@ public class RoomCommandService {
                 ParticipationStatus.occupyingValues(), now);
         roomCommandMapper.cancelApplications(target.getMatchId(), ApplicationStatus.CANCELLED.dbValue(),
                 ApplicationStatus.activeValues(), managerUserId, now);
+
+        notificationDispatcher.notifyAfterCommit(recipients,
+                "MATCH_ROOM_CANCELLED", "매칭방이 취소되었습니다",
+                "참가 신청한 매칭방이 시설 사정으로 취소되었습니다. 매칭 화면에서 확인해 주세요.",
+                target.getMatchId(), null, null);
+    }
+
+    private void lockCancellationAccounts(Long managerUserId, List<Long> recipients) {
+        if (recipients.isEmpty()) {
+            return;
+        }
+        // 신청은 계정을 먼저 잠근다. 시설 락을 가진 채 FK 검사에서 계정 락을 기다리지 않는다.
+        List<Long> accountIds = new ArrayList<>(recipients);
+        accountIds.add(managerUserId);
+        try {
+            roomCommandMapper.lockCancellationAccounts(accountIds);
+        } catch (DataAccessException exception) {
+            if (exception.getMostSpecificCause() instanceof SQLException sqlException
+                    && sqlException.getErrorCode() == MYSQL_LOCK_NOWAIT) {
+                throw new RoomCommandException("관련 회원 정보가 처리 중입니다. 잠시 후 매칭방 취소를 다시 시도해 주세요.");
+            }
+            throw exception;
+        }
+    }
+
+    /** 순서를 유지하며 null·중복을 제거한다. */
+    private static List<Long> distinctUserIds(List<Long> ids) {
+        if (ids == null) {
+            return List.of();
+        }
+        return List.copyOf(ids.stream().filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new)));
     }
 
     /* ---------------- 대상 확인 ---------------- */

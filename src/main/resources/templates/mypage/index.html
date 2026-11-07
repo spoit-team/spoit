@@ -61,7 +61,7 @@
       <a href="#profile" class="mypage-nav-link" aria-current="location">플레이 프로필</a>
       <a href="#match-records" class="mypage-nav-link">종목별 레이팅·경기 이력</a>
       <a href="#reservations" class="mypage-nav-link">신청 내역</a>
-      <a href="#notifications" class="mypage-nav-link">알림 확인 <span th:if="${(unreadCount ?: 0) > 0}" th:text="${unreadCount}"></span></a>
+      <a href="#notifications" class="mypage-nav-link">알림 확인 <span class="mypage-nav-count" data-notification-nav-count th:hidden="${(unreadCount ?: 0) == 0}" th:text="${unreadCount}" aria-hidden="true">0</span></a>
       <a th:href="@{/mypage/profile}" class="mypage-nav-link mypage-nav-edit">프로필 수정 <span aria-hidden="true">↗</span></a>
     </nav>
 
@@ -191,8 +191,12 @@
                   <p class="mt-1 text-[11px] text-faint" th:text="${entry.seatLine}">참가 1명</p>
                   <p th:if="${entry.statusNote != null}" class="mt-1 text-[11px] text-muted" th:text="${entry.statusNote}">안내</p>
                 </div>
-                <div th:if="${resultSubmitMatchIds.contains(entry.matchId)}" class="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
-                  <a th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="h-9 shrink-0 self-start rounded-lg bg-match px-3 py-2 text-xs font-bold text-white hover:bg-match-hover sm:self-center">경기 결과 제출</a>
+                <!-- 경기가 끝난 참가 내역에서 결과 화면으로 이어 줍니다. 결과 화면은 확정 참가자만 열람할 수 있습니다.
+                     화면 경로(/result-form)와 JSON 요약 API(/result/summary)는 서로 다른 주소입니다.
+                     제출 대상이면 제출 버튼을, 그 외 완료 경기는 결과 보기 링크를 보여 줍니다. -->
+                <div th:if="${resultSubmitMatchIds.contains(entry.matchId) or entry.stateLabel == '이용 완료'}" class="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
+                  <a th:if="${resultSubmitMatchIds.contains(entry.matchId)}" th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="h-9 shrink-0 self-start rounded-lg bg-match px-3 py-2 text-xs font-bold text-white hover:bg-match-hover sm:self-center">경기 결과 제출</a>
+                  <a th:unless="${resultSubmitMatchIds.contains(entry.matchId)}" th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="h-9 shrink-0 self-start rounded-lg border border-line-strong px-3 py-2 text-xs font-bold text-ink-2 hover:border-match hover:text-match-ink sm:self-center">경기 결과 보기</a>
                 </div>
               </article>
             </div>
@@ -201,16 +205,17 @@
         </div>
       </section>
 
-      <section id="notifications" class="mypage-section" aria-labelledby="notifications-heading">
+      <section id="notifications" class="mypage-section" aria-labelledby="notifications-heading"
+               data-notification-surface>
         <div class="mypage-section-heading mypage-notifications-heading">
           <span class="mypage-section-index" aria-hidden="true">03</span>
-          <div><h2 id="notifications-heading">알림 확인 <span class="mypage-unread-count" aria-live="polite" th:text="${(unreadCount ?: 0) > 0 ? '· ' + unreadCount + '건 미확인' : '· 모두 확인했습니다'}">· 모두 확인했습니다</span></h2><p>예약과 팀 활동 관련 알림입니다.</p></div>
+          <div><h2 id="notifications-heading">알림 확인 <span class="mypage-unread-count" data-notification-summary="short" aria-live="polite" th:text="${(unreadCount ?: 0) > 0 ? '· ' + unreadCount + '건 미확인' : '· 모두 확인했습니다'}">· 모두 확인했습니다</span></h2><p>예약과 팀 활동, 경기 결과 관련 알림입니다.</p></div>
           <form method="post" th:action="@{/mypage/notifications/read-all}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-            <button type="submit" class="mypage-text-button" th:disabled="${(unreadCount ?: 0) == 0}" th:classappend="${(unreadCount ?: 0) == 0} ? 'opacity-40' : ''">모두 읽음 처리</button>
+            <button type="submit" class="mypage-text-button" data-notification-read-all th:disabled="${(unreadCount ?: 0) == 0}">모두 읽음 처리</button>
           </form>
         </div>
-        <div class="mypage-notification-list" aria-live="polite">
-          <article th:each="item : ${notifications}" class="mypage-notification-item" th:classappend="${item.read} ? 'is-read' : ''">
+        <div class="mypage-notification-list" data-notification-list data-empty-class="mypage-notification-empty" aria-live="polite">
+          <article th:each="item : ${notifications}" class="mypage-notification-item" th:classappend="${item.read} ? 'is-read' : ''" th:attr="data-notification-id=${item.notificationId}">
             <span aria-hidden="true"></span>
             <a class="mypage-notification-link" th:href="@{${item.href}}">
               <div class="mypage-notification-copy">
@@ -225,46 +230,17 @@
               <form method="post" th:action="@{/mypage/notifications/{notificationId}/delete(notificationId=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action is-delete" th:aria-label="${'알림 삭제: ' + item.title}">삭제</button></form>
             </div>
           </article>
-          <p th:if="${#lists.isEmpty(notifications)}" class="mypage-notification-empty">확인할 알림이 없습니다.</p>
+          <p th:if="${#lists.isEmpty(notifications)}" class="mypage-notification-empty" data-notification-empty>확인할 알림이 없습니다.</p>
         </div>
+        <template data-notification-item-template>
+          <article th:replace="~{fragments/notification :: mypageItem}"></article>
+        </template>
       </section>
     </div>
   </div>
 </main>
 
-<div id="notification-modal" class="mypage-notification-backdrop" hidden>
-  <section class="mypage-notification-dialog" role="dialog" aria-modal="true" aria-labelledby="notification-modal-title" aria-describedby="notification-modal-description">
-    <header class="mypage-notification-dialog-header">
-      <div><span>SPO:IT ALERT</span><h2 id="notification-modal-title">알림</h2><p id="notification-modal-description">예약과 팀 활동 관련 알림입니다.</p></div>
-      <button type="button" class="mypage-notification-close" data-close-notifications aria-label="알림 창 닫기">×</button>
-    </header>
-    <div class="mypage-notification-modal-summary" aria-live="polite" th:text="${'알림 ' + #lists.size(notifications) + '건 · 미확인 ' + (unreadCount ?: 0) + '건'}">알림 0건</div>
-    <div class="mypage-notification-list" aria-live="polite">
-      <article th:each="item : ${notifications}" class="mypage-notification-item" th:classappend="${item.read} ? 'is-read' : ''">
-        <span aria-hidden="true"></span>
-        <a class="mypage-notification-link" th:href="@{${item.href}}">
-          <div class="mypage-notification-copy">
-            <div class="mypage-notification-meta"><span th:text="${item.type}">알림</span><span th:text="${item.read ? '읽음' : '새 알림'}">새 알림</span></div>
-            <h3 th:text="${item.title}">알림 제목</h3>
-            <p th:text="${item.body}">알림 내용</p>
-            <time th:text="${item.time}">시간</time>
-          </div>
-        </a>
-        <div class="mypage-notification-actions">
-          <form th:if="${!item.read}" method="post" th:action="@{/mypage/notifications/{notificationId}/read(notificationId=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action">읽음</button></form>
-          <form method="post" th:action="@{/mypage/notifications/{notificationId}/delete(notificationId=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action is-delete" th:aria-label="${'알림 삭제: ' + item.title}">삭제</button></form>
-        </div>
-      </article>
-      <p th:if="${#lists.isEmpty(notifications)}" class="mypage-notification-empty">확인할 알림이 없습니다.</p>
-    </div>
-    <footer class="mypage-notification-dialog-footer">
-      <form method="post" th:action="@{/mypage/notifications/read-all}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-        <button type="submit" class="mypage-text-button" th:disabled="${(unreadCount ?: 0) == 0}">모두 읽음 처리</button>
-      </form>
-      <button type="button" class="mypage-notification-done" data-close-notifications>닫기</button>
-    </footer>
-  </section>
-</div>
+<div th:replace="~{fragments/notification :: center(${currentMember != null})}"></div>
 
 <!-- RES-04 팀 신청 취소: 대표가 취소할 팀원을 고른다. 대표가 빠지고 남는 팀원이 있으면 새 대표를 고른다. -->
 <dialog id="team-cancel-dialog" class="mypage-confirm-dialog" aria-labelledby="team-cancel-title" aria-describedby="team-cancel-message">
