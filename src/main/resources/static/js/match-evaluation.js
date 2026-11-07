@@ -100,13 +100,51 @@
     </div>`;
   }
 
-  function actions() {
-    if (!confirming) {
-      return `<div class="match-evaluation-actions">
-        <p>선수 ${view.targets.length}명의 항목 ${view.items.length}개를 모두 고르면 제출할 수 있습니다.</p>
-        <button type="button" class="mypage-primary-button" data-action="review">평가 제출</button>
-      </div>`;
+  function missingKeys() {
+    const keys = new Set();
+    for (const target of view.targets) {
+      for (const item of view.items) {
+        if (!values[keyOf(target, item)]) keys.add(keyOf(target, item));
+      }
     }
+    return keys;
+  }
+
+  // 진행률도 제출 검사와 같은 빈 칸 기준으로 센다. 모든 칸이 차야 제출할 수 있기 때문이다.
+  function progressCounts() {
+    const total = view.targets.length * view.items.length;
+    return { filled: total - missingKeys().size, total };
+  }
+
+  function progressBar(locked) {
+    const { filled, total } = progressCounts();
+    return `<div class="match-evaluation-progress" data-evaluation-progress>
+      <p class="match-evaluation-progress-count">항목 <b data-progress-filled>${filled}</b> / ${total}</p>
+      <div class="match-evaluation-progress-bar" role="progressbar" aria-label="평가 진행률"
+        aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${filled}"><span style="width: ${filled / total * 100}%"></span></div>
+      <button type="button" class="mypage-primary-button" data-action="review"${locked ? ' disabled' : ''}>평가 제출</button>
+    </div>`;
+  }
+
+  // 칸을 고를 때마다 표를 다시 그리면 선택 칸 포커스를 잃으므로 숫자와 막대만 바꾼다.
+  function updateProgress() {
+    const progress = body.querySelector('[data-evaluation-progress]');
+    if (!progress) return;
+    const { filled, total } = progressCounts();
+    progress.querySelector('[data-progress-filled]').textContent = filled;
+    progress.querySelector('[role="progressbar"]').setAttribute('aria-valuenow', filled);
+    progress.querySelector('.match-evaluation-progress-bar span').style.width = `${filled / total * 100}%`;
+  }
+
+  function doneBar() {
+    return `<div class="match-evaluation-progress is-done">
+      <p class="match-evaluation-progress-count">평가 제출 완료</p>
+      <div class="match-evaluation-progress-bar" aria-hidden="true"><span style="width: 100%"></span></div>
+      <small>제출한 평가는 고칠 수 없습니다.</small>
+    </div>`;
+  }
+
+  function confirmPanel() {
     return `<div class="match-result-confirm" role="group" aria-labelledby="match-evaluation-confirm-title">
       <p class="match-result-confirm-label">평가 제출</p>
       <strong id="match-evaluation-confirm-title">제출한 평가는 고칠 수 없습니다</strong>
@@ -121,7 +159,7 @@
   /* 이미 제출했는지를 먼저 본다. 조회 응답에는 제출할 수 없는 이유가 없어, 대상·항목이 없는 경우만 따로 안내한다. */
   function render() {
     if (view.submitted) {
-      body.innerHTML = stateCard('제출 완료', 'is-confirmed', '평가를 제출했습니다.', '제출한 평가는 고칠 수 없습니다.');
+      body.innerHTML = doneBar();
       return;
     }
     if (!view.canSubmit) {
@@ -132,10 +170,12 @@
           '평가는 경기가 끝난 뒤 제출 마감 전까지, 레이팅 처리가 끝나기 전에만 제출할 수 있습니다.');
       return;
     }
+    // 진행률 바가 위에 붙어 있으므로 빈 칸 알림과 확인 단계도 그 바로 아래, 표보다 먼저 둔다.
     const locked = confirming || busy;
-    body.innerHTML = `${teams().map(team => teamTable(team, locked)).join('')}
+    body.innerHTML = `${progressBar(locked)}
       <div data-evaluation-missing>${missingAlert()}</div>
-      ${actions()}`;
+      ${confirming ? confirmPanel() : ''}
+      ${teams().map(team => teamTable(team, locked)).join('')}`;
   }
 
   function showMessage(result) {
@@ -176,12 +216,21 @@
     if (!result.ok || !result.data.mySide) {
       view = null;
       body.innerHTML = `<p class="match-result-error">${escapeHTML(result.message)}</p>`;
+      announceLoaded();
       return;
     }
     view = result.data;
     confirming = false;
     missing = new Set();
     render();
+    announceLoaded();
+  }
+
+  // 결과 화면 단계 바(match-result.js)가 평가 단계를 이 응답으로 그린다. 조회에 실패하면 null을 보내 대기로 둔다.
+  function announceLoaded() {
+    root.dispatchEvent(new CustomEvent('match-evaluation:loaded', {
+      detail: view && { submitted: view.submitted, canSubmit: view.canSubmit }
+    }));
   }
 
   function payload() {
@@ -200,12 +249,7 @@
 
   function review() {
     messageBox.hidden = true;
-    missing = new Set();
-    for (const target of view.targets) {
-      for (const item of view.items) {
-        if (!values[keyOf(target, item)]) missing.add(keyOf(target, item));
-      }
-    }
+    missing = missingKeys();
     if (missing.size > 0) {
       render();
       body.querySelector('.match-evaluation-select.is-missing')?.focus();
@@ -247,6 +291,7 @@
     const select = event.target.closest('select[data-key]');
     if (!select || !view) return;
     values[select.dataset.key] = select.value;
+    updateProgress();
     if (select.value && missing.delete(select.dataset.key)) {
       select.classList.remove('is-missing');
       select.removeAttribute('aria-invalid');

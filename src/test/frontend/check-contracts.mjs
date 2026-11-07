@@ -862,6 +862,12 @@ check(matchResultScript.includes('renderTeams') && matchResultScript.includes('m
   'match-result.js: the roster must be drawn from the confirmed members\' nicknames');
 check(!/innerHTML\s*=/.test(matchResultScript),
   'match-result.js: roster values must be rendered as text, never injected as HTML');
+// 서버는 팀장 여부를 모르므로 단계 바는 숨긴 채 시작하고, 평가 진행률은 제출 검사와 같은 빈 칸 판정을 쓴다.
+const matchEvaluationScript = await readFile(path.join(resources, 'static/js/match-evaluation.js'), 'utf8');
+check(/<ol\b(?=[^>]*\sdata-result-steps(?=[\s>=]))(?=[^>]*\shidden(?=[\s>=]))[^>]*>/.test(matchResultSource),
+  'match-result.html: the captain step bar must start hidden so participants never see it');
+check(/missing = missingKeys\(\)/.test(matchEvaluationScript) && /missingKeys\(\)\.size/.test(matchEvaluationScript),
+  'match-evaluation.js: the progress count must use the same empty-cell check as submission review');
 
 if (failures.length) {
   console.error(failures.join('\n'));

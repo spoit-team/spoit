@@ -12,6 +12,7 @@
   const csrfHeader = root.getAttribute('data-csrf-header');
   const csrfToken = root.getAttribute('data-csrf-token');
 
+  const stepsList = root.querySelector('[data-result-steps]');
   const summarySection = root.querySelector('[data-result-summary]');
   const stateBody = root.querySelector('[data-result-body]');
   const stateMessage = root.querySelector('[data-result-message]');
@@ -28,9 +29,21 @@
 
   const RESULT_LABELS = { A_WIN: 'A팀 승', DRAW: '무승부', B_WIN: 'B팀 승' };
   const REQUEST_RESULTS = ['A_WIN', 'DRAW', 'B_WIN'];
+  const STEPS = [
+    { key: 'result', label: '결과 제출' },
+    { key: 'evaluation', label: '선수 평가' },
+    { key: 'rating', label: '레이팅 반영' }
+  ];
+  const STEP_STATES = {
+    done: { label: '완료', className: 'is-done' },
+    current: { label: '진행 중', className: 'is-current' },
+    waiting: { label: '대기', className: '' },
+    excluded: { label: '제외', className: '' }
+  };
 
   let summary = null;   // 확정 참가자용 결과 요약
   let captain = null;    // 팀장 전용 결과 조회 응답(팀장이 아니면 null)
+  let evaluation = null; // 평가 조회 응답의 submitted·canSubmit. 평가 영역(match-evaluation.js)이 알려 준다.
   let mySide = '';
   let pending = null;    // 제출 확인 단계에 올린 결과
   let busy = false;
@@ -268,6 +281,50 @@
       closedReason()));
   }
 
+  /* 단계 바는 팀장 결과 조회와 평가 조회 응답만으로 정한다. 서버가 결과 확정 전에도 평가를 받으므로
+     1·2단계가 함께 진행 중일 수 있다. */
+  function resultStep() {
+    if (captain.finalResult) return 'done';
+    const processed = captain.ratingStatus === 'APPLIED' || captain.ratingStatus === 'EXCLUDED';
+    return !processed && (captain.canSubmit || captain.myResult) ? 'current' : 'waiting';
+  }
+
+  function evaluationStep() {
+    if (!evaluation) return 'waiting';
+    if (evaluation.submitted) return 'done';
+    return evaluation.canSubmit ? 'current' : 'waiting';
+  }
+
+  // 확정 뒤 내 평가가 끝났거나 낼 수 없으면 반영만 남는다. 평가 응답이 없으면 알 수 없어 대기로 둔다.
+  function ratingStep() {
+    if (captain.ratingStatus === 'APPLIED') return 'done';
+    if (captain.ratingStatus === 'EXCLUDED') return 'excluded';
+    return captain.finalResult && evaluation && !evaluation.canSubmit ? 'current' : 'waiting';
+  }
+
+  // 팀장 결과가 없으면(재조회 실패) 마지막으로 그린 단계를 그대로 둔다.
+  function renderSteps() {
+    if (!stepsList || !captain) return;
+    const states = { result: resultStep(), evaluation: evaluationStep(), rating: ratingStep() };
+    stepsList.replaceChildren(...STEPS.map(function (step, index) {
+      const state = STEP_STATES[states[step.key]];
+      const item = document.createElement('li');
+      item.className = ('match-result-step ' + state.className).trim();
+      if (state === STEP_STATES.current) item.setAttribute('aria-current', 'step');
+      const number = document.createElement('span');
+      number.className = 'match-result-step-index';
+      number.setAttribute('aria-hidden', 'true');
+      number.textContent = String(index + 1);
+      const name = document.createElement('strong');
+      name.textContent = step.label;
+      const status = document.createElement('small');
+      status.textContent = state.label;
+      item.append(number, name, status);
+      return item;
+    }));
+    stepsList.hidden = false;
+  }
+
   function renderSummary() {
     if (!summary) return;
     if (summarySection) summarySection.hidden = false;
@@ -426,7 +483,9 @@
       // 403은 "팀장이 아님"이다. 오류가 아니라 제출 영역을 감추는 신호로 쓴다.
       if (result.status === 403) {
         captain = null;
+        evaluation = null;
         if (submitSection) submitSection.hidden = true;
+        if (stepsList) stepsList.hidden = true;
         return;
       }
       if (!result.ok || !result.data?.mySide) {
@@ -437,6 +496,7 @@
       captain = result.data;
       if (captain.mySide) mySide = captain.mySide;
       renderSubmit();
+      renderSteps();
       if (captain.mySide && evaluationSection?.hidden) {
         evaluationSection.hidden = false;
         evaluationSection.dispatchEvent(new Event('match-result:captain'));
@@ -523,6 +583,11 @@
     if (submitMessage) submitMessage.hidden = true;
     loadSummary();
     loadCaptain();
+  });
+
+  evaluationSection?.addEventListener('match-evaluation:loaded', function (event) {
+    evaluation = event.detail;
+    renderSteps();
   });
 
   loadSummary().then(function (ok) {
