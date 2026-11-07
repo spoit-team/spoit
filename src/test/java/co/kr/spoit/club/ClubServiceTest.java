@@ -70,7 +70,7 @@ class ClubServiceTest {
     @Mock
     private ParticipantHistoryMapper historyMapper;
 
-    @Mock 
+    @Mock
     private NotificationDispatcher notificationDispatcher;
 
     @InjectMocks
@@ -390,6 +390,7 @@ class ClubServiceTest {
     void 가입_신청_승인_성공() {
         when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
         when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(accountLockService.lockById(8L)).thenReturn(account(8L));
         when(clubMapper.selectPendingJoinRequestById(1L, 5L)).thenReturn(pendingRequest(8L));
         when(clubMapper.countActiveMembers(1L)).thenReturn(3);
 
@@ -422,6 +423,7 @@ class ClubServiceTest {
     void 가입_승인_거절은_신청자에게_알린다() {
         when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
         when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(accountLockService.lockById(8L)).thenReturn(account(8L));
         when(clubMapper.selectPendingJoinRequestById(1L, 5L)).thenReturn(pendingRequest(8L));
         when(clubMapper.countActiveMembers(1L)).thenReturn(3);
 
@@ -485,12 +487,31 @@ class ClubServiceTest {
         when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
         when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
         when(clubMapper.selectPendingJoinRequestById(1L, 5L)).thenReturn(pendingRequest(8L));
+        when(accountLockService.lockById(8L)).thenReturn(account(8L));
         when(clubMapper.countActiveMembers(1L)).thenReturn(10);
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.approveJoin(7L, 1L, 5L));
 
         assertThat(exception.getMessage()).isEqualTo("정원이 가득 찬 동호회입니다.");
+        verify(clubMapper, never()).updateJoinRequestStatus(any(), any());
+        verify(clubMapper, never()).insertJoinedMember(any(), any());
+    }
+
+    @Test
+    @DisplayName("신청자가 탈퇴했으면 승인하지 않는다")
+    void 탈퇴한_회원의_신청은_승인하지_않는다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectPendingJoinRequestById(1L, 5L)).thenReturn(pendingRequest(8L));
+        Member withdrawn = account(8L);
+        withdrawn.setDeletedAt(java.time.LocalDateTime.now());
+        when(accountLockService.lockById(8L)).thenReturn(withdrawn);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.approveJoin(7L, 1L, 5L));
+
+        assertThat(exception.getMessage()).isEqualTo("탈퇴한 회원의 신청이라 승인할 수 없습니다. 거절해 주세요.");
         verify(clubMapper, never()).updateJoinRequestStatus(any(), any());
         verify(clubMapper, never()).insertJoinedMember(any(), any());
     }
@@ -822,17 +843,14 @@ class ClubServiceTest {
     }
 
     @Test
-    @DisplayName("탈퇴 차단 사유는 동호회장 목록과 팀 매치 목록을 각각 그대로 담는다")
-    void 탈퇴_차단_사유를_카테고리별로_담는다() {
+    @DisplayName("탈퇴 차단 사유는 가입한 동호회 목록을 그대로 담는다")
+    void 탈퇴_차단_사유에_가입한_동호회를_담는다() {
         when(clubMapper.selectLeaderClubBlocks(7L)).thenReturn(List.of(
                 clubBlock(1L, "강서 테니스회"), clubBlock(2L, "노원 농구회")));
-        when(clubMapper.selectRecruitingTeamMatchClubBlocks(7L)).thenReturn(List.of(
-                clubBlock(3L, "주말 풋살 클럽")));
-
+        
         ClubWithdrawalBlocks blocks = service.findWithdrawalBlocks(7L);
 
         assertThat(blocks.getLeaderClubNames()).containsExactly("강서 테니스회", "노원 농구회");
-        assertThat(blocks.getTeamMatchClubNames()).containsExactly("주말 풋살 클럽");
         assertThat(blocks.isBlocked()).isTrue();
     }
 
@@ -841,8 +859,7 @@ class ClubServiceTest {
     void 이름이_같은_다른_동호회를_각각_유지한다() {
         when(clubMapper.selectLeaderClubBlocks(7L)).thenReturn(List.of(
                 clubBlock(1L, "풋살 클럽"), clubBlock(2L, "풋살 클럽")));
-        when(clubMapper.selectRecruitingTeamMatchClubBlocks(7L)).thenReturn(List.of());
-
+   
         ClubWithdrawalBlocks blocks = service.findWithdrawalBlocks(7L);
 
         assertThat(blocks.getLeaderClubNames()).containsExactly("풋살 클럽", "풋살 클럽");
@@ -852,12 +869,10 @@ class ClubServiceTest {
     @DisplayName("차단 사유가 없으면 비어 있는 목록과 blocked=false를 돌려준다")
     void 탈퇴_차단_사유가_없으면_빈_목록이다() {
         when(clubMapper.selectLeaderClubBlocks(7L)).thenReturn(List.of());
-        when(clubMapper.selectRecruitingTeamMatchClubBlocks(7L)).thenReturn(List.of());
-
+       
         ClubWithdrawalBlocks blocks = service.findWithdrawalBlocks(7L);
 
         assertThat(blocks.getLeaderClubNames()).isEmpty();
-        assertThat(blocks.getTeamMatchClubNames()).isEmpty();
         assertThat(blocks.isBlocked()).isFalse();
     }
 
@@ -868,7 +883,6 @@ class ClubServiceTest {
 
         assertThat(blocks.isBlocked()).isFalse();
         verify(clubMapper, never()).selectLeaderClubBlocks(any());
-        verify(clubMapper, never()).selectRecruitingTeamMatchClubBlocks(any());
     }
 
     private ClubBlockRow clubBlock(Long clubId, String clubName) {

@@ -132,11 +132,8 @@ public interface ClubMapper {
         // 모집 중인 팀 매치에 신청됐는지
         boolean existsRecruitingTeamMatch(@Param("clubId") Long clubId, @Param("userId") Long userId);
 
-        // 회원이 동호회장으로 있는 활성 동호회(탈퇴 차단 사유)
+        // 회원이 가입한 활성 동호회(동호회장·동호회원, 탈퇴 차단 사유)
         List<ClubBlockRow> selectLeaderClubBlocks(@Param("userId") Long userId);
-
-        // 모집 중인 팀 매치에 신청·참가 중인 동호회(탈퇴 차단 사유)
-        List<ClubBlockRow> selectRecruitingTeamMatchClubBlocks(@Param("userId") Long userId);
 
         // 동호회 탈퇴
         int updateMemberLeave(@Param("clubId") Long clubId, @Param("userId") Long userId);

@@ -109,14 +109,9 @@
         <h3 id="withdrawal-blocks-title" class="profile-withdrawal-blocks-title">지금 바로 탈퇴할 수 없어요</h3>
         <ul class="profile-withdrawal-block-list">
           <li class="profile-withdrawal-block" th:if="${!#lists.isEmpty(withdrawalBlocks.leaderClubNames)}">
-            <span class="profile-withdrawal-block-label">동호회장인 팀은 위임하거나 해체해 주세요</span>
+            <span class="profile-withdrawal-block-label">동호회에 가입되어 있어요</span>
             <span class="profile-withdrawal-block-count" th:text="${#lists.size(withdrawalBlocks.leaderClubNames)} + '개'">1개</span>
             <p class="profile-withdrawal-block-names" th:text="${#strings.listJoin(withdrawalBlocks.leaderClubNames, ' · ')}">팀 이름</p>
-          </li>
-          <li class="profile-withdrawal-block" th:if="${!#lists.isEmpty(withdrawalBlocks.teamMatchClubNames)}">
-            <span class="profile-withdrawal-block-label">모집 중인 팀 매치에 신청되어 있어요</span>
-            <span class="profile-withdrawal-block-count" th:text="${#lists.size(withdrawalBlocks.teamMatchClubNames)} + '개'">1개</span>
-            <p class="profile-withdrawal-block-names" th:text="${#strings.listJoin(withdrawalBlocks.teamMatchClubNames, ' · ')}">팀 이름</p>
           </li>
           <li class="profile-withdrawal-block" th:if="${!#lists.isEmpty(withdrawalBlocks.individualMatchNames)}">
             <span class="profile-withdrawal-block-label">종료 상태가 아닌 매치에 신청되어 있어요</span>
@@ -124,11 +119,11 @@
             <p class="profile-withdrawal-block-names" th:text="${#strings.listJoin(withdrawalBlocks.individualMatchNames, ' · ')}">매치 이름</p>
           </li>
         </ul>
-        <!-- 종료 상태에 대한 안내는 개인 매치 신청이 있을 때만 참이다. 팀 사유는 위임·취소로 풀 수 있다. -->
+        <!-- 종료 상태 안내는 매치 신청(개인·동호회)이 있을 때만 그린다. -->
         <p class="profile-withdrawal-block-note" th:if="${!#lists.isEmpty(withdrawalBlocks.individualMatchNames)}">경기가 끝났더라도 결과 처리 전에는 <strong>매칭 완료</strong> 상태일 수 있습니다. 해당 매치가 종료 상태가 되거나 신청이 취소되면 이 제한이 해제됩니다.</p>
         <div class="profile-withdrawal-block-links">
-          <a class="profile-withdrawal-block-link" th:if="${!#lists.isEmpty(withdrawalBlocks.leaderClubNames) or !#lists.isEmpty(withdrawalBlocks.teamMatchClubNames)}"
-             th:href="@{/teams/manage}">팀 관리로 가기 <span aria-hidden="true">›</span></a>
+          <a class="profile-withdrawal-block-link" th:if="${!#lists.isEmpty(withdrawalBlocks.leaderClubNames)}"
+             th:href="@{/teams/manage}">동호회 관리로 가기 <span aria-hidden="true">›</span></a>
           <a class="profile-withdrawal-block-link" th:if="${!#lists.isEmpty(withdrawalBlocks.individualMatchNames)}"
              th:href="@{/mypage#reservations}">신청 내역 보기 <span aria-hidden="true">›</span></a>
         </div>

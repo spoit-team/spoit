@@ -183,7 +183,7 @@ for (const file of scripts) {
 }
 
 /* ── 회원 탈퇴 확인창 계약 ────────────────────────────────────────────────
-   서버는 withdrawalBlocks(blocked·leaderClubNames·teamMatchClubNames·individualMatchNames)를
+   서버는 withdrawalBlocks(blocked·leaderClubNames·individualMatchNames)를
    항상 내려주고, 화면은 그 값으로만 비밀번호 입력과 확인 버튼을 잠근다. 사유가 늘거나
    잠금 조건이 화면에서 임의로 풀리면 사용자가 막힌 줄 모르고 탈퇴를 시도하므로 여기서 고정한다. */
 const profileSource = await readFile(path.join(resources, 'templates/mypage/profile.html'), 'utf8');
@@ -199,8 +199,7 @@ check(/id="withdrawal-blocks"[\s\S]*?role="group"[\s\S]*?aria-labelledby="withdr
 check(/id="withdrawal-blocks"[\s\S]*?tabindex="-1"/.test(withdrawalDialog),
   'withdrawal blocks: the blocker list must be able to take focus when the input is disabled');
 for (const [field, phrase] of [
-  ['leaderClubNames', '동호회장인 팀은 위임하거나 해체해 주세요'],
-  ['teamMatchClubNames', '모집 중인 팀 매치에 신청되어 있어요'],
+  ['leaderClubNames', '동호회에 가입되어 있어요'],
   ['individualMatchNames', '종료 상태가 아닌 매치에 신청되어 있어요']
 ]) {
   check(withdrawalDialog.includes(`withdrawalBlocks.${field}`),
@@ -219,7 +218,7 @@ check(!/아직 끝나지 않은 상태|아직 종료되지 않은 매치/.test(w
   'withdrawal blocks: must not claim the match has not finished');
 check(!/종료 시각이 지나면|자동으로 종료|스케줄|24시간|이내에|즉시 종료/.test(withdrawalDialog),
   'withdrawal blocks: no scheduler/end-time/duration promise in the guidance');
-// 종료 상태 안내는 개인 매치 사유에만 참이다. 팀 사유만 있으면 위임·취소로 풀 수 있다.
+// 종료 상태 안내는 매치 신청(개인·동호회) 사유에만 참이다. 동호회 가입 사유만 있으면 동호회 탈퇴로 풀 수 있다.
 const withdrawalNoteTag = withdrawalDialog.match(/<p class="profile-withdrawal-block-note"[^>]*>/)?.[0] ?? '';
 check(withdrawalNoteTag.includes('th:if="${!#lists.isEmpty(withdrawalBlocks.individualMatchNames)}"'),
   'withdrawal blocks: the 종료 guidance must render only for the individual blocker');

@@ -131,13 +131,12 @@ public interface MatchApplicationMapper {
                                               @Param("participantStatuses") List<String> participantStatuses);
 
     /**
-     * 회원 탈퇴를 막는 개인 매치 신청의 매치 (매치별 한 번, 같은 제목의 다른 매치도 각각 포함).
+     * 회원 탈퇴를 막는 매치 신청(개인·동호회)의 매치 (매치별 한 번, 같은 제목의 다른 매치도 각각 포함).
      *
      * <p>"매칭 완료"는 경기 진행 중 상태이며, 경기 종료 후 스케줄러가 "종료"로 바꾼다.
      * 따라서 모집 중·매칭 완료만 차단하고 종료·취소된 매치는 막지 않는다.</p>
      */
     List<MatchTitleRow> findActiveIndividualMatchTitles(@Param("userId") long userId,
-                                                        @Param("applicationType") String applicationType,
                                                         @Param("applicationStatuses") List<String> applicationStatuses,
                                                         @Param("matchStatuses") List<String> matchStatuses);
 

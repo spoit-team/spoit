@@ -13,7 +13,7 @@
 -- 시나리오 계정과 기대 결과
 --   withdraw-free@example.invalid                    차단 없음        -> 탈퇴 성공
 --   withdraw-leader@example.invalid                  동호회장          -> 탈퇴 차단(leaderClubNames)
---   withdraw-team@example.invalid                    모집 중 팀 매치 신청 -> 탈퇴 차단(teamMatchClubNames)
+--   withdraw-team@example.invalid                    동호회원 + 모집 중 팀 매치 신청 -> 탈퇴 차단(leaderClubNames, individualMatchNames)
 --   withdraw-individual-recruiting@example.invalid   모집 중 개인 매치 신청 -> 탈퇴 차단(individualMatchNames)
 --   withdraw-individual-matched@example.invalid      매칭 완료 개인 매치 신청 -> 탈퇴 차단(individualMatchNames)
 --   withdraw-cancelled@example.invalid               취소 신청 + 취소 매치 -> 차단 없음(탈퇴 성공)
@@ -25,9 +25,9 @@
 --   withdraw-opponent@example.invalid     종료 경기 상대 참가자
 --
 -- 지원 계정도 탈퇴 차단 규칙이 그대로 적용된다(검증 시 참고).
---   withdraw-club-leader@  동호회장 + 모집 중 팀 매치 대표 -> 두 사유 모두 차단
---   withdraw-club-member@  모집 중 팀 매치 동반 참가자       -> teamMatchClubNames 차단
---   withdraw-opponent@     종료 경기 확정 참가자            -> 차단 없음
+--   withdraw-club-leader@  동호회장                          -> leaderClubNames 차단
+--   withdraw-club-member@  동호회원 + 모집 중 팀 매치 신청   -> leaderClubNames·individualMatchNames 차단
+--   withdraw-opponent@     동호회원 + 종료 경기 확정 참가자  -> leaderClubNames 차단
 -- =====================================================================
 
 -- 종목 -----------------------------------------------------------------
@@ -102,7 +102,7 @@ INSERT INTO operating_rule (facility_id, weekday, open_time, close_time, end_nex
 
 -- 동호회 ---------------------------------------------------------------
 -- 9501: withdraw-leader 가 동호회장 -> leaderClubNames 차단
--- 9502: withdraw-team 이 동호회원 -> 모집 중 팀 매치 신청으로 teamMatchClubNames 차단
+-- 9502: withdraw-team 이 동호회원 -> leaderClubNames 차단, 모집 중 팀 매치 신청은 individualMatchNames 차단
 --       (withdraw-team 은 동호회장이 아니다)
 INSERT INTO club (club_id, sport_id, club_name, intro, max_members, recruit_status,
                   image_url, activity_days, activity_start_time, activity_end_time,

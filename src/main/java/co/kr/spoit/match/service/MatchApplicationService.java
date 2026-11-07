@@ -26,7 +26,6 @@ import co.kr.spoit.facility.service.FacilityScheduleUnavailableException;
 import co.kr.spoit.mat.domain.SportRating;
 import co.kr.spoit.mat.mapper.SportRatingMapper;
 import co.kr.spoit.match.domain.ApplicationStatus;
-import co.kr.spoit.match.domain.ApplicationType;
 import co.kr.spoit.match.domain.MatchApplication;
 import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.domain.ParticipationStatus;
@@ -106,7 +105,7 @@ public class MatchApplicationService {
     private final NotificationDispatcher notificationDispatcher;
 
     /**
-     * 회원 탈퇴를 막는 진행 중 개인 매치 신청의 매치 제목.
+     * 회원 탈퇴를 막는 진행 중 매치 신청(개인·동호회)의 매치 제목.
      *
      * <p>대기·확정 신청이면서 매칭방이 모집 중이거나 매칭 완료일 때만 차단한다. "매칭 완료"는 경기가
      * 아직 진행 중이라는 뜻이고, 경기 종료 후 스케줄러가 "종료"로 바꾸면 더 이상 막지 않는다.
@@ -116,8 +115,7 @@ public class MatchApplicationService {
      */
     public List<String> findActiveIndividualMatchTitles(long userId) {
         List<MatchTitleRow> rows = applicationMapper.findActiveIndividualMatchTitles(userId,
-                ApplicationType.INDIVIDUAL.dbValue(), ApplicationStatus.activeValues(),
-                BLOCKING_MATCH_STATUSES);
+                                ApplicationStatus.activeValues(), BLOCKING_MATCH_STATUSES);
         if (rows == null || rows.isEmpty()) {
             return List.of();
         }
