@@ -71,6 +71,9 @@ class MatchResultPageControllerTest {
                         Matchers.containsString("data-result-root"),
                         Matchers.containsString("data-match-id=\"10\""),
                         Matchers.containsString("data-csrf-header=\"X-CSRF-TOKEN\""))))
+                // 서버는 팀장 여부를 모르므로 단계 바는 숨긴 채 내려 보내고, 팀장 결과 조회가 열리면 스크립트가 보인다.
+                .andExpect(content().string(Matchers.matchesPattern(
+                        "(?s).*<ol(?=[^>]*\\sdata-result-steps)(?=[^>]*\\shidden(?:\\s|=|>))[^>]*>.*")))
                 .andExpect(content().string(Matchers.allOf(
                         Matchers.stringContainsInOrder("id=\"match-result\"", "id=\"match-evaluation\""),
                         Matchers.matchesPattern("(?s).*<section(?=[^>]*\\sid=\"match-evaluation\")"

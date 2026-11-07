@@ -22,6 +22,10 @@ class SyNode extends Element {
     };
   }
   addEventListener(type, handler) { (this.listeners[type] ??= []).push(handler); }
+  dispatchEvent(event) {
+    for (const handler of this.listeners[event.type] ?? []) handler(event);
+    return true;
+  }
   setAttribute(name, value) { this.attributes[name] = String(value); }
   getAttribute(name) { return this.attributes[name] ?? null; }
   removeAttribute(name) { delete this.attributes[name]; }
@@ -68,6 +72,8 @@ function resultPage(options = {}) {
   const submitBody = new SyNode();
   const submitMessage = new SyNode({ hidden: true });
   const teamsContainer = new SyNode();
+  const steps = new SyNode({ hidden: true });
+  const evaluationSection = new SyNode({ hidden: true });
 
   ['matchId', 'side', 'resultStatus', 'ratingStatus', 'title', 'sport', 'schedule', 'facility', 'deadline'].forEach(field);
 
@@ -83,7 +89,9 @@ function resultPage(options = {}) {
     '[data-result-submit]': submitSection,
     '[data-result-submit-body]': submitBody,
     '[data-result-submit-message]': submitMessage,
-    '[data-result-teams]': teamsContainer
+    '[data-result-teams]': teamsContainer,
+    '[data-result-steps]': steps,
+    '#match-evaluation': evaluationSection
   };
   root.bySelectorAll = {
     '[data-field="matchId"]': [fields.matchId],
@@ -130,12 +138,17 @@ function resultPage(options = {}) {
 
   return {
     root, fields, summarySection, stateBody, stateMessage,
-    submitSection, submitBody, submitMessage, teamsContainer, document, window, calls
+    submitSection, submitBody, submitMessage, teamsContainer, steps, evaluationSection, document, window, calls
   };
 }
 
 function flush() {
   return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+// 단계마다 [번호, 이름, 상태] 순서로 그린다.
+function stepStates(page) {
+  return page.steps.children.map(step => step.children[2].textContent);
 }
 
 /* ── 1) 일반 참가자: 요약만 읽고 팀장 제출 영역은 403으로 감춘다 ───────── */
@@ -177,6 +190,8 @@ function flush() {
   assert.equal(page.fields.facility.textContent, 'MAT 테스트 시설');
   assert.equal(page.fields.deadline.textContent, '2026년 10월 31일 (토) 20:00');
   assert.equal(page.submitSection.hidden, true, '팀장이 아니면 제출 영역을 감춰야 합니다.');
+  assert.equal(page.steps.hidden, true, '팀장이 아니면 단계 바를 보여 주지 않습니다.');
+  assert.equal(page.steps.children.length, 0);
   assert.equal(page.stateMessage.hidden, true, '팀장이 아닌 것은 오류가 아니므로 안내를 띄우지 않습니다.');
   assert.match(textOf(page.stateBody), /최종 결과/);
 
@@ -216,6 +231,7 @@ function flush() {
   await flush();
 
   assert.equal(page.submitSection.hidden, false, '팀장에게는 제출 영역을 열어야 합니다.');
+  assert.equal(page.steps.hidden, false, '팀장에게는 단계 바를 보여 줘야 합니다.');
 
   const choices = page.submitBody.children.find(child => hasClass(child, 'match-result-choices'));
   assert.ok(choices, '제출 가능한 팀장에게 결과 선택지를 보여 줘야 합니다.');
@@ -253,6 +269,66 @@ function flush() {
   assert.equal(post.init.headers['X-CSRF-TOKEN'], 'csrf-value');
   assert.equal(page.summarySection.hidden, true, '403 재조회 뒤 이전 요약이 보이면 안 됩니다.');
   assert.equal(page.submitSection.hidden, true, '403 재조회 뒤 제출 영역을 숨겨야 합니다.');
+  assert.equal(page.steps.hidden, true, '403 재조회 뒤 단계 바를 숨겨야 합니다.');
+}
+
+/* ── 팀장 단계 바: 팀장 결과 조회와 평가 조회 응답만으로 단계를 정한다 ── */
+{
+  const captainBase = {
+    matchId: 42, mySide: 'A', myResult: null, opponentSubmitted: false, conflict: false,
+    opponentResult: null, finalResult: null, ratingStatus: 'WAITING', deadlineAt: null, canSubmit: false
+  };
+  const cases = [
+    { name: 'unsubmitted', captain: { canSubmit: true },
+      evaluation: { submitted: false, canSubmit: true }, expected: ['진행 중', '진행 중', '대기'] },
+    { name: 'confirmed', captain: { myResult: 'A_WIN', finalResult: 'A_WIN' },
+      evaluation: { submitted: false, canSubmit: true }, expected: ['완료', '진행 중', '대기'] },
+    { name: 'applied', captain: { myResult: 'A_WIN', finalResult: 'A_WIN', ratingStatus: 'APPLIED' },
+      evaluation: { submitted: true, canSubmit: false }, expected: ['완료', '완료', '완료'] },
+    { name: 'excluded', captain: { myResult: 'A_WIN', ratingStatus: 'EXCLUDED' },
+      evaluation: { submitted: false, canSubmit: false }, expected: ['대기', '대기', '제외'] }
+  ];
+  for (const testCase of cases) {
+    const page = resultPage({
+      summary: { matchId: 42, resultStatus: 'SUBMITTED', ratingStatus: 'WAITING', mySide: 'A' },
+      captain: { ...captainBase, ...testCase.captain }
+    });
+    globalThis.document = page.document;
+    globalThis.window = page.window;
+
+    await import(`../../main/resources/static/js/match-result.js?steps-${testCase.name}`);
+    await flush();
+    await flush();
+    page.evaluationSection.dispatchEvent({ type: 'match-evaluation:loaded', detail: testCase.evaluation });
+
+    assert.equal(page.steps.hidden, false);
+    assert.deepEqual(stepStates(page), testCase.expected, `${testCase.name}: 단계 상태가 응답과 맞아야 합니다.`);
+    if (testCase.name === 'unsubmitted') {
+      assert.equal(page.steps.children[0].getAttribute('aria-current'), 'step', '진행 중인 단계를 표시해야 합니다.');
+    }
+  }
+}
+
+/* 평가 조회가 실패하면 평가 단계만 대기로 두고 결과·레이팅 단계는 그대로 그린다. */
+{
+  const page = resultPage({
+    summary: { matchId: 42, resultStatus: 'CONFIRMED', ratingStatus: 'WAITING', mySide: 'A' },
+    captain: {
+      matchId: 42, mySide: 'A', myResult: 'A_WIN', opponentSubmitted: true, conflict: false,
+      opponentResult: null, finalResult: 'A_WIN', ratingStatus: 'WAITING', deadlineAt: null, canSubmit: false
+    }
+  });
+  globalThis.document = page.document;
+  globalThis.window = page.window;
+
+  await import('../../main/resources/static/js/match-result.js?steps-evaluation-failed');
+  await flush();
+  await flush();
+  page.evaluationSection.dispatchEvent({ type: 'match-evaluation:loaded', detail: { submitted: false, canSubmit: true } });
+  assert.deepEqual(stepStates(page), ['완료', '진행 중', '대기']);
+
+  page.evaluationSection.dispatchEvent({ type: 'match-evaluation:loaded', detail: null });
+  assert.deepEqual(stepStates(page), ['완료', '대기', '대기'], '평가 조회 실패는 평가 단계만 대기로 되돌립니다.');
 }
 
 /* ── 3) 결과가 없으면 빈 상태를 꾸며 내지 않고 서버 문구를 그대로 쓴다 ── */
