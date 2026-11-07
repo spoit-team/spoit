@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -16,9 +17,12 @@ import co.kr.spoit.mat.domain.MatchResult;
 import co.kr.spoit.mat.domain.ReceivedEvaluation;
 import co.kr.spoit.mat.domain.ReminderTarget;
 import co.kr.spoit.mat.domain.ResultMatch;
+import co.kr.spoit.mat.domain.ResultPageMatch;
 import co.kr.spoit.mat.domain.ResultSubmission;
+import co.kr.spoit.mat.domain.ResultTeamMember;
 import co.kr.spoit.mat.dto.MatchResultResponse;
 import co.kr.spoit.mat.dto.MatchResultResponse.Outcome;
+import co.kr.spoit.mat.dto.MatchResultSummary;
 import co.kr.spoit.mat.dto.MatchResultView;
 import co.kr.spoit.mat.mapper.MatchAssignmentMapper;
 import co.kr.spoit.mat.mapper.MatchEvaluationMapper;
@@ -290,10 +294,42 @@ class MatchResultServiceTest {
     @Test
     void endsOnlyMatchesWhoseRatingIsProcessed() {
         when(resultMapper.findEndedMatchIds("매칭 완료", "APPLIED", "EXCLUDED", NOW)).thenReturn(List.of(MATCH_ID));
-        when(resultMapper.markEnded(MATCH_ID, "종료", "매칭 완료", "APPLIED", "EXCLUDED", NOW)).thenReturn(1);
 
         assertThat(service.findEndedMatchIds(NOW)).containsExactly(MATCH_ID);
+    }
+
+    @Test
+    void notifiesConfirmedParticipantsOnceWhenMatchEnds() {
+        givenParticipants();
+        when(resultMapper.markEnded(MATCH_ID, "종료", "매칭 완료", "APPLIED", "EXCLUDED", NOW)).thenReturn(1);
+
         assertThat(service.markEnded(MATCH_ID, NOW)).isTrue();
+
+        // 확정 참가자 3명에게 같은 안내를 한 번만 예약한다. 레이팅 반영·제외는 종류를 나누지 않는다.
+        verify(matchNotifier).notifyAfterCommit(List.of(CAPTAIN_A_USER, CAPTAIN_B_USER, 13L), MATCH_ID,
+                NotificationType.MATCH_RESULT_COMPLETED, "경기 결과 산정 완료",
+                "경기 결과 산정이 완료되었습니다. 자세한 내용은 경기 결과 페이지에서 확인해 주세요.");
+        verify(matchNotifier, times(1)).notifyAfterCommit(any(), anyLong(), any(), anyString(), anyString());
+    }
+
+    @Test
+    void doesNotNotifyAgainWhenMatchWasAlreadyEnded() {
+        when(resultMapper.markEnded(MATCH_ID, "종료", "매칭 완료", "APPLIED", "EXCLUDED", NOW)).thenReturn(0);
+
+        assertThat(service.markEnded(MATCH_ID, NOW)).isFalse();
+
+        verifyNoInteractions(participantMapper, matchNotifier);
+    }
+
+    @Test
+    void doesNotNotifyBeforeMatchEnd() {
+        // 종료 시각 전이거나 레이팅이 아직 WAITING이면 조건부 UPDATE가 0행이라 알림도 없어야 한다.
+        when(resultMapper.markEnded(MATCH_ID, "종료", "매칭 완료", "APPLIED", "EXCLUDED", END_AT.minusMinutes(1)))
+                .thenReturn(0);
+
+        assertThat(service.markEnded(MATCH_ID, END_AT.minusMinutes(1))).isFalse();
+
+        verifyNoInteractions(participantMapper, matchNotifier);
     }
 
     @Test
@@ -310,6 +346,92 @@ class MatchResultServiceTest {
                 "경기 결과·평가 미제출", body);
         verify(matchNotifier).notifyAfterCommit(List.of(21L), 20L, NotificationType.MATCH_RESULT_REMINDER,
                 "경기 결과·평가 미제출", body);
+    }
+
+    @Test
+    void summaryShowsOwnSideAndStatusForAnyConfirmedParticipant() {
+        ResultMatch match = match("종료", "CONFIRMED", "APPLIED");
+        match.setFinalResult("A_WIN");
+        when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.of(match));
+        givenTeamMembers();
+        givenResultPageMatch();
+
+        var summary = service.getSummary(MATCH_ID, 13L).orElseThrow();
+
+        // 팀장이 아닌 확정 참가자: 본인 진영과 상태만 받고 제출 결과는 받지 않는다.
+        assertThat(summary.matchId()).isEqualTo(MATCH_ID);
+        assertThat(summary.status()).isEqualTo("종료");
+        assertThat(summary.resultStatus()).isEqualTo("CONFIRMED");
+        assertThat(summary.ratingStatus()).isEqualTo("APPLIED");
+        assertThat(summary.finalResult()).isEqualTo("A_WIN");
+        assertThat(summary.mySide()).isEqualTo("A");
+        assertThat(summary.myResult()).isNull();
+        verify(resultMapper, never()).findActiveSubmissions(anyLong(), anyString());
+    }
+
+    @Test
+    void summaryIncludesMatchDetailsAndRoster() {
+        ResultMatch match = match("종료", "CONFIRMED", "APPLIED");
+        when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.of(match));
+        givenTeamMembers();
+        givenResultPageMatch();
+
+        var summary = service.getSummary(MATCH_ID, 13L).orElseThrow();
+
+        assertThat(summary.title()).isEqualTo("토요 풋살");
+        assertThat(summary.sportName()).isEqualTo("풋살");
+        assertThat(summary.scheduleLabel()).isEqualTo("2026년 10월 30일 (금) 18:00 ~ 20:00");
+        assertThat(summary.facilityName()).isEqualTo("MAT 테스트 시설");
+        // 제출 마감은 경기 종료 24시간 뒤다.
+        assertThat(summary.deadlineLabel()).isEqualTo("2026년 10월 31일 (토) 20:00");
+        assertThat(summary.teams()).hasSize(2);
+
+        var teamA = summary.teams().get(0);
+        assertThat(teamA.side()).isEqualTo("A");
+        assertThat(teamA.mine()).isTrue();
+        // 팀장을 먼저 세우고, 취소 참가자는 로스터에서 빠진다.
+        assertThat(teamA.members()).extracting(MatchResultSummary.Member::nickname)
+                .containsExactly("에이스", "가나");
+        assertThat(teamA.members()).extracting(MatchResultSummary.Member::captain)
+                .containsExactly(true, false);
+
+        var teamB = summary.teams().get(1);
+        assertThat(teamB.side()).isEqualTo("B");
+        assertThat(teamB.mine()).isFalse();
+        assertThat(teamB.members()).extracting(MatchResultSummary.Member::nickname)
+                .containsExactly("베스트");
+    }
+
+    @Test
+    void summaryIncludesOwnSubmissionForCaptain() {
+        when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.of(match("매칭 완료", "SUBMITTED", "WAITING")));
+        givenTeamMembers();
+        givenResultPageMatch();
+        givenActiveSubmissions(submission(20L, 2L, "A_WIN", "SUBMITTED"));
+
+        var summary = service.getSummary(MATCH_ID, CAPTAIN_B_USER).orElseThrow();
+
+        assertThat(summary.mySide()).isEqualTo("B");
+        assertThat(summary.myResult()).isEqualTo("A_WIN");
+    }
+
+    @Test
+    void deniesSummaryForNonParticipant() {
+        when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.of(match("종료", "CONFIRMED", "APPLIED")));
+        givenTeamMembers();
+
+        assertThatThrownBy(() -> service.getSummary(MATCH_ID, 99L)).isInstanceOf(AccessDeniedException.class);
+        // 다른 경기의 시설·로스터를 채우려 조회하지 않는다.
+        verify(resultMapper, never()).findResultPageMatch(anyLong());
+    }
+
+    @Test
+    void returnsEmptySummaryForMissingMatch() {
+        when(resultMapper.findResultMatch(MATCH_ID)).thenReturn(Optional.empty());
+
+        assertThat(service.getSummary(MATCH_ID, CAPTAIN_A_USER)).isEmpty();
+        verifyNoInteractions(participantMapper);
+        verify(resultMapper, never()).findConfirmedTeamMembers(anyLong(), anyString());
     }
 
     @Test
@@ -350,6 +472,23 @@ class MatchResultServiceTest {
                 participant(1L, CAPTAIN_A_USER, "A"),
                 participant(2L, CAPTAIN_B_USER, "B"),
                 participant(3L, 13L, "A")));
+    }
+
+    /** A팀장 1(회원 11)·확정 참가자 3(회원 13)은 A팀, B팀장 2(회원 12)는 B팀이다. 취소 참가자 4는 로스터에서 빠진다. */
+    private void givenTeamMembers() {
+        when(resultMapper.findConfirmedTeamMembers(MATCH_ID, "확정")).thenReturn(List.of(
+                teamMember(1L, CAPTAIN_A_USER, "에이스", "A"),
+                teamMember(2L, CAPTAIN_B_USER, "베스트", "B"),
+                teamMember(3L, 13L, "가나", "A")));
+    }
+
+    private void givenResultPageMatch() {
+        var pageMatch = new ResultPageMatch();
+        pageMatch.setMatchId(MATCH_ID);
+        pageMatch.setTitle("토요 풋살");
+        pageMatch.setSportName("풋살");
+        pageMatch.setFacilityName("MAT 테스트 시설");
+        when(resultMapper.findResultPageMatch(MATCH_ID)).thenReturn(Optional.of(pageMatch));
     }
 
     private void givenActiveSubmissions(ResultSubmission... submissions) {
@@ -395,6 +534,15 @@ class MatchResultServiceTest {
         participant.setMatchSide(side);
         participant.setEntryMmr(new BigDecimal("1000.00"));
         return participant;
+    }
+
+    private static ResultTeamMember teamMember(Long participantId, Long userId, String nickname, String side) {
+        var member = new ResultTeamMember();
+        member.setParticipantId(participantId);
+        member.setUserId(userId);
+        member.setNickname(nickname);
+        member.setMatchSide(side);
+        return member;
     }
 
     private static ResultSubmission submission(Long submissionId, Long captainParticipantId, String result,

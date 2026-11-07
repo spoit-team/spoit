@@ -43,6 +43,7 @@ import co.kr.spoit.match.mapper.MatchApplicationMapper;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.mapper.MemberMapper;
 import co.kr.spoit.member.service.MemberAccountLockService;
+import co.kr.spoit.notification.service.NotificationDispatcher;
 
 /**
  * 이미 참가 신청한 다른 매치와 시간이 겹치면 개인·팀 신청을 막는다.
@@ -70,7 +71,8 @@ class MatchApplicationServiceTimeConflictTest {
         ClubService clubService = mock(ClubService.class);
         matchService = mock(MatchService.class);
         service = new MatchApplicationService(mapper, memberMapper, mock(SportRatingMapper.class),
-                matchService, mock(FacilityReservationService.class), accountLockService, clubService);
+                matchService, mock(FacilityReservationService.class), accountLockService, clubService,
+                mock(NotificationDispatcher.class));
 
         Member me = account(USER_ID);
         given(memberMapper.findById(USER_ID)).willReturn(Optional.of(me));

@@ -11,6 +11,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 
 import co.kr.spoit.member.security.MemberLoginFailureHandler;
 import co.kr.spoit.member.security.MemberLoginSuccessHandler;
@@ -66,10 +68,26 @@ public class SecurityConfig {
         return Base64.getEncoder().encodeToString(random);
     }
 
+    /**
+     * CSRF 토큰 저장소. 스프링 시큐리티 기본값(세션 저장소)과 같지만 빈으로 명시해,
+     * 알림 웹소켓 핸드셰이크가 <em>필터 체인이 실제로 쓰는 저장소</em>에서 원본 토큰을 읽게 한다.
+     * 저장소 구현을 바꾸면 이 빈만 바꾸면 되고, 웹소켓 경로가 조용히 다른 저장소를 보지 않는다.
+     */
+    @Bean
+    CsrfTokenRepository csrfTokenRepository() {
+        return new HttpSessionCsrfTokenRepository();
+    }
+
     /** 보안 필터 체인을 구성한다. */
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(authorize -> authorize
+                        // 알림 API: 로그인 사용자만. 소유권은 SQL의 recipient_user_id 조건이 강제한다.
+                        .requestMatchers("/api/notifications", "/api/notifications/**").authenticated()
+                        // 알림 읽음·삭제 폼: 시스템·시설 관리자 모두 자기 알림만 다룬다.
+                        // 시설 관리 화면의 알림 모달도 이 경로를 쓰므로 FACILITY_MANAGER를 포함한다.
+                        .requestMatchers("/admin/notifications", "/admin/notifications/**")
+                        .hasAnyRole("ADMIN", "FACILITY_MANAGER")
                         // 시설 관리자 전용 화면: 시스템 관리자도 접근하지 못한다.
                         .requestMatchers("/admin/facility", "/admin/facility/**",
                                 "/admin/facilities", "/admin/facilities/**",
@@ -111,6 +129,9 @@ public class SecurityConfig {
                         .clearAuthentication(true)
                         .deleteCookies("JSESSIONID", "remember-me")
                         .permitAll())
+                // 위에서 등록한 저장소를 필터 체인이 실제로 쓰게 한다. 기본값과 같은 구현이지만,
+                // 웹소켓 핸드셰이크가 읽는 저장소와 어긋나지 않도록 한 곳에서 정한다.
+                .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository()))
                 .httpBasic(basic -> basic.disable());
         return http.build();
     }

@@ -1,6 +1,7 @@
 package co.kr.spoit.mat.controller;
 
 import co.kr.spoit.mat.dto.MatchResultResponse;
+import co.kr.spoit.mat.dto.MatchResultSummary;
 import co.kr.spoit.mat.dto.MatchResultView;
 import co.kr.spoit.mat.dto.ResultSubmitRequest;
 import co.kr.spoit.mat.service.MatchResultService;
@@ -43,6 +44,17 @@ public class MatchResultController {
             return toResponse(MatchResultResponse.notFound());
         }
         return ResponseEntity.ok(view.get());
+    }
+
+    /** 확정 참가자 전용 결과 요약. 팀장 전용 {@code GET /result}와 달리 상대 제출 결과를 담지 않는다. */
+    @GetMapping("/{matchId}/result/summary")
+    public ResponseEntity<?> summary(@PathVariable long matchId,
+                                     @AuthenticationPrincipal MemberPrincipal principal) {
+        Optional<MatchResultSummary> summary = matchResultService.getSummary(matchId, principal.getUserId());
+        if (summary.isEmpty()) {
+            return toResponse(MatchResultResponse.notFound());
+        }
+        return ResponseEntity.ok(summary.get());
     }
 
     @PostMapping("/{matchId}/result")
