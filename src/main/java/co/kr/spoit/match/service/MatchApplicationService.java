@@ -226,13 +226,12 @@ public class MatchApplicationService {
      */
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public String applyIndividual(long matchId, long userId) {
-        // 첫 조회로 회원 행을 잠가, 같은 회원의 다른 매치 신청이 끝난 뒤의 상태로 시간 겹침을 확인한다.
-        applicationMapper.lockUsers(List.of(userId));
         LocalDateTime now = LocalDateTime.now(ZONE);
 
         MatchRow match = lockForApply(matchId, now);
         // 잠금 순서: 시설 → 매칭방 → 신청자 계정. 계정을 잠근 뒤 최신 값으로 탈퇴·정지를 다시 확인해야
         // 동시 탈퇴가 신청 행을 남기지 않는다(잠금 전 조회는 스냅샷일 수 있다).
+        // 같은 회원의 다른 매치 신청도 이 계정 잠금에서 줄을 서므로, 아래 시간 겹침 확인은 앞 신청이 커밋된 뒤의 값을 본다.
         requireApplicableMemberLocked(userId, now);
         if (applicationMapper.existsActiveEntry(matchId, userId, ApplicationStatus.activeValues())) {
             throw new MatchApplyException("이미 참가 신청한 매칭방입니다.");
