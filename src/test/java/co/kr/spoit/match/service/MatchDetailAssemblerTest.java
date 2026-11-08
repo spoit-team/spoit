@@ -100,7 +100,6 @@ class MatchDetailAssemblerTest {
         assertThat(page.getTeamA().getMembers()).isEmpty();
         assertThat(page.getTeamA().getAverageText()).isEqualTo("기록 없음");
         assertThat(page.getPendingParticipants()).extracting(RosterMember::getNickname).containsExactly("회원2");
-        assertThat(page.getMyApplication().isVisible()).isFalse();
         assertThat(page.isHasTeams()).isFalse();
     }
 

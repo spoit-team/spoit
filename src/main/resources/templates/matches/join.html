@@ -50,7 +50,7 @@
             <span class="join-selected-count" th:text="${selection.seats + '명'}">1명</span>
           </div>
           <dl class="join-selected-contact">
-            <div><dt>연락처</dt><dd th:text="${selection.applicantPhone}">010-0000-0000</dd></div>
+            <!--/* 연락처 안내 기능이 생기면 다시 표시: <div><dt>연락처</dt><dd th:text="${selection.applicantPhone}">010-0000-0000</dd></div> */-->
             <div><dt>신청 방식</dt><dd th:text="${selection.applicationType == 'team' ? '팀 단위 참가' : '개인 참가'}">개인 참가</dd></div>
           </dl>
           <div class="join-selected-roster"><h4>참가 인원</h4><ul>
@@ -95,7 +95,7 @@
         <div><dt>매칭방</dt><dd th:text="${completion.roomTitle}">매칭방</dd></div>
         <div><dt>신청자</dt><dd th:text="${completion.applicantText}">회원 · 1명 신청</dd></div>
         <div><dt>참가자</dt><dd th:text="${completion.participantText}">회원</dd></div>
-        <div><dt>접수 번호</dt><dd th:text="${completion.receiptNo}">접수 번호</dd></div>
+        <!--/* 접수 번호는 일단 숨김: <div><dt>접수 번호</dt><dd th:text="${completion.receiptNo}">접수 번호</dd></div> */-->
         <div><dt>신청 상태</dt><dd th:text="${completion.stateLabel}">신청 접수</dd></div>
         <div><dt>결제 안내</dt><dd th:text="${completion.paymentGuidance}">결제는 이 화면에서 처리하지 않습니다.</dd></div>
         <div><dt>참가비 합계</dt><dd th:text="${completion.totalText}">서버 확인 필요</dd></div>
