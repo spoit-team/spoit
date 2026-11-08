@@ -1,5 +1,6 @@
 /* 관리자 공통 UI: 사이드바, 화면 전환, 탭, 알림 모달, 확인 폼만 담당합니다.
-   데이터와 저장 결과는 모두 서버가 제공하며, 이 스크립트는 브라우저 저장소를 사용하지 않습니다. */
+   데이터와 저장 결과는 모두 서버가 제공합니다. 브라우저 저장소는 새로고침 뒤 보여 줄 토스트 문구를
+   한 번 넘길 때만 sessionStorage를 쓰고, 꺼내는 즉시 지웁니다. */
 (function (global) {
   'use strict';
 
@@ -242,8 +243,38 @@
     if (!global.confirm(message)) event.preventDefault();
   });
 
+  /* 새로고침 후 토스트: 저장 뒤 화면 전체를 서버 값으로 다시 그려야 할 때 결과 문구가 새로고침에 묻히지 않도록
+     sessionStorage에 한 번만 맡기고, 다시 열린 페이지가 꺼내 보여 준 뒤 바로 지운다. 데이터는 저장하지 않는다.
+     저장소를 쓸 수 없으면 예전처럼 토스트를 띄우고 잠시 뒤 새로고침한다. */
+  const PENDING_TOAST_KEY = 'playon-admin-pending-toast';
+  const FALLBACK_RELOAD_DELAY_MS = 700;
+
+  function reloadWithToast(message, isError) {
+    try {
+      global.sessionStorage.setItem(PENDING_TOAST_KEY, JSON.stringify({ message, isError: Boolean(isError) }));
+    } catch (error) {
+      toastMessage(message, isError);
+      global.setTimeout(function () { global.location.reload(); }, FALLBACK_RELOAD_DELAY_MS);
+      return;
+    }
+    global.location.reload();
+  }
+
+  function showPendingToast() {
+    let pending = null;
+    try {
+      const raw = global.sessionStorage.getItem(PENDING_TOAST_KEY);
+      global.sessionStorage.removeItem(PENDING_TOAST_KEY);
+      pending = raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      pending = null;
+    }
+    if (pending && typeof pending.message === 'string') toastMessage(pending.message, pending.isError);
+  }
+
   global.PlayOnAdmin = {
     toast: toastMessage,
+    reloadWithToast: reloadWithToast,
     openModal: function (modal, focusSelector) {
       if (!modal) return;
       modalOpener = document.activeElement;
@@ -264,6 +295,7 @@
   };
 
   syncSidebarForViewport();
+  showPendingToast();
   /* 초기 진입(첫 화면 선택)에는 초점을 옮기지 않는다. 페이지를 열자마자 본문에
      초점 표시가 그려지는 현상을 막기 위해서다. 이후 화면 전환에서만 초점을 옮겨
      키보드 사용자가 전환된 위치를 알 수 있게 한다. */

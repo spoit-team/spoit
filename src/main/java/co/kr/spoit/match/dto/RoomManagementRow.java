@@ -26,6 +26,8 @@ public class RoomManagementRow {
     private int occupiedCount;
     /** social_match.status */
     private String status;
+    /** social_match.rating_status. 상세 조회에서만 채운다. */
+    private String ratingStatus;
 
     /* 아래는 목록 조회에서만 채운다. 수정 모달의 현재 값으로 쓴다. */
     private int teamACapacity;

@@ -17,7 +17,8 @@ import co.kr.spoit.member.domain.MemberPrincipal;
  * 인증 주체가 담당하는 시설의 매칭방만 상세로 보여 주고, 없거나 담당하지 않는 방·삭제된 방이면
  * {@code match=null}로 사용할 수 없음 안내를 렌더링한다. 팀 배정은 화면 스크립트가
  * {@code TeamAssignmentController} API로, 참가 신청 승인·반려는 {@code MatchApplicationDecisionController}
- * API로 처리한다. 이용 완료 처리는 아직 구현되어 있지 않다.</p>
+ * API로, 노쇼 경기 레이팅 제외는 {@code RatingExclusionController} API로 처리한다.
+ * 이용 완료 처리는 아직 구현되어 있지 않다.</p>
  */
 @Controller
 public class MatchOperationsController {

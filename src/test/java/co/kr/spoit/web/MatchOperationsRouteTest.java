@@ -116,6 +116,69 @@ class MatchOperationsRouteTest {
     }
 
     @Test
+    @DisplayName("레이팅 반영 전이면 안내 문구와 레이팅 제외 버튼·확인창·API 주소를 렌더링한다")
+    void rendersRatingExclusionWhileWaiting() throws Exception {
+        when(roomManagementService.findDetail(7L, 500L)).thenReturn(
+                detailWithRating(new RoomManagementDetail.Rating("반영 대기", "warn", null, true, true)));
+
+        String html = mockMvc.perform(get("/admin/operations").param("matchId", "500").with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        String section = html.substring(html.indexOf("id=\"ops-rating\""), html.indexOf("class=\"ops-footer-actions\""));
+        org.assertj.core.api.Assertions.assertThat(section).contains(
+                "data-exclusion-url=\"/admin/operations/matches/500/rating-exclusion\"",
+                "data-csrf-header=\"X-CSRF-TOKEN\"", "반영 대기", "노쇼 경기는 레이팅에서 제외해 주세요",
+                "data-rating-exclude");
+        org.assertj.core.api.Assertions.assertThat(section).doesNotContain("disabled");
+        org.assertj.core.api.Assertions.assertThat(html).contains("id=\"rating-exclusion-modal\"",
+                "/js/match-rating-exclusion.js");
+    }
+
+    @Test
+    @DisplayName("시작 전이면 레이팅 제외 버튼을 비활성으로 두고 확인창은 렌더링하지 않는다")
+    void rendersDisabledRatingExclusionBeforeStart() throws Exception {
+        when(roomManagementService.findDetail(7L, 500L)).thenReturn(detailWithRating(
+                new RoomManagementDetail.Rating("경기 전", "neutral", "경기가 시작된 뒤 제외할 수 있습니다.", true, false)));
+
+        String html = mockMvc.perform(get("/admin/operations").param("matchId", "500").with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        String section = html.substring(html.indexOf("id=\"ops-rating\""), html.indexOf("class=\"ops-footer-actions\""));
+        org.assertj.core.api.Assertions.assertThat(section).contains("경기가 시작된 뒤 제외할 수 있습니다.",
+                "data-rating-exclude", "disabled");
+        org.assertj.core.api.Assertions.assertThat(html).doesNotContain("id=\"rating-exclusion-modal\"");
+    }
+
+    @Test
+    @DisplayName("이미 제외된 경기는 상태만 보여 주고 안내·버튼을 두지 않는다")
+    void rendersProcessedRatingWithoutButton() throws Exception {
+        when(roomManagementService.findDetail(7L, 500L)).thenReturn(detailWithRating(
+                new RoomManagementDetail.Rating("레이팅 제외됨", "neutral", "레이팅 반영에서 제외된 경기입니다.", false, false)));
+
+        String html = mockMvc.perform(get("/admin/operations").param("matchId", "500").with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        String section = html.substring(html.indexOf("id=\"ops-rating\""), html.indexOf("class=\"ops-footer-actions\""));
+        org.assertj.core.api.Assertions.assertThat(section).contains("레이팅 제외됨", "레이팅 반영에서 제외된 경기입니다.");
+        org.assertj.core.api.Assertions.assertThat(section).doesNotContain("data-rating-exclude", "노쇼 경기는");
+        org.assertj.core.api.Assertions.assertThat(html).doesNotContain("id=\"rating-exclusion-modal\"");
+    }
+
+    @Test
+    @DisplayName("레이팅 정보가 없으면 레이팅 반영 섹션을 렌더링하지 않는다")
+    void hidesRatingSectionWithoutRating() throws Exception {
+        when(roomManagementService.findDetail(7L, 500L)).thenReturn(detail(500L, "토요 풋살"));
+
+        mockMvc.perform(get("/admin/operations").param("matchId", "500").with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("id=\"ops-rating\""))))
+                .andExpect(content().string(not(containsString("id=\"rating-exclusion-modal\""))));
+    }
+
+    @Test
     @DisplayName("담당하지 않거나 삭제된 매칭방은 match=null로 사용할 수 없음 안내를 렌더링한다")
     void rendersUnavailableForMissingOrForeignRoom() throws Exception {
         when(roomManagementService.findDetail(7L, 9999L)).thenReturn(null);
@@ -157,5 +220,11 @@ class MatchOperationsRouteTest {
         return new RoomManagementDetail(matchId, title, "테스트 체육관", "풋살",
                 "2026년 11월 3일 (화) 10:00 ~ 12:00", "2 / 8명", "모집 중", "success", false,
                 List.of(), List.of());
+    }
+
+    private static RoomManagementDetail detailWithRating(RoomManagementDetail.Rating rating) {
+        return new RoomManagementDetail(500L, "토요 풋살", "테스트 체육관", "풋살",
+                "2026년 11월 3일 (화) 10:00 ~ 12:00", "8 / 8명", "매칭 완료", "good", true,
+                List.of(), List.of(), rating);
     }
 }

@@ -22,7 +22,6 @@
   const buttons = Object.fromEntries(Array.from(root.querySelectorAll('[data-action]'))
     .map(button => [button.dataset.action, button]));
 
-  const RELOAD_DELAY_MS = 700;
   const FALLBACK_MESSAGES = {
     403: '담당 시설의 매칭방이 아니라 팀 배정을 할 수 없습니다.',
     404: '매칭방 정보를 찾을 수 없습니다.'
@@ -202,16 +201,17 @@
     render();
   }
 
-  /* 저장·되돌리기 결과 처리: 성공은 알림 후 새로 불러오고, 실패는 알림 후 배정 화면만 다시 조회한다. */
+  /* 저장·되돌리기 결과 처리: 성공은 새로 불러온 화면에서 알리고, 실패는 알림 후 배정 화면만 다시 조회한다. */
   async function submit(method, path, body) {
     busy = true;
     render();
     const result = await request(method, path, body);
-    admin?.toast(result.message, !result.ok);
     if (result.ok) {
-      global.setTimeout(() => global.location.reload(), RELOAD_DELAY_MS);
+      if (admin?.reloadWithToast) admin.reloadWithToast(result.message, false);
+      else global.location.reload();
       return;
     }
+    admin?.toast(result.message, true);
     await load();
   }
 
