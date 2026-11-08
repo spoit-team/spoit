@@ -42,7 +42,6 @@ public class MatchDetailPage {
 
     private final String applyMessage;
     private final String applyMessageClass;
-    private final MyApplication myApplication;
     private final boolean canApply;
     /** RES-04 로그인 회원이 팀 신청에 쓸 수 있는 동호회가 있는지. false면 팀 신청 버튼이 비활성화된다. */
     private final boolean hasTeams;
@@ -95,29 +94,13 @@ public class MatchDetailPage {
     @AllArgsConstructor
     public static class TeamMemberOption {
         private final Long clubMemberId;
+        /** 신청 내용 화면의 시간 겹침 확인용 (화면에는 쓰지 않는다) */
+        private final Long userId;
         private final String nickname;
         private final String initial;
         private final boolean leader;
         private final String ratingText;
         /** 이 매치에 이미 신청했으면 체크된 채 잠근다 */
         private final boolean alreadyApplied;
-    }
-
-    /** 내 신청 내역. RES-04 전까지는 숨김만 쓴다. */
-    @Getter
-    @AllArgsConstructor
-    public static class MyApplication {
-        public static final MyApplication HIDDEN =
-                new MyApplication(false, null, null, null, null, null, null, null, null);
-
-        private final boolean visible;
-        private final String kindLabel;
-        private final String seatsText;
-        private final String receiptNo;
-        private final String createdAtText;
-        private final String statusClass;
-        private final String statusLabel;
-        private final String teamLabel;
-        private final String note;
     }
 }

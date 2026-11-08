@@ -22,7 +22,6 @@
   const buttons = Object.fromEntries(Array.from(root.querySelectorAll('[data-action]'))
     .map(button => [button.dataset.action, button]));
 
-  const RELOAD_DELAY_MS = 700;
   const FALLBACK_MESSAGES = {
     403: '담당 시설의 매칭방이 아니라 팀 배정을 할 수 없습니다.',
     404: '매칭방 정보를 찾을 수 없습니다.'
@@ -41,7 +40,10 @@
   function membersOf(side) {
     return view.participants
       .filter(participant => (sides.get(participant.participantId) ?? null) === side)
-      .sort((left, right) => Number(right.entryMmr ?? 0) - Number(left.entryMmr ?? 0));
+      // 참가자 표와 같은 기준: 팀장 먼저, 그다음 레이팅 높은 순, 같으면 참가자 행 ID 순.
+      .sort((left, right) => Number(isCaptain(right)) - Number(isCaptain(left))
+        || Number(right.entryMmr ?? 0) - Number(left.entryMmr ?? 0)
+        || left.participantId - right.participantId);
   }
 
   function statsOf(members) {
@@ -77,7 +79,8 @@
         side !== null && moveButton(participant, null, '빼기')].filter(Boolean).join('')
       : '';
     return `<li class="ops-assignment-card" data-participant-id="${participant.participantId}"${canEdit ? ' draggable="true"' : ''}>
-      <span class="ops-assignment-name">${escapeHTML(participant.nickname)}${isCaptain(participant)
+      <span class="ops-assignment-name">${escapeHTML(participant.nickname)}${participant.clubName
+        ? ` <span class="ops-club-chip">${escapeHTML(participant.clubName)}</span>` : ''}${isCaptain(participant)
         ? ` <span class="ops-assignment-captain">${captainLabel}</span>` : ''}</span>
       <span class="ops-assignment-mmr">${formatMmr(participant.entryMmr)}</span>
       ${moves ? `<span class="ops-assignment-moves">${moves}</span>` : ''}
@@ -198,16 +201,17 @@
     render();
   }
 
-  /* 저장·되돌리기 결과 처리: 성공은 알림 후 새로 불러오고, 실패는 알림 후 배정 화면만 다시 조회한다. */
+  /* 저장·되돌리기 결과 처리: 성공은 새로 불러온 화면에서 알리고, 실패는 알림 후 배정 화면만 다시 조회한다. */
   async function submit(method, path, body) {
     busy = true;
     render();
     const result = await request(method, path, body);
-    admin?.toast(result.message, !result.ok);
     if (result.ok) {
-      global.setTimeout(() => global.location.reload(), RELOAD_DELAY_MS);
+      if (admin?.reloadWithToast) admin.reloadWithToast(result.message, false);
+      else global.location.reload();
       return;
     }
+    admin?.toast(result.message, true);
     await load();
   }
 

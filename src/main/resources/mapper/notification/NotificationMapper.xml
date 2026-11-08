@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- NotificationMapper: notification 저장·목록·읽지 않은 수·읽음·삭제. 모든 변경은 수신자 조건을 함께 건다. -->
+<mapper namespace="co.kr.spoit.notification.mapper.NotificationMapper">
+
+    <insert id="insert" parameterType="co.kr.spoit.notification.domain.Notification"
+            useGeneratedKeys="true" keyProperty="notificationId">
+        INSERT INTO notification (recipient_user_id, application_id, match_id, join_request_id, club_id,
+                                  notification_type, title, body, created_at)
+        VALUES (#{recipientUserId}, #{applicationId}, #{matchId}, #{joinRequestId}, #{clubId},
+                #{type}, #{title}, #{body}, #{createdAt})
+    </insert>
+
+    <!-- 마이페이지·관리자 알림 모달용 목록. 최근 limit건과 모든 미확인 알림을 최신순으로 읽는다.
+         동호회 가입 신청 알림은 정확한 팀으로 연결해야 하므로 소유 알림 조회에서만
+         club_join_request를 조인해 clubId를 함께 읽는다. request_id는 PK이므로 행이 늘지 않고,
+         조인이 실패한 알림(다른 종류·삭제된 신청)은 clubId가 NULL로 남아 호출 측 fallback을 쓴다. -->
+    <select id="findByRecipient" resultType="co.kr.spoit.notification.domain.Notification">
+        SELECT n.notification_id AS notificationId
+              ,n.recipient_user_id AS recipientUserId
+              ,n.application_id AS applicationId
+              ,n.match_id AS matchId
+              ,n.join_request_id AS joinRequestId
+              ,COALESCE(n.club_id, cj.club_id) AS clubId
+              ,n.notification_type AS type
+              ,n.title
+              ,n.body
+              ,n.created_at AS createdAt
+              ,n.read_at AS readAt
+          FROM notification n
+          LEFT JOIN club_join_request cj ON cj.request_id = n.join_request_id
+         WHERE n.recipient_user_id = #{recipientUserId}
+           AND (n.read_at IS NULL OR n.notification_id IN (
+               SELECT recent.notification_id
+                 FROM (SELECT notification_id
+                         FROM notification
+                        WHERE recipient_user_id = #{recipientUserId}
+                        ORDER BY created_at DESC, notification_id DESC
+                        LIMIT #{limit}) recent
+           ))
+         ORDER BY n.created_at DESC, n.notification_id DESC
+    </select>
+
+    <select id="countUnread" resultType="int">
+        SELECT COUNT(*)
+          FROM notification
+         WHERE recipient_user_id = #{recipientUserId}
+           AND read_at IS NULL
+    </select>
+
+    <!-- 소유권은 recipient_user_id 조건으로 SQL에서 보장한다. 이미 읽은 알림의 시각은 유지한다. -->
+    <update id="markRead">
+        UPDATE notification
+           SET read_at = COALESCE(read_at, #{readAt})
+         WHERE notification_id = #{notificationId}
+           AND recipient_user_id = #{recipientUserId}
+    </update>
+
+    <update id="markAllRead">
+        UPDATE notification
+           SET read_at = #{readAt}
+         WHERE recipient_user_id = #{recipientUserId}
+           AND read_at IS NULL
+    </update>
+
+    <!-- 삭제는 기존 스키마에 별도 삭제 플래그가 없으므로 물리 삭제한다. -->
+    <delete id="delete">
+        DELETE FROM notification
+         WHERE notification_id = #{notificationId}
+           AND recipient_user_id = #{recipientUserId}
+    </delete>
+</mapper>

@@ -16,6 +16,8 @@ public record TeamAssignmentView(
         boolean canReset,
         List<Participant> participants) {
 
-    public record Participant(Long participantId, String nickname, BigDecimal entryMmr, String side, boolean captain) {
+    /** clubName은 동호회 신청으로 들어온 참가자만 채운다. */
+    public record Participant(Long participantId, String nickname, String clubName, BigDecimal entryMmr,
+            String side, boolean captain) {
     }
 }

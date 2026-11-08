@@ -1,11 +1,13 @@
 package co.kr.spoit.club.dto;
 
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
 import co.kr.spoit.club.domain.ClubJoinRequest;
 import co.kr.spoit.club.domain.ClubMember;
+import co.kr.spoit.club.domain.ClubSchedule;
 import co.kr.spoit.club.domain.ClubSummary;
 import lombok.Builder;
 import lombok.Getter;
@@ -16,7 +18,6 @@ public class ClubManageResponse {
 
     private final Long clubId;
     private final String clubName;
-    private final String initials;
     private final Long sportId;
     private final String sportName;
     private final String areaLabel;
@@ -26,13 +27,26 @@ public class ClubManageResponse {
     private final String founded;
     private final String time;
     private final String intro;
+    private final Long regionId;
+    private final String recruitStatus;
+    private final List<Integer> activityDays;
+    private final LocalTime activityStartTime;
+    private final LocalTime activityEndTime;
     private final boolean leader;
+    private final boolean otherMembersRemain;
     private final List<ClubMemberResponse> members;
     private final List<ClubJoinRequestResponse> applications;
     private final Integer pendingApplicationCount;
+    private final String recruitLabel;
+    private final String tierLabel;
+    private final String sportKey;
+    private final String tierKey;
+    private final int markTone;
+    private final List<ClubScheduleResponse> upcomingSchedules;
+    private final List<ClubScheduleResponse> recentSchedules;
 
     public static ClubManageResponse from(ClubSummary club, List<ClubMember> members, Long userId,
-            List<ClubJoinRequest> joinRequests) {
+            List<ClubJoinRequest> joinRequests, List<ClubSchedule> upcomingSchedules, List<ClubSchedule> recentSchedules) {
         String leaderName = "미정";
         boolean leader = false;
         List<ClubMemberResponse> memberResponses = new ArrayList<>();
@@ -52,10 +66,21 @@ public class ClubManageResponse {
             applications.add(ClubJoinRequestResponse.from(r));
         }
 
+        List<ClubScheduleResponse> upcomingResponses = new ArrayList<>();
+        for (ClubSchedule s : upcomingSchedules) {
+            upcomingResponses.add(ClubScheduleResponse.from(s));
+        }
+
+        List<ClubScheduleResponse> recentResponses = new ArrayList<>();
+        for (ClubSchedule s : recentSchedules) {
+            recentResponses.add(ClubScheduleResponse.from(s));
+        }
+
+        boolean otherMembersRemain = members.size() > 1;
+
         return ClubManageResponse.builder()
                 .clubId(club.getClubId())
                 .clubName(club.getClubName())
-                .initials(ClubFormat.initials(club.getClubName()))
                 .sportId(club.getSportId())
                 .sportName(club.getSportName())
                 .areaLabel(ClubFormat.areaLabel(club.getAreaLabel()))
@@ -65,10 +90,23 @@ public class ClubManageResponse {
                 .founded(club.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy.MM.dd")))
                 .time(ClubFormat.time(club))
                 .intro(club.getIntro())
+                .regionId(club.getRegionId())
+                .recruitStatus(club.getRecruitStatus())
+                .activityDays(ClubFormat.days(club.getActivityDays()))
+                .activityStartTime(club.getActivityStartTime())
+                .activityEndTime(club.getActivityEndTime())
                 .leader(leader)
                 .members(memberResponses)
                 .applications(applications)
                 .pendingApplicationCount(applications.size())
+                .otherMembersRemain(otherMembersRemain)
+                .recruitLabel(ClubFormat.manageRecruitLabel(club))
+                .tierLabel(ClubFormat.tierLabel(club.getAverageMmr()))
+                .sportKey(ClubFormat.sportKey(club.getSportId()))
+                .tierKey(ClubFormat.tierKey(club.getAverageMmr()))
+                .markTone(ClubFormat.markTone(club.getClubId()))
+                .upcomingSchedules(upcomingResponses)
+                .recentSchedules(recentResponses)
                 .build();
 
     }

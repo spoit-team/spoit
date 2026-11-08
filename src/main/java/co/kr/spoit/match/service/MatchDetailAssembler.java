@@ -18,7 +18,6 @@ import co.kr.spoit.match.domain.ParticipationStatus;
 import co.kr.spoit.match.dto.Fact;
 import co.kr.spoit.match.dto.MatchDetailPage;
 import co.kr.spoit.match.dto.MatchDetailPage.Facility;
-import co.kr.spoit.match.dto.MatchDetailPage.MyApplication;
 import co.kr.spoit.match.dto.MatchDetailPage.RosterMember;
 import co.kr.spoit.match.dto.MatchDetailPage.TeamMemberOption;
 import co.kr.spoit.match.dto.MatchDetailPage.TeamOption;
@@ -124,7 +123,8 @@ public class MatchDetailAssembler {
                         ? "팀 배정이 완료된 매칭방입니다."
                         : "시설 관리자가 참가를 확정하면 A·B팀으로 배정됩니다.")
                 .facility(new Facility(
-                        null, // 시설 사진 컬럼 없음 → 종목명 fallback (RES-01과 동일)
+                        // 시설 관리자가 올린 사진. 없으면 종목명 fallback (목록 카드와 동일)
+                        row.getPhotoUrl() == null || row.getPhotoUrl().isBlank() ? null : row.getPhotoUrl().strip(),
                         row.getFacilityName(),
                         row.getSportName(),
                         row.getFacilityName() + " · " + row.getRegionName(),
@@ -149,7 +149,6 @@ public class MatchDetailAssembler {
                         .toList())
                 .applyMessage(message.text())
                 .applyMessageClass(message.cssClass())
-                .myApplication(MyApplication.HIDDEN)
                 .canApply(canApply)
                 .hasTeams(!clubs.isEmpty())
                 .clubs(clubs)
@@ -167,7 +166,7 @@ public class MatchDetailAssembler {
             List<TeamMemberRow> all = byClub.getOrDefault(club.getClubId(), List.of());
             List<TeamMemberOption> options = all.stream()
                     .filter(m -> m.getUserId() != applicantUserId)
-                    .map(m -> new TeamMemberOption(m.getClubMemberId(), m.getNickname(), initial(m.getNickname()),
+                    .map(m -> new TeamMemberOption(m.getClubMemberId(), m.getUserId(), m.getNickname(), initial(m.getNickname()),
                             m.isLeader(), ratingText(m), m.isAlreadyApplied()))
                     .toList();
             return new TeamOption(club.getClubId(), club.getClubName(),

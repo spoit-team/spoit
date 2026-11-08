@@ -100,6 +100,139 @@
     if (event.key === 'Escape') setPopover(false);
   });
 
+  /*
+   * 종목 탭 전환: 페이지를 새로 불러오지 않고 같은 GET 주소의 HTML을 받아 탭·개수·목록만 바꾸고,
+   * 상단 배경은 새 종목에서 사진이 있는 첫 매칭방의 사진으로 서서히 바꾼다.
+   * 주소창도 함께 바꿔(pushState) 새로고침·뒤로가기·링크 공유가 그대로 동작한다.
+   * fetch가 실패하면 원래 링크로 이동한다.
+   */
+  const sportVisual = document.getElementById('sport-visual');
+  const sportShowcase = document.getElementById('sports-showcase');
+  const SWAP_IDS = ['sport-total', 'result-count', 'match-count', 'active-filters', 'match-results'];
+  let sportRequest = null;
+
+  function preloadImage(url) {
+    return new Promise(function (resolve) {
+      if (!url) { resolve(); return; }
+      const image = new Image();
+      const done = function () { resolve(); };
+      image.onload = done;
+      image.onerror = done;
+      image.src = url;
+      window.setTimeout(done, 1500); /* 느린 사진 때문에 전환이 멈추지 않게 한다. */
+    });
+  }
+
+  function showSportImage(url) {
+    if (!sportVisual) return;
+    const current = sportVisual.querySelector('.sport-visual-layer.is-active');
+    if ((sportVisual.dataset.image || '') === (url || '') && current) return;
+    sportVisual.dataset.image = url || '';
+
+    const layer = document.createElement('div');
+    layer.className = 'sport-visual-layer';
+    if (url) layer.style.backgroundImage = 'url("' + url.replace(/"/g, '%22') + '")';
+    sportVisual.appendChild(layer);
+    void layer.offsetWidth; /* 새 레이어의 시작 상태를 적용한 뒤 전환한다. */
+    layer.classList.add('is-active');
+
+    sportVisual.querySelectorAll('.sport-visual-layer').forEach(function (old) {
+      if (old === layer) return;
+      old.classList.remove('is-active');
+      window.setTimeout(function () { old.remove(); }, 1200);
+    });
+  }
+
+  function applySportPage(doc) {
+    SWAP_IDS.forEach(function (id) {
+      const target = document.getElementById(id);
+      const source = doc.getElementById(id);
+      if (target && source) target.innerHTML = source.innerHTML;
+    });
+
+    const nextTabs = doc.getElementById('sport-tabs');
+    if (sportTabsTrack && nextTabs) {
+      const scrollLeft = sportTabsTrack.scrollLeft;
+      sportTabsTrack.innerHTML = nextTabs.innerHTML;
+      sportTabsTrack.scrollLeft = scrollLeft;
+      updateSportTabScrollControls();
+    }
+
+    const nextSportInput = doc.querySelector('#search-form input[name="sportId"]');
+    const sportInput = searchForm?.querySelector('input[name="sportId"]');
+    if (sportInput && nextSportInput) sportInput.value = nextSportInput.value;
+
+    const nextReset = doc.getElementById('time-reset');
+    const reset = document.getElementById('time-reset');
+    if (reset && nextReset) reset.setAttribute('href', nextReset.getAttribute('href'));
+
+    const nextAnnouncement = doc.getElementById('sport-visual-announcement');
+    const announcement = document.getElementById('sport-visual-announcement');
+    if (announcement && nextAnnouncement) announcement.textContent = nextAnnouncement.textContent;
+
+    const nextVisual = doc.getElementById('sport-visual');
+    const sport = nextVisual?.dataset.sport || '';
+    if (sportVisual) sportVisual.dataset.sport = sport;
+    if (sportShowcase) sportShowcase.dataset.sport = sport;
+
+    if (doc.title) document.title = doc.title;
+    return nextVisual?.dataset.image || '';
+  }
+
+  function loadSportPage(url, push) {
+    if (sportRequest) sportRequest.abort();
+    const controller = new AbortController();
+    sportRequest = controller;
+    const results = document.getElementById('match-results');
+    results?.setAttribute('aria-busy', 'true');
+
+    fetch(url, { signal: controller.signal, headers: { Accept: 'text/html' }, credentials: 'same-origin' })
+      .then(function (response) {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.text();
+      })
+      .then(function (html) {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        if (!doc.getElementById('match-results')) throw new Error('unexpected page');
+        const image = applySportPage(doc);
+        if (push) {
+          history.pushState({ sportTab: true }, '', url);
+          currentListUrl = window.location.pathname + window.location.search;
+        }
+        return preloadImage(image).then(function () {
+          if (sportRequest === controller) showSportImage(image);
+        });
+      })
+      .catch(function (error) {
+        if (error.name === 'AbortError') return;
+        window.location.href = url;
+      })
+      .finally(function () {
+        if (sportRequest === controller) {
+          sportRequest = null;
+          document.getElementById('match-results')?.removeAttribute('aria-busy');
+        }
+      });
+  }
+
+  sportTabsTrack?.addEventListener('click', function (event) {
+    const tab = event.target instanceof Element ? event.target.closest('a[data-sport-tab]') : null;
+    if (!tab || !window.fetch || !window.DOMParser) return;
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    if (tab.getAttribute('aria-current') === 'true') return;
+    loadSportPage(tab.href, true);
+  });
+
+  /* 해시(#top 등)만 바뀐 이동은 무시하고, 주소·검색 조건이 바뀐 뒤로가기·앞으로가기만 다시 불러온다. */
+  let currentListUrl = window.location.pathname + window.location.search;
+  window.addEventListener('popstate', function () {
+    const next = window.location.pathname + window.location.search;
+    if (next === currentListUrl) return;
+    currentListUrl = next;
+    loadSportPage(window.location.href, false);
+  });
+
   /* 매칭방 상세 모달 */
   const dialog = document.getElementById('app-dialog');
 

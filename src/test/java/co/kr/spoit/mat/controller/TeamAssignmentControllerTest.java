@@ -1,5 +1,6 @@
 package co.kr.spoit.mat.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -33,6 +34,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.PathVariable;
 
 @WebMvcTest(controllers = TeamAssignmentController.class)
 @Import(SecurityConfig.class)
@@ -60,8 +62,8 @@ class TeamAssignmentControllerTest {
     void returnsAssignmentView() throws Exception {
         var view = new TeamAssignmentView(10L, LocalDateTime.of(2026, 10, 24, 10, 0), 1, 2, true, "MANUAL",
                 false, true, List.of(
-                new TeamAssignmentView.Participant(1L, "회원1", new BigDecimal("1200.00"), "A", true),
-                new TeamAssignmentView.Participant(2L, "회원2", new BigDecimal("900.00"), "B", true)));
+                new TeamAssignmentView.Participant(1L, "회원1", "주말 풋살 클럽", new BigDecimal("1200.00"), "A", true),
+                new TeamAssignmentView.Participant(2L, "회원2", null, new BigDecimal("900.00"), "B", true)));
         given(teamAssignmentService.getView(10L, 7L)).willReturn(Optional.of(view));
 
         mockMvc.perform(get(BASE + "/assignment").with(user(manager())))
@@ -71,6 +73,7 @@ class TeamAssignmentControllerTest {
                 .andExpect(jsonPath("$.assigned").value(true))
                 .andExpect(jsonPath("$.canReset").value(true))
                 .andExpect(jsonPath("$.participants[0].nickname").value("회원1"))
+                .andExpect(jsonPath("$.participants[0].clubName").value("주말 풋살 클럽"))
                 .andExpect(jsonPath("$.participants[1].side").value("B"));
     }
 
@@ -150,6 +153,22 @@ class TeamAssignmentControllerTest {
                 .andExpect(status().isForbidden());
 
         verify(teamAssignmentService, never()).confirmAuto(anyLong(), anyLong());
+    }
+
+    @Test
+    void declaresPathVariableNamesSoBindingDoesNotNeedCompilerParameterNames() {
+        int checked = 0;
+        for (java.lang.reflect.Method method : TeamAssignmentController.class.getDeclaredMethods()) {
+            for (java.lang.reflect.Parameter parameter : method.getParameters()) {
+                PathVariable pathVariable = parameter.getAnnotation(PathVariable.class);
+                if (pathVariable == null) {
+                    continue;
+                }
+                assertThat(pathVariable.value()).isEqualTo("matchId");
+                checked++;
+            }
+        }
+        assertThat(checked).isEqualTo(4);
     }
 
     private static MemberPrincipal manager() {

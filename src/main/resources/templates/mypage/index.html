@@ -27,9 +27,9 @@
 
     <div class="mypage-player-summary">
       <div class="mypage-skill-highlight">
-        <span class="mypage-summary-label">대표 종목 레이팅</span>
+        <span class="mypage-summary-label">대표 종목 레이팅<th:block th:if="${summary.representativeBasis != null}" th:text="${' · ' + summary.representativeBasis}"> · 경기 기록 기준</th:block></span>
         <strong th:text="${summary.representativeRatingText}">기록 없음</strong>
-        <a class="mypage-skill-sport-link" th:href="@{/mypage(recordSport=${summary.representativeSportId})} + '#match-records'" th:text="${summary.representativeSportName}">종목</a>
+        <a th:if="${summary.representativeSportName != null}" class="mypage-skill-sport-link" th:href="@{/mypage(recordSport=${summary.representativeSportId})} + '#match-records'" th:text="${summary.representativeSportName}">종목</a>
         <p th:text="${summary.skillNote}">참가 확정 매치의 개인 레이팅 평균을 표시합니다.</p>
       </div>
       <dl class="mypage-player-counts">
@@ -61,7 +61,7 @@
       <a href="#profile" class="mypage-nav-link" aria-current="location">플레이 프로필</a>
       <a href="#match-records" class="mypage-nav-link">종목별 레이팅·경기 이력</a>
       <a href="#reservations" class="mypage-nav-link">신청 내역</a>
-      <a href="#notifications" class="mypage-nav-link">알림 확인 <span th:if="${(unreadCount ?: 0) > 0}" th:text="${unreadCount}"></span></a>
+      <a href="#notifications" class="mypage-nav-link">알림 확인 <span class="mypage-nav-count" data-notification-nav-count th:hidden="${(unreadCount ?: 0) == 0}" th:text="${unreadCount}" aria-hidden="true">0</span></a>
       <a th:href="@{/mypage/profile}" class="mypage-nav-link mypage-nav-edit">프로필 수정 <span aria-hidden="true">↗</span></a>
     </nav>
 
@@ -69,21 +69,21 @@
       <section id="match-records" class="mypage-section" aria-labelledby="match-records-heading">
         <div class="mypage-section-heading">
           <span class="mypage-section-index" aria-hidden="true">01</span>
-          <div><h2 id="match-records-heading">종목별 레이팅과 경기 이력</h2><p>레이팅과 확정 경기 기록을 한곳에서 확인하고, 종목을 선택해 이력을 좁혀볼 수 있습니다.</p></div>
+          <div><h2 id="match-records-heading">종목별 레이팅과 경기 이력</h2><p>레이팅이 반영된 경기 기록을 확인하고, 종목을 선택해 이력을 좁혀볼 수 있습니다.</p></div>
         </div>
         <div class="mypage-records-layout">
           <section class="mypage-records-ratings" aria-labelledby="match-ratings-heading">
             <div class="mypage-records-subheading"><div><h3 id="match-ratings-heading">종목별 레이팅</h3><p>종목을 누르면 해당 경기 이력으로 연결됩니다.</p></div></div>
             <div class="mypage-rating-sport-list" role="group" aria-label="종목별 레이팅">
-              <a class="mypage-rating-sport" th:href="@{/mypage} + '#match-records'" th:aria-current="${selectedSport == 'all' ? 'true' : null}" th:classappend="${selectedSport == 'all'} ? 'is-selected' : ''">
-                <span class="mypage-rating-sport-copy"><span class="mypage-rating-sport-name">전체 종목</span><small>모든 경기 기록</small></span>
-                <span class="mypage-rating-sport-grade"><strong th:text="${historyTotalCount + '경기'}">0경기</strong><small>전체 기록</small></span>
+              <a class="mypage-rating-sport" th:href="@{/mypage} + '#match-records'" th:aria-current="${records.allSelected ? 'true' : null}" th:classappend="${records.allSelected} ? 'is-selected' : ''">
+                <span class="mypage-rating-sport-copy"><span class="mypage-rating-sport-name">전체 종목</span><small>반영된 모든 경기</small></span>
+                <span class="mypage-rating-sport-grade"><strong th:text="${records.historyTotalCount + '경기'}">0경기</strong><small>전체 기록</small></span>
               </a>
-              <a th:each="sport : ${sports}" class="mypage-rating-sport" th:href="@{/mypage(recordSport=${sport.sportId})} + '#match-records'" th:aria-current="${sport.selected ? 'true' : null}" th:classappend="${sport.selected} ? 'is-selected' : ''">
-                <span class="mypage-rating-sport-copy"><span class="mypage-rating-sport-name" th:text="${sport.name}">종목</span><small th:text="${'경기 ' + sport.count + '회 · ' + sport.note}">기록</small></span>
+              <a th:each="sport : ${records.sports}" class="mypage-rating-sport" th:href="@{/mypage(recordSport=${sport.sportId})} + '#match-records'" th:aria-current="${sport.selected ? 'true' : null}" th:classappend="${sport.selected} ? 'is-selected' : ''">
+                <span class="mypage-rating-sport-copy"><span class="mypage-rating-sport-name" th:text="${sport.name}">종목</span><small th:text="${'경기 ' + sport.ratedMatchCount + '회 · ' + sport.mmrText}">경기 0회 · MMR 1,000</small></span>
                 <span class="mypage-rating-sport-grade">
-                  <strong th:text="${sport.grade}">기록 없음</strong><small th:text="${sport.caption}">종목 레이팅</small>
-                  <span th:if="${sport.hasAverage}" class="mypage-rating-meter" role="img" th:aria-label="${sport.name + ' 평균 레이팅 ' + sport.grade + '점, 5점 만점'}"><i th:style="'width:' + ${sport.meterPercent ?: 0} + '%'"></i></span>
+                  <strong th:text="${sport.tierLabel}">배치 중</strong>
+                  <span th:if="${sport.placed}" class="mypage-rating-meter" role="img" th:aria-label="${sport.name + ' 티어 진행도 ' + sport.tierPoints + 'P'}"><i th:style="'width:' + ${sport.tierPoints} + '%'"></i></span>
                 </span>
               </a>
             </div>
@@ -91,42 +91,40 @@
 
           <section class="mypage-records-history" aria-labelledby="match-history-heading">
             <div class="mypage-records-subheading mypage-history-heading">
-              <div><h3 id="match-history-heading">경기 이력</h3><p th:text="${historyFilterLabel}">전체 종목의 확정 매치</p></div>
-              <span class="mypage-history-count" aria-live="polite" th:text="${historyCount + '경기'}">0경기</span>
+              <div><h3 id="match-history-heading">경기 이력</h3><p th:text="${records.historyFilterLabel}">전체 종목</p></div>
+              <span class="mypage-history-count" aria-live="polite" th:text="${records.historyCount + '경기'}">0경기</span>
             </div>
             <div class="mypage-match-history-list" aria-live="polite">
-              <article th:each="item : ${history}" class="mypage-match-history-item">
+              <article th:each="item : ${records.history}" class="mypage-match-history-item">
                 <button type="button" class="mypage-match-history-main" th:attr="data-match-history-toggle=${item.id}, aria-expanded=false">
                   <span class="mypage-match-history-date" th:text="${item.date}">날짜</span>
                   <span class="mypage-match-history-copy">
                     <span class="mypage-match-history-title" th:text="${item.title}">경기</span>
                     <span class="mypage-match-history-meta">
                       <span th:text="${item.sportName}">종목</span><span aria-hidden="true">·</span><span th:text="${item.place}">장소</span><span aria-hidden="true">·</span><span th:text="${item.applicationType}">신청 유형</span>
-                      <span class="mypage-match-history-status" th:classappend="${item.statusComplete} ? 'is-complete' : ''" th:text="${item.statusLabel}">상태</span>
+                      <span class="mypage-match-history-status" th:classappend="${'is-' + item.resultKey}" th:text="${item.resultLabel}">승</span>
                     </span>
                   </span>
-                  <span class="mypage-match-history-score"><small>내 레이팅</small><strong th:text="${item.ratingText}">기록 없음</strong></span>
+                  <span class="mypage-match-history-score"><small>MMR 변동</small><strong th:classappend="${'is-' + item.deltaKey}" th:text="${item.deltaText}">0.00</strong></span>
                   <span class="mypage-match-history-chevron" aria-hidden="true">⌄</span>
                 </button>
                 <div class="mypage-match-history-detail" hidden>
                   <div class="mypage-match-score-summary">
                     <div class="mypage-match-player-score">
-                      <small>내 레이팅</small>
-                      <strong><span th:text="${item.ratingText}">기록 없음</span><span th:if="${item.hasRating}">/ 5.00</span></strong>
-                      <span th:if="${item.hasRating}" class="mypage-rating-meter" role="img" th:aria-label="${'내 레이팅 ' + item.ratingText + '점, 5점 만점'}"><i th:style="'width:' + ${item.ratingPercent ?: 0} + '%'"></i></span>
+                      <small>내 MMR</small>
+                      <strong th:text="${item.mmrBeforeText + ' → ' + item.mmrAfterText}">1,000 → 1,000</strong>
                     </div>
-                    <div th:if="${item.hasTeamAverages}" class="mypage-match-team-averages" role="group" aria-label="A팀과 B팀 평균 레이팅">
-                      <span th:classappend="${item.myTeam == 'A'} ? 'is-mine' : ''"><i class="is-team-a" aria-hidden="true"></i>A팀 <b th:text="${item.averageAText}">기록 없음</b></span>
-                      <span th:classappend="${item.myTeam == 'B'} ? 'is-mine' : ''"><i class="is-team-b" aria-hidden="true"></i>B팀 <b th:text="${item.averageBText}">기록 없음</b></span>
+                    <div class="mypage-match-team-averages" role="group" aria-label="반영 시점 A팀과 B팀 평균 MMR">
+                      <span th:classappend="${item.myTeam == 'A'} ? 'is-mine' : ''"><i class="is-team-a" aria-hidden="true"></i>A팀 <b th:text="${item.averageAText}">1,000</b><small th:if="${item.myTeam == 'A'}">내 팀</small></span>
+                      <span th:classappend="${item.myTeam == 'B'} ? 'is-mine' : ''"><i class="is-team-b" aria-hidden="true"></i>B팀 <b th:text="${item.averageBText}">1,000</b><small th:if="${item.myTeam == 'B'}">내 팀</small></span>
                     </div>
                   </div>
                   <dl class="mypage-match-history-facts">
                     <div th:each="fact : ${item.facts}"><dt th:text="${fact.label}">항목</dt><dd th:text="${fact.value}">값</dd></div>
                   </dl>
-                  <p class="mypage-match-history-note" th:text="${item.note}">안내</p>
                 </div>
               </article>
-              <p th:if="${#lists.isEmpty(history)}" class="mypage-match-history-empty" th:text="${historyEmptyNote}">확정된 경기 이력이 없습니다.</p>
+              <p th:if="${#lists.isEmpty(records.history)}" class="mypage-match-history-empty" th:text="${records.historyEmptyNote}">레이팅이 반영된 경기가 없습니다.</p>
             </div>
           </section>
         </div>
@@ -159,8 +157,12 @@
                 </div>
                 <div class="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
                   <a th:if="${entry.canViewPaymentGuidance}" th:href="@{${entry.paymentGuidanceUrl}}" class="h-9 shrink-0 self-start rounded-lg bg-match px-3 py-2 text-xs font-bold text-white hover:bg-match-hover sm:self-center">결제 안내</a>
-                  <form th:if="${entry.canCancel}" method="post" th:action="@{/mypage/applications/{applicationId}/cancel(applicationId=${entry.applicationId})}" th:attr="data-team-cancel=${entry.teamCancel ? entry.cancelConfirmMessage : null}, data-team-cancel-title=${entry.teamCancel ? entry.title : null}, data-team-cancel-meta=${entry.teamCancel ? entry.metaLine : null}">
+                  <form th:if="${entry.canCancel}" method="post" th:action="@{/mypage/applications/{applicationId}/cancel(applicationId=${entry.applicationId})}" th:attr="data-team-cancel=${entry.teamCancel ? 'true' : null}, data-team-cancel-title=${entry.teamCancel ? entry.title : null}, data-team-cancel-meta=${entry.teamCancel ? entry.metaLine : null}">
                     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                    <!-- 확인창 팀원 목록 데이터. 스크립트가 없으면 폼은 팀 전체 취소로 제출된다. -->
+                    <ul th:if="${entry.teamCancel}" hidden data-team-members>
+                      <li th:each="member : ${entry.teamMembers}" th:attr="data-application-id=${member.applicationId}, data-nickname=${member.nickname}, data-state=${member.stateLabel}, data-leader=${member.leader}"></li>
+                    </ul>
                     <button type="submit" class="h-9 shrink-0 self-start rounded-lg border border-line-strong px-3 text-xs font-bold text-ink-2 hover:border-danger hover:text-danger sm:self-center" th:text="${entry.cancelLabel}">신청 취소</button>
                   </form>
                 </div>
@@ -187,6 +189,13 @@
                   <p class="mt-1 text-[11px] text-faint" th:text="${entry.seatLine}">참가 1명</p>
                   <p th:if="${entry.statusNote != null}" class="mt-1 text-[11px] text-muted" th:text="${entry.statusNote}">안내</p>
                 </div>
+                <!-- 경기가 끝난 참가 내역에서 결과 화면으로 이어 줍니다. 결과 화면은 확정 참가자만 열람할 수 있습니다.
+                     화면 경로(/result-form)와 JSON 요약 API(/result/summary)는 서로 다른 주소입니다.
+                     제출 대상이면 제출 버튼을, 그 외 완료 경기는 결과 보기 링크를 보여 줍니다. -->
+                <div th:if="${resultSubmitMatchIds.contains(entry.matchId) or entry.stateLabel == '이용 완료'}" class="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
+                  <a th:if="${resultSubmitMatchIds.contains(entry.matchId)}" th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="h-9 shrink-0 self-start rounded-lg bg-match px-3 py-2 text-xs font-bold text-white hover:bg-match-hover sm:self-center">경기 결과 제출</a>
+                  <a th:unless="${resultSubmitMatchIds.contains(entry.matchId)}" th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="h-9 shrink-0 self-start rounded-lg border border-line-strong px-3 py-2 text-xs font-bold text-ink-2 hover:border-match hover:text-match-ink sm:self-center">경기 결과 보기</a>
+                </div>
               </article>
             </div>
             <p th:if="${#lists.isEmpty(pastReservations)}" class="py-5 text-sm text-muted">완료하거나 취소한 내역이 없습니다.</p>
@@ -194,16 +203,17 @@
         </div>
       </section>
 
-      <section id="notifications" class="mypage-section" aria-labelledby="notifications-heading">
+      <section id="notifications" class="mypage-section" aria-labelledby="notifications-heading"
+               data-notification-surface>
         <div class="mypage-section-heading mypage-notifications-heading">
           <span class="mypage-section-index" aria-hidden="true">03</span>
-          <div><h2 id="notifications-heading">알림 확인 <span class="mypage-unread-count" aria-live="polite" th:text="${(unreadCount ?: 0) > 0 ? '· ' + unreadCount + '건 미확인' : '· 모두 확인했습니다'}">· 모두 확인했습니다</span></h2><p>예약과 팀 활동 관련 알림입니다.</p></div>
+          <div><h2 id="notifications-heading">알림 확인 <span class="mypage-unread-count" data-notification-summary="short" aria-live="polite" th:text="${(unreadCount ?: 0) > 0 ? '· ' + unreadCount + '건 미확인' : '· 모두 확인했습니다'}">· 모두 확인했습니다</span></h2><p>예약과 팀 활동, 경기 결과 관련 알림입니다.</p></div>
           <form method="post" th:action="@{/mypage/notifications/read-all}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-            <button type="submit" class="mypage-text-button" th:disabled="${(unreadCount ?: 0) == 0}" th:classappend="${(unreadCount ?: 0) == 0} ? 'opacity-40' : ''">모두 읽음 처리</button>
+            <button type="submit" class="mypage-text-button" data-notification-read-all th:disabled="${(unreadCount ?: 0) == 0}">모두 읽음 처리</button>
           </form>
         </div>
-        <div class="mypage-notification-list" aria-live="polite">
-          <article th:each="item : ${notifications}" class="mypage-notification-item" th:classappend="${item.read} ? 'is-read' : ''">
+        <div class="mypage-notification-list" data-notification-list data-empty-class="mypage-notification-empty" aria-live="polite">
+          <article th:each="item : ${notifications}" class="mypage-notification-item" th:classappend="${item.read} ? 'is-read' : ''" th:attr="data-notification-id=${item.notificationId}">
             <span aria-hidden="true"></span>
             <a class="mypage-notification-link" th:href="@{${item.href}}">
               <div class="mypage-notification-copy">
@@ -218,58 +228,38 @@
               <form method="post" th:action="@{/mypage/notifications/{notificationId}/delete(notificationId=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action is-delete" th:aria-label="${'알림 삭제: ' + item.title}">삭제</button></form>
             </div>
           </article>
-          <p th:if="${#lists.isEmpty(notifications)}" class="mypage-notification-empty">확인할 알림이 없습니다.</p>
+          <p th:if="${#lists.isEmpty(notifications)}" class="mypage-notification-empty" data-notification-empty>확인할 알림이 없습니다.</p>
         </div>
+        <template data-notification-item-template>
+          <article th:replace="~{fragments/notification :: mypageItem}"></article>
+        </template>
       </section>
     </div>
   </div>
 </main>
 
-<div id="notification-modal" class="mypage-notification-backdrop" hidden>
-  <section class="mypage-notification-dialog" role="dialog" aria-modal="true" aria-labelledby="notification-modal-title" aria-describedby="notification-modal-description">
-    <header class="mypage-notification-dialog-header">
-      <div><span>SPO:IT ALERT</span><h2 id="notification-modal-title">알림</h2><p id="notification-modal-description">예약과 팀 활동 관련 알림입니다.</p></div>
-      <button type="button" class="mypage-notification-close" data-close-notifications aria-label="알림 창 닫기">×</button>
-    </header>
-    <div class="mypage-notification-modal-summary" aria-live="polite" th:text="${'알림 ' + #lists.size(notifications) + '건 · 미확인 ' + (unreadCount ?: 0) + '건'}">알림 0건</div>
-    <div class="mypage-notification-list" aria-live="polite">
-      <article th:each="item : ${notifications}" class="mypage-notification-item" th:classappend="${item.read} ? 'is-read' : ''">
-        <span aria-hidden="true"></span>
-        <a class="mypage-notification-link" th:href="@{${item.href}}">
-          <div class="mypage-notification-copy">
-            <div class="mypage-notification-meta"><span th:text="${item.type}">알림</span><span th:text="${item.read ? '읽음' : '새 알림'}">새 알림</span></div>
-            <h3 th:text="${item.title}">알림 제목</h3>
-            <p th:text="${item.body}">알림 내용</p>
-            <time th:text="${item.time}">시간</time>
-          </div>
-        </a>
-        <div class="mypage-notification-actions">
-          <form th:if="${!item.read}" method="post" th:action="@{/mypage/notifications/{notificationId}/read(notificationId=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action">읽음</button></form>
-          <form method="post" th:action="@{/mypage/notifications/{notificationId}/delete(notificationId=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="mypage-notification-action is-delete" th:aria-label="${'알림 삭제: ' + item.title}">삭제</button></form>
-        </div>
-      </article>
-      <p th:if="${#lists.isEmpty(notifications)}" class="mypage-notification-empty">확인할 알림이 없습니다.</p>
-    </div>
-    <footer class="mypage-notification-dialog-footer">
-      <form method="post" th:action="@{/mypage/notifications/read-all}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-        <button type="submit" class="mypage-text-button" th:disabled="${(unreadCount ?: 0) == 0}">모두 읽음 처리</button>
-      </form>
-      <button type="button" class="mypage-notification-done" data-close-notifications>닫기</button>
-    </footer>
-  </section>
-</div>
+<div th:replace="~{fragments/notification :: center(${currentMember != null})}"></div>
 
-<!-- RES-04 팀 신청 취소 확인: 대표가 취소하면 팀원 전원의 신청이 함께 취소된다 -->
+<!-- RES-04 팀 신청 취소: 대표가 취소할 팀원을 고른다. 대표가 빠지고 남는 팀원이 있으면 새 대표를 고른다. -->
 <dialog id="team-cancel-dialog" class="mypage-confirm-dialog" aria-labelledby="team-cancel-title" aria-describedby="team-cancel-message">
   <div class="mypage-confirm-dialog-content">
     <div class="mypage-confirm-dialog-heading">
-      <div><h2 id="team-cancel-title">팀 신청을 취소할까요?</h2><p id="team-cancel-match">매칭방</p></div>
+      <div><h2 id="team-cancel-title">팀 신청 취소</h2><p id="team-cancel-match">매칭방</p></div>
       <button class="mypage-confirm-close" type="button" data-close-team-cancel aria-label="닫기">×</button>
     </div>
-    <p id="team-cancel-message" class="mypage-confirm-note">팀원의 신청이 모두 함께 취소됩니다.</p>
+    <fieldset class="mypage-team-cancel-group">
+      <legend>취소할 팀원을 선택하세요</legend>
+      <label class="mypage-team-cancel-option mypage-team-cancel-all"><input id="team-cancel-all" type="checkbox" /> <span>전체 선택</span></label>
+      <div id="team-cancel-members"></div>
+    </fieldset>
+    <fieldset id="team-cancel-leader" class="mypage-team-cancel-group" hidden>
+      <legend>대표가 빠지므로 새 대표를 선택하세요</legend>
+      <div id="team-cancel-leaders" class="mypage-team-cancel-leaders"></div>
+    </fieldset>
+    <p id="team-cancel-message" class="mypage-confirm-note">취소할 팀원을 선택해 주세요.</p>
     <div class="mypage-confirm-actions">
       <button class="mypage-confirm-back" type="button" data-close-team-cancel>돌아가기</button>
-      <button id="team-cancel-confirm" class="mypage-confirm-submit" type="button">팀 신청 취소</button>
+      <button id="team-cancel-confirm" class="mypage-confirm-submit" type="button" disabled>팀원 취소</button>
     </div>
   </div>
 </dialog>

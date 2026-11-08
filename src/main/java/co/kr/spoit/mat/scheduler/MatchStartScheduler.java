@@ -6,10 +6,9 @@ import java.time.ZoneId;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 
+/** 빈 등록 여부는 {@code mat.config.MatSchedulingConfig}가 프로퍼티로 결정한다. */
 @Slf4j
-@Component
 public class MatchStartScheduler {
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");

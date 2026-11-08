@@ -12,7 +12,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS audit_log, penalty, report_evidence, admin_request, notification, report,
     sport_rating_history, sport_rating, match_evaluation_score, match_evaluation,
     sport_evaluation_item, match_result_submission, match_participant, match_application,
-    social_match, club_join_request, club_member, club_hashtag, hashtag, club_region, club,
+    social_match, club_join_request, club_member, club_region, club,
     schedule_change, facility_date_override_slot, facility_date_override,
     operating_rule, facility_sport, facility_manager, facility,
     user_preferred_sport, user_region, region, sport, app_user;
@@ -193,24 +193,6 @@ CREATE TABLE club_region (
     CONSTRAINT fk_club_region_region FOREIGN KEY (region_id) REFERENCES region (region_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='동호회 활동 지역';
 
-CREATE TABLE hashtag (
-    hashtag_id  BIGINT      NOT NULL AUTO_INCREMENT COMMENT '해시태그 식별자',
-    name        VARCHAR(30) NOT NULL COMMENT '태그명, # 없이 저장, 중복 불가',
-    is_default  BOOLEAN     NOT NULL DEFAULT FALSE COMMENT 'true면 지정 태그, false면 자유 입력',
-    PRIMARY KEY (hashtag_id),
-    UNIQUE KEY uk_hashtag_name (name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='해시태그';
-
-CREATE TABLE club_hashtag (
-    club_id     BIGINT  NOT NULL COMMENT '동호회',
-    hashtag_id  BIGINT  NOT NULL COMMENT '해시태그',
-    sort_order  TINYINT NOT NULL COMMENT '표시 순서 1~5, 1번이 카드 대표 태그',
-    PRIMARY KEY (club_id, hashtag_id),
-    CONSTRAINT fk_club_hashtag_club    FOREIGN KEY (club_id)    REFERENCES club (club_id),
-    CONSTRAINT fk_club_hashtag_hashtag FOREIGN KEY (hashtag_id) REFERENCES hashtag (hashtag_id),
-    CONSTRAINT ck_club_hashtag_order CHECK (sort_order BETWEEN 1 AND 5)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='동호회 해시태그';
-
 CREATE TABLE club_member (
     club_member_id  BIGINT       NOT NULL AUTO_INCREMENT COMMENT '소속 이력 식별자, 재가입 시 새 행',
     club_id         BIGINT       NOT NULL COMMENT '동호회',
@@ -269,6 +251,7 @@ CREATE TABLE social_match (
     fee_per_person            DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '해당 회차 1인당 이용료',
     required_skill            VARCHAR(30)   NOT NULL COMMENT '요구 실력 조건 (내부 MMR과 별개)',
     status                    VARCHAR(20)   NOT NULL COMMENT '매칭방 상태 (모집 중, 매칭 완료, 종료, 취소)',
+    photo_url                 VARCHAR(500)  NULL COMMENT '시설 사진 공개 URL (로컬 /uploads/..., 운영 S3), 없으면 종목명 표시',
     assignment_method         VARCHAR(10)   NOT NULL DEFAULT 'MANUAL' COMMENT 'A/B팀 배정 방식, MANUAL 기본, AUTO 추천',
     assigned_by               BIGINT        NULL COMMENT 'A/B팀 배정을 확정한 회원',
     assignment_confirmed_at   DATETIME      NULL COMMENT 'A/B팀 배정 확정 시각',
@@ -534,6 +517,7 @@ CREATE TABLE notification (
     match_id           BIGINT       NULL COMMENT '매칭방 운영 알림이면 연결할 경기',
     report_id          BIGINT       NULL COMMENT '신고 처리 결과 알림이면 연결할 신고',
     join_request_id    BIGINT       NULL COMMENT '동호회 가입 신청 알림이면 연결할 신청',
+    club_id            BIGINT       NULL COMMENT '동호회 관련 알림의 대상 동호회',
     notification_type  VARCHAR(30)  NOT NULL COMMENT '알림 종류 코드',
     title              VARCHAR(100) NOT NULL COMMENT '알림 제목',
     body               TEXT         NOT NULL COMMENT '알림 본문',
@@ -546,7 +530,8 @@ CREATE TABLE notification (
     CONSTRAINT fk_notification_application  FOREIGN KEY (application_id)    REFERENCES match_application (application_id),
     CONSTRAINT fk_notification_match        FOREIGN KEY (match_id)          REFERENCES social_match (match_id),
     CONSTRAINT fk_notification_report       FOREIGN KEY (report_id)         REFERENCES report (report_id),
-    CONSTRAINT fk_notification_join_request FOREIGN KEY (join_request_id)   REFERENCES club_join_request (request_id)
+    CONSTRAINT fk_notification_join_request FOREIGN KEY (join_request_id)   REFERENCES club_join_request (request_id),
+    CONSTRAINT fk_notification_club         FOREIGN KEY (club_id)           REFERENCES club (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='저장 알림';
 
 CREATE TABLE admin_request (

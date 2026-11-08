@@ -15,5 +15,6 @@ public class ClubMember {
     private String role;
     private String nickname;
     private LocalDateTime joinedAt;
+    private Long clubMemberId;
 
 }

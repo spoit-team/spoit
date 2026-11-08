@@ -2,12 +2,14 @@ package co.kr.spoit.facility.mapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doAnswer;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -32,6 +34,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +48,7 @@ import co.kr.spoit.match.domain.ApplicationType;
 import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.service.MatchApplicationService;
 import co.kr.spoit.match.service.MatchApplyException;
+import co.kr.spoit.match.service.RoomCommandService;
 
 /**
  * 기존 매칭방의 신규 참가 신청이 시설 운영 일정의 최신 값을 잠금 읽기로 확인하는지, 그리고 응용
@@ -159,8 +163,11 @@ class FacilityScheduleConcurrencyIntegrationTest {
     @Autowired
     private MatchApplicationService matchApplicationService;
 
-    @Autowired
+    @MockitoSpyBean
     private FacilityReservationService facilityReservationService;
+
+    @Autowired
+    private RoomCommandService roomCommandService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -209,6 +216,17 @@ class FacilityScheduleConcurrencyIntegrationTest {
             return;
         }
         txTemplate().executeWithoutResult(status -> {
+            // 신청·매칭방·회원을 참조하는 알림이 남아 있으면 아래 삭제가 FK로 막힌다.
+            // 이 테스트 대역의 회원·매칭방·신청만 대상으로 FK 역순(알림 → 신청)을 지킨다.
+            jdbcTemplate.update("""
+                    DELETE FROM notification
+                     WHERE recipient_user_id BETWEEN ? AND ?
+                        OR match_id BETWEEN ? AND ?
+                        OR application_id IN (
+                            SELECT application_id FROM match_application WHERE match_id BETWEEN ? AND ?
+                        )
+                    """, USER_ID_FIRST, USER_ID_LAST, MATCH_ID_FIRST, MATCH_ID_LAST,
+                    MATCH_ID_FIRST, MATCH_ID_LAST);
             jdbcTemplate.update("DELETE FROM match_participant WHERE match_id BETWEEN ? AND ?",
                     MATCH_ID_FIRST, MATCH_ID_LAST);
             jdbcTemplate.update("DELETE FROM match_application WHERE match_id BETWEEN ? AND ?",
@@ -231,6 +249,81 @@ class FacilityScheduleConcurrencyIntegrationTest {
                     USER_ID_FIRST, USER_ID_LAST);
         });
         fixtureReady = false;
+    }
+
+    @Test
+    @DisplayName("방 취소가 잠금을 기다리는 동안 커밋된 신청도 취소되고 알림을 받는다")
+    void cancellationNotifiesApplicationCommittedWhileWaitingForFacility() throws Exception {
+        CountDownLatch applicationWritten = new CountDownLatch(1);
+        CountDownLatch cancellationReachedFacilityLock = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2, DAEMON_THREADS);
+        try {
+            Future<?> application = pool.submit(() -> txTemplate().executeWithoutResult(status -> {
+                matchApplicationService.applyIndividual(CONCURRENT_MATCH_ID, APPLICANT_USER_ID);
+                applicationWritten.countDown();
+                await(cancellationReachedFacilityLock);
+            }));
+            await(applicationWritten);
+            // 취소가 잠금 전 일반 조회를 끝냈을 때 신청 트랜잭션의 커밋을 허용한다.
+            doAnswer(invocation -> {
+                cancellationReachedFacilityLock.countDown();
+                return invocation.callRealMethod();
+            }).when(facilityReservationService).lockActiveFacility(OPEN_FACILITY_ID);
+
+            Future<?> cancellation = pool.submit(() -> roomCommandService.cancel(MANAGER_USER_ID, CONCURRENT_MATCH_ID));
+            awaitCompletion(application, cancellation);
+        } finally {
+            cancellationReachedFacilityLock.countDown();
+            shutdown(pool);
+        }
+
+        assertThat(jdbcTemplate.queryForList("SELECT status FROM match_application WHERE match_id = ?",
+                String.class, CONCURRENT_MATCH_ID))
+                .containsExactly(ApplicationStatus.CANCELLED.dbValue(), ApplicationStatus.CANCELLED.dbValue());
+        assertThat(roomCancellationRecipients(CONCURRENT_MATCH_ID))
+                .containsExactly(APPLICANT_USER_ID, EXISTING_APPLICANT_USER_ID);
+    }
+
+    @Test
+    @DisplayName("방 취소가 시설을 잡은 동안 신청은 시설 락에서 기다리고, 취소가 끝나면 모집 중이 아니라 거절된다")
+    void applicationWaitsForFacilityWhileCancellationCompletes() throws Exception {
+        CountDownLatch cancellationLockedFacility = new CountDownLatch(1);
+        CountDownLatch applicationReachedFacilityLock = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            Object result = invocation.callRealMethod();
+            cancellationLockedFacility.countDown();
+            await(applicationReachedFacilityLock);
+            return result;
+        }).doAnswer(invocation -> {
+            // 신청은 계정보다 시설을 먼저 잠그므로(시설 → 매칭방 → 계정) 아직 계정을 잡지 않은 채 시설 락을 요청한다.
+            applicationReachedFacilityLock.countDown();
+            return invocation.callRealMethod();
+        }).when(facilityReservationService).lockActiveFacility(OPEN_FACILITY_ID);
+
+        ExecutorService pool = Executors.newFixedThreadPool(2, DAEMON_THREADS);
+        try {
+            Future<?> cancellation = pool.submit(() -> roomCommandService.cancel(MANAGER_USER_ID, CONCURRENT_MATCH_ID));
+            await(cancellationLockedFacility);
+            Future<?> application = pool.submit(() -> matchApplicationService.applyIndividual(
+                    CONCURRENT_MATCH_ID, EXISTING_APPLICANT_USER_ID));
+
+            // 신청이 계정을 먼저 잡지 않으므로 취소는 수신자 계정 잠금에서 막히지 않고 한 번에 끝난다.
+            cancellation.get(TERMINATION_SECONDS, TimeUnit.SECONDS);
+            assertThatThrownBy(() -> awaitCompletion(application))
+                    .isInstanceOf(MatchApplyException.class)
+                    .hasMessageContaining("모집 중인 매칭방이 아닙니다.");
+            assertThat(jdbcTemplate.queryForObject("SELECT status FROM social_match WHERE match_id = ?",
+                    String.class, CONCURRENT_MATCH_ID)).isEqualTo(MatchStatus.CANCELLED.dbValue());
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM match_application WHERE match_id = ? AND applicant_user_id = ?",
+                    Integer.class, CONCURRENT_MATCH_ID, EXISTING_APPLICANT_USER_ID))
+                    .as("거절된 신청은 match_application 행을 새로 만들지 않아야 한다")
+                    .isEqualTo(1);
+            assertThat(roomCancellationRecipients(CONCURRENT_MATCH_ID)).containsExactly(EXISTING_APPLICANT_USER_ID);
+        } finally {
+            applicationReachedFacilityLock.countDown();
+            shutdown(pool);
+        }
     }
 
     @Test
@@ -680,6 +773,14 @@ class FacilityScheduleConcurrencyIntegrationTest {
                 SELECT COUNT(*) FROM match_application WHERE match_id = ? AND applicant_user_id = ?
                 """, Integer.class, matchId, userId);
         return count == null ? 0 : count;
+    }
+
+    private List<Long> roomCancellationRecipients(long matchId) {
+        return jdbcTemplate.queryForList("""
+                SELECT recipient_user_id FROM notification
+                 WHERE match_id = ? AND notification_type = 'MATCH_ROOM_CANCELLED'
+                 ORDER BY recipient_user_id
+                """, Long.class, matchId);
     }
 
     private TransactionTemplate txTemplate() {

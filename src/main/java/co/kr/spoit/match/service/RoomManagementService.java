@@ -2,10 +2,12 @@ package co.kr.spoit.match.service;
 
 import java.math.RoundingMode;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -13,17 +15,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import co.kr.spoit.mat.domain.RatingStatus;
 import co.kr.spoit.match.domain.ApplicationStatus;
 import co.kr.spoit.match.domain.ApplicationType;
 import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.domain.ParticipationStatus;
 import co.kr.spoit.match.domain.RoomStatusFilter;
+import co.kr.spoit.match.dto.FacilityDashboard;
 import co.kr.spoit.match.dto.RoomManagementApplicationRow;
 import co.kr.spoit.match.dto.RoomManagementDetail;
 import co.kr.spoit.match.dto.RoomManagementFacilitySport;
 import co.kr.spoit.match.dto.RoomManagementPage;
 import co.kr.spoit.match.dto.RoomManagementParticipantRow;
 import co.kr.spoit.match.dto.RoomManagementQuery;
+import co.kr.spoit.match.dto.RoomManagementRecentRequestRow;
 import co.kr.spoit.match.dto.RoomManagementRow;
 import co.kr.spoit.match.dto.RoomManagementSport;
 import co.kr.spoit.match.mapper.RoomManagementMapper;
@@ -59,6 +64,12 @@ public class RoomManagementService {
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter ISO_DATE = DateTimeFormatter.ISO_LOCAL_DATE;
+
+    /** 대시보드 최근 매칭방 표시 건수 */
+    static final int RECENT_MATCH_LIMIT = 5;
+
+    /** 대시보드 최근 요청(참가 신청) 표시 건수 */
+    static final int RECENT_REQUEST_LIMIT = 5;
 
     private final RoomManagementMapper roomManagementMapper;
     private final Clock clock;
@@ -124,6 +135,117 @@ public class RoomManagementService {
     }
 
     /**
+     * 담당 시설 전체의 매칭방 현황을 대시보드용으로 집계한다.
+     *
+     * <p>화면의 검색어·상태·종목·시설 필터와 무관하게 인증 주체의 담당 활성 시설 전체를 대상으로
+     * 한다. 목록 표시용 {@link RoomManagementPage}의 문자열 DTO는 날짜를 다시 해석해야 하므로 쓰지
+     * 않고, 소유권 제한이 걸린 {@code findRooms}의 raw 행을 필터 없이 조회해 시각·상태로 집계한다.
+     * 목록 조회와 같은 쿼리를 한 번 더 실행하지만 담당 범위 계산을 중복 구현하지 않기 위한 선택이다.</p>
+     *
+     * <p>관리자 식별자가 없으면 매퍼를 호출하지 않고 0건 집계를 돌려준다. 차트의 '이용 완료'는
+     * DB 종료({@link MatchStatus#CLOSED}) 상태만 뜻하고 취소는 포함하지 않는다.</p>
+     *
+     * <p>최근 요청은 담당 시설 매칭방에 접수된 신청을 상태와 무관하게 최신 접수순으로 최대
+     * {@link #RECENT_REQUEST_LIMIT}건 담는다. 팀 신청은 대표 행만 조회해 하나의 신청으로 표현한다.</p>
+     */
+    public FacilityDashboard findDashboard(Long managerUserId) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        String todayLabel = now.format(DATE);
+        String collectedAt = now.format(DATE_TIME);
+        if (!hasManager(managerUserId)) {
+            return FacilityDashboard.empty(todayLabel, collectedAt);
+        }
+
+        RoomManagementQuery query = buildQuery(managerUserId, null, null, null, null, null);
+        List<RoomManagementRow> rows = new ArrayList<>();
+        for (RoomManagementRow row : nullSafe(roomManagementMapper.findRooms(query))) {
+            if (row != null) {
+                rows.add(row);
+            }
+        }
+
+        int matchCount = rows.size();
+        int recruitingCount = 0;
+        int[] hourlyCounts = new int[24];
+        int[] completedCounts = new int[24];
+        LocalDate today = now.toLocalDate();
+        for (RoomManagementRow row : rows) {
+            if (MatchStatus.RECRUITING.dbValue().equals(row.getStatus())) {
+                recruitingCount++;
+            }
+            LocalDateTime startAt = row.getStartAt();
+            if (startAt == null || !startAt.toLocalDate().equals(today)) {
+                continue;
+            }
+            int hour = startAt.getHour();
+            hourlyCounts[hour]++;
+            if (MatchStatus.CLOSED.dbValue().equals(row.getStatus())) {
+                completedCounts[hour]++;
+            }
+        }
+
+        int maxCount = 0;
+        for (int count : hourlyCounts) {
+            maxCount = Math.max(maxCount, count);
+        }
+        List<FacilityDashboard.HourlyBar> hourlyBars = new ArrayList<>();
+        for (int hour = 0; hour < 24; hour++) {
+            hourlyBars.add(new FacilityDashboard.HourlyBar(hourlyCounts[hour], completedCounts[hour],
+                    height(hourlyCounts[hour], maxCount), height(completedCounts[hour], maxCount),
+                    String.format("%02d시", hour)));
+        }
+
+        List<RoomManagementPage.Match> recentMatches = rows.stream()
+                .filter(row -> row.getMatchId() != null)
+                .sorted(Comparator.comparing(RoomManagementRow::getMatchId).reversed())
+                .limit(RECENT_MATCH_LIMIT)
+                .map(row -> toListMatch(row, now))
+                .toList();
+
+        List<FacilityDashboard.RecentRequest> recentRequests = new ArrayList<>();
+        for (RoomManagementRecentRequestRow request : nullSafe(
+                roomManagementMapper.findRecentApplications(managerUserId, RECENT_REQUEST_LIMIT))) {
+            if (request != null) {
+                recentRequests.add(toRecentRequest(request));
+            }
+        }
+
+        return new FacilityDashboard(matchCount, recruitingCount, hourlyBars, recentMatches,
+                recentRequests, todayLabel, collectedAt);
+    }
+
+    /**
+     * 대시보드 최근 요청 한 건을 화면 문구로 만든다. 상세는 기존 운영 화면
+     * ({@code /admin/operations?matchId=})이 그대로 맡으므로 매칭방 ID만 넘긴다.
+     */
+    private static FacilityDashboard.RecentRequest toRecentRequest(RoomManagementRecentRequestRow row) {
+        return new FacilityDashboard.RecentRequest(
+                row.getMatchId(),
+                label(row.getMatchTitle(), "제목 없음"),
+                label(row.getFacilityName(), "시설 미설정"),
+                recentApplicantName(row),
+                createdAtLabel(row.getCreatedAt()),
+                applicationStatusLabel(row.getStatus()),
+                applicationStatusTone(row.getStatus()));
+    }
+
+    /** 동호회 신청은 신청자(동호회장) 대신 동호회명을 우선 보여 준다. */
+    private static String recentApplicantName(RoomManagementRecentRequestRow row) {
+        if (ApplicationType.CLUB.dbValue().equals(row.getApplicationType()) && !isBlank(row.getClubName())) {
+            return row.getClubName().strip();
+        }
+        return label(row.getApplicantName(), "신청자 미상");
+    }
+
+    /** 24칸 중 최대값에 대한 상대 백분율. 모두 0이면 0이다. */
+    private static int height(int count, int maxCount) {
+        if (maxCount <= 0) {
+            return 0;
+        }
+        return (int) Math.round(count * 100.0 / maxCount);
+    }
+
+    /**
      * 담당 시설 매칭방의 상세(신청·참가자 포함)를 조회한다.
      *
      * <p>관리자 식별자가 없거나, 매칭방 ID가 양수가 아니거나, 존재하지 않거나, 삭제된 시설이거나,
@@ -140,17 +262,26 @@ public class RoomManagementService {
             return null;
         }
 
+        // 팀 배정이 끝나면 확정 신청은 참가자 표로 옮겨 보여 주고, 되돌리면 다시 신청 내역으로 돌아온다.
+        // 반려·취소 신청은 기록으로 계속 신청 내역에 남긴다.
+        boolean teamAssigned = isTeamAssigned(row.getStatus());
+        boolean decisionOpen = MatchStatus.RECRUITING.dbValue().equals(row.getStatus())
+                && row.getStartAt() != null && row.getStartAt().isAfter(LocalDateTime.now(clock));
         List<RoomManagementDetail.Application> applications = new ArrayList<>();
         for (RoomManagementApplicationRow application : nullSafe(roomManagementMapper.findApplications(query))) {
-            if (application != null) {
-                applications.add(toApplication(application));
+            if (application == null
+                    || (teamAssigned && ApplicationStatus.CONFIRMED.dbValue().equals(application.getStatus()))) {
+                continue;
             }
+            applications.add(toApplication(application, decisionOpen));
         }
 
         List<RoomManagementDetail.Participant> participants = new ArrayList<>();
-        for (RoomManagementParticipantRow participant : nullSafe(roomManagementMapper.findParticipants(query))) {
-            if (participant != null) {
-                participants.add(toParticipant(participant));
+        if (teamAssigned) {
+            for (RoomManagementParticipantRow participant : nullSafe(roomManagementMapper.findParticipants(query))) {
+                if (participant != null) {
+                    participants.add(toParticipant(participant));
+                }
             }
         }
 
@@ -163,8 +294,39 @@ public class RoomManagementService {
                 participationLabel(row),
                 statusLabel(row.getStatus()),
                 statusTone(row.getStatus()),
+                teamAssigned,
                 applications,
-                participants);
+                participants,
+                teamAssigned ? ratingOf(row) : null);
+    }
+
+    /**
+     * 레이팅 반영 섹션. 제외 가능 조건은 레이팅 제외 API({@code MatchResultService.excludeRating})와 맞춘다:
+     * 팀 배정이 끝났고, 경기가 시작됐고, 아직 반영·제외되지 않은 경기다. 알 수 없는 상태 값이면 섹션을 숨긴다.
+     */
+    private RoomManagementDetail.Rating ratingOf(RoomManagementRow row) {
+        String ratingStatus = row.getRatingStatus();
+        if (RatingStatus.APPLIED.name().equals(ratingStatus)) {
+            return new RoomManagementDetail.Rating("반영 완료", TONE_GOOD,
+                    "레이팅에 반영된 경기라 제외할 수 없습니다.", false, false);
+        }
+        if (RatingStatus.EXCLUDED.name().equals(ratingStatus)) {
+            return new RoomManagementDetail.Rating("레이팅 제외됨", TONE_NEUTRAL,
+                    "레이팅 반영에서 제외된 경기입니다.", false, false);
+        }
+        if (!RatingStatus.WAITING.name().equals(ratingStatus)) {
+            return null;
+        }
+        if (row.getStartAt() == null || row.getStartAt().isAfter(LocalDateTime.now(clock))) {
+            return new RoomManagementDetail.Rating("경기 전", TONE_NEUTRAL,
+                    "경기가 시작된 뒤 제외할 수 있습니다.", true, false);
+        }
+        return new RoomManagementDetail.Rating("반영 대기", TONE_WARN, null, true, true);
+    }
+
+    /** 팀 배정 화면과 같은 기준: 매칭 완료·종료면 배정이 끝난 경기다. */
+    private static boolean isTeamAssigned(String status) {
+        return MatchStatus.MATCHED.dbValue().equals(status) || MatchStatus.CLOSED.dbValue().equals(status);
     }
 
     /* ---------------- 조회 조건 ---------------- */
@@ -281,7 +443,8 @@ public class RoomManagementService {
                 row.getFeePerPerson() == null ? 0
                         : row.getFeePerPerson().setScale(0, RoundingMode.DOWN).intValue(),
                 row.getRequiredSkill() == null ? "" : row.getRequiredSkill().strip(),
-                Math.max(0, row.getReservedCount()));
+                Math.max(0, row.getReservedCount()),
+                row.getPhotoUrl());
     }
 
     /** [시작, 종료) 구간이 덮는 1시간 블록 시작 시각 목록. "10:00,11:00" */
@@ -295,28 +458,27 @@ public class RoomManagementService {
         return String.join(",", hours);
     }
 
-    private RoomManagementDetail.Application toApplication(RoomManagementApplicationRow row) {
+    private RoomManagementDetail.Application toApplication(RoomManagementApplicationRow row, boolean decisionOpen) {
+        boolean club = ApplicationType.CLUB.dbValue().equals(row.getApplicationType());
         return new RoomManagementDetail.Application(
-                applicantName(row),
+                row.getApplicationId(),
+                label(row.getApplicantName(), "신청자 미상"),
+                club && !isBlank(row.getClubName()) ? row.getClubName().strip() : null,
                 kindLabel(row.getApplicationType()),
                 applicationStatusLabel(row.getStatus()),
-                row.getReceiptNo() == null ? "" : row.getReceiptNo(),
-                createdAtLabel(row.getCreatedAt()));
+                createdAtLabel(row.getCreatedAt()),
+                row.getApplicantUserId(),
+                decisionOpen && row.getApplicationId() != null
+                        && ApplicationStatus.WAITING.dbValue().equals(row.getStatus()));
     }
 
     private RoomManagementDetail.Participant toParticipant(RoomManagementParticipantRow row) {
         return new RoomManagementDetail.Participant(
                 label(row.getNickname(), "이름 없음"),
+                isBlank(row.getClubName()) ? null : row.getClubName().strip(),
                 teamLabel(row.getMatchSide()),
-                participationStatusLabel(row.getParticipationStatus()));
-    }
-
-    /** 동호회 신청은 신청자(동호회장) 대신 동호회명을 우선 보여 준다. */
-    private String applicantName(RoomManagementApplicationRow row) {
-        if (ApplicationType.CLUB.dbValue().equals(row.getApplicationType()) && !isBlank(row.getClubName())) {
-            return row.getClubName().strip();
-        }
-        return label(row.getApplicantName(), "신청자 미상");
+                participationStatusLabel(row.getParticipationStatus()),
+                row.getUserId());
     }
 
     private static String kindLabel(String applicationType) {
@@ -337,6 +499,20 @@ public class RoomManagementService {
             case "반려" -> "신청 반려";
             default -> status;
         };
+    }
+
+    /** 최근 요청의 상태 톤. 대기는 확인이 필요한 상태라 warn, 확정은 good, 반려는 bad다. */
+    private static String applicationStatusTone(String status) {
+        if (ApplicationStatus.WAITING.dbValue().equals(status)) {
+            return TONE_WARN;
+        }
+        if (ApplicationStatus.CONFIRMED.dbValue().equals(status)) {
+            return TONE_GOOD;
+        }
+        if (ApplicationStatus.REJECTED.dbValue().equals(status)) {
+            return TONE_BAD;
+        }
+        return TONE_NEUTRAL;
     }
 
     private static String participationStatusLabel(String status) {

@@ -16,4 +16,6 @@ public class ClubJoinRequest {
     private String nickname;
     private String message;
     private LocalDateTime requestedAt;
+    private Long clubId;
+    private String clubName;
 }

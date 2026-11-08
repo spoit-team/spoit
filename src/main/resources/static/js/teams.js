@@ -52,7 +52,7 @@
         return;
       }
       navigator.clipboard.writeText(window.location.href)
-        .then(function () { announce('팀 링크를 복사했습니다.'); })
+        .then(function () { announce('동호회 링크를 복사했습니다.'); })
         .catch(function () { announce('현재 브라우저에서 링크 복사를 사용할 수 없습니다.'); });
     }
   });
@@ -71,4 +71,19 @@
   });
 
   if (applicationError) openDialog();
+    // 제출 버튼 두 번 누름 방지(POST만, 검사에 걸려 막힌 제출은 그대로 둠)
+  document.addEventListener('submit', function (event) {
+    const form = event.target;
+    if (event.defaultPrevented || form.method !== 'post') return;
+    form.querySelectorAll('button[type="submit"]').forEach(function (button) {
+      button.disabled = true;
+    });
+  });
+
+  // 뒤로 가기로 돌아오면 버튼 다시 켬
+  window.addEventListener('pageshow', function () {
+    document.querySelectorAll('form[method="post"] button[type="submit"]').forEach(function (button) {
+      button.disabled = false;
+    });
+  });
 })();

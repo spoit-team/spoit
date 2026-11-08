@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.DisplayName;
@@ -120,7 +122,9 @@ class RoomManagementRouteIntegrationTest {
                         hasProperty("matchId", is(FOREIGN_MATCH_ID))))))
                 .andExpect(content().string(containsString("금요 농구 모집")));
 
-        // 상세: 신청 내역과 참가자 명단이 서비스 조회 결과 그대로 모델에 담긴다.
+        // 상세(배정 후): 확정 신청이 참가자 명단으로 옮겨져 팀과 함께 모델에 담긴다.
+        // 목록 조회 뒤, 첫 상세 조회 전에 상태를 바꿔 같은 트랜잭션의 MyBatis 1차 캐시를 피한다.
+        jdbcTemplate.update("UPDATE social_match SET status = '매칭 완료' WHERE match_id = ?", OWNED_MATCH_ID);
         mockMvc.perform(get("/admin/operations")
                         .param("matchId", String.valueOf(OWNED_MATCH_ID))
                         .with(user(manager(MANAGER_A))))
@@ -139,6 +143,25 @@ class RoomManagementRouteIntegrationTest {
                 .andExpect(content().string(containsString("신청자하나")))
                 .andExpect(content().string(containsString("참가자둘")))
                 .andExpect(content().string(containsString("A팀")));
+    }
+
+    @Test
+    @DisplayName("팀 배정 전 상세는 신청 내역에 승인·반려 버튼을 두고 참가자 표는 비운다")
+    void detailBeforeAssignmentHidesParticipants() throws Exception {
+        // 승인·반려 버튼은 시작 전 방에만 열린다. fixture의 고정 시작 시각이 지나도 깨지지 않게
+        // 이 테스트에서만 시작 시각을 실행 시점 기준 미래로 옮긴다.
+        LocalDateTime futureStart = LocalDateTime.now(ZoneId.of("Asia/Seoul")).plusDays(7).withNano(0);
+        jdbcTemplate.update("UPDATE social_match SET start_at = ?, end_at = ? WHERE match_id = ?",
+                futureStart, futureStart.plusHours(2), OWNED_MATCH_ID);
+
+        // 상세(배정 전): 신청 내역만 보이고 참가자 표는 팀 배정 뒤에 채워진다.
+        mockMvc.perform(get("/admin/operations")
+                        .param("matchId", String.valueOf(OWNED_MATCH_ID))
+                        .with(user(manager(MANAGER_A))))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("match", hasProperty("participants", org.hamcrest.Matchers.empty())))
+                .andExpect(content().string(containsString("팀 배정이 끝나면 참가자가 표시됩니다.")))
+                .andExpect(content().string(containsString("data-decision=\"confirm\"")));
     }
 
     @Test

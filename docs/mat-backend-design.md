@@ -1,18 +1,20 @@
 # MAT 백엔드 설계와 MySQL Mapper 통합 테스트
 
+> **현재 구현 안내:** 이 문서는 PR #17 시점의 초기 MAT 조회·매퍼 테스트 설계 기록에서 출발했다. 초기 범위와 검증 결과는 당시 기준이다. 현재는 팀 배정·경기 시작 처리, 결과 제출·확정, Elo 반영·제외와 결과 마감·종료 스케줄러가 구현되어 있다. 확정 참가자용 결과 화면과 팀장 제출 UI, DB 알림함·개인 웹소켓 전송도 연결됐다. 관리자 레이팅 제외 API는 화면에 연결되지 않았다. 현재 책임과 호출 흐름은 [MAT 코드맵](../src/main/java/co/kr/spoit/mat/codemap.md)을 함께 참고한다.
+
 ## 1. 분석 근거와 작업 범위
 
-현재 기준은 MAT 최소 골격이 병합된 PR #17의 `1b205c1`이다. `README.md`, `CONTRIBUTING.md`, `db/schema.sql`, 기존 Java 소스와 빌드·CI 설정을 함께 확인했다.
+초기 분석 기준은 MAT 최소 골격이 병합된 PR #17의 `1b205c1`이다. 당시 `README.md`, `CONTRIBUTING.md`, `db/schema.sql`, 기존 Java 소스와 빌드·CI 설정을 함께 확인했다.
 
 - README는 MAT의 책임을 참가자 관리, A/B팀 배정, 경기 결과 제출, 팀장 기술평가, 종목별 MMR로 정의한다. 참가 신청·취소는 RES, 회원은 COM, 시설 운영은 FAC 영역이다.
 - Java 17, Spring Boot 3.5.16, MyBatis 3.0.5, MySQL, Gradle, Lombok을 사용한다. JPA 계층이나 신규 테스트 의존성은 추가하지 않는다.
 - 기본 패키지는 `co.kr.spoit`이다. PR #17의 `mat.domain`, `mat.dto`, `mat.mapper`, `mat.service` 구조와 기존 조회 계약을 그대로 검증한다.
-- `web.CorePageController`는 페이지 렌더링과 빈 모델 제공을 담당한다. `preview/`의 미리보기 데이터나 임시 레이팅 표시는 운영 정책으로 사용하지 않는다.
+- `admin.controller.SystemAdminController`는 페이지 렌더링과 빈 모델 제공을 담당한다. `preview/`의 미리보기 데이터나 임시 레이팅 표시는 운영 정책으로 사용하지 않는다.
 - 이전에 전체 컴파일을 막았던 공통 중복 클래스는 정리되었다. 현재 `HomeController`, `SecurityConfig`, `GlobalModelAdvice`의 패키지는 각각 `global.common`, `global.config`, `notification.service`와 일치한다. MAT 소스만 분리하는 임시 Gradle 스크립트 없이 기본 전체 소스를 컴파일하는 상태다.
 
-이번 작업은 기존 체크아웃의 `feature/mat-mapper-integration-test` 브랜치에서 수행한다. 별도 worktree 생성, 커밋·push·merge·PR 생성은 수행하지 않았다. RES·COM·FAC 및 MAT 프로덕션 코드, `build.gradle`, `db/schema.sql`, 애플리케이션 설정, 기존 테스트는 변경하지 않는다.
+이 문단은 원래 `feature/mat-mapper-integration-test` 작업의 범위를 기록한다. 그 작업에서는 별도 worktree 생성, 커밋·push·merge·PR 생성 없이 RES·COM·FAC 및 MAT 프로덕션 코드, `build.gradle`, `db/schema.sql`, 애플리케이션 설정, 기존 테스트를 변경하지 않았다.
 
-기존 최소 골격은 **경기 참가자 목록 조회와 회원·종목별 MMR 조회의 Domain / DTO / Mapper / Service 연결**이다. 이번에는 실제 MySQL에서 두 Mapper의 SQL·필드 매핑·복합 키 조건을 검증하는 테스트와 실행 환경을 추가한다. HTTP 엔드포인트, 화면 연결, 쓰기 작업, 자동 팀 배정, 결과 확정, 평가 집계, 레이팅 계산·반영은 범위에 포함하지 않는다.
+당시 최소 골격은 **경기 참가자 목록 조회와 회원·종목별 MMR 조회의 Domain / DTO / Mapper / Service 연결**이었다. 해당 단계에서는 실제 MySQL에서 두 Mapper의 SQL·필드 매핑·복합 키 조건을 검증했고, HTTP 엔드포인트·쓰기 작업·자동 팀 배정은 범위 밖이었다. 이후 추가된 팀 배정 구현은 8절에 정리한다.
 
 ## 2. 테이블과 담당 경계
 
@@ -44,7 +46,7 @@
 
 ## 4. 이후 서비스에서 확인할 무결성
 
-다음은 DDL만으로 완전히 보장되지 않는다. 현재 읽기 전용 골격이 이 규칙을 구현하거나 검증한다고 간주하면 안 된다.
+다음은 초기 조회 골격을 분석할 때 식별한, DDL만으로 완전히 보장되지 않는 사항이다. 이후 구현된 권한 검증·잠금·레이팅 처리의 현재 상태는 MAT 코드맵과 8·10절을 참고한다.
 
 | 확인 사항 | DDL의 한계와 필요한 처리 |
 |---|---|
@@ -60,7 +62,7 @@
 
 스키마 개선이 필요한 경우에는 담당자와 별도 협의하고 CONTRIBUTING에 따라 ERD와 SQL을 함께 변경한다. 이번 작업에서는 제약을 임의로 추가하지 않는다.
 
-## 5. 패키지 및 최소 구현 계약
+## 5. 초기 조회 골격의 패키지 및 계약 (당시 범위)
 
 기존 기본 패키지 아래에 MAT 책임을 모아 다른 담당 코드와의 변경 경계를 분명하게 한다.
 
@@ -105,11 +107,13 @@ DDL에 명시된 값은 저장 계약으로 인정하되, 계산 정책으로 �
 | 평가 `scale_max DEFAULT 10` 및 CHECK | 10점 척도는 DDL이 명시적으로 보장한다. 평가 가중치와 결측 집계 공식을 확정하지는 않는다. |
 | `assignment_method DEFAULT MANUAL`, `rating_status DEFAULT WAITING` | 초기 저장 상태다. 자동 배정 방식이나 상태 전이 조건을 정하지 않는다. |
 
-Elo K/D, 배치 경기 수, 평가 보정식과 계수, 팀 평균 산정 대상·시점, 반올림, MMR 상·하한, 티어, 결측 평가, 재반영·정정 정책은 확정하지 않았다. `algorithm_version` 컬럼이 있다는 이유만으로 버전값이나 공식을 생성하지 않는다. 별도 Python 실험의 가정·수치를 운영 정책으로 사용하지 않는다.
+초기 조회 골격 작업 당시에는 Elo K/D, 배치 경기 수, 평가 보정식과 계수, 팀 평균 산정 대상·시점, 반올림, MMR 상·하한, 티어, 결측 평가, 재반영·정정 정책을 확정하지 않았다. 이후 구현된 정책은 `RatingPolicy`와 10절을 참고한다. 별도 Python 실험의 가정·수치를 운영 정책으로 사용하지 않는다.
 
 ## 7. MySQL 통합 테스트 구성
 
 ### 검증 범위
+
+아래 표의 테스트 건수는 초기 조회 골격 작업 당시의 기록이다. 이후 테스트가 추가될 수 있으므로 현재 테스트 수나 통과 결과를 뜻하지 않는다.
 
 `AbstractMySqlMapperTest`는 `@MybatisTest`로 실제 프로덕션 Mapper를 등록하고 `@AutoConfigureTestDatabase(replace = NONE)`으로 실제 MySQL을 사용한다. Mock Mapper나 H2로 대체하지 않는다. underscore-to-camel-case 설정을 끈 상태에서 SQL의 명시적 별칭이 Java 필드에 매핑되는지 확인한다.
 
@@ -121,7 +125,7 @@ Elo K/D, 배치 경기 수, 평가 보정식과 계수, 팀 평균 산정 대상
 | 기존 서비스 테스트 13개 | 잘못된 식별자, 저장값 보존, 미등록 레이팅 비합성 |
 | 기존 Spring 애플리케이션·화면 테스트 16개 | 전체 컨텍스트와 기존 화면 경로 회귀 검증 |
 
-전체 기본 테스트 실행 결과는 59개 통과다. DECIMAL 경계 데이터는 MySQL 저장 타입과 Java `BigDecimal` 매핑을 확인하기 위한 값이며, 허용 MMR의 상·하한 정책을 정하지 않는다.
+초기 작업 당시 전체 기본 테스트 실행 결과는 59개 통과였다(2026-10-22 기록). DECIMAL 경계 데이터는 MySQL 저장 타입과 Java `BigDecimal` 매핑을 확인하기 위한 값이며, 허용 MMR의 상·하한 정책을 정하지 않는다.
 
 Fixture는 `src/test/resources/mat/mapper-fixture.sql`에 있다. FK를 만족하는 최소 회원·종목·지역·시설·경기·신청·참가자·레이팅 데이터를 INSERT하고, 참가자는 `30, 10, 20, 5` 순으로 넣어 정렬 여부를 검증한다. `@Sql`에서 UTF-8을 명시하고 각 테스트의 Spring 트랜잭션이 종료될 때 롤백한다. Fixture와 테스트 Java 코드에는 DDL·TRUNCATE가 없다.
 
@@ -173,9 +177,25 @@ HTML 보고서는 `build/reports/tests/test/index.html`, JUnit XML은 `build/tes
 
 GitHub Actions는 설정만 변경했고 원격 실행은 하지 않았다. CI의 MySQL **8.4.11** 실행 결과를 로컬 8.4.13 검증으로 대신 주장하지 않는다.
 
-이 검증은 두 조회 Mapper의 실제 SQL 실행·매핑 및 테스트 데이터 롤백을 대상으로 한다. 미구현 상태 전이, 동시성 제어, 쓰기 서비스, 레이팅 계산·반영의 정합성까지 검증하는 것은 아니다.
+위 2026-10-22 검증은 두 조회 Mapper의 실제 SQL 실행·매핑 및 테스트 데이터 롤백을 대상으로 했다. 이후 추가된 상태 전이, 동시성 제어, 쓰기 서비스 및 레이팅 계산·반영에 대한 검증 결과를 뜻하지 않는다.
 
-## 8. 이번 변경 파일과 이유
+## 8. 이후 구현 상태 (2026-10-30)
+
+- `TeamAssignmentService`는 담당 시설과 매칭방 행을 잠근 뒤 상태·정원·확정 참가자를 재검증하고 자동 또는 수동 배정을 저장한다. 초기화는 팀·팀장·배정 방식 정보를 지우고 모집 상태로 되돌린다.
+- `MatchAssignmentMapper`는 `social_match`와 `match_participant`의 배정 조회·잠금·저장·초기화 SQL을 애노테이션으로 제공한다. `MatchAssignmentMapperIntegrationTest`의 8개 테스트가 실제 MySQL 쿼리 계약을 확인한다.
+- `MatchStartScheduler`는 서울 시간 기준 매분 시작 시각이 지난 모집 중 경기를 찾아 `TeamAssignmentService.startMatch`를 호출한다. 경기별 트랜잭션으로 자동 배정하거나, 이미 종료됐거나 참가 인원/정원이 맞지 않으면 취소한다. 한 경기 처리 실패가 다음 경기를 막지 않는다.
+- 스케줄러 설정은 `spoit.match-start-scheduler.enabled`이며 `matchIfMissing=true`로 기본 활성화된다. 로컬 데이터에 대한 자동 변경을 원하지 않으면 실행 설정에서 `false`로 끌 수 있다. 테스트에서는 Gradle 설정으로 스케줄링을 비활성화한다.
+- 배정 API는 2026-11-02에 관리자 HTML 화면과 연결됐다. `admin/operations.html`의 `#ops-assignment`가 `data-assignment-url`로 `/admin/operations/matches/{matchId}`를 넘기고, `match-assignment.js`가 같은 경로의 `mat` API(`TeamAssignmentController`)로 배정 조회·수동 확정·자동 배정·되돌리기를 호출한다. 초기 문서의 “팀 배정 미구현” 서술은 당시 상태 기록으로 읽어야 한다.
+- 2026-10-30 재base 검증 기록: `fix/optimeze`의 `b169040`에서 격리 MySQL을 사용한 `gradlew build`가 성공했고 516개 테스트가 통과했다. 이는 최적화 테스트 변경도 포함한 검증 결과이며, 개발 DB는 사용하지 않았다.
+
+### 2026-11-02 추가 구현 상태
+
+- 매칭방 생성·수정·취소가 관리자 화면에서 동작한다. `match.controller.RoomAdminController`의 `POST /admin/rooms`, `POST /admin/rooms/{matchId}`, `POST /admin/rooms/{matchId}/cancel`이 `RoomCommandService`로 위임하고, 생성 시와 신청자가 없어 시설·종목·일정까지 수정하는 경우 `FacilityReservationService`(운영 일정·휴관)와 `FacilityCapacityService`(동시 대관 한도)가 최신 값으로 다시 검증한다. 취소는 방 상태와 함께 활성 신청·참가자를 취소한다.
+- 팀 단위 신청(RES-04)이 구현됐다. 대표자가 고른 팀원마다 신청 행을 만들고 `match_application.group_application_id`(대표 행 ID)로 묶어 조회·취소를 함께 처리한다.
+- 시설 대시보드가 실제 집계를 사용한다. `RoomManagementService.findDashboard`가 담당 활성 시설의 매칭방 행을 상태·시각으로 집계해 `FacilityAdminController`의 화면 모델로 전달한다.
+- 시스템 관리자 페이지 컨트롤러는 `web.CorePageController`에서 `admin.controller.SystemAdminController`로 옮겨졌고, 모니터링 dashboard는 `SystemMonitoringService`의 실제 측정치를 쓰며 `POST /admin/system/monitoring`이 같은 모델을 JSON으로 돌려준다.
+
+## 9. 이번 변경 파일과 이유 (초기 조회 골격 작업)
 
 | 파일 | 이유 |
 |---|---|
@@ -187,6 +207,61 @@ GitHub Actions는 설정만 변경했고 원격 실행은 하지 않았다. CI�
 | `scripts/test-mat-mysql.ps1` | 기존 개발 DB와 분리된 임시 MySQL 실행·정리 |
 | `.github/workflows/ci.yml` | 기존 CI MySQL 서비스에 전용 DB와 MAT 테스트 연결 값 제공 |
 | `docs/mat-backend-design.md` | 현재 구조·검증 경계·재현 명령을 문서화 |
-| `docs/mat-mapper-integration-test-pr.md` | 팀 템플릿에 따른 PR 초안 |
+| PR 초안 문서 | 당시 작업 기록이며 해당 파일은 현재 저장소에 없다 |
 
 프로덕션 코드와 스키마를 바꾸지 않고 저장소의 기존 의존성을 사용한다. 미확정 레이팅 정책은 추가하지 않는다.
+
+## 10. 경기 종료 뒤 상태 흐름
+
+§6의 미확정 항목 가운데 Elo 계수, 배치 경기 수, 티어, 반올림, 결과 제출 기간, 평가 보정은 이후 PR에서 정해 `RatingPolicy`에 모았다. 시각은 모두 Asia/Seoul이고, 상태 전환은 매분 실행하는 스케줄러가 맡는다. 결과 스케줄러는 리마인더 → 제출 마감 → 종료 전환 순서로 실행해, 마감에서 처리된 경기를 같은 실행에서 종료한다. 스케줄러는 `spoit.match-start-scheduler.enabled=false`로 함께 끈다.
+
+표시 티어는 저장하지 않고 MMR로 계산한다(`TierRank`). 브론즈·실버·골드·플래티넘·다이아마다 4단계(4가 가장 낮음)를 두고, MMR 800부터 50마다 한 단계씩 오른다(브론즈 4 = 800 이상 850 미만, 다이아 1 = 1750 이상). 포인트는 단계 시작부터 오른 MMR × 100 / 50을 버림한 값이다. 800 미만은 브론즈 4 · 0P이고, 다이아 1 위로는 단계 없이 포인트만 늘어난다(1800 → 100P). 반영 경기가 5경기 미만이면 "배치 중 (n/5)"로 표시한다.
+
+| 경기 상태 `status` | 조건 |
+|---|---|
+| 모집 중 → 매칭 완료 또는 취소 | 시작 시각에 자동 배정한다. 인원이나 정원이 맞지 않으면 취소한다. |
+| 매칭 완료 → 종료 | `end_at <= now`이고 `rating_status`가 APPLIED 또는 EXCLUDED. 종료는 결과·평가 처리가 모두 끝난 경기를 뜻한다. 처리 중인 경기는 아직 진행 중으로 보고, WAITING이면 종료 시각이 지나도 매칭 완료로 둔다. 경기 중에 레이팅에서 제외된 경기도 종료 시각이 지나야 바뀐다. |
+
+평가는 WAITING일 때만 받고 APPLIED는 아래 반영 시점에만 되므로, 종료 전환은 레이팅 상태만 보고도 "결과·평가 처리가 끝나야 종료"가 된다. 처리가 끝나기 전(최대 `end_at + 24시간`)에는 시설 삭제가 막히고, 운영자 매칭방 관리 화면에는 매칭 완료로 보인다.
+
+결과는 확정 참가 중인 A·B팀장만 제출한다. 경기 상태가 매칭 완료 또는 종료이고, `end_at <= now < end_at + 24시간`이며, `rating_status = WAITING`이어야 한다. 종료 경기는 레이팅 처리가 끝났으므로 실제로는 매칭 완료 경기만 제출된다. 취소·종료된 경기는 시설 삭제를 막지 않으므로, 결과 조회와 마감 처리는 삭제된 시설의 경기도 대상으로 한다.
+
+| 상황 | 제출 행 `submission_status` | 경기 `result_status` |
+|---|---|---|
+| 한 팀장만 제출 | SUBMITTED | SUBMITTED (미제출이면 NULL) |
+| 두 결과가 같음 | 둘 다 CONFIRMED | CONFIRMED, `final_result` 저장 |
+| 두 결과가 다름 | 둘 다 CONFLICT, 양 팀장에게 알림 | CONFLICT |
+| CONFLICT 상태에서 다시 제출 | 이전 행은 REPLACED, 새 행으로 다시 비교 | 위 규칙을 따른다 |
+
+| 레이팅 상태 `rating_status` | 조건 |
+|---|---|
+| WAITING → APPLIED | 결과가 확정되고 두 팀장의 평가가 모두 들어오면 바로 반영한다. 결과가 확정될 때와 평가가 제출될 때 둘 다 확인한다. 마감 때는 결과만 확정돼 있으면 평가가 덜 들어왔어도 그때까지 들어온 평가로 반영한다. 두 조건은 `isReadyToApplyNow`와 `isReadyToApplyAtDeadline`으로 나눠 둔다. |
+| WAITING → EXCLUDED | `end_at + 24시간`까지 확정되지 않으면 경기 상태와 관계없이 제외한다. 담당 시설 관리자는 시작 뒤 노쇼 경기를 제외할 수 있고, `result_reviewed_by`에 남는다. |
+
+`READY`는 쓰지 않는다. 마감 1시간 전(`end_at + 23시간`)이 실행 시각의 1분 구간에 드는 경기에서는 결과 제출 행이나 평가 행이 없는 팀장에게 리마인더("경기 결과·평가 미제출")를 보낸다. 알림 테이블로 중복을 확인하지 않으므로, 그 1분에 앱이 멈춰 있었으면 리마인더는 다시 보내지 않는다.
+
+팀장 평가는 결과 제출과 같은 팀장·기간·`rating_status = WAITING` 조건에서 받는다(`/mypage/matches/{matchId}/evaluation`). 팀장 한 명이 팀이 배정된 확정 참가자 전원(자기 자신 제외)을 경기 종목의 활성 항목 전부에 대해 한 번에 제출하고, 제출한 평가는 고칠 수 없다. 항목 점수는 0~10 정수(OBSERVED) 또는 관찰 불가(NOT_OBSERVED, 점수 NULL)다. (경기, 평가자) UNIQUE가 없으므로 결과 제출처럼 `social_match`를 잠근 뒤 이미 제출했는지 확인해 중복을 막는다. 평가할 참가자나 활성 항목이 없으면 제출을 받지 않는다.
+
+| 값 | 계산 (소수 2자리 HALF_UP) |
+|---|---|
+| 평가자별 점수 `match_evaluation.overall_score` | 관찰한 항목만 Σ(점수×가중치)/Σ가중치. 관찰한 항목이 없거나 그 가중치 합이 0이면 NULL |
+| 선수 평가 점수 `evaluation_score` | 그 경기에서 받은 `overall_score` 중 NULL이 아닌 값의 평균. 없으면 NULL |
+| 평가 보정 `evaluation_delta` | (평가 점수 − 5) × 1. 평가 점수가 NULL이면 0이고, 배치 중에도 적용한다 |
+| 최종 증감 `final_delta` | `elo_delta + evaluation_delta`. 공식 버전은 `ELO-K32-V2` |
+
+
+운영 화면의 참가자 이력 모달은 `GET /admin/operations/matches/{matchId}/participants/{userId}/history`로 요약만 받는다. 팀 배정 화면과 같이 그 경기 시설의 시설 관리자만 볼 수 있고(아니면 403), 경기가 없거나 그 경기에 신청 행(`match_application`)도 참가자 행(`match_participant`)도 없는 회원이면 본문 없이 404다. 응답은 `nickname`, 경기 종목 기준 `tierLabel`(레이팅 행이 없으면 "기록 없음")과 `ratedMatchCount`, 그 종목 `sport_rating_history`의 최근 5건 `recentChanges`(`calculatedAt`, `finalDelta`, 최신순), 확정 참가한 경기 중 상태가 매칭 완료·종료이고 `rating_status = EXCLUDED`인 경기 수 `excludedMatchCount`(전 종목, 자동 취소 경기 제외), 대상 신고 중 '처리 완료'만 센 `confirmedReportCount`, '적용 중'이고 `end_at`이 없거나 지금보다 뒤인 제재의 `penaltyType`·`endAt` 목록 `activePenalties`다. 신고 내용·신고자·제재 사유는 내보내지 않고, `report`·`penalty`는 읽기만 한다.
+
+## 11. 알림과 결과 화면 연결
+
+- `GET /mypage/matches/{matchId}/result-form`은 `MatchResultPageController`가 확정 참가자 여부를 확인한 뒤 결과 화면을 렌더링한다. 화면은 `/result/summary`로 본인 경기의 결과·레이팅 상태를 조회한다. 기존 `/result` 조회·제출은 팀장 전용 권한을 유지한다.
+- 2026-11-05에 리베이스 과정에서 축소됐던 결과 화면의 경기 정보를 복원했다. `MatchResultSummary`는 기존 결과·레이팅 상태에 더해 `scheduleLabel`(경기 일시), `facilityName`, `deadlineLabel`(제출 마감), A/B 팀 `teams`(확정 참가자 닉네임과 팀장 여부)를 담는다. `MatchResultService.getSummary`가 `ResultPageMatch`의 시설명과 `ResultTeamMember`의 확정 참가자 로스터로 이 값을 채우고, `match-result.js`가 모든 값을 `textContent`로 그린다. 로스터에는 회원 번호를 넣지 않으며, 팀장은 목록 앞에 표시된다. 팀장에게는 본인이 제출한 결과를 제공하지만 상대 팀장의 제출 결과는 노출하지 않는다.
+- 자동·수동 팀 배정, 자동 취소, 결과 불일치·리마인더는 `MatchNotifier`에서 공통 `NotificationDispatcher`로 위임한다. `markEnded`가 실제로 한 행을 종료로 바꾼 경우에만 확정 참가자에게 `MATCH_RESULT_COMPLETED`를 예약한다. 레이팅 반영·제외 모두 같은 완료 안내를 사용한다.
+- 현재 `NotificationDispatcher`는 수신자를 중복 제거한 뒤 `NotificationService.notifyRecipients`로 즉시 위임한다. `notifyRecipients`의 `@Transactional`(기본 `REQUIRED`)은 호출자의 업무 트랜잭션에 참여해 알림을 저장하고, 커밋 후 동기화 콜백에서 `/user/queue/notifications` 전송을 예약한다. 업무 트랜잭션이 있으면 저장 실패가 업무 롤백으로 이어질 수 있고, 스케줄러 리마인더처럼 업무 트랜잭션이 없는 호출은 알림 서비스가 새 트랜잭션으로 저장한다. 아웃박스와 재시도 작업자는 없어 커밋 직후 전송 실패나 서버 종료 시 실시간 전송은 놓칠 수 있지만 DB 알림함에서 복구한다. 전송 실패는 로그만 남기고 저장 결과에 영향을 주지 않는다. 초기 계획의 수신자별 별도 저장 트랜잭션과는 다른 현재 동작이다.
+- 매칭 참가 신청은 여전히 대기 상태로 접수된다. `MatchApplicationService.confirm`에는 확정 알림을 연결했지만 운영 호출 경로는 없다. 팀 배정은 이미 확정된 참가자를 대상으로 하며 신청을 자동 승인하지 않는다.
+
+### 초기 구현 시 검증 기록
+
+격리 Docker MySQL 8.4에서 전체 `gradlew build`를 한 번 실행했다. 827건 중 37건이 실패했으며, 최초 원인은 시설 동시성 테스트의 정리 코드가 새 알림 FK 참조를 먼저 삭제하지 못한 것이었다. 해당 테스트의 자체 데이터 삭제 순서를 보완한 뒤 실패한 여섯 클래스의 37건만 새 격리 DB에서 재실행해 모두 통과했다. 전체 빌드를 두 번째로 실행한 결과는 아니다.
+
+당시 프런트엔드 계약 831개와 알림·결과 화면 JavaScript 테스트가 통과했다. 두 HTTP 요청의 서로 다른 XOR 마스킹 CSRF 토큰을 검증하는 테스트와 타인 큐 `MESSAGE` 발행 차단 테스트를 포함한 보안 검토도 통과했다. 이 기록은 이후 알림 저장 트랜잭션·`club_id` 스키마·목록 조회 변경 전 결과로, 현재 소스 전체의 검증 결과를 뜻하지 않는다. 실제 브라우저 시각·실서버 종단 간 검증은 별도다. 이번 문서 갱신에서는 소스·문서 대조와 링크 확인만 수행한다.

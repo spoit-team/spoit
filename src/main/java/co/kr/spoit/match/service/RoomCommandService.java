@@ -1,20 +1,34 @@
 package co.kr.spoit.match.service;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import co.kr.spoit.facility.service.FacilityCapacityService;
 import co.kr.spoit.facility.service.FacilityReservationService;
+import co.kr.spoit.global.upload.InvalidPhotoException;
+import co.kr.spoit.global.upload.PhotoStorage;
+import co.kr.spoit.global.upload.UploadedPhoto;
 import co.kr.spoit.mat.service.AutoTeamAssigner;
 import co.kr.spoit.match.domain.ApplicationStatus;
 import co.kr.spoit.match.domain.MatchStatus;
@@ -24,6 +38,7 @@ import co.kr.spoit.match.dto.RoomCommand;
 import co.kr.spoit.match.dto.RoomEditTarget;
 import co.kr.spoit.match.dto.RoomForm;
 import co.kr.spoit.match.mapper.RoomCommandMapper;
+import co.kr.spoit.notification.service.NotificationDispatcher;
 
 /**
  * 시설 관리자의 담당 시설 매칭방 생성·수정·취소를 담당한다.
@@ -34,6 +49,9 @@ import co.kr.spoit.match.mapper.RoomCommandMapper;
  *
  * <p>신청자(참가자 행 또는 대기 신청)가 있는 방은 시설·종목·일정을 바꿀 수 없고, 정원은 현재 인원
  * 아래로 줄일 수 없다. 삭제는 취소 처리로 대신하며 활성 신청·참가자도 함께 취소한다.</p>
+ *
+ * <p>시설 사진은 신청자 유무와 관계없이 바꿀 수 있다. 파일은 DB 반영 전에 {@link PhotoStorage}에 올리고,
+ * 트랜잭션이 롤백되면 새 파일을, 커밋되면 교체·삭제된 이전 파일을 지운다.</p>
  */
 @Service
 @Transactional
@@ -45,6 +63,12 @@ public class RoomCommandService {
     static final int FEE_MAX = 1_000_000;
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
+    /** 매칭방 사진 저장 폴더 */
+    static final String PHOTO_DIRECTORY = "matches";
+
+    private static final Logger log = LoggerFactory.getLogger(RoomCommandService.class);
+
+    private static final int MYSQL_LOCK_NOWAIT = 3572;
 
     /** 수정·취소할 수 있는 방 상태 */
     static final List<String> EDITABLE_STATUSES = List.of(
@@ -53,19 +77,26 @@ public class RoomCommandService {
     private final RoomCommandMapper roomCommandMapper;
     private final FacilityReservationService reservationService;
     private final FacilityCapacityService capacityService;
+    private final PhotoStorage photoStorage;
+    private final NotificationDispatcher notificationDispatcher;
     private final Clock clock;
 
     @Autowired
     public RoomCommandService(RoomCommandMapper roomCommandMapper,
-            FacilityReservationService reservationService, FacilityCapacityService capacityService) {
-        this(roomCommandMapper, reservationService, capacityService, Clock.system(ZONE));
+            FacilityReservationService reservationService, FacilityCapacityService capacityService,
+            PhotoStorage photoStorage, NotificationDispatcher notificationDispatcher) {
+        this(roomCommandMapper, reservationService, capacityService, photoStorage, notificationDispatcher,
+                Clock.system(ZONE));
     }
 
     RoomCommandService(RoomCommandMapper roomCommandMapper, FacilityReservationService reservationService,
-            FacilityCapacityService capacityService, Clock clock) {
+            FacilityCapacityService capacityService, PhotoStorage photoStorage,
+            NotificationDispatcher notificationDispatcher, Clock clock) {
         this.roomCommandMapper = roomCommandMapper;
         this.reservationService = reservationService;
         this.capacityService = capacityService;
+        this.photoStorage = photoStorage;
+        this.notificationDispatcher = notificationDispatcher;
         this.clock = clock;
     }
 
@@ -74,13 +105,16 @@ public class RoomCommandService {
         requireManager(managerUserId);
         Details details = parseDetails(form);
         Schedule schedule = parseSchedule(form);
+        UploadedPhoto photo = parsePhoto(form);
         requireManagedFacilitySport(managerUserId, schedule);
 
         reservationService.lockActiveFacility(schedule.facilityId());
         reservationService.requireAvailable(schedule.facilityId(), schedule.startAt(), schedule.endAt());
         capacityService.requireCapacity(schedule.facilityId(), schedule.startAt(), schedule.endAt());
 
-        RoomCommand command = command(null, managerUserId, details, schedule, MatchStatus.RECRUITING.dbValue());
+        PhotoChange photoChange = photo == null ? PhotoChange.UNCHANGED : PhotoChange.to(storePhoto(photo));
+        RoomCommand command = command(null, managerUserId, details, schedule, MatchStatus.RECRUITING.dbValue(),
+                photoChange);
         roomCommandMapper.insertRoom(command);
         if (command.getMatchId() == null) {
             throw new IllegalStateException("매칭방 생성 ID를 받지 못했습니다.");
@@ -89,13 +123,14 @@ public class RoomCommandService {
     }
 
     /**
-     * 담당 시설 매칭방을 수정한다. 신청자가 있으면 제목·정원·참가비·실력 수준만 반영하고
+     * 담당 시설 매칭방을 수정한다. 신청자가 있으면 제목·정원·참가비·실력 수준·사진만 반영하고
      * 폼의 시설·종목·일정 값은 무시한다.
      */
     public void update(Long managerUserId, Long matchId, RoomForm form) {
         requireManager(managerUserId);
         RoomEditTarget target = lockEditableRoom(managerUserId, matchId);
         Details details = parseDetails(form);
+        UploadedPhoto photo = parsePhoto(form);
         int reserved = countReserved(target.getMatchId());
 
         if (reserved > 0) {
@@ -103,7 +138,9 @@ public class RoomCommandService {
                 throw new RoomCommandException(
                         "현재 참가·신청 인원(" + reserved + "명)보다 정원을 줄일 수 없습니다.");
             }
-            roomCommandMapper.updateRoomDetails(command(target.getMatchId(), null, details, null, null));
+            PhotoChange photoChange = photoChange(target, form, photo);
+            roomCommandMapper.updateRoomDetails(
+                    command(target.getMatchId(), null, details, null, null, photoChange));
             return;
         }
 
@@ -115,14 +152,22 @@ public class RoomCommandService {
         reservationService.requireAvailable(schedule.facilityId(), schedule.startAt(), schedule.endAt());
         capacityService.requireCapacity(schedule.facilityId(), schedule.startAt(), schedule.endAt(),
                 target.getMatchId());
-        roomCommandMapper.updateRoom(command(target.getMatchId(), null, details, schedule, null));
+        PhotoChange photoChange = photoChange(target, form, photo);
+        roomCommandMapper.updateRoom(command(target.getMatchId(), null, details, schedule, null, photoChange));
     }
 
-    /** 담당 시설 매칭방을 취소하고, 대기·확정 신청과 참가자도 함께 취소한다. */
+    /** 시설·매칭방을 잠근 뒤 그 시점의 활성 신청·참가자를 취소하고 알림을 저장한다. */
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void cancel(Long managerUserId, Long matchId) {
         requireManager(managerUserId);
         RoomEditTarget target = lockEditableRoom(managerUserId, matchId);
         LocalDateTime now = now();
+
+        // 잠금을 기다리는 동안 커밋된 신청도 포함해, 상태를 바꾸기 전에 수신자를 확정한다.
+        List<Long> recipients = distinctUserIds(
+                roomCommandMapper.findCancelRecipientUserIds(target.getMatchId(),
+                        ParticipationStatus.occupyingValues(), ApplicationStatus.activeValues()));
+        lockCancellationAccounts(managerUserId, recipients);
 
         int updated = roomCommandMapper.cancelRoom(target.getMatchId(), MatchStatus.CANCELLED.dbValue(),
                 EDITABLE_STATUSES, now);
@@ -133,6 +178,38 @@ public class RoomCommandService {
                 ParticipationStatus.occupyingValues(), now);
         roomCommandMapper.cancelApplications(target.getMatchId(), ApplicationStatus.CANCELLED.dbValue(),
                 ApplicationStatus.activeValues(), managerUserId, now);
+
+        notificationDispatcher.notifyAfterCommit(recipients,
+                "MATCH_ROOM_CANCELLED", "매칭방이 취소되었습니다",
+                "참가 신청한 매칭방이 시설 사정으로 취소되었습니다. 매칭 화면에서 확인해 주세요.",
+                target.getMatchId(), null, null);
+    }
+
+    private void lockCancellationAccounts(Long managerUserId, List<Long> recipients) {
+        if (recipients.isEmpty()) {
+            return;
+        }
+        // 신청은 계정을 먼저 잠근다. 시설 락을 가진 채 FK 검사에서 계정 락을 기다리지 않는다.
+        List<Long> accountIds = new ArrayList<>(recipients);
+        accountIds.add(managerUserId);
+        try {
+            roomCommandMapper.lockCancellationAccounts(accountIds);
+        } catch (DataAccessException exception) {
+            if (exception.getMostSpecificCause() instanceof SQLException sqlException
+                    && sqlException.getErrorCode() == MYSQL_LOCK_NOWAIT) {
+                throw new RoomCommandException("관련 회원 정보가 처리 중입니다. 잠시 후 매칭방 취소를 다시 시도해 주세요.");
+            }
+            throw exception;
+        }
+    }
+
+    /** 순서를 유지하며 null·중복을 제거한다. */
+    private static List<Long> distinctUserIds(List<Long> ids) {
+        if (ids == null) {
+            return List.of();
+        }
+        return List.copyOf(ids.stream().filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new)));
     }
 
     /* ---------------- 대상 확인 ---------------- */
@@ -302,10 +379,87 @@ public class RoomCommandService {
         return hours;
     }
 
+    /* ---------------- 사진 ---------------- */
+
+    /** 사진 URL 변경 내용. {@code changed}가 false이면 DB 값을 그대로 둔다. */
+    private record PhotoChange(boolean changed, String url) {
+
+        static final PhotoChange UNCHANGED = new PhotoChange(false, null);
+
+        static PhotoChange to(String url) {
+            return new PhotoChange(true, url);
+        }
+    }
+
+    /** 첨부 사진을 검증한다. 첨부하지 않았으면 null */
+    private static UploadedPhoto parsePhoto(RoomForm form) {
+        try {
+            return UploadedPhoto.from(form.getPhoto());
+        } catch (InvalidPhotoException exception) {
+            throw new RoomCommandException(exception.getMessage());
+        }
+    }
+
+    /**
+     * 수정 요청의 사진 변경을 정한다. 새 사진이 있으면 교체, 없고 삭제를 골랐으면 삭제, 그 밖에는 유지한다.
+     * 교체·삭제되는 이전 파일은 커밋 뒤에 지운다.
+     */
+    private PhotoChange photoChange(RoomEditTarget target, RoomForm form, UploadedPhoto photo) {
+        String previous = target.getPhotoUrl();
+        PhotoChange change;
+        if (photo != null) {
+            change = PhotoChange.to(storePhoto(photo));
+        } else if (form.isRemovePhoto() && previous != null) {
+            change = PhotoChange.to(null);
+        } else {
+            return PhotoChange.UNCHANGED;
+        }
+        if (previous != null) {
+            afterCommit(() -> photoStorage.delete(previous));
+        }
+        return change;
+    }
+
+    /** 사진을 저장소에 올리고, 트랜잭션이 커밋되지 않으면 올린 파일을 지운다. */
+    private String storePhoto(UploadedPhoto photo) {
+        String url;
+        try {
+            url = photoStorage.store(PHOTO_DIRECTORY, photo);
+        } catch (RuntimeException exception) {
+            log.error("매칭방 사진 저장 실패", exception);
+            throw new RoomCommandException("사진을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        }
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status != STATUS_COMMITTED) {
+                        photoStorage.delete(url);
+                    }
+                }
+            });
+        }
+        return url;
+    }
+
+    /** 커밋 뒤에 실행한다. 트랜잭션 밖(단위 테스트)이면 바로 실행한다. */
+    private static void afterCommit(Runnable task) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            task.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                task.run();
+            }
+        });
+    }
+
     /* ---------------- 공통 ---------------- */
 
     private static RoomCommand command(Long matchId, Long createdBy, Details details, Schedule schedule,
-            String status) {
+            String status, PhotoChange photoChange) {
         RoomCommand.RoomCommandBuilder builder = RoomCommand.builder()
                 .matchId(matchId)
                 .createdBy(createdBy)
@@ -316,7 +470,9 @@ public class RoomCommandService {
                 .teamBCapacity(details.teamCapacity())
                 .feePerPerson(details.fee())
                 .requiredSkill(details.requiredSkill())
-                .status(status);
+                .status(status)
+                .photoUrl(photoChange.url())
+                .photoChanged(photoChange.changed());
         if (schedule != null) {
             builder.facilityId(schedule.facilityId())
                     .sportId(schedule.sportId())

@@ -61,6 +61,13 @@ class AdminFacilityPageTest {
     @MockitoBean
     private MemberUserDetailsService memberUserDetailsService;
 
+    /** 대시보드도 모든 view에서 채우므로 기본 스텁을 둔다. 집계 규칙은 서비스 테스트가 검증한다. */
+    @org.junit.jupiter.api.BeforeEach
+    void stubEmptyDashboard() {
+        when(roomManagementService.findDashboard(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(co.kr.spoit.match.dto.FacilityDashboard.empty("2026-11-02(월)", "2026-11-02 14:05"));
+    }
+
     @Test
     @DisplayName("로그인한 시설 관리자의 회원 ID로 담당 시설을 조회해 목록을 렌더링한다")
     void rendersFacilitiesLookedUpByPrincipalUserId() throws Exception {
@@ -350,6 +357,47 @@ class AdminFacilityPageTest {
                 .andExpect(content().string(containsString("담당 시설만 관리할 수 있습니다.")))
                 .andExpect(content().string(containsString("admin-flash is-error")))
                 .andExpect(content().string(containsString("role=\"alert\"")));
+    }
+
+    @Test
+    @DisplayName("모든 view에서 같은 대시보드를 채우고 검색·상태 필터는 집계에 영향을 주지 않는다")
+    void fillsDashboardOnEveryViewRegardlessOfFilters() throws Exception {
+        when(roomManagementService.findRooms(7L, "풋살", "recruiting", 3L, 10L)).thenReturn(emptyRooms());
+        when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
+        when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
+        when(facilityScheduleService.findSchedulePage(7L, null, null, null, null, null))
+                .thenReturn(co.kr.spoit.facility.dto.SchedulePage.empty());
+
+        mockMvc.perform(get("/admin/facility")
+                        .param("view", "bookings")
+                        .param("q", "풋살")
+                        .param("status", "recruiting")
+                        .param("sportId", "3")
+                        .param("facilityId", "10")
+                        .with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("scopeName", "담당 시설 전체"))
+                .andExpect(model().attribute("todayLabel", "2026-11-02(월)"))
+                .andExpect(model().attribute("chartCollectedAt", "2026-11-02 14:05"))
+                .andExpect(model().attribute("dashboard",
+                        org.hamcrest.Matchers.hasProperty("matchCount",
+                                org.hamcrest.Matchers.is(0))))
+                .andExpect(model().attribute("dashboard",
+                        org.hamcrest.Matchers.hasProperty("hourlyBars",
+                                org.hamcrest.Matchers.hasSize(24))))
+                .andExpect(model().attribute("dashboard",
+                        org.hamcrest.Matchers.hasProperty("recentMatches",
+                                org.hamcrest.Matchers.empty())));
+
+        mockMvc.perform(get("/admin/facility").param("view", "schedule").with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("scopeName", "담당 시설 전체"))
+                .andExpect(model().attribute("dashboard",
+                        org.hamcrest.Matchers.hasProperty("hourlyBars",
+                                org.hamcrest.Matchers.hasSize(24))));
+
+        // 집계는 필터 값과 무관하게 같은 서비스 메서드로 조회한다.
+        verify(roomManagementService, org.mockito.Mockito.times(2)).findDashboard(7L);
     }
 
     /**

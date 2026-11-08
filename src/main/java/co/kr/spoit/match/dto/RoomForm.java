@@ -2,6 +2,8 @@ package co.kr.spoit.match.dto;
 
 import java.util.List;
 
+import org.springframework.web.multipart.MultipartFile;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -35,4 +37,10 @@ public class RoomForm {
 
     /** social_match.required_skill 값(초급·중급·고급) */
     private String requiredSkill;
+
+    /** 시설 사진(선택). 수정 때 비어 있으면 기존 사진을 유지한다. */
+    private MultipartFile photo;
+
+    /** 수정 때 기존 사진을 지운다. 새 사진을 함께 올리면 새 사진으로 바꾼다. */
+    private boolean removePhoto;
 }

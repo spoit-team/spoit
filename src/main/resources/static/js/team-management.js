@@ -48,7 +48,7 @@
     const transfer = target.closest('[data-team-transfer]');
     if (transfer) {
       document.getElementById('team-transfer-member-id').value = transfer.dataset.memberId || '';
-      document.getElementById('team-transfer-member-name').textContent = transfer.dataset.memberName || '팀원';
+      document.getElementById('team-transfer-member-name').textContent = transfer.dataset.memberName || '동호회원';
       openDialog(document.getElementById('team-transfer-dialog'), '.team-dialog-close');
       return;
     }
@@ -56,8 +56,9 @@
     const remove = target.closest('[data-team-remove-member]');
     if (remove) {
       document.getElementById('team-remove-member-id').value = remove.dataset.memberId || '';
-      document.getElementById('team-remove-member-name').textContent = remove.dataset.memberName || '팀원';
-      openDialog(document.getElementById('team-remove-dialog'), '.team-dialog-close');
+      document.getElementById('team-remove-member-name').textContent = remove.dataset.memberName || '동호회원';
+      document.getElementById('team-remove-reason').value = '';
+      openDialog(document.getElementById('team-remove-dialog'), '#team-remove-reason');
       return;
     }
 
@@ -141,6 +142,24 @@
     form.addEventListener('change', function () { if (error) error.hidden = true; });
   });
 
+  // 모집 정원: 브라우저 기본 문구 대신 동호회 안내문구
+  document.querySelectorAll('input[name="maxMembers"]').forEach(function (input){
+    input.addEventListener('invalid', function(){
+      if (input.validity.valueMissing){
+        input.setCustomValidity('모집 정원을 입력해 주세요.');
+      } else if (input.validity.badInput){
+        input.setCustomValidity('모집 정원은 숫자로 입력해 주세요.');
+      } else if (input.validity.rangeUnderflow){
+        input.setCustomValidity(input.dataset.minMessage || '모집 정원은 ' + input.min + '명 이상이어야 합니다.');
+      } else if (input.validity.rangeOverflow){
+        input.setCustomValidity('모집 정원은 최대 ' + input.max + '명입니다.');
+      }
+      });
+      // 다시 입력하면 문구를 지워야 다음 제출 때 새로 검사함
+      input.addEventListener('input', function() { input.setCustomValidity('');
+    });
+  });
+
   const disbandForm = document.getElementById('team-disband-form');
   disbandForm?.addEventListener('submit', function (event) {
     const expected = disbandForm.dataset.teamName || '';
@@ -152,7 +171,7 @@
     }
     event.preventDefault();
     if (error) {
-      error.textContent = '입력한 팀 이름이 일치하지 않습니다.';
+      error.textContent = '입력한 동호회 이름이 일치하지 않습니다.';
       error.hidden = false;
     }
     input.focus();
@@ -163,4 +182,19 @@
     message.addEventListener('click', function () { message.hidden = true; });
     window.setTimeout(function () { message.hidden = true; }, 6000);
   }
+    // 제출 버튼 두 번 누름 방지(POST만, 검사에 걸려 막힌 제출은 그대로 둠)
+  document.addEventListener('submit', function (event) {
+    const form = event.target;
+    if (event.defaultPrevented || form.method !== 'post') return;
+    form.querySelectorAll('button[type="submit"]').forEach(function (button) {
+      button.disabled = true;
+    });
+  });
+
+  // 뒤로 가기로 돌아오면 버튼 다시 켬
+  window.addEventListener('pageshow', function () {
+    document.querySelectorAll('form[method="post"] button[type="submit"]').forEach(function (button) {
+      button.disabled = false;
+    });
+  });
 })();

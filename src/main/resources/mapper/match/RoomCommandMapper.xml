@@ -10,7 +10,8 @@
                sm.sport_id,
                sm.start_at,
                sm.end_at,
-               sm.status
+               sm.status,
+               sm.photo_url
           FROM social_match sm
           JOIN facility f ON f.facility_id = sm.facility_id
                          AND f.deleted_at IS NULL
@@ -58,10 +59,10 @@
             useGeneratedKeys="true" keyProperty="matchId" keyColumn="match_id">
         INSERT INTO social_match (facility_id, sport_id, created_by, title, start_at, end_at,
                                   min_participants, max_participants, team_a_capacity, team_b_capacity,
-                                  fee_per_person, required_skill, status)
+                                  fee_per_person, required_skill, status, photo_url)
         VALUES (#{facilityId}, #{sportId}, #{createdBy}, #{title}, #{startAt}, #{endAt},
                 #{minParticipants}, #{maxParticipants}, #{teamACapacity}, #{teamBCapacity},
-                #{feePerPerson}, #{requiredSkill}, #{status})
+                #{feePerPerson}, #{requiredSkill}, #{status}, #{photoUrl})
     </insert>
 
     <update id="updateRoom" parameterType="co.kr.spoit.match.dto.RoomCommand">
@@ -77,6 +78,9 @@
                team_b_capacity  = #{teamBCapacity},
                fee_per_person   = #{feePerPerson},
                required_skill   = #{requiredSkill}
+               <if test="photoChanged">
+               , photo_url      = #{photoUrl}
+               </if>
          WHERE match_id = #{matchId}
     </update>
 
@@ -89,6 +93,9 @@
                team_b_capacity  = #{teamBCapacity},
                fee_per_person   = #{feePerPerson},
                required_skill   = #{requiredSkill}
+               <if test="photoChanged">
+               , photo_url      = #{photoUrl}
+               </if>
          WHERE match_id = #{matchId}
     </update>
 
@@ -125,5 +132,39 @@
                    #{st}
                </foreach>
     </update>
+    <!--
+      방 취소 알림 수신자. 상태를 바꾸기 전에 읽어야 한다.
+      활성 참가자와 활성 신청자(대기·확정)를 모두 포함하고 회원 번호 기준으로 중복을 제거한다.
+    -->
+    <select id="findCancelRecipientUserIds" resultType="java.lang.Long">
+        SELECT DISTINCT recipient
+          FROM (SELECT mp.user_id AS recipient
+                  FROM match_participant mp
+                 WHERE mp.match_id = #{matchId}
+                   AND mp.participation_status IN
+                       <foreach collection="participationStatuses" item="st" open="(" separator="," close=")">
+                           #{st}
+                       </foreach>
+                 UNION
+                SELECT ma.applicant_user_id AS recipient
+                  FROM match_application ma
+                 WHERE ma.match_id = #{matchId}
+                   AND ma.status IN
+                       <foreach collection="applicationStatuses" item="st" open="(" separator="," close=")">
+                           #{st}
+                       </foreach>) recipients
+         ORDER BY recipient
+    </select>
+
+    <select id="lockCancellationAccounts" resultType="java.lang.Long" flushCache="true">
+        SELECT user_id
+          FROM app_user
+         WHERE user_id IN
+               <foreach collection="userIds" item="id" open="(" separator="," close=")">
+                   #{id}
+               </foreach>
+         ORDER BY user_id
+           FOR SHARE NOWAIT
+    </select>
 
 </mapper>

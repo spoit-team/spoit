@@ -6,8 +6,8 @@ import co.kr.spoit.club.domain.ClubJoinRequest;
 import lombok.Builder;
 import lombok.Getter;
 
-@Getter 
-@Builder 
+@Getter
+@Builder
 public class ClubJoinRequestResponse {
 
     private final Long joinRequestId;
@@ -16,12 +16,12 @@ public class ClubJoinRequestResponse {
     private final String message;
 
     // 내동호회 관리 화면 가입 신청 탭
-    public static ClubJoinRequestResponse from(ClubJoinRequest request){
+    public static ClubJoinRequestResponse from(ClubJoinRequest request) {
         return ClubJoinRequestResponse.builder()
-        .joinRequestId(request.getJoinRequestId())
-        .nickname(request.getNickname())
-        .date(request.getRequestedAt().format(DateTimeFormatter.ofPattern("yyyy.MM.dd")))
-        .message(request.getMessage())
-        .build();
+                .joinRequestId(request.getJoinRequestId())
+                .nickname(request.getNickname())
+                .date(request.getRequestedAt().format(DateTimeFormatter.ofPattern("yyyy.MM.dd")))
+                .message(request.getMessage())
+                .build();
     }
 }

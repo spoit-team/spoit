@@ -21,11 +21,20 @@ class TeamCandidateTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"0", "0.00", "999999.99", "1E+3"})
+    @ValueSource(strings = {"0", "0.00", "999999.99", "1E+3", "-0.01", "-1000", "-999999.99"})
     void acceptsMmrWithinColumnRange(String mmr) {
         var candidate = new TeamCandidate(1L, new BigDecimal(mmr));
 
         assertThat(candidate.mmr().scale()).isEqualTo(2);
+    }
+
+    @Test
+    void keepsNegativeMmrAsNormalValue() {
+        // 레이팅에 하한이 없어 음수 MMR도 배정에 쓰는 정상 값이다.
+        var candidate = new TeamCandidate(1L, new BigDecimal("-12.5"));
+
+        assertThat(candidate.mmr()).isEqualTo(new BigDecimal("-12.50"));
+        assertThat(candidate.mmrCents()).isEqualTo(-1250L);
     }
 
     @ParameterizedTest
@@ -44,14 +53,6 @@ class TeamCandidateTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"-0.01", "-1000"})
-    void rejectsNegativeMmr(String mmr) {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new TeamCandidate(1L, new BigDecimal(mmr)))
-                .withMessageContaining("음수");
-    }
-
-    @ParameterizedTest
     @ValueSource(strings = {"1000.001", "999.999", "0.005"})
     void rejectsMmrFinerThanTwoDecimalPlaces(String mmr) {
         assertThatIllegalArgumentException()
@@ -60,10 +61,10 @@ class TeamCandidateTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"1000000.00", "1E+30"})
-    void rejectsMmrAboveColumnRange(String mmr) {
+    @ValueSource(strings = {"1000000.00", "1E+30", "-1000000.00", "-1E+30"})
+    void rejectsMmrOutsideColumnRange(String mmr) {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new TeamCandidate(1L, new BigDecimal(mmr)))
-                .withMessageContaining("999999.99");
+                .withMessageContaining("-999999.99 이상 999999.99 이하");
     }
 }

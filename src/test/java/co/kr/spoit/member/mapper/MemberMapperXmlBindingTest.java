@@ -28,6 +28,8 @@ class MemberMapperXmlBindingTest {
                 .isTrue();
         assertThat(configuration.hasStatement("co.kr.spoit.member.mapper.MemberMapper.recordWithdrawal"))
                 .isTrue();
+        assertThat(configuration.hasStatement("co.kr.spoit.member.mapper.MemberMapper.lockById"))
+                .isTrue();
         assertThat(configuration.hasStatement("co.kr.spoit.member.mapper.MemberMapper.insert"))
                 .isTrue();
         assertThat(configuration

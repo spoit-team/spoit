@@ -114,7 +114,7 @@ public class MatchCardAssembler {
                 .matchId(row.getMatchId())
                 .title(row.getTitle())
                 .sportName(row.getSportName())
-                .photoUrl(null) // 시설 사진 컬럼 없음 → 종목명 fallback 표시
+                .photoUrl(blankToNull(row.getPhotoUrl())) // 사진이 없으면 화면이 종목명을 대신 보여 준다
                 .photoAlt(row.getFacilityName())
                 .facilityDistrictName(row.getRegionName())
                 .levelLabel(row.getRequiredSkill())
@@ -180,5 +180,9 @@ public class MatchCardAssembler {
 
     static String formatFee(BigDecimal fee) {
         return new DecimalFormat("#,##0").format(fee == null ? BigDecimal.ZERO : fee);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
     }
 }

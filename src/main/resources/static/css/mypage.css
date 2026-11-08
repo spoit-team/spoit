@@ -561,7 +561,8 @@
 }
 
 .mypage-match-history-status { color: var(--color-match-ink); font-weight: 750; }
-.mypage-match-history-status.is-complete { color: var(--color-muted); }
+.mypage-match-history-status.is-draw { color: var(--color-muted); }
+.mypage-match-history-status.is-loss { color: var(--color-danger); }
 .mypage-match-history-chevron { color: var(--color-faint); font-size: 16px; transition: transform .15s; }
 .mypage-match-history-item.is-open .mypage-match-history-chevron { transform: rotate(180deg); }
 
@@ -588,6 +589,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.mypage-match-history-score strong.is-down { color: var(--color-danger); }
+.mypage-match-history-score strong.is-zero { color: var(--color-muted); }
 
 .mypage-match-history-detail {
   margin: 0 4px 12px 74px;
@@ -621,15 +625,6 @@
   line-height: 1;
 }
 
-.mypage-match-player-score strong span {
-  margin-left: 4px;
-  color: var(--color-muted);
-  font-size: 9px;
-  font-weight: 650;
-}
-
-.mypage-match-player-score .mypage-rating-meter { width: 110px; }
-
 .mypage-match-team-averages {
   display: flex;
   align-items: center;
@@ -657,6 +652,7 @@
 
 .mypage-match-team-averages i.is-team-a { background: var(--color-match); }
 .mypage-match-team-averages b { color: var(--color-ink-2); font-variant-numeric: tabular-nums; }
+.mypage-match-team-averages small { color: var(--color-book-ink); font-size: 9px; font-weight: 800; }
 
 .mypage-match-history-facts {
   display: grid;
@@ -668,13 +664,6 @@
 .mypage-match-history-facts div { min-width: 0; }
 .mypage-match-history-facts dt { color: var(--color-muted); font-size: 9px; }
 .mypage-match-history-facts dd { margin: 3px 0 0; color: var(--color-ink-2); font-size: 10px; font-weight: 700; overflow-wrap: anywhere; }
-
-.mypage-match-history-note {
-  margin: 11px 0 0;
-  color: var(--color-muted);
-  font-size: 9px;
-  line-height: 1.55;
-}
 
 .mypage-match-history-empty {
   margin: 0;
@@ -1251,6 +1240,139 @@
   color: var(--color-danger);
 }
 
+.profile-withdrawal-blocks {
+  display: grid;
+  gap: 12px;
+  margin-top: 2px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 12px;
+  background: var(--color-canvas);
+  padding: 16px;
+}
+
+.profile-withdrawal-blocks:focus-visible {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 3px;
+}
+
+.profile-withdrawal-blocks-title {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+.profile-withdrawal-block-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 이름이 길어도 개수는 오른쪽에 고정되고, 두 줄째 이름이 겹치지 않게 한다. */
+.profile-withdrawal-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  padding: 12px 0;
+  border-top: 1px dashed var(--color-line-strong);
+}
+
+.profile-withdrawal-block:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.profile-withdrawal-block:last-child {
+  padding-bottom: 0;
+}
+
+.profile-withdrawal-block-label {
+  color: var(--color-ink-2);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  /* 한국어는 단어 중간에서 끊지 않는다. 좁은 화면에서 '주세/요'처럼 한 글자만 남는 것을 막는다. */
+  word-break: keep-all;
+}
+
+.profile-withdrawal-block-count {
+  flex: 0 0 auto;
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.profile-withdrawal-block-names {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-ink-2);
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.profile-withdrawal-block-note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.profile-withdrawal-block-note strong {
+  color: var(--color-ink-2);
+  font-weight: 750;
+}
+
+.profile-withdrawal-block-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px 16px;
+}
+
+.profile-withdrawal-block-link {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-ink-2);
+  font-size: 11px;
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--color-line-strong);
+}
+
+.profile-withdrawal-block-link:hover {
+  color: var(--color-ink);
+  text-decoration-color: currentColor;
+}
+
+.profile-withdrawal-block-link:focus-visible {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* .auth-input은 content-box라 대화상자의 안쪽 여백을 넘어 4px 튀어나온다. 이 대화상자 안에서만 보정한다. */
+.profile-withdrawal-dialog-content .auth-input {
+  box-sizing: border-box;
+}
+
+/* 탈퇴가 막힌 동안에는 비밀번호를 받지 않는다. 서버도 탈퇴 직전에 다시 확인한다. */
+.profile-withdrawal-dialog[data-withdrawal-blocked="true"] .auth-input:disabled {
+  border-color: var(--color-line);
+  background: var(--color-field-disabled);
+  color: var(--color-muted);
+  -webkit-text-fill-color: var(--color-muted);
+  cursor: not-allowed;
+}
+
 .profile-withdrawal-label {
   margin-top: 3px;
   color: var(--color-ink-2);
@@ -1278,6 +1400,13 @@
   margin-top: 8px;
   padding-top: 14px;
   border-top: 1px solid var(--color-line);
+  /* 사유가 길어 대화상자가 스크롤돼도 취소·탈퇴 버튼은 항상 보이게 한다. */
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  background: var(--color-paper);
+  padding-bottom: 22px;
+  margin-bottom: -22px;
 }
 
 .profile-withdrawal-cancel {
@@ -1488,72 +1617,28 @@
 .mypage-notification-action.is-delete:hover { border-color: #e6c8c4; color: #a43a35; }
 .mypage-notification-empty { padding: 28px 12px; color: var(--color-muted); font-size: 12px; text-align: center; }
 
-.mypage-notification-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgb(19 21 25 / 48%);
-}
-
-.mypage-notification-backdrop[hidden] { display: none; }
-.mypage-notification-dialog {
-  display: flex;
-  width: min(100%, 560px);
-  max-height: min(86vh, 720px);
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 78%);
-  border-radius: 16px;
-  background: var(--color-paper);
-  box-shadow: 0 24px 60px rgb(19 21 25 / 25%);
-}
-.mypage-notification-dialog-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 23px 24px 16px;
-  border-bottom: 1px solid var(--color-line);
-}
-.mypage-notification-dialog-header span { color: var(--color-book-ink); font-size: 9px; font-weight: 800; letter-spacing: .08em; }
-.mypage-notification-dialog-header h2 { margin: 4px 0 0; color: var(--color-ink); font-size: 20px; font-weight: 800; letter-spacing: -.035em; }
-.mypage-notification-dialog-header p { margin: 4px 0 0; color: var(--color-muted); font-size: 11px; line-height: 1.5; }
-.mypage-notification-close {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: var(--color-paper-soft);
-  color: var(--color-muted);
-  font-size: 20px;
-}
-.mypage-notification-close:hover { background: var(--color-line); color: var(--color-ink); }
-.mypage-notification-modal-summary { padding: 12px 24px 0; color: var(--color-muted); font-size: 10px; font-weight: 700; }
-.mypage-notification-dialog .mypage-notification-list { min-height: 120px; flex: 1; overflow: auto; padding: 0 24px; }
-.mypage-notification-dialog-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 24px 20px; border-top: 1px solid var(--color-line); }
-.mypage-notification-dialog-footer .mypage-text-button { margin: 0; }
-.mypage-notification-done {
-  min-height: 38px;
-  padding: 0 15px;
-  border: 1px solid var(--color-ink);
-  border-radius: 8px;
-  background: var(--color-ink);
-  color: white;
-  font-size: 11px;
-  font-weight: 800;
-}
-.mypage-notification-done:hover { background: var(--color-ink-2); }
-.mypage-page.has-notification-modal { overflow: hidden; }
+/* 알림 창 자체의 모양은 notification-center.css가 맡는다(헤더·마이페이지·관리자가 같은 조각을 쓴다). */
 
 .mypage-notifications-heading {
   align-items: flex-start;
 }
+
+/* 마이페이지 메뉴의 미확인 수: 배지처럼 좁게 유지하고 0건이면 숨긴다. */
+.mypage-nav-count {
+  display: inline-grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  padding-inline: 5px;
+  border-radius: 999px;
+  background: var(--color-book-soft);
+  color: var(--color-book-ink);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.mypage-nav-count[hidden] { display: none; }
 
 .mypage-unread-count {
   color: var(--color-book-ink);
@@ -1734,6 +1819,14 @@
     flex-direction: column;
   }
 
+  .profile-withdrawal-blocks {
+    padding: 14px 13px;
+  }
+
+  .profile-withdrawal-block-links {
+    justify-content: flex-start;
+  }
+
   .mypage-player-counts {
     padding: 13px 0;
     border-top: 1px solid var(--color-line);
@@ -1868,15 +1961,6 @@
     justify-self: start;
     margin: 0;
   }
-}
-
-@media (max-width: 520px) {
-  .mypage-notification-backdrop { align-items: end; padding: 0; }
-  .mypage-notification-dialog { width: 100%; max-height: 88vh; border-right: 0; border-bottom: 0; border-left: 0; border-radius: 16px 16px 0 0; }
-  .mypage-notification-dialog-header { padding: 20px 18px 14px; }
-  .mypage-notification-modal-summary { padding-right: 18px; padding-left: 18px; }
-  .mypage-notification-dialog .mypage-notification-list { padding-right: 18px; padding-left: 18px; }
-  .mypage-notification-dialog-footer { padding-right: 18px; padding-left: 18px; }
 }
 
 @media (max-width: 360px) {
@@ -2014,4 +2098,69 @@
 .mypage-confirm-submit:focus-visible {
   outline: 2px solid var(--color-danger);
   outline-offset: 3px;
+}
+
+.mypage-confirm-submit:disabled {
+  border-color: var(--color-line-strong);
+  background: var(--color-paper-soft);
+  color: var(--color-faint);
+  cursor: not-allowed;
+  filter: none;
+}
+
+/* 팀 신청 취소: 취소할 팀원 체크박스, 새 대표 라디오 */
+.mypage-team-cancel-group {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  padding: 8px 12px 10px;
+}
+
+.mypage-team-cancel-group legend {
+  padding: 0 4px;
+  color: var(--color-ink-2);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mypage-team-cancel-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mypage-team-cancel-option input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  accent-color: var(--color-danger);
+}
+
+.mypage-team-cancel-all {
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.mypage-team-cancel-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.mypage-team-cancel-meta {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.mypage-team-cancel-leaders {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 18px;
 }

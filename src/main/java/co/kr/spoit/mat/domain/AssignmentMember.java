@@ -15,4 +15,6 @@ public class AssignmentMember {
     private String nickname;
     private BigDecimal entryMmr;
     private String matchSide;
+    /** 동호회 신청으로 들어온 참가자면 동호회명, 아니면 null */
+    private String clubName;
 }

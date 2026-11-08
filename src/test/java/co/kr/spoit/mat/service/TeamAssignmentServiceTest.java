@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -19,6 +20,7 @@ import co.kr.spoit.mat.dto.AssignmentResult.Outcome;
 import co.kr.spoit.mat.mapper.MatchAssignmentMapper;
 import co.kr.spoit.mat.mapper.MatchParticipantMapper;
 import co.kr.spoit.mat.service.TeamAssignmentService.StartResult;
+import co.kr.spoit.notification.domain.NotificationType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -50,6 +52,9 @@ class TeamAssignmentServiceTest {
     @Mock
     private MatchParticipantMapper participantMapper;
 
+    @Mock
+    private MatchNotifier matchNotifier;
+
     private TeamAssignmentService service;
 
     @BeforeEach
@@ -57,7 +62,8 @@ class TeamAssignmentServiceTest {
         TeamCaptainSelector captainSelector = new TeamCaptainSelector();
         AutoAssignmentService autoAssignmentService = new AutoAssignmentService(assignmentMapper, participantMapper,
                 new AutoTeamAssigner(captainSelector));
-        service = new TeamAssignmentService(assignmentMapper, participantMapper, autoAssignmentService, captainSelector);
+        service = new TeamAssignmentService(assignmentMapper, participantMapper, autoAssignmentService, captainSelector,
+                matchNotifier);
     }
 
     @Test
@@ -75,6 +81,9 @@ class TeamAssignmentServiceTest {
         verify(assignmentMapper).updateMatchSide(MATCH_ID, List.of(1L, 6L), "B", "확정");
         verify(assignmentMapper).markAssigned(eq(MATCH_ID), eq("MANUAL"), eq(MANAGER_ID), any(LocalDateTime.class),
                 eq(4L), eq(1L), eq("매칭 완료"), eq("모집 중"));
+        // 관리자 수동 배정 성공도 확정 참가자에게만 배정 완료를 알린다. 대기 참가자(103)는 제외된다.
+        verify(matchNotifier, times(1)).notifyAfterCommit(List.of(101L, 102L, 104L, 106L), MATCH_ID,
+                NotificationType.MATCH_AUTO_ASSIGNED, "경기 팀 배정 완료", "관리자가 수동 배정으로 팀을 확정했습니다.");
     }
 
     static Stream<Arguments> invalidTeams() {
@@ -112,6 +121,8 @@ class TeamAssignmentServiceTest {
         verify(assignmentMapper).updateMatchSide(MATCH_ID, List.of(4L, 6L), "B", "확정");
         verify(assignmentMapper).markAssigned(eq(MATCH_ID), eq("AUTO"), eq(MANAGER_ID), any(LocalDateTime.class),
                 eq(1L), eq(4L), eq("매칭 완료"), eq("모집 중"));
+        verify(matchNotifier).notifyAfterCommit(List.of(101L, 102L, 104L, 106L), MATCH_ID,
+                NotificationType.MATCH_AUTO_ASSIGNED, "경기 팀 배정 완료", "관리자가 자동 배정으로 팀을 확정했습니다.");
     }
 
     @Test
@@ -165,6 +176,18 @@ class TeamAssignmentServiceTest {
     }
 
     @Test
+    void viewsClosedMatchAsAssigned() {
+        when(assignmentMapper.findAssignmentMatch(MATCH_ID)).thenReturn(Optional.of(match("종료", NOW)));
+        when(assignmentMapper.isFacilityManager(FACILITY_ID, MANAGER_ID)).thenReturn(true);
+
+        var view = service.getView(MATCH_ID, MANAGER_ID).orElseThrow();
+
+        assertThat(view.assigned()).isTrue();
+        assertThat(view.canAssign()).isFalse();
+        assertThat(view.canReset()).isFalse();
+    }
+
+    @Test
     void returnsEmptyViewForMissingMatch() {
         when(assignmentMapper.findAssignmentMatch(MATCH_ID)).thenReturn(Optional.empty());
 
@@ -189,13 +212,29 @@ class TeamAssignmentServiceTest {
     }
 
     @Test
+    void startMatchNotifiesOnlyConfirmedParticipantsWhenAssigned() {
+        givenStartingMatch(startingMatch(2, 2, NOW.plusHours(2)));
+        givenParticipants();
+        when(assignmentMapper.updateMatchSide(eq(MATCH_ID), any(), anyString(), eq("확정"))).thenReturn(2);
+        when(assignmentMapper.markAssigned(eq(MATCH_ID), anyString(), any(), any(), any(), any(), anyString(), anyString()))
+                .thenReturn(1);
+
+        service.startMatch(MATCH_ID, NOW);
+
+        verify(matchNotifier).notifyAfterCommit(eq(List.of(101L, 102L, 104L, 106L)), eq(MATCH_ID),
+                eq(NotificationType.MATCH_AUTO_ASSIGNED), anyString(), anyString());
+    }
+
+    @Test
     void startMatchCancelsWhenConfirmedParticipantsAreShort() {
         givenStartingMatch(startingMatch(3, 3, NOW.plusHours(2)));
         givenParticipants();
         when(assignmentMapper.markCancelled(MATCH_ID, NOW, "취소", "모집 중")).thenReturn(1);
+        when(assignmentMapper.findAutoCancelRecipients(MATCH_ID, "확정", "대기")).thenReturn(List.of(101L, 103L));
 
         assertThat(service.startMatch(MATCH_ID, NOW)).isEqualTo(StartResult.CANCELLED);
         verifyNoSave();
+        verifyCancelNotice(List.of(101L, 103L), "참가 인원이 부족해 경기가 자동으로 취소되었습니다.");
     }
 
     @Test
@@ -206,6 +245,7 @@ class TeamAssignmentServiceTest {
 
         assertThat(service.startMatch(MATCH_ID, NOW)).isEqualTo(StartResult.CANCELLED);
         verifyNoSave();
+        verifyCancelNotice(List.of(), "정원 설정 문제로 팀을 배정할 수 없어 경기가 자동으로 취소되었습니다.");
     }
 
     @Test
@@ -216,6 +256,7 @@ class TeamAssignmentServiceTest {
         assertThat(service.startMatch(MATCH_ID, NOW)).isEqualTo(StartResult.CANCELLED);
         verifyNoInteractions(participantMapper);
         verifyNoSave();
+        verifyCancelNotice(List.of(), "종료 시각이 지나 경기가 자동으로 취소되었습니다.");
     }
 
     @Test
@@ -228,6 +269,7 @@ class TeamAssignmentServiceTest {
         verifyNoInteractions(participantMapper);
         verifyNoSave();
         verify(assignmentMapper, never()).markCancelled(anyLong(), any(), anyString(), anyString());
+        verifyNoInteractions(matchNotifier);
     }
 
     private void givenStartingMatch(AssignmentMatch match) {
@@ -240,6 +282,11 @@ class TeamAssignmentServiceTest {
         match.setTeamBCapacity(teamB);
         match.setEndAt(endAt);
         return match;
+    }
+
+    private void verifyCancelNotice(List<Long> recipients, String body) {
+        verify(matchNotifier).notifyAfterCommit(eq(recipients), eq(MATCH_ID),
+                eq(NotificationType.MATCH_AUTO_CANCELLED), anyString(), eq(body));
     }
 
     private void verifyNoSave() {
@@ -277,6 +324,7 @@ class TeamAssignmentServiceTest {
     private MatchParticipant participant(Long participantId, String status, String mmr) {
         var participant = new MatchParticipant();
         participant.setParticipantId(participantId);
+        participant.setUserId(100L + participantId);
         participant.setMatchId(MATCH_ID);
         participant.setParticipationStatus(status);
         participant.setEntryMmr(new BigDecimal(mmr));

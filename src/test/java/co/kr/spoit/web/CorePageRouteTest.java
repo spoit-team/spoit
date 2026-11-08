@@ -38,6 +38,15 @@ class CorePageRouteTest {
     @ParameterizedTest(name = "{0} renders {1}")
     @MethodSource("pageRoutes")
     void existingPageTemplateRenders(String path, String viewName, String visibleContent) throws Exception {
+        assertPageTemplateRenders(path, viewName, visibleContent);
+    }
+
+    @Test
+    void loginPageTemplateRenders() throws Exception {
+        assertPageTemplateRenders("/login", "auth/login", "로그인");
+    }
+
+    private void assertPageTemplateRenders(String path, String viewName, String visibleContent) throws Exception {
         mockMvc.perform(get(path))
                 .andExpect(status().isOk())
                 .andExpect(view().name(viewName))
@@ -85,20 +94,19 @@ class CorePageRouteTest {
         mockMvc.perform(get("/teams/1").with(user(MemberPrincipalFixture.member())))
                 .andExpect(status().isOk())
                 .andExpect(view().name("teams/detail"))
-                .andExpect(content().string(containsString("팀 목록으로 돌아가기")));
+                .andExpect(content().string(containsString("동호회 목록으로 돌아가기")));
         mockMvc.perform(get("/teams/manage").with(user(MemberPrincipalFixture.member())))
                 .andExpect(status().isOk())
                 .andExpect(view().name("teams/manage"))
-                .andExpect(content().string(containsString("팀 관리")));
+                .andExpect(content().string(containsString("동호회 관리")));
     }
 
     private static Stream<Arguments> pageRoutes() {
         return Stream.of(
-                Arguments.of("/login", "auth/login", "로그인"),
                 Arguments.of("/signup", "auth/signup", "회원가입"),
                 Arguments.of("/matches", "matches/cards", "참여 가능한 매칭방"),
                 Arguments.of("/matches/1", "matches/detail", "매칭방 목록"),
-                Arguments.of("/teams", "teams/list", "SPO:IT 팀"));
+                Arguments.of("/teams", "teams/list", "SPO:IT 동호회"));
     }
 
     private static Stream<Arguments> adminPageRoutes() {

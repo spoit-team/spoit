@@ -1,4 +1,4 @@
-/* 마이페이지: 경기 이력 펼치기, 섹션 메뉴 표시, 팀 신청 취소 확인창을 처리합니다. 데이터는 서버가 렌더링합니다. */
+/* 마이페이지: 경기 이력 펼치기, 섹션 메뉴 표시, 팀 신청 취소(팀원 선택) 확인창을 처리합니다. 데이터는 서버가 렌더링합니다. */
 (function () {
   'use strict';
 
@@ -33,26 +33,150 @@
 
   setCurrentNav(window.location.hash);
 
-  /* RES-04 팀 신청 취소: 대표가 취소하면 팀원 전원이 함께 취소되므로 확인창을 먼저 띄웁니다. */
+  /*
+   * RES-04 팀 신청 취소: 대표가 취소할 팀원을 체크박스로 고릅니다.
+   * 전원을 고르면 팀 전체 취소로, 대표가 빠지고 남는 팀원이 있으면 새 대표를 골라야 제출할 수 있습니다.
+   * 스크립트가 없으면 폼이 그대로 제출되어 팀 전체가 취소됩니다.
+   */
   const teamCancelDialog = document.getElementById('team-cancel-dialog');
   const teamCancelMatch = document.getElementById('team-cancel-match');
   const teamCancelMessage = document.getElementById('team-cancel-message');
   const teamCancelConfirm = document.getElementById('team-cancel-confirm');
+  const teamCancelAll = document.getElementById('team-cancel-all');
+  const teamCancelMembers = document.getElementById('team-cancel-members');
+  const teamCancelLeader = document.getElementById('team-cancel-leader');
+  const teamCancelLeaders = document.getElementById('team-cancel-leaders');
   let pendingTeamCancelForm = null;
+  let teamMembers = [];
+
+  function readTeamMembers(form) {
+    return Array.from(form.querySelectorAll('[data-team-members] > li')).map(function (item) {
+      return {
+        applicationId: item.dataset.applicationId,
+        nickname: item.dataset.nickname,
+        state: item.dataset.state,
+        leader: item.dataset.leader === 'true'
+      };
+    });
+  }
+
+  function optionLabel(input, name, meta) {
+    const label = document.createElement('label');
+    label.className = 'mypage-team-cancel-option';
+    const nameText = document.createElement('span');
+    nameText.className = 'mypage-team-cancel-name';
+    nameText.textContent = name;
+    label.append(input, nameText);
+    if (meta) {
+      const metaText = document.createElement('span');
+      metaText.className = 'mypage-team-cancel-meta';
+      metaText.textContent = meta;
+      label.append(metaText);
+    }
+    return label;
+  }
+
+  function renderTeamMembers() {
+    teamCancelMembers.replaceChildren();
+    teamMembers.forEach(function (member) {
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = member.applicationId;
+      checkbox.dataset.teamCancelMember = '';
+      const name = member.nickname + (member.leader ? ' (대표 · 나)' : '');
+      teamCancelMembers.append(optionLabel(checkbox, name, member.state));
+    });
+    teamCancelAll.checked = false;
+    teamCancelAll.indeterminate = false;
+    updateTeamCancel();
+  }
+
+  function checkedMemberIds() {
+    return Array.from(teamCancelMembers.querySelectorAll('[data-team-cancel-member]:checked'))
+      .map(function (input) { return input.value; });
+  }
+
+  function selectedLeaderId() {
+    return teamCancelLeaders.querySelector('input[name="team-cancel-new-leader"]:checked')?.value || null;
+  }
+
+  /* 새 대표 후보는 체크하지 않은 팀원입니다. 후보가 바뀌어도 고른 사람이 남아 있으면 그대로 둡니다. */
+  function renderLeaderOptions(remaining) {
+    const previous = selectedLeaderId();
+    teamCancelLeaders.replaceChildren();
+    remaining.forEach(function (member) {
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = 'team-cancel-new-leader';
+      radio.value = member.applicationId;
+      radio.checked = member.applicationId === previous;
+      teamCancelLeaders.append(optionLabel(radio, member.nickname, null));
+    });
+  }
+
+  /* refreshLeaders: 팀원 체크가 바뀌었을 때만 후보를 다시 그립니다 (라디오를 고를 때 다시 그리면 포커스를 잃습니다). */
+  function updateTeamCancel(refreshLeaders) {
+    const checked = checkedMemberIds();
+    const total = teamMembers.length;
+    const remaining = teamMembers.filter(function (member) { return !checked.includes(member.applicationId); });
+    const leaderLeaves = teamMembers.some(function (member) { return member.leader && checked.includes(member.applicationId); });
+    const needsLeader = leaderLeaves && remaining.length > 0;
+
+    teamCancelAll.checked = total > 0 && checked.length === total;
+    teamCancelAll.indeterminate = checked.length > 0 && checked.length < total;
+
+    teamCancelLeader.hidden = !needsLeader;
+    if (!needsLeader) teamCancelLeaders.replaceChildren();
+    else if (refreshLeaders !== false) renderLeaderOptions(remaining);
+
+    let message;
+    let label;
+    let ready;
+    if (checked.length === 0) {
+      message = '취소할 팀원을 선택해 주세요.';
+      label = '팀원 취소';
+      ready = false;
+    } else if (remaining.length === 0) {
+      message = '팀원 ' + total + '명의 신청이 모두 함께 취소됩니다.';
+      label = '팀 전체 취소';
+      ready = true;
+    } else {
+      message = '선택한 ' + checked.length + '명의 신청만 취소되고, 남은 ' + remaining.length + '명은 그대로 참가합니다.';
+      label = checked.length + '명 취소';
+      ready = !needsLeader || selectedLeaderId() !== null;
+      if (!ready) message += ' 새 대표를 선택해 주세요.';
+    }
+    teamCancelMessage.textContent = message;
+    teamCancelConfirm.textContent = label;
+    teamCancelConfirm.disabled = !ready;
+  }
 
   document.querySelectorAll('form[data-team-cancel]').forEach(function (form) {
     form.addEventListener('submit', function (event) {
       if (!teamCancelDialog || typeof teamCancelDialog.showModal !== 'function') return;
+      const members = readTeamMembers(form);
+      if (!members.length) return;
       event.preventDefault();
       pendingTeamCancelForm = form;
+      teamMembers = members;
       if (teamCancelMatch) {
         teamCancelMatch.textContent = [form.dataset.teamCancelTitle, form.dataset.teamCancelMeta].filter(Boolean).join(' · ');
       }
-      if (teamCancelMessage) teamCancelMessage.textContent = form.dataset.teamCancel;
+      renderTeamMembers();
       teamCancelDialog.showModal();
       teamCancelDialog.querySelector('.mypage-confirm-back')?.focus({ preventScroll: true });
     });
   });
+
+  teamCancelAll?.addEventListener('change', function () {
+    teamCancelMembers.querySelectorAll('[data-team-cancel-member]').forEach(function (input) {
+      input.checked = teamCancelAll.checked;
+    });
+    updateTeamCancel();
+  });
+
+  teamCancelMembers?.addEventListener('change', function () { updateTeamCancel(true); });
+  teamCancelLeaders?.addEventListener('change', function () { updateTeamCancel(false); });
 
   teamCancelDialog?.querySelectorAll('[data-close-team-cancel]').forEach(function (button) {
     button.addEventListener('click', function () { teamCancelDialog.close(); });
@@ -66,72 +190,31 @@
     pendingTeamCancelForm = null;
   });
 
+  function appendHidden(form, name, value) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = name;
+    input.value = value;
+    input.dataset.teamCancelField = '';
+    form.append(input);
+  }
+
   teamCancelConfirm?.addEventListener('click', function () {
     const form = pendingTeamCancelForm;
-    if (!form) return;
+    if (!form || teamCancelConfirm.disabled) return;
+    const checked = checkedMemberIds();
+    if (!checked.length) return;
+    form.querySelectorAll('[data-team-cancel-field]').forEach(function (input) { input.remove(); });
+    // 전원을 고르면 팀원 목록 없이 보내 팀 전체 취소로 처리합니다.
+    if (checked.length < teamMembers.length) {
+      checked.forEach(function (id) { appendHidden(form, 'memberApplicationIds', id); });
+      const leaderId = teamCancelLeader.hidden ? null : selectedLeaderId();
+      if (leaderId) appendHidden(form, 'newLeaderApplicationId', leaderId);
+    }
     teamCancelConfirm.disabled = true;
     // form.submit()은 submit 이벤트를 다시 일으키지 않아 확인창이 반복되지 않는다.
     form.submit();
   });
 
-  /* 알림 모달: 헤더 종 버튼으로 열고 닫습니다. 목록은 서버가 렌더링합니다. */
-  const notificationModal = document.getElementById('notification-modal');
-  const closeButtons = document.querySelectorAll('[data-close-notifications]');
-  const headerBell = document.querySelector('header a[href$="#notifications"]');
-  let modalOpener = null;
-
-  function openNotificationModal(opener) {
-    if (!notificationModal) return;
-    modalOpener = opener || headerBell || null;
-    notificationModal.hidden = false;
-    document.body.classList.add('has-notification-modal');
-    notificationModal.querySelector('.mypage-notification-close')?.focus({ preventScroll: true });
-  }
-
-  function closeNotificationModal() {
-    if (!notificationModal || notificationModal.hidden) return;
-    notificationModal.hidden = true;
-    document.body.classList.remove('has-notification-modal');
-    if (modalOpener && typeof modalOpener.focus === 'function') {
-      modalOpener.focus({ preventScroll: true });
-    }
-  }
-
-  headerBell?.addEventListener('click', function (event) {
-    if (!notificationModal) return;
-    event.preventDefault();
-    openNotificationModal(headerBell);
-  });
-
-  closeButtons.forEach(function (button) {
-    button.addEventListener('click', closeNotificationModal);
-  });
-
-  notificationModal?.addEventListener('click', function (event) {
-    if (event.target === notificationModal) closeNotificationModal();
-  });
-
-  document.addEventListener('keydown', function (event) {
-    if (!notificationModal || notificationModal.hidden) return;
-    if (event.key === 'Escape') {
-      closeNotificationModal();
-      return;
-    }
-    if (event.key !== 'Tab') return;
-
-    const focusable = Array.from(notificationModal.querySelectorAll('button:not(:disabled), [href], input:not(:disabled), [tabindex]:not([tabindex="-1"])'));
-    if (!focusable.length) {
-      event.preventDefault();
-      return;
-    }
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  });
+  /* 알림 창은 통합 알림 스크립트(notification-center.js)가 공통 조각으로 처리합니다. */
 })();

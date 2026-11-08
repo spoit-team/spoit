@@ -110,7 +110,7 @@ public class MatchService {
                 .selectedHours(condition.getHours())
                 .selectedHoursLabel(hoursLabel(condition.getHours()))
                 .selectedSportName(sportName == null ? "전체 종목" : sportName)
-                .sportImageUrl(null) // TODO 종목 이미지 경로 확정 후 연결
+                .sportImageUrl(heroImageUrl(cards))
                 .totalRoomCount(totalRoomCount)
                 .roomCount(counts.getRoomCount())
                 .recruitingCount(counts.getRecruitingCount())
@@ -118,6 +118,15 @@ public class MatchService {
                 .activeFilters(buildActiveFilters(condition, basePath, sportName, regionName, dates))
                 .matches(cards)
                 .build();
+    }
+
+    /** 상단 배경 사진: 목록 위에서부터 사진이 있는 첫 매칭방의 사진. 없으면 null(기본 배경). */
+    static String heroImageUrl(List<MatchCardView> cards) {
+        return cards.stream()
+                .map(MatchCardView::getPhotoUrl)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 
     /**

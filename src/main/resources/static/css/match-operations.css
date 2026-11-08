@@ -152,6 +152,66 @@
   margin-block: -2px;
 }
 
+/* ── 참가 신청 승인·반려 ─────────────────────────────────── */
+/* 동호회 신청은 이름 옆에 동호회명을 작은 배지로 붙인다. */
+.ops-club-chip {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--admin-blue-soft);
+  color: var(--admin-blue-ink);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
+.ops-decision-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ops-decision-none {
+  color: var(--admin-muted);
+}
+
+.application-decision-modal,
+.rating-exclusion-modal {
+  width: min(100%, 420px);
+}
+
+.application-decision-modal .modal-body p,
+.rating-exclusion-modal .modal-body p {
+  margin: 0;
+  color: var(--admin-ink-2);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+/* ── 레이팅 반영 ──────────────────────────────────────────── */
+.ops-rating .notice-strip {
+  margin-top: 10px;
+}
+
+.ops-rating-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: 12px 0 18px;
+}
+
+.ops-rating-message {
+  margin: 0 auto 0 0;
+  color: var(--admin-muted);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
 /* ── 팀 배정 ──────────────────────────────────────────────── */
 .ops-assignment-summary {
   margin: 6px 0 12px;

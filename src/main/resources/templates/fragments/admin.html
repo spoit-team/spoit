@@ -9,6 +9,8 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
   <link rel="stylesheet" th:href="@{/css/admin.css(v=${cssVersion})}" />
   <link rel="stylesheet" th:each="style : ${styles}" th:href="@{/css/{name}(name=${style}, v=${cssVersion})}" />
+  <!-- 통합 알림: 관리자 상단바 배지와 알림 목록을 실제 데이터로 갱신합니다. -->
+  <script th:src="@{/js/notification-center.js(v=${cssVersion})}" defer></script>
 </head>
 <body class="admin-body" th:attr="data-admin-role=${adminUser != null ? adminUser.role : ''}">
 
@@ -29,8 +31,6 @@
       <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-assets'" data-view-target="facility-assets"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 20V8l7-4 7 4v12M9 20v-6h6v6M8 9h.01M16 9h.01"/></svg></span>시설·공간 관리</a>
       <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-schedule'" data-view-target="facility-schedule"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M14 14h2M8 17h3"/></svg></span>예약 운영 일정</a>
       <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-bookings'" data-view-target="facility-bookings"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M8 17h7"/></svg></span>매칭방 관리</a>
-      <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-requests'" data-view-target="facility-requests"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H7l-4 2v-6.5A7.5 7.5 0 1 1 20 11.5Z"/><path d="M8 11h8M8 14h5"/></svg></span>민원·요청<span class="nav-count" th:if="${requestMetrics != null and requestMetrics.openCount > 0}" th:text="${requestMetrics.openCount}">0</span></a>
-      <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-maintenance'" data-view-target="facility-maintenance"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M14.5 6.2a5 5 0 0 0-6.7 6.7L3 17.7 6.3 21l4.8-4.8a5 5 0 0 0 6.7-6.7l-3 3-3-3 2.7-3.3Z"/><path d="m15.8 4.8 3.4 3.4"/></svg></span>점검·유지보수</a>
       <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-stats'" data-view-target="facility-stats"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M4 20V11M10 20V5M16 20v-8M22 20V8"/></svg></span>예약 통계</a>
     </div>
     <div class="admin-nav-group">
@@ -87,38 +87,51 @@
   <div class="breadcrumbs"><span>관리자</span><span aria-hidden="true">/</span><strong id="breadcrumb-current" th:text="${breadcrumb}">관리</strong></div>
   <span class="topbar-spacer"></span>
   <span class="system-env" th:title="${environment != null ? environment : '관리자'}" th:aria-label="${environment != null ? environment : '관리자'}"><i class="env-dot"></i> <span th:text="${environment != null ? environment : '관리자'}">관리자</span></span>
-  <button class="topbar-button topbar-notification-trigger" type="button" aria-label="알림 열기" aria-haspopup="dialog" aria-controls="admin-notification-modal" aria-expanded="false" data-open-admin-notifications><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="admin-notification-count" class="topbar-notification-count" th:if="${unreadAdminNotificationCount != null and unreadAdminNotificationCount > 0}" th:text="${unreadAdminNotificationCount}">0</span></button>
+  <button class="topbar-button topbar-notification-trigger" type="button" aria-label="알림 열기" aria-haspopup="dialog" aria-controls="admin-notification-modal" aria-expanded="false" data-open-admin-notifications><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="admin-notification-count" class="topbar-notification-count" data-notification-badge th:hidden="${unreadAdminNotificationCount == null or unreadAdminNotificationCount <= 0}" th:text="${unreadAdminNotificationCount}">0</span></button>
   <form th:action="@{/logout}" method="post" class="contents"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button class="topbar-button" type="submit" aria-label="로그아웃" title="로그아웃">↪</button></form>
   <div class="topbar-profile"><span class="profile-avatar" th:text="${adminUser != null and adminUser.initial != null ? adminUser.initial : '관'}">관</span><span class="profile-name"><b th:text="${adminUser != null and adminUser.nickname != null ? adminUser.nickname : '관리자'}">관리자</b><small th:text="${adminUser != null and adminUser.roleLabel != null ? adminUser.roleLabel : '관리자'}">관리자</small></span></div>
 </header>
 
-<!-- 관리자 알림 모달: 알림 목록과 읽음/삭제는 서버 폼으로 처리합니다. -->
-<div th:fragment="notificationModal(title, description)" class="modal-backdrop" id="admin-notification-modal" hidden>
+<!-- 관리자 알림 모달: 알림 목록과 읽음/삭제는 서버 폼으로 처리합니다. JS가 있으면 같은 API로 처리하고,
+     서버 폼은 JS가 없을 때의 대체 경로로 남깁니다. -->
+<div th:fragment="notificationModal(title, description)" class="modal-backdrop" id="admin-notification-modal" hidden
+     data-notification-config data-notification-surface data-notification-dialog
+     th:attr="data-notification-api=@{/api/notifications},
+              data-notification-stream=@{/ws/notifications},
+              data-notification-authenticated=${currentMember != null},
+              data-notification-csrf-header=${_csrf?.headerName},
+              data-notification-csrf-token=${_csrf?.token}">
   <section class="admin-modal notification-modal" role="dialog" aria-modal="true" aria-labelledby="admin-notification-title" aria-describedby="admin-notification-description">
     <div class="modal-header"><div><h2 id="admin-notification-title" th:text="${title}">관리자 알림</h2><p id="admin-notification-description" th:text="${description}">운영 알림을 확인합니다.</p></div><button class="modal-close" type="button" data-close-admin-notifications aria-label="알림 창 닫기">×</button></div>
     <div class="modal-body">
-      <p id="admin-notification-summary" class="admin-notification-summary" aria-live="polite" th:text="${adminNotificationSummary != null ? adminNotificationSummary : '알림 0건 · 미확인 0건'}">알림 0건</p>
-      <div id="admin-notification-list" class="admin-notification-list" aria-live="polite">
-        <article th:each="item : ${adminNotifications}" class="admin-notification-item" th:classappend="${item.read} ? 'is-read' : ''">
+      <p id="admin-notification-summary" class="admin-notification-summary" data-notification-summary="long" aria-live="polite" th:text="${adminNotificationSummary != null ? adminNotificationSummary : '알림 0건 · 미확인 0건'}">알림 0건</p>
+      <div id="admin-notification-list" class="admin-notification-list" data-notification-list data-empty-class="admin-notification-empty" aria-live="polite">
+        <article th:each="item : ${adminNotifications}" class="admin-notification-item" th:classappend="${item.read} ? 'is-read' : ''" th:attr="data-notification-id=${item.notificationId}">
           <span class="admin-notification-dot" aria-hidden="true"></span>
           <div class="admin-notification-copy">
             <div class="admin-notification-meta"><span th:text="${item.type}">알림</span><span th:classappend="${item.read} ? 'is-read-label' : ''" th:text="${item.read ? '읽음' : '새 알림'}">새 알림</span></div>
-            <h3 th:text="${item.title}">알림 제목</h3>
-            <p th:text="${item.body}">알림 내용</p>
-            <time th:text="${item.time}">시간</time>
+            <a class="admin-notification-link" th:href="@{${item.href}}"><div>
+              <h3 th:text="${item.title}">알림 제목</h3>
+              <p th:text="${item.body}">알림 내용</p>
+              <time th:text="${item.time}">시간</time>
+            </div></a>
           </div>
           <div class="admin-notification-actions">
             <form th:if="${!item.read}" method="post" th:action="@{/admin/notifications/{id}/read(id=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="admin-button small">읽음</button></form>
             <form method="post" th:action="@{/admin/notifications/{id}/delete(id=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="admin-button small" th:aria-label="${'알림 삭제: ' + item.title}">삭제</button></form>
           </div>
         </article>
-        <p th:if="${#lists.isEmpty(adminNotifications)}" class="admin-notification-empty">확인할 알림이 없습니다.</p>
+        <p th:if="${#lists.isEmpty(adminNotifications)}" class="admin-notification-empty" data-notification-empty>확인할 알림이 없습니다.</p>
       </div>
+      <template data-notification-item-template>
+        <article th:replace="~{fragments/notification :: adminItem}"></article>
+      </template>
     </div>
     <div class="modal-footer">
-      <form method="post" th:action="@{/admin/notifications/read-all}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button class="admin-button" type="submit" th:disabled="${unreadAdminNotificationCount == null or unreadAdminNotificationCount == 0}">모두 읽음 처리</button></form>
+      <form method="post" th:action="@{/admin/notifications/read-all}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button class="admin-button" type="submit" data-notification-read-all th:disabled="${unreadAdminNotificationCount == null or unreadAdminNotificationCount == 0}">모두 읽음 처리</button></form>
       <button class="admin-button primary" type="button" data-close-admin-notifications>닫기</button>
     </div>
+    <p class="sr-only" data-notification-status role="status" aria-live="polite"></p>
   </section>
 </div>
 

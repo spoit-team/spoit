@@ -19,6 +19,7 @@ public interface MatchAssignmentMapper {
     String ASSIGNMENT_MATCH_QUERY = """
             SELECT sm.match_id AS matchId,
                    sm.facility_id AS facilityId,
+                   sm.sport_id AS sportId,
                    sm.start_at AS startAt,
                    sm.end_at AS endAt,
                    sm.status AS status,
@@ -53,6 +54,23 @@ public interface MatchAssignmentMapper {
     List<Long> findStartableMatchIds(@Param("recruitingStatus") String recruitingStatus,
                                      @Param("now") LocalDateTime now);
 
+    // 대기 신청은 match_participant 행이 없어 match_application에서 함께 찾는다.
+    @Select("""
+            SELECT mp.user_id AS userId
+            FROM match_participant mp
+            WHERE mp.match_id = #{matchId}
+              AND mp.participation_status = #{confirmedStatus}
+            UNION
+            SELECT ma.applicant_user_id
+            FROM match_application ma
+            WHERE ma.match_id = #{matchId}
+              AND ma.status = #{waitingStatus}
+            ORDER BY userId
+            """)
+    List<Long> findAutoCancelRecipients(@Param("matchId") Long matchId,
+                                        @Param("confirmedStatus") String confirmedStatus,
+                                        @Param("waitingStatus") String waitingStatus);
+
     @Update("""
             UPDATE social_match
             SET status = #{cancelledStatus},
@@ -77,9 +95,12 @@ public interface MatchAssignmentMapper {
             SELECT mp.participant_id AS participantId,
                    u.nickname AS nickname,
                    mp.entry_mmr AS entryMmr,
-                   mp.match_side AS matchSide
+                   mp.match_side AS matchSide,
+                   c.club_name AS clubName
             FROM match_participant mp
             JOIN app_user u ON u.user_id = mp.user_id
+            LEFT JOIN match_application ma ON ma.application_id = mp.application_id
+            LEFT JOIN club c ON c.club_id = ma.club_id
             WHERE mp.match_id = #{matchId}
               AND mp.participation_status = #{confirmedStatus}
             ORDER BY mp.participant_id

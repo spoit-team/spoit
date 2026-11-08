@@ -159,7 +159,7 @@ confirmSubmit.setAttribute('data-confirm-facility-action', '');
 [confirmTitle, confirmMessage, confirmName, confirmCancel, confirmSubmit]
   .forEach(element => confirmModal.append(element));
 
-['room-editor-modal', 'room-editor-form', 'maintenance-modal', 'admin-toast',
+['room-editor-modal', 'room-editor-form', 'admin-toast',
   'breadcrumb-current', 'facility-map-address', 'room-editor-hour-grid', 'room-editor-time-summary',
   'room-editor-capacity-hint', 'room-editor-team', 'date-schedule-hour-grid',
   'date-schedule-count', 'date-schedule-ranges'].forEach(id => control(id));

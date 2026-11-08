@@ -2,7 +2,7 @@
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head('매치 참가 신청 · SPO:IT', 'SPO:IT 매칭방 신청 내용을 확인하고 참가 신청을 접수합니다.', ${ {'match-join.css'} })}"></head>
 <body class="match-join-body">
-<header th:replace="~{fragments/layout :: simpleHeader('matches')}"></header>
+<header th:replace="~{fragments/layout :: siteHeader('matches')}"></header>
 
 <main class="match-join-wrap">
   <a th:href="@{/matches}" class="match-join-back"><span aria-hidden="true">←</span> 매칭방 목록</a>
@@ -50,7 +50,7 @@
             <span class="join-selected-count" th:text="${selection.seats + '명'}">1명</span>
           </div>
           <dl class="join-selected-contact">
-            <div><dt>연락처</dt><dd th:text="${selection.applicantPhone}">010-0000-0000</dd></div>
+            <!--/* 연락처 안내 기능이 생기면 다시 표시: <div><dt>연락처</dt><dd th:text="${selection.applicantPhone}">010-0000-0000</dd></div> */-->
             <div><dt>신청 방식</dt><dd th:text="${selection.applicationType == 'team' ? '팀 단위 참가' : '개인 참가'}">개인 참가</dd></div>
           </dl>
           <div class="join-selected-roster"><h4>참가 인원</h4><ul>
@@ -60,8 +60,8 @@
         <div th:if="${!canReserve}" id="capacity-notice" class="join-inline-notice">
           <span aria-hidden="true">ℹ</span><span><b>현재 선택으로 예약할 수 없습니다.</b> <span th:text="${capacityNotice}">현재 남은 자리를 확인해 주세요.</span></span>
         </div>
-        <p th:if="${error != null}" class="join-error" role="alert" th:text="${error}">신청을 처리하지 못했습니다.</p>
-        <label class="join-agreement"><input id="rules-agree" name="agreeRules" type="checkbox" value="true" /><span><b>매치 운영 규칙과 취소·노쇼 안내를 확인했습니다.</b><small>참가 신청 후 취소는 마이페이지의 신청 내역에서 진행할 수 있습니다.</small></span></label>
+        <p th:if="${error != null and #lists.isEmpty(timeConflicts)}" class="join-error" role="alert" th:text="${error}">신청을 처리하지 못했습니다.</p>
+        <label class="join-agreement"><input id="rules-agree" name="agreeRules" type="checkbox" value="true" aria-describedby="rules-guide-hint" /><span><b>매치 운영 규칙과 취소·노쇼 안내를 확인했습니다. <button id="rules-guide-open" type="button" class="join-rules-link" aria-haspopup="dialog">안내 보기</button></b><small id="rules-guide-hint">참가 신청 후 취소는 마이페이지의 신청 내역에서 진행할 수 있습니다.</small></span></label>
         <p id="join-error" class="join-error" role="alert" hidden></p>
         <div class="join-stage-actions">
           <a th:href="@{/matches/{matchId}(matchId=${match.matchId})}" class="join-button join-button-quiet">참가 인원 다시 선택</a>
@@ -95,7 +95,7 @@
         <div><dt>매칭방</dt><dd th:text="${completion.roomTitle}">매칭방</dd></div>
         <div><dt>신청자</dt><dd th:text="${completion.applicantText}">회원 · 1명 신청</dd></div>
         <div><dt>참가자</dt><dd th:text="${completion.participantText}">회원</dd></div>
-        <div><dt>접수 번호</dt><dd th:text="${completion.receiptNo}">접수 번호</dd></div>
+        <!--/* 접수 번호는 일단 숨김: <div><dt>접수 번호</dt><dd th:text="${completion.receiptNo}">접수 번호</dd></div> */-->
         <div><dt>신청 상태</dt><dd th:text="${completion.stateLabel}">신청 접수</dd></div>
         <div><dt>결제 안내</dt><dd th:text="${completion.paymentGuidance}">결제는 이 화면에서 처리하지 않습니다.</dd></div>
         <div><dt>참가비 합계</dt><dd th:text="${completion.totalText}">서버 확인 필요</dd></div>
@@ -133,9 +133,80 @@
   </div>
 </main>
 
+<!-- 신청 동의 안내: 체크박스를 체크하려 하면 먼저 띄우고, "확인했습니다"를 눌러야 체크된다. 스크립트가 없으면 체크박스만 동작한다. -->
+<dialog th:if="${!completed and match != null}" id="rules-guide-dialog" class="join-rules-dialog" aria-labelledby="rules-guide-title">
+  <div class="join-rules-content">
+    <div class="join-rules-heading">
+      <div><h2 id="rules-guide-title">매치 운영 규칙 · 취소·노쇼 안내</h2><p th:text="${match.title + ' · ' + match.dateLabel + ' ' + match.time}">매치 · 날짜 시간</p></div>
+      <button class="join-rules-close" type="button" data-close-rules-guide aria-label="닫기">×</button>
+    </div>
+    <div class="join-rules-body">
+      <section aria-labelledby="rules-guide-operation">
+        <h3 id="rules-guide-operation">매치 운영 규칙</h3>
+        <ul>
+          <li>신청은 '확정 대기'로 접수되며, 시설 관리자가 확인하면 참가가 확정됩니다. 경기 시작 전까지 확정되지 않으면 참가할 수 없습니다.</li>
+          <li>이미 신청했거나 참가가 확정된 다른 매치와 시간이 겹치면 신청할 수 없습니다. 팀 신청은 대표와 선택한 팀원 모두에게 적용됩니다.</li>
+          <li>경기 시작 시각에 참가 인원이 부족하면 매치는 자동으로 취소됩니다.</li>
+          <li>인원이 충족되면 레이팅을 기준으로 A·B팀이 배정됩니다.</li>
+          <li>경기가 끝나면 각 팀 팀장이 결과를 제출하고, 결과는 레이팅에 반영됩니다.</li>
+        </ul>
+      </section>
+      <section aria-labelledby="rules-guide-cancel">
+        <h3 id="rules-guide-cancel">취소 안내</h3>
+        <ul>
+          <li>취소는 마이페이지 &gt; 신청 내역에서 할 수 있습니다.</li>
+          <li>모집 중이고 경기 시작 전인 매치만 취소할 수 있습니다.</li>
+          <li>팀 배정이 끝난 뒤에는 직접 취소할 수 없으니 시설에 문의해 주세요.</li>
+          <li>팀 신청은 신청한 대표만 취소할 수 있습니다.</li>
+        </ul>
+      </section>
+      <section aria-labelledby="rules-guide-noshow">
+        <h3 id="rules-guide-noshow">노쇼 안내</h3>
+        <ul>
+          <li>참가 확정 후 연락 없이 경기에 나오지 않으면 노쇼로 처리됩니다.</li>
+          <li>노쇼 경기는 레이팅 반영에서 제외될 수 있습니다.</li>
+        </ul>
+        <p class="join-rules-warning"><b>잦은 노쇼 시 일주일에서 한 달 사이의 계정 정지가 있을 수 있습니다.</b> 정지 기간에는 로그인과 매치 신청이 제한됩니다.</p>
+      </section>
+    </div>
+    <div class="join-rules-actions">
+      <button type="button" class="join-button join-button-quiet" data-close-rules-guide>닫기</button>
+      <button id="rules-guide-confirm" type="button" class="join-button join-button-primary">확인했습니다</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 이미 참가 신청한 다른 매치와 시간이 겹치면 신청 화면을 열자마자 보여 준다. 신청 버튼은 서버가 이미 막아 둔다. -->
+<dialog th:if="${!completed and timeConflicts != null and !#lists.isEmpty(timeConflicts)}" id="time-conflict-dialog" class="join-conflict-dialog" aria-labelledby="time-conflict-title" aria-describedby="time-conflict-message">
+  <div class="join-conflict-content">
+    <div class="join-conflict-heading">
+      <div><h2 id="time-conflict-title">신청 시간이 겹칩니다</h2><p th:text="${match.title + ' · ' + match.dateLabel + ' ' + match.time}">매치 · 날짜 시간</p></div>
+      <button class="join-conflict-close" type="button" data-close-time-conflict aria-label="닫기">×</button>
+    </div>
+    <p id="time-conflict-message" class="join-conflict-note">이미 참가 신청한 매치와 시간이 겹쳐 신청할 수 없습니다.</p>
+    <ul class="join-conflict-people">
+      <li th:each="person : ${timeConflicts}">
+        <b th:text="${person.me ? person.nickname + ' (나)' : person.nickname}">회원</b>
+        <ul>
+          <li th:each="item : ${person.matches}" class="join-conflict-match">
+            <span class="join-conflict-match-title" th:text="${item.title}">매치</span>
+            <span th:text="${item.timeLabel + ' · ' + item.facilityName}">시간 · 시설</span>
+            <small th:text="${item.stateLabel}">참가 확정</small>
+          </li>
+        </ul>
+      </li>
+    </ul>
+    <div class="join-conflict-actions">
+      <a th:href="@{/mypage#reservations}" class="join-button join-button-quiet">신청 내역 보기</a>
+      <button type="button" class="join-button join-button-primary" data-close-time-conflict>확인</button>
+    </div>
+  </div>
+</dialog>
+
 <footer th:replace="~{fragments/layout :: simpleFooter}"></footer>
 
 <script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/site-menu.js}"></script>
 <script th:src="@{/js/match-join-page.js}" th:attr="data-completed=${completed}"></script>
 </body>
 </html>

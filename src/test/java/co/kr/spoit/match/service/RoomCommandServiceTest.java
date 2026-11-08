@@ -25,14 +25,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.springframework.mock.web.MockMultipartFile;
 
 import co.kr.spoit.facility.service.FacilityCapacityService;
 import co.kr.spoit.facility.service.FacilityReservationService;
 import co.kr.spoit.facility.service.FacilityScheduleUnavailableException;
+import co.kr.spoit.global.upload.PhotoStorage;
+import co.kr.spoit.global.upload.UploadedPhoto;
 import co.kr.spoit.match.dto.RoomCommand;
 import co.kr.spoit.match.dto.RoomEditTarget;
 import co.kr.spoit.match.dto.RoomForm;
 import co.kr.spoit.match.mapper.RoomCommandMapper;
+import co.kr.spoit.notification.service.NotificationDispatcher;
 
 /** 매칭방 생성·수정·취소의 입력 검증, 잠금·검사 순서, 신청자 유무별 수정 범위를 검증한다. */
 class RoomCommandServiceTest {
@@ -48,15 +52,23 @@ class RoomCommandServiceTest {
     private RoomCommandMapper mapper;
     private FacilityReservationService reservationService;
     private FacilityCapacityService capacityService;
+    private PhotoStorage photoStorage;
+    private NotificationDispatcher notificationDispatcher;
     private RoomCommandService service;
+
+    /** JPG 시그니처로 시작하는 최소 바이트 */
+    private static final byte[] JPG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0, 0x10};
 
     @BeforeEach
     void setUp() {
         mapper = mock(RoomCommandMapper.class);
         reservationService = mock(FacilityReservationService.class);
         capacityService = mock(FacilityCapacityService.class);
+        photoStorage = mock(PhotoStorage.class);
+        notificationDispatcher = mock(NotificationDispatcher.class);
         Clock clock = Clock.fixed(NOW.atZone(ZONE).toInstant(), ZONE);
-        service = new RoomCommandService(mapper, reservationService, capacityService, clock);
+        service = new RoomCommandService(mapper, reservationService, capacityService, photoStorage,
+                notificationDispatcher, clock);
     }
 
     /* ---------------- 생성 ---------------- */
@@ -245,12 +257,34 @@ class RoomCommandServiceTest {
     void cancelsRoomAndActiveRows() {
         givenEditable("매칭 완료", LocalDateTime.of(2026, 11, 8, 10, 0));
         given(mapper.cancelRoom(eq(MATCH_ID), eq("취소"), any(), eq(NOW))).willReturn(1);
+        given(mapper.findCancelRecipientUserIds(eq(MATCH_ID), any(), any()))
+                .willReturn(List.of(21L, 21L, 22L));
 
         service.cancel(MANAGER_ID, MATCH_ID);
 
         verify(mapper).cancelRoom(MATCH_ID, "취소", List.of("모집 중", "매칭 완료"), NOW);
         verify(mapper).cancelParticipants(MATCH_ID, "취소", List.of("대기", "확정"), NOW);
         verify(mapper).cancelApplications(MATCH_ID, "취소", List.of("대기", "확정"), MANAGER_ID, NOW);
+        // 상태 변경 전에 모은 수신자를 중복 없이 한 번만 넘긴다.
+        verify(notificationDispatcher).notifyAfterCommit(List.of(21L, 22L),
+                "MATCH_ROOM_CANCELLED", "매칭방이 취소되었습니다",
+                "참가 신청한 매칭방이 시설 사정으로 취소되었습니다. 매칭 화면에서 확인해 주세요.",
+                MATCH_ID, null, null);
+    }
+
+    @Test
+    @DisplayName("수신자를 읽고 FK 검사에 필요한 계정을 잠근 뒤 방 상태를 바꾼다")
+    void locksCancellationAccountsBeforeStatusChange() {
+        givenEditable("모집 중", LocalDateTime.of(2026, 11, 8, 10, 0));
+        given(mapper.cancelRoom(eq(MATCH_ID), eq("취소"), any(), eq(NOW))).willReturn(1);
+        given(mapper.findCancelRecipientUserIds(eq(MATCH_ID), any(), any())).willReturn(List.of(21L));
+
+        service.cancel(MANAGER_ID, MATCH_ID);
+
+        InOrder order = inOrder(mapper);
+        order.verify(mapper).findCancelRecipientUserIds(eq(MATCH_ID), any(), any());
+        order.verify(mapper).lockCancellationAccounts(List.of(21L, MANAGER_ID));
+        order.verify(mapper).cancelRoom(eq(MATCH_ID), eq("취소"), any(), eq(NOW));
     }
 
     @Test
@@ -264,6 +298,116 @@ class RoomCommandServiceTest {
 
         verify(mapper, never()).cancelApplications(anyLong(), anyString(), any(), anyLong(), any());
         verify(mapper, never()).cancelParticipants(anyLong(), anyString(), any(), any());
+    }
+
+    /* ---------------- 사진 ---------------- */
+
+    @Test
+    @DisplayName("생성 때 첨부한 사진을 저장하고 URL을 함께 저장한다")
+    void createsRoomWithPhoto() {
+        given(mapper.countManagedFacilitySport(MANAGER_ID, FACILITY_ID, SPORT_ID)).willReturn(1);
+        givenInsertedId();
+        given(photoStorage.store(eq("matches"), any(UploadedPhoto.class))).willReturn("/uploads/matches/a.jpg");
+
+        RoomForm form = form("2026-11-08", "10:00");
+        form.setPhoto(new MockMultipartFile("photo", "court.jpg", "image/jpeg", JPG));
+        service.create(MANAGER_ID, form);
+
+        ArgumentCaptor<RoomCommand> captor = ArgumentCaptor.forClass(RoomCommand.class);
+        verify(mapper).insertRoom(captor.capture());
+        assertThat(captor.getValue().getPhotoUrl()).isEqualTo("/uploads/matches/a.jpg");
+    }
+
+    @Test
+    @DisplayName("사진 없이 만들면 저장소를 쓰지 않고 URL은 비운다")
+    void createsRoomWithoutPhoto() {
+        given(mapper.countManagedFacilitySport(MANAGER_ID, FACILITY_ID, SPORT_ID)).willReturn(1);
+        givenInsertedId();
+
+        service.create(MANAGER_ID, form("2026-11-08", "10:00"));
+
+        ArgumentCaptor<RoomCommand> captor = ArgumentCaptor.forClass(RoomCommand.class);
+        verify(mapper).insertRoom(captor.capture());
+        assertThat(captor.getValue().getPhotoUrl()).isNull();
+        verifyNoInteractions(photoStorage);
+    }
+
+    @Test
+    @DisplayName("이미지가 아니거나 5MB를 넘는 사진은 시설을 건드리기 전에 막는다")
+    void rejectsInvalidPhoto() {
+        RoomForm notImage = form("2026-11-08", "10:00");
+        notImage.setPhoto(new MockMultipartFile("photo", "court.jpg", "image/jpeg", "hello".getBytes()));
+        assertThatThrownBy(() -> service.create(MANAGER_ID, notImage))
+                .isInstanceOf(RoomCommandException.class)
+                .hasMessageContaining("JPG·PNG·WEBP");
+
+        byte[] big = new byte[(int) UploadedPhoto.MAX_BYTES + 1];
+        System.arraycopy(JPG, 0, big, 0, JPG.length);
+        RoomForm tooBig = form("2026-11-08", "10:00");
+        tooBig.setPhoto(new MockMultipartFile("photo", "big.jpg", "image/jpeg", big));
+        assertThatThrownBy(() -> service.create(MANAGER_ID, tooBig))
+                .isInstanceOf(RoomCommandException.class)
+                .hasMessageContaining("5MB");
+
+        verifyNoInteractions(reservationService, photoStorage);
+        verify(mapper, never()).insertRoom(any());
+    }
+
+    @Test
+    @DisplayName("신청자가 있어도 사진은 교체할 수 있고, 이전 파일은 지운다")
+    void replacesPhotoWhenReserved() {
+        givenEditable("모집 중", LocalDateTime.of(2026, 11, 8, 10, 0));
+        mapper.findRoomForUpdate(MANAGER_ID, MATCH_ID).setPhotoUrl("/uploads/matches/old.jpg");
+        given(mapper.countReserved(eq(MATCH_ID), any(), anyString())).willReturn(3);
+        given(photoStorage.store(eq("matches"), any(UploadedPhoto.class))).willReturn("/uploads/matches/new.jpg");
+
+        RoomForm form = form(null);
+        form.setPhoto(new MockMultipartFile("photo", "court.jpg", "image/jpeg", JPG));
+        service.update(MANAGER_ID, MATCH_ID, form);
+
+        ArgumentCaptor<RoomCommand> captor = ArgumentCaptor.forClass(RoomCommand.class);
+        verify(mapper).updateRoomDetails(captor.capture());
+        assertThat(captor.getValue().isPhotoChanged()).isTrue();
+        assertThat(captor.getValue().getPhotoUrl()).isEqualTo("/uploads/matches/new.jpg");
+        verify(photoStorage).delete("/uploads/matches/old.jpg");
+    }
+
+    @Test
+    @DisplayName("사진을 바꾸지 않으면 기존 URL을 그대로 두고, 삭제를 고르면 비운다")
+    void keepsOrRemovesPhoto() {
+        given(mapper.countManagedFacilitySport(MANAGER_ID, FACILITY_ID, SPORT_ID)).willReturn(1);
+        givenEditable("모집 중", LocalDateTime.of(2026, 11, 8, 10, 0));
+        mapper.findRoomForUpdate(MANAGER_ID, MATCH_ID).setPhotoUrl("/uploads/matches/old.jpg");
+        given(mapper.countReserved(eq(MATCH_ID), any(), anyString())).willReturn(0);
+
+        service.update(MANAGER_ID, MATCH_ID, form("2026-11-08", "10:00"));
+        ArgumentCaptor<RoomCommand> kept = ArgumentCaptor.forClass(RoomCommand.class);
+        verify(mapper).updateRoom(kept.capture());
+        assertThat(kept.getValue().isPhotoChanged()).isFalse();
+        verify(photoStorage, never()).delete(anyString());
+
+        RoomForm remove = form("2026-11-08", "10:00");
+        remove.setRemovePhoto(true);
+        service.update(MANAGER_ID, MATCH_ID, remove);
+        ArgumentCaptor<RoomCommand> removed = ArgumentCaptor.forClass(RoomCommand.class);
+        verify(mapper, org.mockito.Mockito.times(2)).updateRoom(removed.capture());
+        assertThat(removed.getValue().isPhotoChanged()).isTrue();
+        assertThat(removed.getValue().getPhotoUrl()).isNull();
+        verify(photoStorage).delete("/uploads/matches/old.jpg");
+    }
+
+    @Test
+    @DisplayName("사진 저장소 오류는 안내 문구로 바꾸고 방을 만들지 않는다")
+    void reportsStorageFailure() {
+        given(mapper.countManagedFacilitySport(MANAGER_ID, FACILITY_ID, SPORT_ID)).willReturn(1);
+        willThrow(new IllegalStateException("S3 down")).given(photoStorage).store(anyString(), any());
+
+        RoomForm form = form("2026-11-08", "10:00");
+        form.setPhoto(new MockMultipartFile("photo", "court.jpg", "image/jpeg", JPG));
+        assertThatThrownBy(() -> service.create(MANAGER_ID, form))
+                .isInstanceOf(RoomCommandException.class)
+                .hasMessageContaining("사진을 저장하지 못했습니다");
+        verify(mapper, never()).insertRoom(any());
     }
 
     /* ---------------- 픽스처 ---------------- */

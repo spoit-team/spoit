@@ -731,3 +731,14 @@ dialog::backdrop {
   color: var(--color-book-ink);
 }
 
+/* 종목 탭 아이콘: 동호회 종목 탭과 같은 SVG, 선택 탭(검은 배경)에서는 흰색 */
+.sport-tab-icon {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  margin: -14px;
+}
+
+#sport-tabs a[aria-current="true"] .sport-tab-icon {
+  filter: brightness(0) invert(1);
+}

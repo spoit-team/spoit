@@ -15,20 +15,20 @@ public class ClubDetailResponse {
 
     private final Long clubId;
     private final String clubName;
-    private final String initials;
     private final Long sportId;
     private final String sportName;
     private final String areaLabel;
     private final boolean recruiting;
     private final Integer memberCount;
     private final Integer maxMembers;
+    private final String tierLabel;
     private final String time;
-    private final String footerNote;
+    private final String sportKey;
+    private final String tierKey;
+    private final int markTone;
 
     private final String founded;
     private final String intro;
-    private final String leaderName;
-    private final String leaderInitials;
     private final List<ClubMemberResponse> members;
 
     private final boolean member;
@@ -37,21 +37,15 @@ public class ClubDetailResponse {
 
     public static ClubDetailResponse from(ClubSummary club, List<ClubMember> members,
             Long userId, Long pendingJoinRequestId) {
-        boolean recruiting = ClubFormat.isRecruiting(club.getRecruitStatus());
+        boolean recruiting = ClubFormat.isRecruiting(club);
 
-        String leaderName = "미정";
-        String leaderInitials = "미정";
         boolean member = false;
         boolean manager = false;
         List<ClubMemberResponse> memberResponses = new ArrayList<>();
         for (ClubMember m : members) {
             ClubMemberResponse response = ClubMemberResponse.from(m, userId);
             memberResponses.add(response);
-            if (response.isLeader()) {
-                leaderName = response.getNickname();
-                leaderInitials = response.getInitials();
-            }
-            if(response.isCurrent()){
+            if (response.isCurrent()) {
                 member = true;
                 manager = response.isLeader();
             }
@@ -61,23 +55,23 @@ public class ClubDetailResponse {
         return ClubDetailResponse.builder()
                 .clubId(club.getClubId())
                 .clubName(club.getClubName())
-                .initials(ClubFormat.initials(club.getClubName()))
                 .recruiting(recruiting)
                 .memberCount(club.getMemberCount())
                 .maxMembers(club.getMaxMembers())
                 .time(ClubFormat.time(club))
-                .footerNote(ClubFormat.footerNote(recruiting, club))
                 .founded(club.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy.MM.dd")))
-                .leaderInitials(leaderInitials)
                 .members(memberResponses)
                 .sportId(club.getSportId())
                 .sportName(club.getSportName())
                 .areaLabel(ClubFormat.areaLabel(club.getAreaLabel()))
                 .intro(club.getIntro())
-                .leaderName(leaderName)
                 .member(member)
                 .manager(manager)
                 .pendingJoinRequestId(pendingJoinRequestId)
+                .tierLabel(ClubFormat.tierLabel(club.getAverageMmr()))
+                .sportKey(ClubFormat.sportKey(club.getSportId()))
+                .tierKey(ClubFormat.tierKey(club.getAverageMmr()))
+                .markTone(ClubFormat.markTone(club.getClubId()))
                 .build();
     }
 }

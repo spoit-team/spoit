@@ -27,7 +27,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * 매칭(=시설 예약) 화면 컨트롤러.
  *
- * <p>CorePageController에서 분리했다. RES-01 검색(카드형)·RES-02 상세·RES-03 개인 신청·RES-04 팀 신청.
+ * <p>SystemAdminController에서 분리했다. RES-01 검색(카드형)·RES-02 상세·RES-03 개인 신청·RES-04 팀 신청.
  * 신청 흐름: 상세 다이얼로그 → 신청 내용(STEP 1) → 신청 완료(STEP 3). 결제 안내(STEP 2)는
  * 무료 결제만 지원하는 동안 건너뛴다.</p>
  */
@@ -209,6 +209,7 @@ public class MatchController {
         model.addAttribute("feeTotalText", page.getFeeTotalText());
         model.addAttribute("feeSummaryNote", page.getFeeSummaryNote());
         model.addAttribute("completion", page.getCompletion());
+        model.addAttribute("timeConflicts", page.getTimeConflicts());
     }
 
     private void addUnavailableModel(Model model) {
@@ -220,6 +221,7 @@ public class MatchController {
         model.addAttribute("feeTotalText", "");
         model.addAttribute("feeSummaryNote", "");
         model.addAttribute("completion", null);
+        model.addAttribute("timeConflicts", List.of());
     }
 
     /*

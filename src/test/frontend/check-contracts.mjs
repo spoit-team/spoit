@@ -165,9 +165,8 @@ const requiredBindings = {
   'conditions-form': ['facilityId', 'sportId', 'capacity', 'note'],
   'closure-form': ['facilityId', 'date', 'start', 'end', 'reason']
 };
-// 팀 수정 폼은 현재 비활성화되어 있으며, 다시 표시되면 필수 필드를 검사한다.
 if (namedForms.has('team-edit-form')) {
-  requiredBindings['team-edit-form'] = ['clubName', 'sportId', 'regionId'];
+  requiredBindings['team-edit-form'] = ['clubName', 'regionId'];
 }
 for (const [id, names] of Object.entries(requiredBindings)) {
   const form = namedForms.get(id);
@@ -182,6 +181,75 @@ for (const file of scripts) {
     check(formNames.has(selector[1]), `${file}: selector references missing form field ${selector[1]}`);
   }
 }
+
+/* ── 회원 탈퇴 확인창 계약 ────────────────────────────────────────────────
+   서버는 withdrawalBlocks(blocked·leaderClubNames·individualMatchNames)를
+   항상 내려주고, 화면은 그 값으로만 비밀번호 입력과 확인 버튼을 잠근다. 사유가 늘거나
+   잠금 조건이 화면에서 임의로 풀리면 사용자가 막힌 줄 모르고 탈퇴를 시도하므로 여기서 고정한다. */
+const profileSource = await readFile(path.join(resources, 'templates/mypage/profile.html'), 'utf8');
+const withdrawalDialog = profileSource.slice(
+  profileSource.indexOf('id="profile-withdrawal-dialog"'),
+  profileSource.indexOf('<script', profileSource.indexOf('id="profile-withdrawal-dialog"')));
+check(withdrawalDialog.length > 0, 'profile.html: withdrawal dialog missing');
+// 잠금은 서버 값 하나로만 정해진다. 클라이언트 임의 판단이나 사유별 분기를 두지 않는다.
+check(/th:attr="data-withdrawal-blocked=\$\{withdrawalBlocks != null and withdrawalBlocks\.blocked\} \? 'true' : null"/.test(withdrawalDialog),
+  'withdrawal dialog: lock state must come from withdrawalBlocks.blocked');
+check(/id="withdrawal-blocks"[\s\S]*?role="group"[\s\S]*?aria-labelledby="withdrawal-blocks-title"/.test(withdrawalDialog),
+  'withdrawal blocks: the blocker list must be a labelled group');
+check(/id="withdrawal-blocks"[\s\S]*?tabindex="-1"/.test(withdrawalDialog),
+  'withdrawal blocks: the blocker list must be able to take focus when the input is disabled');
+for (const [field, phrase] of [
+  ['leaderClubNames', '동호회에 가입되어 있어요'],
+  ['individualMatchNames', '종료 상태가 아닌 매치에 신청되어 있어요']
+]) {
+  check(withdrawalDialog.includes(`withdrawalBlocks.${field}`),
+    `withdrawal blocks: ${field} must be rendered`);
+  check(withdrawalDialog.includes(`#lists.size(withdrawalBlocks.${field})`),
+    `withdrawal blocks: ${field} must show its count`);
+  check(withdrawalDialog.includes(`#strings.listJoin(withdrawalBlocks.${field}, ' · ')`),
+    `withdrawal blocks: ${field} must list the names`);
+  check(withdrawalDialog.includes(phrase), `withdrawal blocks: ${field} needs its guidance phrase`);
+}
+// 사실 관계: 실제 경기가 끝났어도 결과·평가 처리 전에는 저장 상태가 '매칭 완료'로 남는다.
+// 저장 상태는 '종료'만 허용 기준이고, 종료 시각·자동 처리·기간 보장은 화면에서 약속하지 않는다.
+check(/경기가 끝났더라도 결과 처리 전에는 <strong>매칭 완료<\/strong> 상태일 수 있습니다/.test(withdrawalDialog),
+  'withdrawal blocks: 매칭 완료 must be described as possibly-already-played');
+check(!/아직 끝나지 않은 상태|아직 종료되지 않은 매치/.test(withdrawalDialog),
+  'withdrawal blocks: must not claim the match has not finished');
+check(!/종료 시각이 지나면|자동으로 종료|스케줄|24시간|이내에|즉시 종료/.test(withdrawalDialog),
+  'withdrawal blocks: no scheduler/end-time/duration promise in the guidance');
+// 종료 상태 안내는 매치 신청(개인·동호회) 사유에만 참이다. 동호회 가입 사유만 있으면 동호회 탈퇴로 풀 수 있다.
+const withdrawalNoteTag = withdrawalDialog.match(/<p class="profile-withdrawal-block-note"[^>]*>/)?.[0] ?? '';
+check(withdrawalNoteTag.includes('th:if="${!#lists.isEmpty(withdrawalBlocks.individualMatchNames)}"'),
+  'withdrawal blocks: the 종료 guidance must render only for the individual blocker');
+check(/해당 매치가 종료 상태가 되거나 신청이 취소되면 이 제한이 해제됩니다/.test(withdrawalDialog),
+  'withdrawal blocks: the note must scope itself to the individual applications');
+check(/id="withdrawal-password"[^>]*th:disabled="\$\{withdrawalBlocks != null and withdrawalBlocks\.blocked\}"/.test(withdrawalDialog),
+  'withdrawal dialog: the password input must be disabled while blocked');
+check(/id="withdrawal-error"[^>]*role="alert"/.test(withdrawalDialog),
+  'withdrawal dialog: the password error must stay a live region');
+check(/th:href="@\{\/teams\/manage\}"/.test(withdrawalDialog)
+  && /th:href="@\{\/mypage#reservations\}"/.test(withdrawalDialog),
+  'withdrawal blocks: team and individual blockers must link to their own fix screens');
+// 필드를 숫자로 되돌리거나 임의로 늘리지 않는다.
+check(namedForms.get('profile-withdrawal-form')?.inputs.some(input => input.name === 'password'),
+  'profile-withdrawal-form: the password field must stay the only payload');
+const withdrawalScript = await readFile(path.join(resources, 'static/js/profile-edit.js'), 'utf8');
+check(withdrawalScript.includes('withdrawalIsBlocked'),
+  'profile-edit.js: the blocked state must gate the dialog');
+check(!/withdrawalConfirm\.disabled\s*=\s*false/.test(withdrawalScript),
+  'profile-edit.js: the confirm button must never be force-enabled');
+check(withdrawalScript.includes('withdrawalBlocks?.focus'),
+  'profile-edit.js: a blocked dialog must move focus to the blocker list');
+
+// 레이아웃: 비밀번호 입력이 대화상자 안쪽 여백을 넘지 않고, 사유가 길어져도 버튼이 보여야 한다.
+const mypageCss = await readFile(path.join(resources, 'static/css/mypage.css'), 'utf8');
+check(/\.profile-withdrawal-dialog-content \.auth-input\s*\{[^}]*box-sizing:\s*border-box/.test(mypageCss),
+  'mypage.css: the withdrawal password input must not overflow the dialog padding');
+check(/\.profile-withdrawal-actions\s*\{[^}]*position:\s*sticky/.test(mypageCss),
+  'mypage.css: the withdrawal actions must stay reachable while the dialog scrolls');
+check(/\.profile-withdrawal-block-label\s*\{[^}]*word-break:\s*keep-all/.test(mypageCss),
+  'mypage.css: Korean blocker labels must not break mid-word');
 
 /* ── 예약 운영 일정 화면 계약 ──────────────────────────────────────────────
    시설 관리 일정 화면은 백엔드 lane과 모델 키/폼 필드/경로를 공유한다.
@@ -269,7 +337,7 @@ check(facilityDateForm?.attributes.method?.toLowerCase() === 'post'
 // 6) 충돌 경고: 안전한 alertdialog, 전체 충돌 목록, 저장 우회/자동 취소 선택지 없음.
 const conflictModal = facilitySource.slice(
   facilitySource.indexOf('id="schedule-conflict-modal"'),
-  facilitySource.indexOf('id="maintenance-modal"'));
+  facilitySource.indexOf('id="facility-delete-blocked-modal"'));
 check(conflictModal.length > 0, 'facility.html: schedule conflict modal missing');
 check(conflictModal.includes('role="alertdialog"'),
   'schedule-conflict-modal: must stay an alertdialog');
@@ -291,7 +359,7 @@ check(!/type="submit"/.test(conflictModal) && !/data-force/.test(conflictModal),
 // 6-1) 시설 삭제 차단 경고: 일정 충돌 경고와 같은 alertdialog로 막는 매칭방 전체를 보여 준다.
 const deleteBlockModal = facilitySource.slice(
   facilitySource.indexOf('id="facility-delete-blocked-modal"'),
-  facilitySource.indexOf('id="maintenance-modal"'));
+  facilitySource.indexOf('th:replace="~{fragments/admin :: toast}"'));
 check(deleteBlockModal.length > 0, 'facility.html: facility delete blocked modal missing');
 check(deleteBlockModal.includes('role="alertdialog"'),
   'facility-delete-blocked-modal: must stay an alertdialog');
@@ -345,6 +413,82 @@ check(facilityScript.includes("closest('a.date-calendar-day, .calendar-month-nav
   'admin-facility.js: calendar day/month links must swap the schedule card without a full reload');
 check(facilityScript.includes("target?.closest('#date-schedule-hour-grid')"),
   'admin-facility.js: date slot summary must be delegated so fragment swaps keep it working');
+
+/* ── 대시보드 시설 현황 계약 ──────────────────────────────────────────────
+   대시보드에서 실제로 연결된 것은 담당 시설 전체의 매칭방 현황과 참가 신청 피드뿐이다.
+   민원·요청/점검·유지보수 화면은 제거되었으므로 그 흔적이 다시 생기면 여기서 막는다. */
+const dashboardSource = fragmentSlice(facilitySource, 'id="facility-dashboard"', 'id="facility-assets"');
+check(Boolean(dashboardSource), 'facility.html: dashboard view missing');
+for (const field of ['dashboard?.matchCount', 'dashboard?.recruitingCount',
+  'dashboard?.hourlyBars', 'dashboard?.recentMatches', 'todayLabel', 'scopeName']) {
+  check(dashboardSource?.includes(field), `facility.html: dashboard must render ${field}`);
+}
+// 24칸 차트는 시각별 실제 방 수를 title·aria-label로 알린다(상대 높이만으로는 값을 알 수 없다).
+check(dashboardSource?.includes('bar.matchCount') && dashboardSource?.includes('bar.completedCount'),
+  'facility.html: each hourly bar must expose its real match/completed counts');
+check(/th:aria-label="\$\{bar\.label[^"]*bar\.matchCount/.test(dashboardSource ?? ''),
+  'facility.html: hourly bars need an aria-label with the hour and counts');
+// 지표는 실제 집계되는 두 값만 남는다. 없는 값을 0건이나 '연동 전'으로 그리지 않는다.
+for (const removed of ['openRequestCount', 'maintenanceCount', '미처리 요청', '점검 예정',
+  '연동 전', 'is-unlinked', 'metric-tag']) {
+  check(!dashboardSource?.includes(removed),
+    `facility.html: removed dashboard metric must not come back (${removed})`);
+}
+check(dashboardSource?.includes('<div class="metric-grid two-metrics">'),
+  'facility.html: the dashboard must lay out exactly two metrics in one row');
+check((dashboardSource?.match(/class="card metric-card"/g) ?? []).length === 2,
+  'facility.html: the dashboard must render exactly two metric cards');
+// 두 칸짜리 지표 줄은 좁은 화면에서 한 칸씩 쌓이므로, 세로 구분선 대신 가로 구분선을 쓴다.
+const twoMetricRule = adminCss.match(/\.metric-grid\.two-metrics\s*\{([^}]*)\}/)?.[1] ?? '';
+check(/grid-template-columns:\s*repeat\(2,minmax\(0,1fr\)\)/.test(twoMetricRule),
+  'admin.css: two metrics must fill one row on wide screens');
+check(/\.metric-grid\.two-metrics \.metric-card:nth-child\(-n\+2\)\s*\{\s*border-bottom:\s*0/.test(adminCss),
+  'admin.css: a two-cell metric row must not draw a bottom divider under its only row');
+check(/@media \(max-width: 600px\)[\s\S]*\.metric-grid\.two-metrics\s*\{\s*grid-template-columns:\s*1fr/.test(adminCss),
+  'admin.css: two metrics must stack into one column on narrow screens');
+check(!/@\{[^}]*view='requests'/.test(dashboardSource ?? ''),
+  'facility.html: the dashboard must not link to the removed requests view');
+// 최근 요청 카드는 담당 시설 매칭방의 참가 신청(모든 상태, 최신 5건)으로 채운다.
+// 서버 계약은 dashboard.recentRequests의 여섯 필드이며, 이 카드는 조회 전용 상세로만 이어진다.
+const recentRequestFields = ['matchId', 'matchTitle', 'facilityName', 'applicantName',
+  'createdAtLabel', 'statusLabel', 'statusTone'];
+check(dashboardSource?.includes('th:each="recentRequest : ${dashboard?.recentRequests}"'),
+  'facility.html: recent requests must be listed from dashboard.recentRequests');
+for (const field of recentRequestFields) {
+  check(dashboardSource?.includes(`recentRequest.${field}`),
+    `facility.html: recent request item must render recentRequest.${field}`);
+}
+check(dashboardSource?.includes('#lists.isEmpty(dashboard?.recentRequests)'),
+  'facility.html: the recent request feed needs an honest empty state');
+check(/최신 5건/.test(dashboardSource ?? ''),
+  'facility.html: the recent request card must state that it shows at most 5 items');
+check(/모든 상태/.test(dashboardSource ?? ''),
+  'facility.html: the recent request card must state that every application status is included');
+check(/팀 신청[^<]*1건/.test(dashboardSource ?? ''),
+  'facility.html: the recent request card must state that a team application counts as one');
+check(/담당 시설[^<]{0,20}한정|담당 시설 매칭방/.test(dashboardSource ?? ''),
+  'facility.html: the recent request card must state the manager-scoped range');
+// 승인·처리가 구현된 것처럼 보이지 않게 한다: 이 카드에는 폼·제출 버튼이 없다.
+const recentRequestCard = dashboardSource?.slice(
+  dashboardSource.indexOf('<h2>최근 요청</h2>'),
+  dashboardSource.indexOf('</article>', dashboardSource.indexOf('<h2>최근 요청</h2>'))) ?? '';
+check(recentRequestCard.length > 0, 'facility.html: recent request card missing');
+check(!/<form\b/.test(recentRequestCard) && !/type="submit"/.test(recentRequestCard),
+  'facility.html: the recent request card must not offer approve/process actions');
+check((recentRequestCard.match(/@{/g) ?? []).length === 1
+  && recentRequestCard.includes('@{/admin/operations(matchId=${recentRequest.matchId})}'),
+  'facility.html: each recent request must deep-link to its read-only room detail only');
+check(dashboardSource?.includes('@{/admin/operations(matchId=${match.matchId})}'),
+  'facility.html: recent matches must keep their detail link');
+check(dashboardSource?.includes('data-open-room-editor'),
+  'facility.html: the dashboard must keep the room editor button');
+// 두 목록의 첫 열은 방 제목이 먼저·크게(cell-primary), 방 번호는 아래 보조 정보(cell-secondary)다.
+const roomIdentityCell = '<span class="cell-primary" th:text="${match.title}">방 이름</span>'
+  + '<span class="cell-secondary" th:text="${match.matchId}">방 번호</span>';
+check(dashboardSource?.includes(roomIdentityCell),
+  'facility.html: recent matches must list the room title first and the room number as secondary text');
+check(!dashboardSource?.includes('<span class="cell-primary" th:text="${match.matchId}">'),
+  'facility.html: recent matches must not lead with the room number');
 
 /* ── 매칭방 조회·상세 화면 계약 ────────────────────────────────────────────
    시설 관리자는 담당 시설의 매칭방을 조회하고, 상세 화면에서 신청·참가자만 읽습니다.
@@ -410,12 +554,76 @@ check(bookingsSource?.includes('view=\'bookings\''),
   'facility.html: the reset link must keep view=bookings');
 check(bookingsSource?.includes('#facility-bookings'),
   'facility.html: the reset link must restore the bookings anchor');
+// 검색·초기화는 옆 드롭다운(.field-control 40px)과 높이·글자 크기를 맞춘다. 높이와 좌우 여백은
+// 전용 클래스로 키우되 글자는 드롭다운과 같은 크기를 쓰고, 다른 .admin-button.small은 32px로 둔다.
+const bookingsToolbar = fragmentSlice(bookingsSource ?? '', '<form class="toolbar"', '</form>') ?? '';
+check(bookingsToolbar.length > 0, 'facility.html: the bookings filter toolbar is missing');
+const filterActionUses = Array.from(bookingsToolbar.matchAll(/class="([^"]*)"/g))
+  .filter(match => match[1].split(/\s+/).includes('booking-filter-action')).length;
+check(filterActionUses === 2,
+  `facility.html: the taller filter sizing must land on exactly the 검색·초기화 controls (found ${filterActionUses})`);
+for (const [label, pattern] of [
+  ['검색', /<button class="([^"]*)" type="submit">검색<\/button>/],
+  ['초기화', /<a class="([^"]*)"[^>]*>초기화<\/a>/]
+]) {
+  const matched = bookingsToolbar.match(pattern);
+  check(Boolean(matched) && matched[1].split(/\s+/).includes('booking-filter-action'),
+    `facility.html: the bookings ${label} control must opt into the taller filter sizing`);
+}
+const filterActionRule = adminCss.match(/\.toolbar\s+\.admin-button\.small\.booking-filter-action\s*\{([^}]*)\}/);
+const filterActionBody = filterActionRule?.[1] ?? '';
+check(Boolean(filterActionRule),
+  'admin.css: the bookings filter buttons need their own sizing rule');
+// 값은 CSS에서 직접 읽는다. 드롭다운 높이가 바뀌면 버튼 높이·좌우 여백도 같은 비율로 다시 키워야 한다.
+// 글자 크기는 비율이 아니라 드롭다운 값을 그대로 따라가므로 아래에서 별도로 비교한다.
+const baseSmall = adminCss.match(/\.admin-button\.small\s*\{([^}]*)\}/)?.[1] ?? '';
+const dropdownHeight = Number(adminCss.match(/\.field-control\s*\{[^}]*height:\s*([\d.]+)px/)?.[1]);
+const baseHeight = Number(baseSmall.match(/min-height:\s*([\d.]+)px/)?.[1]);
+const basePadding = Number(baseSmall.match(/padding:\s*0\s+([\d.]+)px/)?.[1]);
+const filterHeight = Number(filterActionBody.match(/min-height:\s*([\d.]+)px/)?.[1]);
+const filterPadding = Number(filterActionBody.match(/padding:\s*0\s+([\d.]+)px/)?.[1]);
+const filterFont = Number(filterActionBody.match(/font-size:\s*([\d.]+)px/)?.[1]);
+check(baseHeight === 32 && dropdownHeight === 40,
+  'admin.css: the filter buttons grow from the 32px small button to the 40px dropdown height');
+check(filterHeight === dropdownHeight,
+  `admin.css: the bookings filter buttons must be ${dropdownHeight}px tall to line up with the dropdowns (got ${filterHeight})`);
+check(Math.abs(filterPadding - basePadding * (dropdownHeight / baseHeight)) < 0.01,
+  `admin.css: horizontal padding must scale ${dropdownHeight / baseHeight}× with the height to keep the button ratio`);
+// 글자는 확대하지 않는다. 옆 드롭다운(.field-control)과 같은 크기여야 나란히 놓았을 때 어긋나지 않는다.
+const dropdownFont = Number(adminCss.match(/\.field-control\s*\{[^}]*font-size:\s*([\d.]+)px/)?.[1]);
+check(dropdownFont > 0,
+  'admin.css: the dropdown font size must be readable from the .field-control rule');
+check(Math.abs(filterFont - dropdownFont) < 0.01,
+  `admin.css: the bookings filter label must use the same ${dropdownFont}px as the adjacent dropdown (got ${filterFont})`);
+check(/\.admin-button\.small\s*\{[^}]*min-height:\s*32px/.test(adminCss),
+  'admin.css: every other small admin button must stay 32px tall');
 for (const field of ['match.matchId', 'match.title', 'match.facilityName', 'match.sportName',
   'match.participation', 'match.dateLabel', 'match.statusLabel', 'match.statusTone']) {
   check(bookingsSource?.includes(field), `facility.html: bookings table must render ${field}`);
 }
 check(bookingsSource?.includes('@{/admin/operations(matchId=${match.matchId})}'),
   'facility.html: each booking must deep-link to its read-only detail');
+check(bookingsSource?.includes(roomIdentityCell),
+  'facility.html: each booking must list the room title first and the room number as secondary text');
+check(!bookingsSource?.includes('<span class="cell-primary" th:text="${match.matchId}">'),
+  'facility.html: each booking must not lead with the room number');
+// 행 관리 열: 상세·수정·취소가 같은 버튼 모양을 쓰되, 상세는 화면 이동이라 링크(<a>)로 남긴다.
+// 취소는 확인 모달을 거치는 POST 폼이어야 하고, 되돌릴 수 없는 동작이라 위험 색을 유지한다.
+const roomRowActions = bookingsSource?.slice(
+  bookingsSource.indexOf('<td class="room-row-actions">'),
+  bookingsSource.indexOf('</td>', bookingsSource.indexOf('<td class="room-row-actions">'))) ?? '';
+check(roomRowActions.length > 0, 'facility.html: the booking row action cell is missing');
+check(/<a class="admin-button small" th:href="@\{\/admin\/operations\(matchId=\$\{match\.matchId\}\)\}"/.test(roomRowActions),
+  'facility.html: the room detail action must stay a link but look like the row buttons');
+check(/<button class="admin-button small" type="button" data-edit-room/.test(roomRowActions),
+  'facility.html: the room edit action must use the same button style');
+check(/<form class="room-cancel-form" method="post"/.test(roomRowActions),
+  'facility.html: the room cancel action must stay a POST form');
+check(/data-cancel-room/.test(roomRowActions)
+  && /class="admin-button small danger-ghost"[^>]*type="submit"[^>]*data-cancel-room/.test(roomRowActions),
+  'facility.html: the destructive room cancel must keep its danger styling');
+check(!/class="table-link/.test(roomRowActions),
+  'facility.html: row actions must not fall back to plain text links');
 
 const operationsSource = await readFile(path.join(resources, 'templates/admin/operations.html'), 'utf8');
 check(operationsSource.includes('th:if="${match == null}"'),
@@ -434,20 +642,28 @@ check(operationsSource.includes('th:each="roomApplication : ${match.applications
 check(!/th:each="application\s*:/.test(operationsSource),
   'operations.html: the application loop variable must not use the reserved name "application"');
 for (const field of ['roomApplication.applicantName', 'roomApplication.kindLabel',
-  'roomApplication.statusLabel', 'roomApplication.receiptNo', 'roomApplication.createdAtLabel',
+  'roomApplication.statusLabel', 'roomApplication.createdAtLabel',
   'participant.name', 'participant.teamLabel', 'participant.statusLabel']) {
   check(operationsSource.includes(field), `operations.html: ${field} must be rendered`);
 }
 check(operationsSource.includes('#lists.isEmpty(match.applications)')
   && operationsSource.includes('#lists.isEmpty(match.participants)'),
   'operations.html: both lists need an empty state');
-// 조회 전용: 쓰기 폼·제출 버튼·없는 getter(seats/members 등)를 참조하지 않는다.
+// 승인·반려와 팀 배정은 폼 없이 API로 처리한다.
 check(!/<form\b/.test(operationsSource) && !/th:action=/.test(operationsSource),
-  'operations.html: the read-only detail must not contain write forms');
+  'operations.html: write actions must not use forms');
 check(!/type="submit"/.test(operationsSource),
-  'operations.html: the read-only detail must not offer submit actions');
-check(!/opsApplication|match\.pendingGroups|match\.teamA|match\.canAssign|match\.status ==/.test(operationsSource),
-  'operations.html: unimplemented confirm/reject/assign/complete controls must stay out of the page');
+  'operations.html: API actions must use regular buttons');
+check(!/opsApplication|match\.pendingGroups|match\.teamA\b|match\.canAssign|match\.status ==/.test(operationsSource)
+  && !/data-(?:action|decision)="complete"/.test(operationsSource),
+  'operations.html: unsupported model bindings and completion controls must stay out of the page');
+check(operationsSource.includes('th:data-decision-url="@{/admin/operations/applications}"')
+  && operationsSource.includes('th:if="${roomApplication.decidable}"'),
+  'operations.html: application decisions must use the operations API and be gated per row');
+for (const decision of ['confirm', 'reject']) {
+  const action = new RegExp(String.raw`data-decision="${decision}"\s+th:data-application-id="\$\{roomApplication\.applicationId\}"`);
+  check(action.test(operationsSource), `operations.html: ${decision} must target the application row ID`);
+}
 check(operationsSource.includes('@{/admin/facility(view=\'bookings\')}'),
   'operations.html: the detail must link back to the booking list');
 
@@ -512,6 +728,31 @@ check(/th:href="@\{\/admin\/facility/.test(facilitySidebar ?? ''),
   'admin.html: facility sidebar must keep its own menu links');
 check(/th:href="@\{\/admin\/system/.test(systemSidebar ?? ''),
   'admin.html: system sidebar must keep its own menu links');
+// 민원·요청, 점검·유지보수 화면은 백엔드 처리 없이 껍데기만 남아 있었으므로 메뉴에서 제거했다.
+// 되살아나면 화면에 없는 동작을 약속하게 되므로, 남은 메뉴와 함께 부재를 고정한다.
+for (const removed of ['facility-requests', 'facility-maintenance', '민원·요청', '점검·유지보수']) {
+  check(!(facilitySidebar ?? '').includes(removed),
+    `admin.html: removed facility menu entry must stay gone (${removed})`);
+}
+for (const kept of ['facility-dashboard', 'facility-assets', 'facility-schedule',
+  'facility-bookings', 'facility-stats', 'facility-content']) {
+  check((facilitySidebar ?? '').includes(kept),
+    `admin.html: facility sidebar must keep ${kept}`);
+}
+
+/* ── 제거된 시설 관리자 화면 계약 ──────────────────────────────────────────
+   민원·요청과 점검·유지보수는 서버 모델·핸들러가 없어 화면만 존재했다. 화면과 진입점,
+   모달·스크립트 연결이 다시 생기면 없는 동작을 약속하게 되므로 부재를 고정한다. */
+for (const removed of ['id="facility-requests"', 'id="facility-maintenance"',
+  'id="maintenance-modal"', 'id="maintenance-form"', 'data-open-maintenance',
+  'data-close-maintenance', '@{/admin/facility/requests', '@{/admin/facility/maintenance',
+  'requestMetrics', 'maintenanceMetrics', 'maintenanceFilters', '요청 목록', '점검 일지']) {
+  check(!facilitySource.includes(removed),
+    `facility.html: removed requests/maintenance UI must stay gone (${removed})`);
+}
+check(!facilityScript.includes('maintenanceModal') && !facilityScript.includes('maintenance-modal')
+  && !facilityScript.includes('data-open-maintenance') && !facilityScript.includes('data-close-maintenance'),
+  'admin-facility.js: maintenance modal handlers must be removed with the screen');
 
 // 실제 시설·시스템 템플릿의 모든 .admin-view가 대체 포커스 표시 대상(제목)을 가져야 한다.
 for (const file of ['templates/admin/facility.html', 'templates/admin/system.html']) {
@@ -521,6 +762,111 @@ for (const file of ['templates/admin/facility.html', 'templates/admin/system.htm
   check(views.length > 0 && missing.length === 0,
     `${file}: every .admin-view needs .page-heading-copy with an h1 for the keyboard focus indicator`);
 }
+
+/* ── 통합 알림 계약 ────────────────────────────────────────────────────
+   헤더 배지와 마이페이지·관리자 알림은 GET /api/notifications를 단일 원본으로 쓴다.
+   실시간 연결은 로그인 사용자만 하고, 수신 데이터는 목록 재조회 신호로만 쓴다.
+   경로·마커가 어긋나면 배지가 조용히 멈추므로 여기서 고정한다. */
+const notificationScript = await readFile(path.join(resources, 'static/js/notification-center.js'), 'utf8');
+const notificationFragment = await readFile(path.join(resources, 'templates/fragments/notification.html'), 'utf8');
+const myPageSource = await readFile(path.join(resources, 'templates/mypage/index.html'), 'utf8');
+const matchResultSource = await readFile(path.join(resources, 'templates/mypage/match-result.html'), 'utf8');
+const matchResultScript = await readFile(path.join(resources, 'static/js/match-result.js'), 'utf8');
+
+// 1) API·소켓 경로와 STOMP 구독 주소는 백엔드 계약과 같아야 한다.
+for (const [needle, message] of [
+  ['@{/api/notifications}', 'layout.html: notification config must point at GET /api/notifications'],
+  ['@{/ws/notifications}', 'layout.html: notification config must point at the native STOMP endpoint'],
+]) {
+  check(layoutSource.includes(needle), message);
+}
+check(notificationScript.includes("'/user/queue/notifications'"),
+  'notification-center.js: STOMP subscription destination must stay /user/queue/notifications');
+check(notificationScript.includes("frame('CONNECT'"),
+  'notification-center.js: the client must send a CONNECT frame before subscribing');
+check(notificationScript.includes('CONNECTED') && notificationScript.includes("frame('SUBSCRIBE'"),
+  'notification-center.js: the client must subscribe only after the broker answers CONNECTED');
+// CSRF는 CONNECT 헤더로 보낸다(같은 출처·인증 세션 유지).
+check(/headers\[csrfHeader\] = csrfToken/.test(notificationScript),
+  'notification-center.js: the CONNECT frame must carry the CSRF header');
+
+// 2) 실시간 수신 데이터를 화면에 직접 그리지 않고 목록을 다시 읽는다(텍스트 안전 렌더링).
+check(/item\.command === 'MESSAGE'[\s\S]{0,120}refresh\(\)/.test(notificationScript),
+  'notification-center.js: a MESSAGE must trigger a fresh API read instead of rendering the payload');
+check(notificationScript.includes('textContent') && !/innerHTML\s*=\s*[^;]*item\./.test(notificationScript),
+  'notification-center.js: API values must be rendered as text, never injected as HTML');
+// 이동 주소는 같은 출처의 상대 경로만 허용한다.
+check(/!trimmed\.startsWith\('\/'\)\s*\|\|\s*trimmed\.startsWith\('\/\/'\)/.test(notificationScript),
+  'notification-center.js: href values must be limited to same-origin relative paths');
+
+// 3) 비로그인은 접속·조회하지 않고, 화면을 떠나면 소켓·타이머를 정리한다.
+check(/if \(!authenticated\) return;/.test(notificationScript),
+  'notification-center.js: anonymous visitors must not open the socket or poll the API');
+check(notificationScript.includes("addEventListener('visibilitychange'")
+  && notificationScript.includes('stop();'),
+  'notification-center.js: hidden documents must release the socket and timers');
+check(notificationScript.includes("addEventListener('pagehide'"),
+  'notification-center.js: leaving the page must release the socket and timers');
+check(notificationScript.includes('scheduleReconnect') && notificationScript.includes('RECONNECT_MAX'),
+  'notification-center.js: a dropped socket must reconnect with a bounded backoff');
+
+// 4) 마이페이지·관리자 화면은 같은 API를 쓰는 공통 조각을 사용한다.
+check(myPageSource.includes('fragments/notification :: center'),
+  'mypage/index.html: the notification modal must come from the shared fragment');
+check(myPageSource.includes('data-notification-surface') && myPageSource.includes('fragments/notification :: mypageItem'),
+  'mypage/index.html: the notification section must be a live surface with the shared item template');
+check(adminSource.includes('fragments/notification :: adminItem'),
+  'admin.html: the admin notification modal must use the shared item template');
+check(adminSource.includes('@{/api/notifications}') && adminSource.includes('@{/ws/notifications}'),
+  'admin.html: the admin notification modal must carry the same API/socket config');
+// 서버 폼은 JS가 없을 때의 대체 경로로 남긴다.
+check(myPageSource.includes('@{/mypage/notifications/read-all}')
+  && myPageSource.includes('@{/mypage/notifications/{notificationId}/read(notificationId=${item.notificationId})}'),
+  'mypage/index.html: the server notification forms must stay as the no-JS path');
+check(adminSource.includes('@{/admin/notifications/read-all}')
+  && adminSource.includes('@{/admin/notifications/{id}/read(id=${item.notificationId})}'),
+  'admin.html: the server admin notification forms must stay as the no-JS path');
+
+// 5) 배지는 헤더 한 곳에서 갱신되고, 숨김 상태로 시작해 0건을 그리지 않는다.
+check(layoutSource.includes('data-notification-badge') && layoutSource.includes('th:hidden='),
+  'layout.html: the header badge must start hidden and be owned by the notification script');
+check(notificationFragment.includes('data-notification-badge') === false,
+  'notification.html: the modal fragment must not add a second badge');
+
+/* ── 경기 결과 화면 계약 ──────────────────────────────────────────────
+   확정 참가자는 요약 API만, 팀장은 팀장 전용 조회·제출 API를 쓴다.
+   화면이 다른 사용자의 결과를 그리지 않도록 경로와 노출 조건을 고정한다. */
+check(matchResultSource.includes('@{/mypage} + \'#reservations\''),
+  'match-result.html: the result screen must offer a way back to the application list');
+check(matchResultScript.includes("apiUrl('result/summary')"),
+  'match-result.js: confirmed participants must read GET /mypage/matches/{matchId}/result/summary');
+check(matchResultScript.includes("apiUrl('result')"),
+  'match-result.js: captains must use the captain-only /result API for submission');
+check(/status === 403[\s\S]{0,120}submitSection\.hidden = true/.test(matchResultScript),
+  'match-result.js: a non-captain 403 must hide the submission area instead of showing an error');
+check(matchResultScript.includes('textContent') && !/innerHTML\s*=/.test(matchResultScript),
+  'match-result.js: API values must be rendered as text, never injected as HTML');
+check(matchResultScript.includes('JSON.stringify({ result: pending })'),
+  'match-result.js: submission must post {result} to the captain-only endpoint');
+check(!/myResult/.test(matchResultSource),
+  'match-result.html: the other captain\'s submission values must not be rendered by the server');
+// 화면이 되살린 표시 정보(일시·시설·제출 마감·A/B팀 로스터)는 서버가 훅만 두고 스크립트가 요약 API 값으로 채운다.
+for (const field of ['schedule', 'facility', 'deadline']) {
+  check(matchResultSource.includes(`data-field="${field}"`),
+    `match-result.html: the summary must keep the data-field="${field}" hook for the result API`);
+}
+check(matchResultSource.includes('data-result-teams') && matchResultScript.includes('data-result-teams'),
+  'match-result.html: the A/B roster must be rendered by the script from the summary API');
+check(matchResultScript.includes('renderTeams') && matchResultScript.includes('member.nickname'),
+  'match-result.js: the roster must be drawn from the confirmed members\' nicknames');
+check(!/innerHTML\s*=/.test(matchResultScript),
+  'match-result.js: roster values must be rendered as text, never injected as HTML');
+// 서버는 팀장 여부를 모르므로 단계 바는 숨긴 채 시작하고, 평가 진행률은 제출 검사와 같은 빈 칸 판정을 쓴다.
+const matchEvaluationScript = await readFile(path.join(resources, 'static/js/match-evaluation.js'), 'utf8');
+check(/<ol\b(?=[^>]*\sdata-result-steps(?=[\s>=]))(?=[^>]*\shidden(?=[\s>=]))[^>]*>/.test(matchResultSource),
+  'match-result.html: the captain step bar must start hidden so participants never see it');
+check(/missing = missingKeys\(\)/.test(matchEvaluationScript) && /missingKeys\(\)\.size/.test(matchEvaluationScript),
+  'match-evaluation.js: the progress count must use the same empty-cell check as submission review');
 
 if (failures.length) {
   console.error(failures.join('\n'));

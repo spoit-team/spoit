@@ -94,7 +94,8 @@
                sm.team_b_capacity,
                sm.fee_per_person,
                sm.required_skill,
-               <include refid="reservedCount"/> AS reserved_count
+               <include refid="reservedCount"/> AS reserved_count,
+               sm.photo_url
         <include refid="managedRoomFrom"/>
         JOIN app_user u ON u.user_id = sm.created_by
         <where>
@@ -117,7 +118,8 @@
                sm.end_at,
                sm.max_participants,
                <include refid="occupiedCount"/> AS occupied_count,
-               sm.status
+               sm.status,
+               sm.rating_status
         <include refid="managedRoomFrom"/>
          WHERE sm.match_id = #{matchId}
     </select>
@@ -170,9 +172,9 @@
                u.nickname AS applicant_name,
                ma.application_type,
                ma.status,
-               ma.receipt_no,
                ma.created_at,
-               c.club_name
+               c.club_name,
+               ma.applicant_user_id
           FROM match_application ma
           JOIN social_match sm ON sm.match_id = ma.match_id
           JOIN facility f      ON f.facility_id = sm.facility_id
@@ -185,7 +187,7 @@
          ORDER BY ma.created_at, ma.application_id
     </select>
 
-    <!-- 참가자 명단: 담당 범위 확인 뒤 참가 순서 고정 -->
+    <!-- 참가자 명단: 담당 범위 확인 뒤 A팀 → B팀, 팀 안에서는 팀장 → 레이팅 높은 순으로 고정 -->
     <select id="findParticipants"
             parameterType="co.kr.spoit.match.dto.RoomManagementQuery"
             resultType="co.kr.spoit.match.dto.RoomManagementParticipantRow">
@@ -193,7 +195,9 @@
                u.nickname,
                mp.participation_status,
                mp.match_side,
-               mp.joined_at
+               mp.joined_at,
+               mp.user_id,
+               c.club_name
           FROM match_participant mp
           JOIN social_match sm ON sm.match_id = mp.match_id
           JOIN facility f      ON f.facility_id = sm.facility_id
@@ -201,12 +205,47 @@
           JOIN facility_manager fm ON fm.facility_id = f.facility_id
                                   AND fm.user_id = #{managerUserId}
           JOIN app_user u      ON u.user_id = mp.user_id
+          LEFT JOIN match_application ma ON ma.application_id = mp.application_id
+          LEFT JOIN club c     ON c.club_id = ma.club_id
          WHERE mp.match_id = #{matchId}
            AND mp.participation_status IN
                <foreach collection="participationStatuses" item="st" open="(" separator="," close=")">
                    #{st}
                </foreach>
-         ORDER BY mp.joined_at, mp.participant_id
+         ORDER BY CASE mp.match_side WHEN 'A' THEN 0 WHEN 'B' THEN 1 ELSE 2 END,
+                  CASE WHEN mp.participant_id IN (sm.captain_a_participant_id, sm.captain_b_participant_id)
+                       THEN 0 ELSE 1 END,
+                  mp.entry_mmr DESC, mp.participant_id
+    </select>
+
+    <!--
+      최근 접수 신청: 담당 활성 시설의 매칭방에 쌓인 모든 상태의 신청을 최신 접수순으로 조회한다.
+      팀 신청은 팀원마다 행이 있으므로 대표 행(group_application_id = application_id)만 남겨
+      신청 하나를 한 번만 표현한다. 개인 신청은 group_application_id가 NULL이라 그대로 포함된다.
+    -->
+    <select id="findRecentApplications"
+            resultType="co.kr.spoit.match.dto.RoomManagementRecentRequestRow">
+        SELECT ma.application_id,
+               ma.match_id,
+               sm.title AS match_title,
+               f.name AS facility_name,
+               u.nickname AS applicant_name,
+               c.club_name,
+               ma.application_type,
+               ma.status,
+               ma.created_at
+          FROM match_application ma
+          JOIN social_match sm ON sm.match_id = ma.match_id
+          JOIN facility f      ON f.facility_id = sm.facility_id
+                              AND f.deleted_at IS NULL
+          JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                  AND fm.user_id = #{managerUserId}
+          JOIN app_user u      ON u.user_id = ma.applicant_user_id
+          LEFT JOIN club c     ON c.club_id = ma.club_id
+         WHERE (ma.group_application_id IS NULL
+                OR ma.group_application_id = ma.application_id)
+         ORDER BY ma.created_at DESC, ma.application_id DESC
+         LIMIT #{limit}
     </select>
 
 </mapper>

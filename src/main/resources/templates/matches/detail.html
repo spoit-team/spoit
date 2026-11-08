@@ -2,7 +2,7 @@
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head('매칭방 상세 · SPO:IT', '매칭방 시설과 참가 현황을 확인하고 개인 또는 등록 팀으로 참가자를 선택합니다.', ${ {'match-detail.css'} })}"></head>
 <body class="match-detail-body">
-<header th:replace="~{fragments/layout :: simpleHeader('matches')}"></header>
+<header th:replace="~{fragments/layout :: siteHeader('matches')}"></header>
 
 <main class="match-detail-wrap">
   <a th:href="@{/matches}" class="match-detail-back"><span aria-hidden="true">←</span> 매칭방 목록</a>
@@ -107,19 +107,6 @@
         <small th:text="${match.occupancyCaption}">안내</small>
       </div>
 
-      <section th:if="${match.myApplication.visible}" class="md-my-application" aria-labelledby="my-application-heading">
-        <div class="md-my-application-heading"><h3 id="my-application-heading">내 신청 내역</h3><a th:href="@{/mypage#reservations}">신청 내역 관리</a></div>
-        <dl class="md-my-application-facts">
-          <div><dt>신청 유형</dt><dd th:text="${match.myApplication.kindLabel}">개인 참가</dd></div>
-          <div><dt>신청 인원</dt><dd th:text="${match.myApplication.seatsText}">1명</dd></div>
-          <div><dt>접수 번호</dt><dd th:text="${match.myApplication.receiptNo}">접수 번호</dd></div>
-          <div><dt>접수 일시</dt><dd th:text="${match.myApplication.createdAtText}">일시</dd></div>
-          <div><dt>신청 상태</dt><dd th:classappend="${match.myApplication.statusClass}" th:text="${match.myApplication.statusLabel}">확정</dd></div>
-          <div th:if="${match.myApplication.teamLabel != null}"><dt>팀 배정</dt><dd th:text="${match.myApplication.teamLabel}">A팀</dd></div>
-        </dl>
-        <p class="md-my-application-note" th:text="${match.myApplication.note}">안내</p>
-      </section>
-
       <div th:if="${match.canApply and currentMember != null}" class="md-apply-actions">
         <button type="button" class="md-button md-button-primary" data-open-selection="individual">개인으로 참가하기</button>
         <button type="button" id="team-apply-button" class="md-button md-button-secondary" data-open-selection="team" th:disabled="${!match.hasTeams}">등록 팀으로 신청하기</button>
@@ -198,10 +185,12 @@
         </div>
       </section>
 
+      <!--/* 연락처로 참가 안내를 보내는 기능이 생기면 아래 연락처 칸과 안내를 다시 표시합니다.
       <label class="md-contact-field" for="applicant-phone"><span class="md-contact-label">연락처 <small>필수</small></span>
         <input id="applicant-phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" readonly th:value="${currentMember.phone}" aria-describedby="applicant-phone-help" />
       </label>
       <p class="md-field-help" id="applicant-phone-help">참가 안내는 가입 연락처로 전송됩니다. 연락처 변경은 <a th:href="@{/mypage/profile}" class="font-bold underline">프로필</a>에서 할 수 있습니다.</p>
+      */-->
       <p id="selection-capacity-notice" class="md-selection-notice" role="status" aria-live="polite"></p>
       <p id="selection-error" class="md-selection-error" role="alert" hidden></p>
     </div>
@@ -213,6 +202,7 @@
 </dialog>
 
 <script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/site-menu.js}"></script>
 <script th:src="@{/js/match-detail-page.js}" th:attr="data-available-seats=${match != null ? match.availableSeats : 0}, data-capacity=${match != null ? match.maxParticipants : 0}"></script>
 </body>
 </html>
