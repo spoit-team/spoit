@@ -48,7 +48,6 @@ import co.kr.spoit.match.domain.ApplicationType;
 import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.service.MatchApplicationService;
 import co.kr.spoit.match.service.MatchApplyException;
-import co.kr.spoit.match.service.RoomCommandException;
 import co.kr.spoit.match.service.RoomCommandService;
 
 /**
@@ -286,8 +285,8 @@ class FacilityScheduleConcurrencyIntegrationTest {
     }
 
     @Test
-    @DisplayName("방 취소와 참가 신청의 잠금 순서가 겹치면 방·신청·알림을 변경하지 않고 취소 재시도를 안내한다")
-    void cancellationReleasesFacilityWhenRecipientApplicationIsWaiting() throws Exception {
+    @DisplayName("방 취소가 시설을 잡은 동안 신청은 시설 락에서 기다리고, 취소가 끝나면 모집 중이 아니라 거절된다")
+    void applicationWaitsForFacilityWhileCancellationCompletes() throws Exception {
         CountDownLatch cancellationLockedFacility = new CountDownLatch(1);
         CountDownLatch applicationReachedFacilityLock = new CountDownLatch(1);
         doAnswer(invocation -> {
@@ -296,7 +295,7 @@ class FacilityScheduleConcurrencyIntegrationTest {
             await(applicationReachedFacilityLock);
             return result;
         }).doAnswer(invocation -> {
-            // 신청은 수신자 계정을 먼저 잠갔고 이제 취소가 보유한 시설 락을 요청한다.
+            // 신청은 계정보다 시설을 먼저 잠그므로(시설 → 매칭방 → 계정) 아직 계정을 잡지 않은 채 시설 락을 요청한다.
             applicationReachedFacilityLock.countDown();
             return invocation.callRealMethod();
         }).when(facilityReservationService).lockActiveFacility(OPEN_FACILITY_ID);
@@ -308,19 +307,18 @@ class FacilityScheduleConcurrencyIntegrationTest {
             Future<?> application = pool.submit(() -> matchApplicationService.applyIndividual(
                     CONCURRENT_MATCH_ID, EXISTING_APPLICANT_USER_ID));
 
-            assertThatThrownBy(() -> cancellation.get(TERMINATION_SECONDS, TimeUnit.SECONDS))
-                    .isInstanceOf(ExecutionException.class)
-                    .hasCauseInstanceOf(RoomCommandException.class)
-                    .hasRootCauseMessage("관련 회원 정보가 처리 중입니다. 잠시 후 매칭방 취소를 다시 시도해 주세요.");
+            // 신청이 계정을 먼저 잡지 않으므로 취소는 수신자 계정 잠금에서 막히지 않고 한 번에 끝난다.
+            cancellation.get(TERMINATION_SECONDS, TimeUnit.SECONDS);
             assertThatThrownBy(() -> awaitCompletion(application))
                     .isInstanceOf(MatchApplyException.class)
-                    .hasMessageContaining("이미 참가 신청한 매칭방입니다.");
+                    .hasMessageContaining("모집 중인 매칭방이 아닙니다.");
             assertThat(jdbcTemplate.queryForObject("SELECT status FROM social_match WHERE match_id = ?",
-                    String.class, CONCURRENT_MATCH_ID)).isEqualTo(MatchStatus.RECRUITING.dbValue());
-            assertRejectedWithoutNewApplication(CONCURRENT_MATCH_ID);
-            assertThat(roomCancellationRecipients(CONCURRENT_MATCH_ID)).isEmpty();
-
-            roomCommandService.cancel(MANAGER_USER_ID, CONCURRENT_MATCH_ID);
+                    String.class, CONCURRENT_MATCH_ID)).isEqualTo(MatchStatus.CANCELLED.dbValue());
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM match_application WHERE match_id = ? AND applicant_user_id = ?",
+                    Integer.class, CONCURRENT_MATCH_ID, EXISTING_APPLICANT_USER_ID))
+                    .as("거절된 신청은 match_application 행을 새로 만들지 않아야 한다")
+                    .isEqualTo(1);
             assertThat(roomCancellationRecipients(CONCURRENT_MATCH_ID)).containsExactly(EXISTING_APPLICANT_USER_ID);
         } finally {
             applicationReachedFacilityLock.countDown();
