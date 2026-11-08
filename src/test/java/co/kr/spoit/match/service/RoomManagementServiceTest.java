@@ -308,6 +308,69 @@ class RoomManagementServiceTest {
     }
 
     @Test
+    @DisplayName("시작한 배정 완료 경기가 레이팅 반영 전이면 레이팅 제외 버튼을 활성화한다")
+    void enablesRatingExclusionAfterStart() {
+        RoomManagementRow room = room(9401L, "매칭 완료", 2026, 11, 6, 18, 0);
+        room.setRatingStatus("WAITING");
+        given(mapper.findRoom(any())).willReturn(room);
+
+        RoomManagementDetail.Rating rating = serviceAt(LocalDateTime.of(2026, 11, 6, 18, 0))
+                .findDetail(MANAGER_ID, 9401L).getRating();
+
+        assertThat(rating.getLabel()).isEqualTo("반영 대기");
+        assertThat(rating.isWaiting()).isTrue();
+        assertThat(rating.isExcludable()).isTrue();
+    }
+
+    @Test
+    @DisplayName("시작 전 배정 완료 경기는 레이팅 제외 버튼을 비활성으로 둔다")
+    void disablesRatingExclusionBeforeStart() {
+        RoomManagementRow room = room(9401L, "매칭 완료", 2026, 11, 6, 18, 0);
+        room.setRatingStatus("WAITING");
+        given(mapper.findRoom(any())).willReturn(room);
+
+        RoomManagementDetail.Rating rating = serviceAt(LocalDateTime.of(2026, 11, 6, 17, 59))
+                .findDetail(MANAGER_ID, 9401L).getRating();
+
+        assertThat(rating.getLabel()).isEqualTo("경기 전");
+        assertThat(rating.isWaiting()).isTrue();
+        assertThat(rating.isExcludable()).isFalse();
+    }
+
+    @Test
+    @DisplayName("이미 반영·제외된 경기는 상태만 보여 주고 제외 버튼을 두지 않는다")
+    void showsProcessedRatingWithoutButton() {
+        RoomManagementRow applied = room(9401L, "종료", 2026, 11, 6, 18, 0);
+        applied.setRatingStatus("APPLIED");
+        RoomManagementRow excluded = room(9402L, "매칭 완료", 2026, 11, 6, 18, 0);
+        excluded.setRatingStatus("EXCLUDED");
+        given(mapper.findRoom(any())).willReturn(applied, excluded);
+        RoomManagementService later = serviceAt(LocalDateTime.of(2026, 11, 7, 10, 0));
+
+        RoomManagementDetail.Rating appliedRating = later.findDetail(MANAGER_ID, 9401L).getRating();
+        RoomManagementDetail.Rating excludedRating = later.findDetail(MANAGER_ID, 9402L).getRating();
+
+        assertThat(appliedRating.getLabel()).isEqualTo("반영 완료");
+        assertThat(excludedRating.getLabel()).isEqualTo("레이팅 제외됨");
+        assertThat(List.of(appliedRating, excludedRating)).extracting(RoomManagementDetail.Rating::isWaiting)
+                .containsOnly(false);
+    }
+
+    @Test
+    @DisplayName("팀 배정 전이거나 레이팅 상태를 알 수 없으면 레이팅 섹션을 숨긴다")
+    void hidesRatingWhenNotApplicable() {
+        RoomManagementRow recruiting = room(9401L, "모집 중", 2026, 11, 6, 18, 0);
+        recruiting.setRatingStatus("WAITING");
+        RoomManagementRow unknown = room(9402L, "매칭 완료", 2026, 11, 6, 18, 0);
+        unknown.setRatingStatus("READY");
+        given(mapper.findRoom(any())).willReturn(recruiting, unknown);
+        RoomManagementService later = serviceAt(LocalDateTime.of(2026, 11, 7, 10, 0));
+
+        assertThat(later.findDetail(MANAGER_ID, 9401L).getRating()).isNull();
+        assertThat(later.findDetail(MANAGER_ID, 9402L).getRating()).isNull();
+    }
+
+    @Test
     @DisplayName("상세 조회도 담당자 식별자를 조회 조건으로 넘긴다")
     void scopesDetailQueryByManager() {
         given(mapper.findRoom(any())).willReturn(row(9401L, "모집 중", 2, 8));
