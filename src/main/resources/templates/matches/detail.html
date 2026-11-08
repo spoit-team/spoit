@@ -107,19 +107,6 @@
         <small th:text="${match.occupancyCaption}">안내</small>
       </div>
 
-      <section th:if="${match.myApplication.visible}" class="md-my-application" aria-labelledby="my-application-heading">
-        <div class="md-my-application-heading"><h3 id="my-application-heading">내 신청 내역</h3><a th:href="@{/mypage#reservations}">신청 내역 관리</a></div>
-        <dl class="md-my-application-facts">
-          <div><dt>신청 유형</dt><dd th:text="${match.myApplication.kindLabel}">개인 참가</dd></div>
-          <div><dt>신청 인원</dt><dd th:text="${match.myApplication.seatsText}">1명</dd></div>
-          <div><dt>접수 번호</dt><dd th:text="${match.myApplication.receiptNo}">접수 번호</dd></div>
-          <div><dt>접수 일시</dt><dd th:text="${match.myApplication.createdAtText}">일시</dd></div>
-          <div><dt>신청 상태</dt><dd th:classappend="${match.myApplication.statusClass}" th:text="${match.myApplication.statusLabel}">확정</dd></div>
-          <div th:if="${match.myApplication.teamLabel != null}"><dt>팀 배정</dt><dd th:text="${match.myApplication.teamLabel}">A팀</dd></div>
-        </dl>
-        <p class="md-my-application-note" th:text="${match.myApplication.note}">안내</p>
-      </section>
-
       <div th:if="${match.canApply and currentMember != null}" class="md-apply-actions">
         <button type="button" class="md-button md-button-primary" data-open-selection="individual">개인으로 참가하기</button>
         <button type="button" id="team-apply-button" class="md-button md-button-secondary" data-open-selection="team" th:disabled="${!match.hasTeams}">등록 팀으로 신청하기</button>

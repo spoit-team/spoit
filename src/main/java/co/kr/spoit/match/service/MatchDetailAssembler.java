@@ -18,7 +18,6 @@ import co.kr.spoit.match.domain.ParticipationStatus;
 import co.kr.spoit.match.dto.Fact;
 import co.kr.spoit.match.dto.MatchDetailPage;
 import co.kr.spoit.match.dto.MatchDetailPage.Facility;
-import co.kr.spoit.match.dto.MatchDetailPage.MyApplication;
 import co.kr.spoit.match.dto.MatchDetailPage.RosterMember;
 import co.kr.spoit.match.dto.MatchDetailPage.TeamMemberOption;
 import co.kr.spoit.match.dto.MatchDetailPage.TeamOption;
@@ -150,7 +149,6 @@ public class MatchDetailAssembler {
                         .toList())
                 .applyMessage(message.text())
                 .applyMessageClass(message.cssClass())
-                .myApplication(MyApplication.HIDDEN)
                 .canApply(canApply)
                 .hasTeams(!clubs.isEmpty())
                 .clubs(clubs)
