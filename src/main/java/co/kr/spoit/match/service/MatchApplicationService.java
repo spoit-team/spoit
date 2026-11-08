@@ -226,13 +226,12 @@ public class MatchApplicationService {
      */
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public String applyIndividual(long matchId, long userId) {
-        // 첫 조회로 회원 행을 잠가, 같은 회원의 다른 매치 신청이 끝난 뒤의 상태로 시간 겹침을 확인한다.
-        applicationMapper.lockUsers(List.of(userId));
         LocalDateTime now = LocalDateTime.now(ZONE);
 
         MatchRow match = lockForApply(matchId, now);
         // 잠금 순서: 시설 → 매칭방 → 신청자 계정. 계정을 잠근 뒤 최신 값으로 탈퇴·정지를 다시 확인해야
         // 동시 탈퇴가 신청 행을 남기지 않는다(잠금 전 조회는 스냅샷일 수 있다).
+        // 같은 회원의 다른 매치 신청도 이 계정 잠금에서 줄을 서므로, 아래 시간 겹침 확인은 앞 신청이 커밋된 뒤의 값을 본다.
         requireApplicableMemberLocked(userId, now);
         if (applicationMapper.existsActiveEntry(matchId, userId, ApplicationStatus.activeValues())) {
             throw new MatchApplyException("이미 참가 신청한 매칭방입니다.");
@@ -267,16 +266,15 @@ public class MatchApplicationService {
         if (ids.isEmpty()) {
             throw new MatchApplyException(NO_TEAM_MEMBER);
         }
-        // 첫 조회로 대표와 팀원 회원 행을 잠근다 (개인 신청과 같은 이유, 잠금 읽기만 써서 스냅숏을 늦춘다).
-        List<Long> lockIds = new ArrayList<>(applicationMapper.lockClubMemberUserIds(ids));
-        lockIds.add(userId);
-        applicationMapper.lockUsers(distinctIds(lockIds));
         LocalDateTime now = LocalDateTime.now(ZONE);
+        // 잠금 없이 대표 상태만 미리 걸러 낸다. 최종 확인은 계정을 잠근 뒤 다시 한다.
         requireApplicableMember(userId, now);
 
         MatchRow match = lockForApply(matchId, now);
-        // 잠금 순서: 시설 → 매칭방 → 동호회 → 포함 계정. 동호회 행을 먼저 잠가야 동시 회장 위임(동호회 → 계정)과
-        // 순서가 같아진다. 여기서 계정을 먼저 잠그면 FK 삽입이 동호회 공유 잠금을 기다리며 교착이 생긴다.
+        // 잠금 순서: 시설 → 매칭방 → 동호회 → 대표·팀원 계정(식별자 오름차순).
+        // 회장 위임(동호회 → 계정 → 동호회원)과 같은 순서여야 교착이 생기지 않는다. 그래서 동호회원·계정 행을
+        // 동호회보다 먼저 잠그지 않는다. 동호회원을 바꾸는 경로(승인·위임·탈퇴·내보내기·해체)는 모두 동호회 행을
+        // 먼저 잠그므로, 동호회를 잠근 뒤 읽는 소속 정보는 이 트랜잭션이 끝날 때까지 바뀌지 않는다.
         if (clubService.lockActiveClub(clubId) == null) {
             throw new MatchApplyException("팀으로 신청할 수 있는 동호회가 아닙니다.");
         }
@@ -312,8 +310,8 @@ public class MatchApplicationService {
             selected.add(m);
         }
 
-        // 잠금 순서: 시설 → 매칭방 → 신청에 포함되는 모든 계정(식별자 오름차순).
-        // 대표와 팀원 계정을 함께 잠가야 동시 탈퇴가 팀 신청 행을 남기지 않는다.
+        // 대표와 팀원 계정을 한 번에 잠근다(식별자 오름차순). 동시 탈퇴가 팀 신청 행을 남기지 않고,
+        // 같은 회원의 다른 매치 신청도 이 잠금에서 줄을 서므로 아래 시간 겹침 확인은 앞 신청이 커밋된 뒤의 값을 본다.
         List<Long> accountIds = new ArrayList<>();
         accountIds.add(userId);
         for (TeamMemberRow m : selected) {

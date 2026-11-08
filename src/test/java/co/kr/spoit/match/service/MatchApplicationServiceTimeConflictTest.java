@@ -117,7 +117,6 @@ class MatchApplicationServiceTimeConflictTest {
     @Test
     @DisplayName("팀 신청: 대표와 팀원의 계정을 잠근 뒤 시간이 겹치는 팀원의 이름을 안내한다")
     void teamMemberConflictBlocksApply() {
-        given(mapper.lockClubMemberUserIds(List.of(101L, 102L))).willReturn(List.of(21L, 22L));
         List<Long> applicantIds = List.of(USER_ID, 21L, 22L);
         given(accountLockService.lockAllById(applicantIds))
                 .willReturn(applicantIds.stream().map(MatchApplicationServiceTimeConflictTest::account).toList());

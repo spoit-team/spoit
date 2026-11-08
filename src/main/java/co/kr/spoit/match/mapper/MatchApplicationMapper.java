@@ -26,15 +26,6 @@ public interface MatchApplicationMapper {
     Long findFacilityId(@Param("matchId") long matchId);
 
     /**
-     * 신청 회원 행 잠금 (id 순). 같은 회원의 다른 매치 신청을 한 줄로 세워 시간 겹침 검사가 서로 비껴가지 않게 한다.
-     * 트랜잭션의 첫 조회로 불러야 이후 일반 조회가 앞선 신청의 커밋 결과를 본다.
-     */
-    List<Long> lockUsers(@Param("userIds") List<Long> userIds);
-
-    /** 팀 신청 잠금 전 팀원 회원 id 조회. 잠금 읽기라 트랜잭션 스냅숏을 만들지 않는다. */
-    List<Long> lockClubMemberUserIds(@Param("clubMemberIds") List<Long> clubMemberIds);
-
-    /**
      * 회원들이 이미 들어가 있는(활성 신청·참가) 다른 매치 중 이 매치와 시간이 겹치는 것.
      * 끝나는 시각에 바로 시작하는 연속 매치는 겹치지 않는다. 취소된 매치는 제외한다.
      */

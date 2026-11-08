@@ -15,29 +15,6 @@
          WHERE sm.match_id = #{matchId}
     </select>
 
-    <!-- OF sm: 시설 행까지 잠그지 않도록 매칭방 행만 잠근다. facility_id는 시설 잠금 뒤 재확인용 -->
-    <!-- 잠금 읽기만 쓰므로 트랜잭션 스냅숏이 이 잠금을 얻은 뒤에 만들어진다 -->
-    <select id="lockUsers" resultType="long">
-        SELECT user_id
-          FROM app_user
-         WHERE user_id IN
-               <foreach collection="userIds" item="id" open="(" separator="," close=")">
-                   #{id}
-               </foreach>
-         ORDER BY user_id
-           FOR UPDATE
-    </select>
-
-    <select id="lockClubMemberUserIds" resultType="long">
-        SELECT user_id
-          FROM club_member
-         WHERE club_member_id IN
-               <foreach collection="clubMemberIds" item="id" open="(" separator="," close=")">
-                   #{id}
-               </foreach>
-           FOR SHARE
-    </select>
-
     <!--
       시간 겹침: 기존 시작 < 새 종료 AND 기존 종료 > 새 시작.
       활성 신청 행과, 이전 방식 동호회 신청처럼 신청 행 없이 참가자로만 들어간 행을 함께 본다.
@@ -79,6 +56,8 @@
          ORDER BY sm.start_at, sm.match_id
     </select>
 
+    <!-- OF sm: 시설 행까지 잠그지 않도록 매칭방 행만 잠근다. facility_id는 시설 잠금 뒤 재확인용 -->
+    <!-- 잠금 읽기만 쓰므로 트랜잭션 스냅숏이 이 잠금을 얻은 뒤에 만들어진다 -->
     <select id="lockMatch" resultType="co.kr.spoit.match.dto.MatchRow">
         SELECT sm.match_id,
                sm.title,

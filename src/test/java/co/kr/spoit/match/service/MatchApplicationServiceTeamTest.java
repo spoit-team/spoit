@@ -258,6 +258,22 @@ class MatchApplicationServiceTeamTest {
     }
 
     @Test
+    @DisplayName("동호회를 잠그기 전에는 계정을 잠그지 않고, 대표·팀원 계정은 한 번에 한 번만 잠근다")
+    void locksAccountsOnlyOnceAfterClub() {
+        given(mapper.countOccupiedSeats(anyLong(), anyList(), anyString())).willReturn(0);
+        given(accountLockService.lockAllById(any()))
+                .willReturn(List.of(account(LEADER_ID), account(21L), account(22L)));
+
+        service.applyTeam(MATCH_ID, LEADER_ID, CLUB_ID, List.of(101L, 102L));
+
+        // 동호회보다 먼저 계정을 잠그면 회장 위임(동호회 → 계정)과 순서가 뒤집혀 교착이 생긴다.
+        InOrder order = inOrder(clubService, accountLockService);
+        order.verify(clubService).lockActiveClub(CLUB_ID);
+        order.verify(accountLockService).lockAllById(any());
+        verifyNoMoreInteractions(accountLockService);
+    }
+
+    @Test
     @DisplayName("팀 매치 신청은 매칭방을 잠근 뒤 동호회를 잠가 매칭방 → 동호회 역순이 생기지 않는다")
     void doesNotLockClubBeforeMatch() {
         given(mapper.countOccupiedSeats(anyLong(), anyList(), anyString())).willReturn(0);
