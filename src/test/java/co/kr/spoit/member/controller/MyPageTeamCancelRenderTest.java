@@ -24,7 +24,6 @@ import co.kr.spoit.global.config.SecurityConfig;
 import co.kr.spoit.mat.mapper.MyRatingRecordMapper;
 import co.kr.spoit.mat.service.MatchResultPageService;
 import co.kr.spoit.mat.service.MyRatingRecordService;
-import co.kr.spoit.mat.service.SportRatingService;
 import co.kr.spoit.match.dto.MyReservations;
 import co.kr.spoit.match.dto.MyReservations.Entry;
 import co.kr.spoit.match.dto.MyReservations.TeamMemberOption;
@@ -49,9 +48,6 @@ class MyPageTeamCancelRenderTest {
 
     @MockitoBean
     private MemberService memberService;
-
-    @MockitoBean
-    private SportRatingService sportRatingService;
 
     @MockitoBean
     private MyReservationService reservationService;

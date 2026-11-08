@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,10 +34,10 @@ import co.kr.spoit.mat.domain.MyRatingRow;
 import co.kr.spoit.mat.mapper.MyRatingRecordMapper;
 import co.kr.spoit.mat.service.MatchResultPageService;
 import co.kr.spoit.mat.service.MyRatingRecordService;
-import co.kr.spoit.mat.service.SportRatingService;
 import co.kr.spoit.match.dto.MyReservations;
 import co.kr.spoit.match.service.MatchApplicationService;
 import co.kr.spoit.match.service.MyReservationService;
+import co.kr.spoit.member.dto.SportOption;
 import co.kr.spoit.member.security.MemberLoginFailureHandler;
 import co.kr.spoit.member.security.MemberLoginSuccessHandler;
 import co.kr.spoit.member.service.MemberService;
@@ -57,9 +58,6 @@ class MyPageRatingRecordRenderTest {
 
     @MockitoBean
     private MemberService memberService;
-
-    @MockitoBean
-    private SportRatingService sportRatingService;
 
     @MockitoBean
     private MyReservationService reservationService;
@@ -87,6 +85,52 @@ class MyPageRatingRecordRenderTest {
                 rating(3L, "농구", "1000.00", 3)));
         given(recordMapper.countHistory(USER_ID, null)).willReturn(2);
         given(recordMapper.countHistory(USER_ID, 2L)).willReturn(2);
+    }
+
+    @Test
+    @DisplayName("대표 종목을 정하지 않았으면 가장 많이 뛴 종목을 경기 기록 기준으로 보이고, 다른 종목 목록에서는 뺀다")
+    void marksFallbackRepresentativeAndLeavesItOutOfOtherSports() throws Exception {
+        mockMvc.perform(get("/mypage").with(user(member())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(allOf(
+                        containsString("대표 종목 레이팅 · 경기 기록 기준</span>"),
+                        containsString("<strong>실버 4 · 63P</strong>"),
+                        containsString(">풋살</a>"),
+                        containsString("aria-label=\"농구 경기 기록 보기\""),
+                        containsString("<span>농구</span><strong>배치 중 (3/5)</strong><small>경기 3회 · MMR 1,000</small>"))))
+                .andExpect(content().string(not(containsString("aria-label=\"풋살 경기 기록 보기\""))));
+
+        // 프로필 영역은 아래 종목 카드와 같은 조회 결과를 쓴다.
+        verify(recordMapper, times(1)).findRatings(USER_ID);
+    }
+
+    @Test
+    @DisplayName("반영된 경기가 없고 대표 종목도 없으면 기록 없음만 보이고 종목 링크는 그리지 않는다")
+    void hidesSportLinkWithoutAnyRecord() throws Exception {
+        given(recordMapper.findRatings(USER_ID)).willReturn(List.of());
+
+        mockMvc.perform(get("/mypage").with(user(member())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(allOf(
+                        containsString("<span class=\"mypage-summary-label\">대표 종목 레이팅</span>"),
+                        containsString("<strong>기록 없음</strong>"))))
+                .andExpect(content().string(not(containsString("mypage-skill-sport-link"))));
+    }
+
+    @Test
+    @DisplayName("프로필 수정 화면의 종목 option은 그 종목 레이팅을 data-rating으로 싣고, 처음 미리보기는 저장된 대표 종목 레이팅이다")
+    void profileOptionsCarrySportRatings() throws Exception {
+        given(memberService.findSports()).willReturn(List.of(
+                sportOption(2L, "풋살"), sportOption(3L, "농구"), sportOption(4L, "배구")));
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.of(sportOption(2L, "풋살")));
+
+        mockMvc.perform(get("/mypage/profile").with(user(member())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(allOf(
+                        containsString("value=\"2\" data-rating=\"실버 4 · 63P\""),
+                        containsString("value=\"3\" data-rating=\"배치 중 (3/5)\""),
+                        containsString("value=\"4\" data-rating=\"기록 없음\""),
+                        containsString("id=\"representative-level-preview\">실버 4 · 63P</strong>"))));
     }
 
     @Test
@@ -142,6 +186,13 @@ class MyPageRatingRecordRenderTest {
                 .andExpect(content().string(containsString("<p>전체 종목</p>")));
 
         verify(recordMapper, times(2)).findHistory(eq(USER_ID), isNull(), eq(20));
+    }
+
+    private static SportOption sportOption(Long sportId, String name) {
+        var sport = new SportOption();
+        sport.setSportId(sportId);
+        sport.setName(name);
+        return sport;
     }
 
     private static MyRatingRow rating(Long sportId, String sportName, String mmr, int ratedMatchCount) {

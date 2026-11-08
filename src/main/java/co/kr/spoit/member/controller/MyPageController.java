@@ -2,10 +2,13 @@ package co.kr.spoit.member.controller;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -23,10 +26,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import co.kr.spoit.mat.dto.SportRatingResponse;
+import co.kr.spoit.mat.dto.MyRatingRecords;
+import co.kr.spoit.mat.dto.MyRatingRecords.SportCard;
 import co.kr.spoit.mat.service.MatchResultPageService;
 import co.kr.spoit.mat.service.MyRatingRecordService;
-import co.kr.spoit.mat.service.SportRatingService;
 import co.kr.spoit.match.dto.MyReservations;
 import co.kr.spoit.match.service.MatchApplicationService;
 import co.kr.spoit.match.service.MatchApplyException;
@@ -60,13 +63,13 @@ public class MyPageController {
     /** 지역이 여러 개일 때 이어 붙이는 구분자 */
     private static final String REGION_SEPARATOR = " · ";
 
-    private static final List<Object> EMPTY_LIST = List.of();
-
     /** 확정된 레이팅 기록이 없을 때 화면에 보여줄 문구 */
     private static final String NO_RATING_TEXT = "기록 없음";
 
+    /** 대표 종목을 정하지 않아 반영 경기가 가장 많은 종목을 대신 보여 줄 때 붙이는 표시 */
+    private static final String BY_RECORDS_TEXT = "경기 기록 기준";
+
     private final MemberService memberService;
-    private final SportRatingService sportRatingService;
     private final MyReservationService reservationService;
     private final MatchApplicationService applicationService;
     private final MatchResultPageService resultPageService;
@@ -99,11 +102,15 @@ public class MyPageController {
         MyReservations reservations = (userId == null || userId <= 0)
                 ? MyReservations.empty() : reservationService.find(userId);
 
-        model.addAttribute("member", memberView(principal));
-        model.addAttribute("summary", summaryView(userId, reservations));
-        model.addAttribute("otherSports", EMPTY_LIST);
         // 종목 필터 값이 잘못돼도 오류 없이 전체로 보이도록 문자열로 받아 서비스에 넘긴다.
-        model.addAttribute("records", ratingRecordService.find(userId, recordSport));
+        MyRatingRecords records = ratingRecordService.find(userId, recordSport);
+        // 프로필 영역의 대표·다른 종목 레이팅은 아래 종목 카드와 같은 조회 결과로 그린다.
+        Representative representative = representativeOf(userId, records.getSports());
+
+        model.addAttribute("member", memberView(principal));
+        model.addAttribute("summary", summaryView(representative, reservations));
+        model.addAttribute("otherSports", otherSportsView(records.getSports(), representative.sportId()));
+        model.addAttribute("records", records);
         model.addAttribute("currentReservations", reservations.getCurrent());
         model.addAttribute("pastReservations", reservations.getPast());
         model.addAttribute("resultSubmitMatchIds", resultPageService.findResultSubmittableMatchIds(userId));
@@ -159,16 +166,13 @@ public class MyPageController {
         return member;
     }
 
-    /** 대표 종목·저장된 레이팅과 신청 내역 집계(참가 확정·완료·확정 대기)를 담는다. */
-    private Map<String, Object> summaryView(Long userId, MyReservations reservations) {
-        Optional<SportOption> representative =
-                (userId == null || userId <= 0) ? Optional.empty() : memberService.findRepresentativeSport(userId);
+    /** 대표 종목·레이팅과 신청 내역 집계(참가 확정·완료·확정 대기)를 담는다. 종목 이름이 null이면 템플릿이 종목 링크를 그리지 않는다. */
+    private Map<String, Object> summaryView(Representative representative, MyReservations reservations) {
         Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("representativeRatingText", representative
-                .map(sport -> ratingText(userId, sport.getSportId()))
-                .orElse(NO_RATING_TEXT));
-        summary.put("representativeSportId", representative.<Object>map(SportOption::getSportId).orElse(""));
-        summary.put("representativeSportName", representative.map(SportOption::getName).orElse("종목"));
+        summary.put("representativeRatingText", representative.ratingText());
+        summary.put("representativeSportId", representative.sportId() == null ? "" : representative.sportId());
+        summary.put("representativeSportName", representative.name());
+        summary.put("representativeBasis", representative.byRecords() ? BY_RECORDS_TEXT : null);
         summary.put("skillNote", "확정 경기 결과로 계산한 레이팅을 티어로 표시합니다. 배치 5경기 후 티어가 정해집니다.");
         summary.put("confirmedCount", reservations.getConfirmedCount());
         summary.put("completedCount", reservations.getCompletedCount());
@@ -177,14 +181,43 @@ public class MyPageController {
         return summary;
     }
 
-    /** 레이팅 행을 티어로 표시한다(배치 중이면 배치 문구). 행이 없거나 확정 매치가 없으면 기록 없음. */ 
-    private String ratingText(Long userId, Long sportId) {
-        SportRatingResponse rating = sportRatingService.findByUserIdAndSportId(userId, sportId).orElse(null);
-        if (rating == null || rating.ratedMatchCount() == null || rating.ratedMatchCount() <= 0
-                || rating.currentMmr() == null) {
-            return NO_RATING_TEXT;
+    /**
+     * 설정한 대표 종목을 쓰고, 그 종목에 반영된 경기가 없으면 기록 없음으로 둔다.
+     * 설정하지 않았으면 반영 경기가 가장 많은 종목(같으면 종목 번호가 작은 쪽)을 대신 보여 준다.
+     * 종목 카드는 반영된 경기가 있는 종목만 담는다.
+     */
+    private Representative representativeOf(Long userId, List<SportCard> cards) {
+        Optional<SportOption> chosen =
+                (userId == null || userId <= 0) ? Optional.empty() : memberService.findRepresentativeSport(userId);
+        if (chosen.isPresent()) {
+            SportOption sport = chosen.get();
+            String ratingText = cards.stream()
+                    .filter(card -> Objects.equals(card.getSportId(), sport.getSportId()))
+                    .map(SportCard::getTierLabel)
+                    .findFirst()
+                    .orElse(NO_RATING_TEXT);
+            return new Representative(sport.getSportId(), sport.getName(), ratingText, false);
         }
-        return rating.tierLabel();
+        return cards.stream()
+                .min(Comparator.comparingInt(SportCard::getRatedMatchCount).reversed()
+                        .thenComparing(SportCard::getSportId))
+                .map(card -> new Representative(card.getSportId(), card.getName(), card.getTierLabel(), true))
+                .orElse(new Representative(null, null, NO_RATING_TEXT, false));
+    }
+
+    /** 대표 종목을 뺀, 반영된 경기가 있는 종목. 템플릿의 sport.sportId·name·ratingText·note를 채운다. */
+    private static List<Map<String, Object>> otherSportsView(List<SportCard> cards, Long representativeSportId) {
+        return cards.stream()
+                .filter(card -> !Objects.equals(card.getSportId(), representativeSportId))
+                .map(card -> {
+                    Map<String, Object> sport = new LinkedHashMap<>();
+                    sport.put("sportId", card.getSportId());
+                    sport.put("name", card.getName());
+                    sport.put("ratingText", card.getTierLabel());
+                    sport.put("note", "경기 " + card.getRatedMatchCount() + "회 · " + card.getMmrText());
+                    return sport;
+                })
+                .toList();
     }
 
     /** 프로필 수정 화면. 로그인 회원이면 저장된 정보를, 아니면 빈 폼을 보여준다. */
@@ -253,7 +286,6 @@ public class MyPageController {
         profile.put("nickname", form == null ? "" : nullToEmpty(form.getNickname()));
         profile.put("phone", form == null ? "" : nullToEmpty(form.getPhone()));
         profile.put("representativeSportId", form == null ? null : form.getRepresentativeSportId());
-        profile.put("representativeRatingText", NO_RATING_TEXT);
         profile.put("representativeRatingNote", "확정 매치 기록이 없으면 기록 없음으로 표시합니다.");
         profile.put("regionId", form == null ? null : form.getRegionId());
         profile.put("email", principal.getEmail());
@@ -262,8 +294,16 @@ public class MyPageController {
 
     /** 프로필 화면 모델을 조립한다. 선택지가 없으면 저장된 지역을 표시할 수 없으므로 가입 화면과 같은 자치구 목록을 쓴다. */
     private String renderProfile(Model model, Long userId, Map<String, Object> profile, String error, String message) {
+        // 종목 option의 data-rating과 처음 미리보기 문구가 같은 값을 쓰도록 한 번 읽어 둔다.
+        Map<Long, String> sportRatings = ratingRecordService.findSportCards(userId).stream()
+                .collect(Collectors.toMap(SportCard::getSportId, SportCard::getTierLabel));
+        if (profile != null) {
+            profile.put("representativeRatingText",
+                    sportRatings.getOrDefault(profile.get("representativeSportId"), NO_RATING_TEXT));
+        }
         model.addAttribute("profile", profile);
         model.addAttribute("sports", memberService.findSports());
+        model.addAttribute("sportRatings", sportRatings);
         model.addAttribute("districts", memberService.findSignupRegions());
         model.addAttribute("error", error);
         model.addAttribute("message", message);
@@ -295,7 +335,6 @@ public class MyPageController {
         profile.put("email", nullToEmpty(principal.getEmail()));
         profile.put("phone", member == null ? nullToEmpty(principal.getPhone()) : nullToEmpty(member.getPhone()));
         profile.put("representativeSportId", representative.map(SportOption::getSportId).orElse(null));
-        profile.put("representativeRatingText", NO_RATING_TEXT);
         profile.put("representativeRatingNote", "확정 매치 기록이 없으면 기록 없음으로 표시합니다.");
         profile.put("regionId", regions.isEmpty() ? null : regions.get(0).getRegionId());
         return profile;
@@ -327,5 +366,9 @@ public class MyPageController {
 
     private static String nullToEmpty(String value) {
         return value == null ? "" : value;
+    }
+
+    /** 프로필 영역에 보여 줄 대표 종목. byRecords는 설정 대신 경기 기록으로 고른 경우다. */
+    private record Representative(Long sportId, String name, String ratingText, boolean byRecords) {
     }
 }

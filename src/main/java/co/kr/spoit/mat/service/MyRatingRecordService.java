@@ -62,6 +62,14 @@ public class MyRatingRecordService {
                 EMPTY_NOTE);
     }
 
+    /** 프로필 수정 화면처럼 경기 이력 없이 종목 카드만 필요할 때 쓴다. */
+    public List<SportCard> findSportCards(Long userId) {
+        if (userId == null || userId <= 0) {
+            return List.of();
+        }
+        return recordMapper.findRatings(userId).stream().map(rating -> sportCard(rating, false)).toList();
+    }
+
     // 숫자가 아니거나 내 레이팅이 없는 종목이면 전체로 본다.
     private static MyRatingRow selectedSport(List<MyRatingRow> ratings, String recordSport) {
         if (recordSport == null || recordSport.isBlank()) {
