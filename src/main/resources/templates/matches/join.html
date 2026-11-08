@@ -50,7 +50,7 @@
             <span class="join-selected-count" th:text="${selection.seats + '명'}">1명</span>
           </div>
           <dl class="join-selected-contact">
-            <div><dt>연락처</dt><dd th:text="${selection.applicantPhone}">010-0000-0000</dd></div>
+            <!--/* 연락처 안내 기능이 생기면 다시 표시: <div><dt>연락처</dt><dd th:text="${selection.applicantPhone}">010-0000-0000</dd></div> */-->
             <div><dt>신청 방식</dt><dd th:text="${selection.applicationType == 'team' ? '팀 단위 참가' : '개인 참가'}">개인 참가</dd></div>
           </dl>
           <div class="join-selected-roster"><h4>참가 인원</h4><ul>

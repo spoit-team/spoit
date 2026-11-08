@@ -150,7 +150,7 @@
     if (heading) heading.textContent = kind === 'team' ? '등록 팀 참가 신청' : '개인 참가 신청';
     if (lede) lede.textContent = kind === 'team'
       ? '신청할 등록 팀과 참가할 팀원을 선택해 주세요.'
-      : '신청자 정보와 연락처를 확인해 주세요.';
+      : '신청자 정보를 확인해 주세요.';
     showError('');
     renderTeamStep();
     if (!dialog.open) dialog.showModal();
