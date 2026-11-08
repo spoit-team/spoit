@@ -193,7 +193,8 @@ public class MatchResultService {
         List<ResultSubmission> active = resultMapper.findActiveSubmissions(matchId, SubmissionStatus.REPLACED.name());
         ResultSubmission mine = submissionOf(active, captains.mine());
         ResultSubmission opponent = submissionOf(active, captains.opponent());
-        Optional<MatchResultResponse> rejection = checkSubmittable(match, mine, now);
+        Optional<MatchResultResponse> rejection = checkSubmittable(match, mine, now)
+                .or(() -> checkSameResubmission(mine, result));
         if (rejection.isPresent()) {
             return rejection.get();
         }
@@ -412,6 +413,17 @@ public class MatchResultService {
         if (mine != null && !SubmissionStatus.CONFLICT.name().equals(mine.getSubmissionStatus())) {
             return Optional.of(MatchResultResponse.of(Outcome.ALREADY_SUBMITTED,
                     "이미 결과를 제출했습니다. 상대 팀장과 결과가 다를 때만 다시 제출할 수 있습니다."));
+        }
+        return Optional.empty();
+    }
+
+    // 불일치 상태에서 직전과 같은 결과를 다시 내면 상태는 그대로인데 두 팀장에게 알림만 반복된다.
+    // 조회 화면의 canSubmit은 다른 결과를 낼 수 있어 참이어야 하므로 checkSubmittable과 나눠 둔다.
+    private static Optional<MatchResultResponse> checkSameResubmission(ResultSubmission mine, MatchResult result) {
+        if (mine != null && SubmissionStatus.CONFLICT.name().equals(mine.getSubmissionStatus())
+                && result.name().equals(mine.getReportedResult())) {
+            return Optional.of(MatchResultResponse.of(Outcome.ALREADY_SUBMITTED,
+                    "이미 같은 결과를 제출했습니다. 결과를 바꾸려면 다른 결과를 선택해 주세요."));
         }
         return Optional.empty();
     }

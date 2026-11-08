@@ -27,6 +27,19 @@ class TeamCaptainSelectorTest {
     }
 
     @Test
+    void selectsHighestMmrAmongNegativeValues() {
+        // -3.00이 가장 높고, 같은 값이면 participantId가 작은 쪽이다.
+        var members = List.of(
+                candidate(8L, "-250.50"),
+                candidate(7L, "-3.00"),
+                candidate(5L, "-10.00"),
+                candidate(6L, "-3"));
+
+        assertThat(selector.selectCaptain(members)).isEqualTo(6L);
+        assertThat(selector.selectCaptain(reversed(members))).isEqualTo(6L);
+    }
+
+    @Test
     void selectsSmallestParticipantIdWhenHighestMmrIsTied() {
         var members = List.of(
                 candidate(9L, "1050.00"),

@@ -197,6 +197,40 @@ class MatchResultServiceTest {
     }
 
     @Test
+    void rejectsSameResultResubmissionDuringConflictWithoutChangesOrNotice() {
+        givenLockedMatch(match("매칭 완료", "CONFLICT", "WAITING"));
+        givenParticipants();
+        givenActiveSubmissions(submission(20L, 2L, "A_WIN", "CONFLICT"), submission(21L, 1L, "B_WIN", "CONFLICT"));
+
+        MatchResultResponse response = service.submit(MATCH_ID, CAPTAIN_A_USER, MatchResult.B_WIN, NOW);
+
+        assertThat(response.outcome()).isEqualTo(Outcome.ALREADY_SUBMITTED);
+        assertThat(response.message()).isEqualTo("이미 같은 결과를 제출했습니다. 결과를 바꾸려면 다른 결과를 선택해 주세요.");
+        verify(resultMapper, never()).updateSubmissionStatus(any(), any());
+        verify(resultMapper, never()).insertSubmission(any(), any(), any(), any(), any());
+        verify(resultMapper, never()).markResult(any(), any(), any(), any());
+        verifyNoInteractions(matchNotifier);
+    }
+
+    @Test
+    void allowsDifferentResultResubmissionDuringConflict() {
+        givenLockedMatch(match("매칭 완료", "CONFLICT", "WAITING"));
+        givenParticipants();
+        givenActiveSubmissions(submission(20L, 2L, "A_WIN", "CONFLICT"), submission(21L, 1L, "B_WIN", "CONFLICT"));
+
+        // 다른 결과지만 여전히 상대와 다르면 기존처럼 다시 불일치로 기록하고 알린다.
+        assertThat(service.submit(MATCH_ID, CAPTAIN_A_USER, MatchResult.DRAW, NOW).outcome())
+                .isEqualTo(Outcome.CONFLICT);
+        verify(resultMapper).updateSubmissionStatus(21L, "REPLACED");
+        verify(resultMapper).insertSubmission(MATCH_ID, 1L, "DRAW", "CONFLICT", NOW);
+        verify(resultMapper).updateSubmissionStatus(20L, "CONFLICT");
+        verify(resultMapper).markResult(MATCH_ID, "CONFLICT", null, null);
+        verify(matchNotifier).notifyAfterCommit(List.of(CAPTAIN_A_USER, CAPTAIN_B_USER), MATCH_ID,
+                NotificationType.MATCH_RESULT_CONFLICT, "경기 결과 확인 요청",
+                "상대 팀장과 경기 결과가 다릅니다. 제출 마감 전까지 다시 확인해 주세요.");
+    }
+
+    @Test
     void rejectsResubmissionUnlessConflict() {
         givenLockedMatch(match("매칭 완료", "SUBMITTED", "WAITING"));
         givenParticipants();

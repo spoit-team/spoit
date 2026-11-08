@@ -52,6 +52,37 @@ class AutoTeamAssignerTest {
     }
 
     @Test
+    void assignsTeamsWithNegativeMmrLikeAnyOtherValue() {
+        // 1번을 A팀에 고정한 세 구성의 차이는 300, 140, 40이다. 합계가 음수인 팀도 그대로 비교한다.
+        var participants = List.of(
+                candidate(1L, "-100"),
+                candidate(2L, "-50"),
+                candidate(3L, "30"),
+                candidate(4L, "120"));
+
+        TeamAssignment result = assigner.assign(participants, 2);
+
+        assertThat(result.teamAParticipantIds()).containsExactly(1L, 4L);
+        assertThat(result.teamBParticipantIds()).containsExactly(2L, 3L);
+        assertThat(result.teamAMmrSum()).isEqualTo(new BigDecimal("20.00"));
+        assertThat(result.teamBMmrSum()).isEqualTo(new BigDecimal("-20.00"));
+        assertThat(result.teamBMmrAverage()).isEqualTo(new BigDecimal("-10.00"));
+        assertThat(result.mmrDifference()).isEqualTo(new BigDecimal("40.00"));
+        assertThat(result.captainAParticipantId()).isEqualTo(4L);
+        assertThat(result.captainBParticipantId()).isEqualTo(3L);
+        assertMatchesOracle(participants, 2, result);
+    }
+
+    @Test
+    void matchesOracleWhenMmrRangeIncludesNegativeValues() {
+        Random random = new Random(20261108L);
+        for (int capacity = 1; capacity <= 4; capacity++) {
+            var participants = randomParticipants(random, capacity * 2, -200_000, 200_000);
+            assertMatchesOracle(participants, capacity, assigner.assign(participants, capacity));
+        }
+    }
+
+    @Test
     void picksLexicographicallyFirstSplitAmongZeroDifferenceSplits() {
         // 합 4100.00이 되는 A팀이 여럿이고, 그중 A팀 ID 목록이 사전순으로 가장 앞선 구성은 1,2,7,8이다.
         var participants = List.of(
