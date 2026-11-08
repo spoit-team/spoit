@@ -26,10 +26,20 @@ public class RoomManagementDetail {
     private final boolean teamAssigned;
     private final List<Application> applications;
     private final List<Participant> participants;
+    /** 레이팅 반영 섹션. 팀 배정 전·취소된 방처럼 레이팅과 무관하면 null이고 섹션을 숨긴다. */
+    private final Rating rating;
 
     public RoomManagementDetail(Long matchId, String title, String facilityName, String sportName,
             String dateLabel, String participation, String statusLabel, String statusTone,
             boolean teamAssigned, List<Application> applications, List<Participant> participants) {
+        this(matchId, title, facilityName, sportName, dateLabel, participation, statusLabel, statusTone,
+                teamAssigned, applications, participants, null);
+    }
+
+    public RoomManagementDetail(Long matchId, String title, String facilityName, String sportName,
+            String dateLabel, String participation, String statusLabel, String statusTone,
+            boolean teamAssigned, List<Application> applications, List<Participant> participants,
+            Rating rating) {
         this.matchId = matchId;
         this.title = title;
         this.facilityName = facilityName;
@@ -41,6 +51,32 @@ public class RoomManagementDetail {
         this.teamAssigned = teamAssigned;
         this.applications = List.copyOf(applications);
         this.participants = List.copyOf(participants);
+        this.rating = rating;
+    }
+
+    /**
+     * 레이팅 반영 상태와 노쇼 경기 레이팅 제외 가능 여부.
+     *
+     * <p>{@code excludable}은 화면 버튼 표시용이며, 실제 제외 가능 여부는 레이팅 제외 API가 잠금 아래에서 다시 확인한다.</p>
+     */
+    @Getter
+    public static class Rating {
+
+        private final String label;
+        private final String tone;
+        private final String message;
+        /** 아직 반영·제외 전이면 true. 제외 버튼을 보여 주고, 시작 전이면 비활성으로 둔다. */
+        private final boolean waiting;
+        /** 경기가 시작됐고 레이팅 반영 전이라 제외 버튼을 누를 수 있으면 true */
+        private final boolean excludable;
+
+        public Rating(String label, String tone, String message, boolean waiting, boolean excludable) {
+            this.label = label;
+            this.tone = tone;
+            this.message = message;
+            this.waiting = waiting;
+            this.excludable = excludable;
+        }
     }
 
     /** 참가 신청 한 건 (동호회 신청은 팀원마다 한 건) */

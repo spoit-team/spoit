@@ -190,6 +190,31 @@
           </div>
         </section>
 
+        <!-- 레이팅 반영: 노쇼 경기를 레이팅에서 뺀다. match-rating-exclusion.js가 확인창을 띄운 뒤 fetch로 보내고
+             응답에 맞춰 섹션만 바꾼다(새로고침하면 결과 토스트가 묻힌다). 제외 가능 여부는 API가 잠금 아래에서 다시 확인한다. -->
+        <section id="ops-rating" class="ops-section ops-rating" aria-labelledby="ops-rating-heading" th:if="${match.rating != null}"
+                 th:data-exclusion-url="@{/admin/operations/matches/{matchId}/rating-exclusion(matchId=${match.matchId})}"
+                 th:data-csrf-header="${_csrf?.headerName}" th:data-csrf-token="${_csrf?.token}">
+          <div class="section-heading ops-section-heading">
+            <div class="section-title-wrap">
+              <h2 id="ops-rating-heading">레이팅 반영</h2>
+              <p>경기 결과와 팀장 평가로 참가자 레이팅을 반영합니다.</p>
+            </div>
+            <span class="status-badge" th:classappend="${match.rating.tone}" th:text="${match.rating.label}">반영 대기</span>
+          </div>
+          <div class="notice-strip notice-policy" th:if="${match.rating.waiting}">
+            <strong>노쇼 경기는 레이팅에서 제외해 주세요</strong>
+            <p>두 팀장이 결과와 평가를 모두 제출하면 바로 레이팅에 반영되어 그 뒤에는 제외할 수 없습니다. 노쇼가 있었다면 반영 전에 제외해 주세요.</p>
+          </div>
+          <div class="ops-rating-actions">
+            <p class="ops-rating-message" th:if="${match.rating.message != null}" th:text="${match.rating.message}">레이팅 반영에서 제외된 경기입니다.</p>
+            <button class="admin-button small danger-ghost" type="button" data-rating-exclude
+                    th:if="${match.rating.waiting}"
+                    th:disabled="${!match.rating.excludable}"
+                    th:aria-label="${match.matchId + '번 경기 레이팅 제외'}">레이팅 제외</button>
+          </div>
+        </section>
+
         <div class="ops-footer-actions">
           <a class="admin-button small" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">매칭방 목록으로 돌아가기</a>
         </div>
@@ -230,10 +255,28 @@
   </section>
 </div>
 
+<!-- 레이팅 제외 확인창: 되돌릴 수 없으므로 결과를 한 번 더 알린다. -->
+<div th:if="${match?.rating?.excludable}" class="modal-backdrop" id="rating-exclusion-modal" hidden>
+  <section class="admin-modal rating-exclusion-modal" role="dialog" aria-modal="true" aria-labelledby="rating-exclusion-title">
+    <div class="modal-header">
+      <div><p class="report-modal-kicker">레이팅 반영</p><h2 id="rating-exclusion-title">레이팅 제외</h2></div>
+      <button class="modal-close" type="button" data-rating-cancel aria-label="확인창 닫기">×</button>
+    </div>
+    <div class="modal-body">
+      <p>이 경기를 레이팅 반영에서 제외할까요? 제외하면 팀장의 결과·평가 제출이 막히고 참가자 레이팅이 바뀌지 않습니다. 되돌릴 수 없습니다.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="admin-button small" type="button" data-rating-cancel>닫기</button>
+      <button class="admin-button small danger-solid" type="button" data-rating-submit>레이팅 제외</button>
+    </div>
+  </section>
+</div>
+
 <script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/admin-shell.js}"></script>
 <script th:src="@{/js/match-assignment.js}"></script>
 <script th:src="@{/js/participant-history.js}"></script>
 <script th:src="@{/js/match-application-decision.js}"></script>
+<script th:src="@{/js/match-rating-exclusion.js}"></script>
 </body>
 </html>

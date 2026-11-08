@@ -118,7 +118,8 @@
                sm.end_at,
                sm.max_participants,
                <include refid="occupiedCount"/> AS occupied_count,
-               sm.status
+               sm.status,
+               sm.rating_status
         <include refid="managedRoomFrom"/>
          WHERE sm.match_id = #{matchId}
     </select>

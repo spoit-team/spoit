@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import co.kr.spoit.mat.domain.RatingStatus;
 import co.kr.spoit.match.domain.ApplicationStatus;
 import co.kr.spoit.match.domain.ApplicationType;
 import co.kr.spoit.match.domain.MatchStatus;
@@ -295,7 +296,32 @@ public class RoomManagementService {
                 statusTone(row.getStatus()),
                 teamAssigned,
                 applications,
-                participants);
+                participants,
+                teamAssigned ? ratingOf(row) : null);
+    }
+
+    /**
+     * 레이팅 반영 섹션. 제외 가능 조건은 레이팅 제외 API({@code MatchResultService.excludeRating})와 맞춘다:
+     * 팀 배정이 끝났고, 경기가 시작됐고, 아직 반영·제외되지 않은 경기다. 알 수 없는 상태 값이면 섹션을 숨긴다.
+     */
+    private RoomManagementDetail.Rating ratingOf(RoomManagementRow row) {
+        String ratingStatus = row.getRatingStatus();
+        if (RatingStatus.APPLIED.name().equals(ratingStatus)) {
+            return new RoomManagementDetail.Rating("반영 완료", TONE_GOOD,
+                    "레이팅에 반영된 경기라 제외할 수 없습니다.", false, false);
+        }
+        if (RatingStatus.EXCLUDED.name().equals(ratingStatus)) {
+            return new RoomManagementDetail.Rating("레이팅 제외됨", TONE_NEUTRAL,
+                    "레이팅 반영에서 제외된 경기입니다.", false, false);
+        }
+        if (!RatingStatus.WAITING.name().equals(ratingStatus)) {
+            return null;
+        }
+        if (row.getStartAt() == null || row.getStartAt().isAfter(LocalDateTime.now(clock))) {
+            return new RoomManagementDetail.Rating("경기 전", TONE_NEUTRAL,
+                    "경기가 시작된 뒤 제외할 수 있습니다.", true, false);
+        }
+        return new RoomManagementDetail.Rating("반영 대기", TONE_WARN, null, true, true);
     }
 
     /** 팀 배정 화면과 같은 기준: 매칭 완료·종료면 배정이 끝난 경기다. */

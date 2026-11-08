@@ -178,15 +178,38 @@
   color: var(--admin-muted);
 }
 
-.application-decision-modal {
+.application-decision-modal,
+.rating-exclusion-modal {
   width: min(100%, 420px);
 }
 
-.application-decision-modal .modal-body p {
+.application-decision-modal .modal-body p,
+.rating-exclusion-modal .modal-body p {
   margin: 0;
   color: var(--admin-ink-2);
   font-size: 13px;
   line-height: 1.7;
+}
+
+/* ── 레이팅 반영 ──────────────────────────────────────────── */
+.ops-rating .notice-strip {
+  margin-top: 10px;
+}
+
+.ops-rating-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: 12px 0 18px;
+}
+
+.ops-rating-message {
+  margin: 0 auto 0 0;
+  color: var(--admin-muted);
+  font-size: 11.5px;
+  line-height: 1.6;
 }
 
 /* ── 팀 배정 ──────────────────────────────────────────────── */
