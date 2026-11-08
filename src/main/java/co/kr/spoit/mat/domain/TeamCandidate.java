@@ -10,7 +10,8 @@ import java.math.BigDecimal;
  */
 public record TeamCandidate(Long participantId, BigDecimal mmr) {
 
-    /** entry_mmr DECIMAL(8,2)의 최댓값 */
+    /** entry_mmr DECIMAL(8,2)가 담을 수 있는 범위 */
+    private static final BigDecimal MIN_MMR = new BigDecimal("-999999.99");
     private static final BigDecimal MAX_MMR = new BigDecimal("999999.99");
 
     public TeamCandidate {
@@ -20,11 +21,10 @@ public record TeamCandidate(Long participantId, BigDecimal mmr) {
         if (mmr == null) {
             throw new IllegalArgumentException("MMR은 null일 수 없습니다. participantId=" + participantId);
         }
-        if (mmr.signum() < 0) {
-            throw new IllegalArgumentException("MMR은 음수일 수 없습니다. participantId=" + participantId);
-        }
-        if (mmr.compareTo(MAX_MMR) > 0) {
-            throw new IllegalArgumentException("MMR은 999999.99 이하여야 합니다. participantId=" + participantId);
+        // 레이팅에는 하한이 없어 음수 MMR도 정상 값이다. 컬럼이 담을 수 있는 범위만 확인한다.
+        if (mmr.compareTo(MIN_MMR) < 0 || mmr.compareTo(MAX_MMR) > 0) {
+            throw new IllegalArgumentException(
+                    "MMR은 -999999.99 이상 999999.99 이하여야 합니다. participantId=" + participantId);
         }
         if (mmr.stripTrailingZeros().scale() > 2) {
             throw new IllegalArgumentException(

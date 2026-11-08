@@ -166,12 +166,27 @@ class AutoAssignmentServiceTest {
     }
 
     @Test
+    void assignsParticipantWithNegativeEntryMmr() {
+        // 레이팅에 하한이 없어 음수 MMR도 정상 값이다. 이 참가자 때문에 배정이 막히면 경기 전체가 취소된다.
+        givenManagedMatch(match("모집 중", 1, 1, TOMORROW));
+        when(participantMapper.findByMatchId(MATCH_ID))
+                .thenReturn(List.of(participant(1L, "확정", "1000"), participant(2L, "확정", "-35.50")));
+
+        AssignmentResult result = service.preview(MATCH_ID, MANAGER_ID);
+
+        assertThat(result.outcome()).isEqualTo(Outcome.READY);
+        assertThat(result.assignment().teamBParticipantIds()).containsExactly(2L);
+        assertThat(result.assignment().teamBMmrSum()).isEqualTo(new BigDecimal("-35.50"));
+        assertThat(result.assignment().captainBParticipantId()).isEqualTo(2L);
+    }
+
+    @Test
     void treatsInvalidEntryMmrAsDataError() {
         givenManagedMatch(match("모집 중", 1, 1, TOMORROW));
         var broken = new MatchParticipant();
         broken.setParticipantId(2L);
         broken.setParticipationStatus("확정");
-        broken.setEntryMmr(new BigDecimal("-1.00"));
+        broken.setEntryMmr(null);
         when(participantMapper.findByMatchId(MATCH_ID)).thenReturn(List.of(participant(1L, "확정", "1000"), broken));
 
         assertThatIllegalArgumentException()
