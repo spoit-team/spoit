@@ -201,7 +201,7 @@
       <label class="md-contact-field" for="applicant-phone"><span class="md-contact-label">연락처 <small>필수</small></span>
         <input id="applicant-phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" readonly th:value="${currentMember.phone}" aria-describedby="applicant-phone-help" />
       </label>
-      <p class="md-field-help" id="applicant-phone-help">참가 안내는 가입 연락처로 전송됩니다. 연락처 변경은 <a th:href="@{/mypage/profile}" class="font-bold underline">프로필</a>에서 할 수 있습니다.</p>
+      <p class="md-field-help" id="applicant-phone-help"><!--/* 연락처 알림 기능이 생기면 다시 표시: 참가 안내는 가입 연락처로 전송됩니다. */-->연락처 변경은 <a th:href="@{/mypage/profile}" class="font-bold underline">프로필</a>에서 할 수 있습니다.</p>
       <p id="selection-capacity-notice" class="md-selection-notice" role="status" aria-live="polite"></p>
       <p id="selection-error" class="md-selection-error" role="alert" hidden></p>
     </div>
