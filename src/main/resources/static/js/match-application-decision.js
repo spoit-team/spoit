@@ -1,6 +1,6 @@
 /* 매치 운영 화면의 참가 신청 승인·반려: 대기 신청 행의 버튼을 누르면 확인창을 띄우고,
    확인하면 폼 없이 fetch + CSRF 헤더로 보낸다. 성공하면 참가 현황·팀 배정 버튼 상태까지 맞추기 위해
-   페이지를 새로 불러오고, 실패하면 서버 message를 알린 뒤 확인창을 닫는다.
+   페이지를 새로 불러오되, 결과 토스트는 새로고침된 화면에서 보여 준다. 실패하면 서버 message를 알린 뒤 확인창을 닫는다.
    팀 신청도 팀원 한 명(신청 행 하나)씩 처리한다. */
 (function (global) {
   'use strict';
@@ -18,11 +18,16 @@
   const message = modal.querySelector('[data-decision-message]');
   const submit = modal.querySelector('[data-decision-submit]');
 
-  const RELOAD_DELAY_MS = 700;
   const LABELS = {
     confirm: { title: '참가 신청 승인', action: '승인', result: '참가 확정으로 바뀝니다.' },
     reject: { title: '참가 신청 반려', action: '반려', result: '반려되고 정원 자리가 다시 열립니다. 되돌릴 수 없습니다.' }
   };
+
+  // 공통 셸이 없으면(스크립트 순서 오류) 예전처럼 새로고침만 한다.
+  function reloadWithToast(text) {
+    if (admin?.reloadWithToast) admin.reloadWithToast(text, false);
+    else global.location.reload();
+  }
 
   let pending = null;   // { applicationId, decision }
   let busy = false;
@@ -69,11 +74,11 @@
     } catch (error) {
       text = '서버에 연결하지 못했습니다. 네트워크 상태를 확인해 주세요.';
     }
-    admin?.toast(text, !ok);
     if (ok) {
-      global.setTimeout(() => global.location.reload(), RELOAD_DELAY_MS);
+      reloadWithToast(text);
       return;
     }
+    admin?.toast(text, true);
     busy = false;
     close();
   }

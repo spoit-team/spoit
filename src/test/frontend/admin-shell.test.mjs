@@ -124,4 +124,52 @@ assert.equal(fallbackPage.window.history.lastUrl, '#facility-dashboard',
   'the removed hash must be replaced with the dashboard hash');
 assert.equal(fallbackPage.document.title, '대시보드 · SPO:IT 관리자');
 
-console.log('PASS: admin shell and facility scripts initialize with window, open modals, switch views, and fall back from a removed hash.');
+/* 저장 뒤 새로고침하는 화면(승인·반려, 팀 배정)은 결과 토스트를 새로고침된 페이지에서 한 번만 보여 줘야 한다. */
+function memoryStorage() {
+  const values = new Map();
+  return {
+    getItem: key => values.has(key) ? values.get(key) : null,
+    setItem: (key, value) => values.set(key, String(value)),
+    removeItem: key => values.delete(key),
+    size: () => values.size
+  };
+}
+
+const storage = memoryStorage();
+const beforeReload = createPage();
+let reloads = 0;
+beforeReload.window.sessionStorage = storage;
+beforeReload.window.location.reload = () => { reloads++; };
+globalThis.window = beforeReload.window;
+globalThis.document = beforeReload.document;
+await import('../../main/resources/static/js/admin-shell.js?before-reload');
+beforeReload.window.PlayOnAdmin.reloadWithToast('참가 신청을 승인했습니다.', false);
+assert.equal(reloads, 1, 'reloadWithToast must reload immediately');
+assert.equal(beforeReload.document.getElementById('admin-toast').textContent, '',
+  'the toast must not flash on the page that is about to reload');
+
+const afterReload = createPage();
+afterReload.window.sessionStorage = storage;
+globalThis.window = afterReload.window;
+globalThis.document = afterReload.document;
+await import('../../main/resources/static/js/admin-shell.js?after-reload');
+const reloadedToast = afterReload.document.getElementById('admin-toast');
+assert.equal(reloadedToast.textContent, '참가 신청을 승인했습니다.', 'the reloaded page must show the pending toast');
+assert.equal(reloadedToast.dataset.kind, 'success');
+assert.equal(reloadedToast.hidden, false);
+assert.equal(storage.size(), 0, 'the pending toast must be shown only once');
+
+const blockedStorage = createPage();
+let delayedReloads = 0;
+blockedStorage.window.sessionStorage = { setItem() { throw new Error('blocked'); }, getItem: () => null, removeItem() {} };
+blockedStorage.window.location.reload = () => { delayedReloads++; };
+blockedStorage.window.setTimeout = handler => handler();
+globalThis.window = blockedStorage.window;
+globalThis.document = blockedStorage.document;
+await import('../../main/resources/static/js/admin-shell.js?blocked-storage');
+blockedStorage.window.PlayOnAdmin.reloadWithToast('팀 배정을 저장했습니다.', false);
+assert.equal(blockedStorage.document.getElementById('admin-toast').textContent, '팀 배정을 저장했습니다.',
+  'without storage the toast falls back to the current page');
+assert.equal(delayedReloads, 1, 'without storage the page still reloads after the toast');
+
+console.log('PASS: admin shell and facility scripts initialize with window, open modals, switch views, fall back from a removed hash, and carry the result toast across a reload.');
