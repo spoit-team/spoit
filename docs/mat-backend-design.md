@@ -366,3 +366,4 @@ MAT 트랜잭션은 `social_match`를 한 행만 잠그고, `sport_rating`은 �
 - **시간대**: MAT는 시각을 `LocalDateTime.now(Asia/Seoul)`로 직접 구하고 cron에도 `zone`을 둔다. 다만 다음 두 설정에 기댄다.
   - JVM 기본 시간대: MAT 알림의 생성·읽음 시각은 기본 시간대의 `LocalDateTime.now()`다(`NotificationServiceImpl.notifyRecipients`, `NotificationApiController`). 배포 이미지는 `TZ=Asia/Seoul`로 이 값을 맞춘다(`Dockerfile`).
   - DB 시간대: DB가 채우는 `CURRENT_TIMESTAMP` 열(MAT에서는 `sport_rating.updated_at`)은 MySQL 세션 시간대를 따른다. 저장소의 DB URL에는 `serverTimezone=Asia/Seoul`이 있지만, 운영 URL은 환경 변수 `SPRING_DATASOURCE_URL`로 주입한다(`Dockerfile` 주석). 운영 URL에 이 값이 있는지, 이 값이 세션 시간대까지 바꾸는지는 확인이 필요하다.
+- **단식 경기의 평가 [정책]**: 단식(팀당 1명)은 평가자가 상대 한 명뿐이라 감정이 보정에 섞일 수 있다. 보정은 (평가 점수 − 5) × 1이라 ±5로 제한되어(`RatingCalculator.evaluationDelta`) 영향은 작다고 보고, 팀 논의로 지금처럼 평가하기로 했다. 운영 데이터가 쌓이면 단식 평가 보정과 실제 결과의 관계를 보고 다시 정한다(예: 단식만 보정 폭 축소).
