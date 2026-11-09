@@ -122,7 +122,7 @@ class RoomManagementRouteIntegrationTest {
                         hasProperty("matchId", is(FOREIGN_MATCH_ID))))))
                 .andExpect(content().string(containsString("금요 농구 모집")));
 
-        // 상세(배정 후): 확정 신청이 참가자 명단으로 옮겨져 팀과 함께 모델에 담긴다.
+        // 상세(배정 후): 신청 내역은 그대로 남고, 참가자 명단이 팀과 함께 모델에 담긴다.
         // 목록 조회 뒤, 첫 상세 조회 전에 상태를 바꿔 같은 트랜잭션의 MyBatis 1차 캐시를 피한다.
         jdbcTemplate.update("UPDATE social_match SET status = '매칭 완료' WHERE match_id = ?", OWNED_MATCH_ID);
         mockMvc.perform(get("/admin/operations")

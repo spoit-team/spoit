@@ -220,7 +220,7 @@ class RoomManagementMapperIntegrationTest {
     }
 
     @Test
-    @DisplayName("서비스 상세는 배정 전 모든 신청을 보여 주고, 배정 후 확정 신청을 참가자 표로 옮긴다")
+    @DisplayName("서비스 상세는 배정 전 모든 신청을 보여 주고 참가자 표는 비워 둔다")
     void serviceBuildsDetailCollections() {
         var detail = roomManagementService.findDetail(MANAGER_A, 9401L);
 
@@ -236,15 +236,15 @@ class RoomManagementMapperIntegrationTest {
     }
 
     @Test
-    @DisplayName("팀 배정이 끝난 방의 상세는 확정 신청을 참가자 표로 옮기고 반려·취소·대기 기록은 남긴다")
-    void serviceMovesConfirmedApplicationsAfterAssignment() {
+    @DisplayName("팀 배정이 끝난 방의 상세도 신청 내역을 모두 남기고, 참가자 표를 함께 채운다")
+    void serviceKeepsApplicationsAfterAssignment() {
         // 같은 트랜잭션의 MyBatis 1차 캐시를 피하려고 첫 조회 전에 상태를 바꾼다.
         jdbcTemplate.update("UPDATE social_match SET status = '매칭 완료' WHERE match_id = 9401");
         var assigned = roomManagementService.findDetail(MANAGER_A, 9401L);
 
         assertThat(assigned.isTeamAssigned()).isTrue();
         assertThat(assigned.getApplications()).extracting(a -> a.getApplicationId())
-                .containsExactly(9501L, 9503L, 9504L);
+                .containsExactly(9501L, 9502L, 9503L, 9504L);
         assertThat(assigned.getParticipants()).singleElement()
                 .satisfies(p -> {
                     assertThat(p.getName()).isEqualTo("참가자둘");
