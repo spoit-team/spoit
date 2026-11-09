@@ -241,7 +241,7 @@
 <div class="modal-backdrop" id="room-editor-modal" hidden>
   <section class="admin-modal wide" role="dialog" aria-modal="true" aria-labelledby="room-editor-title">
     <div class="modal-header"><div><h2 id="room-editor-title">매칭방 생성</h2><p id="room-editor-description">담당 시설의 운영 시간에 맞춰 매칭방을 개설합니다. 연속된 1시간 블록을 선택하세요.</p></div><button class="modal-close" type="button" data-close-room-editor aria-label="닫기">×</button></div>
-    <form id="room-editor-form" method="post" enctype="multipart/form-data" th:action="@{/admin/rooms}" th:attr="data-room-base=@{/admin/rooms}">
+    <form id="room-editor-form" method="post" enctype="multipart/form-data" novalidate th:action="@{/admin/rooms}" th:attr="data-room-base=@{/admin/rooms}">
       <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
       <div class="modal-body">
         <p class="room-editor-locked-note" id="room-editor-locked-note" hidden>신청자가 있어 시설·종목·날짜·시간은 바꿀 수 없습니다. 정원은 현재 참가·신청 인원보다 줄일 수 없습니다.</p>
@@ -259,7 +259,7 @@
           </div><p class="room-editor-time-summary" id="room-editor-time-summary" aria-live="polite">시간대를 선택해 주세요.</p></div>
           <div class="form-field"><label for="room-editor-team">팀당 정원</label><input id="room-editor-team" name="teamCapacity" type="number" min="1" max="11" required /></div>
           <div class="form-field full"><p class="room-editor-capacity-hint" id="room-editor-capacity-hint"></p></div>
-          <div class="form-field"><label for="room-editor-fee">참가비 (1인)</label><input id="room-editor-fee" name="feePerPerson" type="number" min="0" step="500" required /></div>
+          <div class="form-field"><label for="room-editor-fee">참가비 (1인)</label><input id="room-editor-fee" name="feePerPerson" type="number" min="0" max="1000000" step="500" required /></div>
           <div class="form-field"><label for="room-editor-level">실력 수준</label><select id="room-editor-level" name="requiredSkill" required><option value="초급">초급</option><option value="중급" selected>중급</option><option value="고급">고급</option></select></div>
           <div class="form-field full room-photo-field">
             <div class="room-editor-section-label"><strong>시설 사진 (선택)</strong><span>매칭방 목록 카드에 표시됩니다.</span></div>
@@ -331,6 +331,25 @@
     <div class="modal-footer">
       <button class="admin-button" type="button" id="facility-confirm-cancel" data-close-facility-confirm>취소</button>
       <button class="admin-button primary" type="button" id="facility-confirm-submit" data-confirm-facility-action>수정 저장</button>
+    </div>
+  </section>
+</div>
+
+<!-- 매칭방 생성·수정·취소 실패 안내: 브라우저 사전 검사(시간 미선택 등)와 서버 거부(대관 한도·운영 시간 등)를
+     같은 모달로 보여 줍니다. 서버 거부는 flash 속성(roomError)이 있을 때만 자동으로 열립니다. -->
+<div class="modal-backdrop" id="room-error-modal" hidden
+     th:attr="data-auto-open=${roomError != null ? 'true' : null}">
+  <section class="admin-modal" role="alertdialog" aria-modal="true" aria-labelledby="room-error-title"
+           aria-describedby="room-error-message">
+    <div class="modal-header">
+      <div><h2 id="room-error-title" th:text="${roomErrorTitle != null ? roomErrorTitle : '매칭방을 만들 수 없습니다'}">매칭방을 만들 수 없습니다</h2></div>
+      <button class="modal-close" type="button" data-close-room-error aria-label="닫기">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="facility-confirm-message" id="room-error-message" th:text="${roomError}">입력 정보를 확인해 주세요.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="admin-button primary" type="button" id="room-error-confirm" data-close-room-error>확인</button>
     </div>
   </section>
 </div>

@@ -18,6 +18,11 @@
   const facilityConfirmMessage = document.getElementById('facility-confirm-message');
   const facilityConfirmName = document.querySelector('[data-facility-confirm-name]');
   const facilityConfirmSubmit = document.getElementById('facility-confirm-submit');
+  const roomErrorModal = document.getElementById('room-error-modal');
+  const roomErrorTitle = document.getElementById('room-error-title');
+  const roomErrorMessage = document.getElementById('room-error-message');
+  /* 안내 모달을 닫은 뒤 초점을 보낼 입력(문제가 된 칸) */
+  let roomErrorReturnFocus = null;
 
   /* 확인을 기다리는 작업: { form, name, title, message, submitLabel, danger } */
   let pendingFacilityConfirm = null;
@@ -43,7 +48,7 @@
   }
 
   function activeFacilityModals() {
-    return [roomEditorModal, facilityModal, facilityConfirmModal].filter(function (modal) {
+    return [roomEditorModal, facilityModal, facilityConfirmModal, roomErrorModal].filter(function (modal) {
       return modal && !modal.hidden;
     });
   }
@@ -115,6 +120,124 @@
     /* 확인을 마친 폼은 submit 핸들러에서 다시 가로막지 않고 그대로 서버로 보낸다. */
     closeModal(facilityConfirmModal);
     submitConfirmed(action.form);
+  }
+
+  /**
+   * 매칭방 생성·수정이 막힌 이유를 안내 모달로 보여 준다. 생성·수정 창은 입력값을 유지한 채 뒤에 그대로 둔다.
+   * focusTarget은 확인을 누른 뒤 초점을 보낼 칸이다.
+   */
+  function showRoomError(message, focusTarget) {
+    if (!roomErrorModal) {
+      admin?.toast(message, true);
+      focusTarget?.focus?.();
+      return;
+    }
+    const editing = roomEditorForm?.dataset.roomMode === 'edit';
+    if (roomErrorTitle) roomErrorTitle.textContent = editing ? '매칭방을 수정할 수 없습니다' : '매칭방을 만들 수 없습니다';
+    if (roomErrorMessage) roomErrorMessage.textContent = message;
+    roomErrorReturnFocus = focusTarget || null;
+    openModal(roomErrorModal, '#room-error-confirm');
+  }
+
+  function closeRoomError() {
+    if (!roomErrorModal || roomErrorModal.hidden) return;
+    closeModal(roomErrorModal);
+    /* 공통 셸은 모달을 닫으면 화면 스크롤 잠금을 푼다. 아래 생성·수정 창이 열려 있으면 다시 잠근다. */
+    if (roomEditorModal && !roomEditorModal.hidden) document.body.classList.add('has-admin-modal');
+    const target = roomErrorReturnFocus;
+    roomErrorReturnFocus = null;
+    target?.focus?.();
+  }
+
+  /* 서버가 생성·수정을 거부하고 돌아온 경우에만 자동으로 연다. 새로고침하면 flash가 사라져 다시 열리지 않는다. */
+  function openServerRoomError() {
+    if (!roomErrorModal || roomErrorModal.dataset.autoOpen !== 'true') return;
+    delete roomErrorModal.dataset.autoOpen;
+    roomErrorReturnFocus = document.querySelector('#facility-bookings [data-open-room-editor]')
+      || document.querySelector('[data-open-room-editor]');
+    openModal(roomErrorModal, '#room-error-confirm');
+  }
+
+  /**
+   * 매칭방 생성·수정 폼의 사전 검사. 브라우저 기본 말풍선 대신(form novalidate) 화면 입력 순서대로 확인해
+   * 첫 문제를 { message, field, photo } 로 돌려준다. 문제가 없으면 null. 최종 판단은 서버가 다시 한다.
+   * 신청자가 있어 일정이 잠긴 수정은 시설·종목·날짜·시간을 보내지 않으므로 검사하지 않는다.
+   */
+  function roomEditorProblem(form) {
+    const field = function (id) { return document.getElementById(id); };
+    const fail = function (message, target, photo) { return { message: message, field: target, photo: Boolean(photo) }; };
+    const locked = form.dataset.roomLocked === 'true';
+
+    if (!locked) {
+      const facility = field('room-editor-facility');
+      if (facility && !facility.value) return fail('담당 시설을 선택해 주세요.', facility);
+      const sport = field('room-editor-sport');
+      const sportOption = sport ? sport.options[sport.selectedIndex] : null;
+      if (sport && (!sportOption || sportOption.disabled || !sportOption.value)) return fail('종목을 선택해 주세요.', sport);
+    }
+
+    const title = field('room-editor-title-input');
+    if (title) {
+      const value = title.value.trim();
+      const max = Number(title.getAttribute('maxlength')) || 70;
+      if (!value) return fail('방 이름을 입력해 주세요.', title);
+      if (value.length > max) return fail('방 이름은 ' + max + '자 이하로 입력해 주세요.', title);
+    }
+
+    if (!locked) {
+      const date = field('room-editor-date');
+      if (date && !date.value) return fail('이용 날짜를 선택해 주세요.', date);
+      const grid = field('room-editor-hour-grid');
+      if (grid && !grid.querySelector('input[name="hours"]:checked')) {
+        return fail('예약 시간 블록을 하나 이상 선택해 주세요.', grid.querySelector('input:not(:disabled)'));
+      }
+      /* 한 방은 연속된 시간 하나만 쓴다. 수정 때 기존 블록을 해제하지 않고 새 블록을 더하는 실수도 여기서 막는다. */
+      if (grid && selectedRanges(grid).rangeCount > 1) {
+        return fail('예약 시간은 연속된 블록만 선택할 수 있습니다. 선택한 시간을 확인해 주세요.',
+          grid.querySelector('input[name="hours"]:checked'));
+      }
+      /* 시작 시각이 이미 지났으면 보내지 않는다. 서버도 한국 시간 기준으로 다시 검사한다. */
+      const startAt = roomEditorStartAt(grid);
+      if (startAt && startAt.getTime() <= Date.now()) {
+        return fail('지난 시간에는 매칭방을 만들 수 없습니다. 날짜와 시간을 확인해 주세요.', date);
+      }
+    }
+
+    /* 숫자 칸은 글자를 넣으면 value가 비고 validity.badInput이 켜진다. 범위·단위는 입력의 min·max·step을 따른다. */
+    const team = field('room-editor-team');
+    if (team) {
+      const min = Number(team.min || 1);
+      const max = Number(team.max || 11);
+      const value = Number(team.value);
+      if (team.validity?.badInput || team.value === '') return fail('팀당 정원을 입력해 주세요.', team);
+      if (!Number.isInteger(value) || value < min || value > max) {
+        return fail('팀당 정원은 ' + min + '명 이상 ' + max + '명 이하로 입력해 주세요.', team);
+      }
+    }
+
+    const fee = field('room-editor-fee');
+    if (fee) {
+      const min = Number(fee.min || 0);
+      const max = Number(fee.max || 1000000);
+      const step = Number(fee.step || 1);
+      const value = Number(fee.value);
+      if (fee.validity?.badInput || fee.value === '') return fail('참가비를 입력해 주세요.', fee);
+      if (!Number.isInteger(value) || value < min || value > max) {
+        return fail('참가비는 ' + min.toLocaleString('ko-KR') + '원 이상 ' + max.toLocaleString('ko-KR')
+          + '원 이하로 입력해 주세요.', fee);
+      }
+      if (step > 1 && (value - min) % step !== 0) {
+        return fail('참가비는 ' + step.toLocaleString('ko-KR') + '원 단위로 입력해 주세요.', fee);
+      }
+    }
+
+    const level = field('room-editor-level');
+    if (level && !level.value) return fail('실력 수준을 선택해 주세요.', level);
+
+    /* 사진 형식·크기는 서버도 다시 검사한다. 여기서는 큰 파일을 보내기 전에 막는다. */
+    const photoProblem = roomPhotoProblem();
+    if (photoProblem) return fail(photoProblem, roomPhotoInput, true);
+    return null;
   }
 
   function hourToMinutes(value) {
@@ -201,7 +324,23 @@
       if (visible && !firstVisible) firstVisible = option;
     });
     const selected = sport.options[sport.selectedIndex];
-    if (!selected || selected.disabled) sport.value = firstVisible ? firstVisible.value : '';
+    if (!selected || selected.disabled) {
+      /* 같은 종목은 시설마다 옵션이 하나씩 있어 value가 겹친다. sport.value = '5'로 고르면 DOM에서 먼저 나온
+         다른 시설의 비활성 옵션이 선택돼, 화면에는 종목이 보여도 값이 전송되지 않는다. 옵션을 직접 고른다. */
+      if (firstVisible) firstVisible.selected = true;
+      else sport.selectedIndex = -1;
+    }
+  }
+
+  /* 지금 고른 시설의 옵션 중에서 종목을 고른다. 없으면 그 시설의 첫 종목을 그대로 둔다. */
+  function selectRoomEditorSport(sportId) {
+    const facility = document.getElementById('room-editor-facility');
+    const sport = document.getElementById('room-editor-sport');
+    if (!facility || !sport) return;
+    const option = Array.from(sport.options).find(function (candidate) {
+      return candidate.dataset.facilityId === facility.value && candidate.value === String(sportId || '');
+    });
+    if (option) option.selected = true;
   }
 
   /**
@@ -262,7 +401,7 @@
     };
     setValue('room-editor-facility', dataset.roomFacility);
     filterRoomEditorSports();
-    setValue('room-editor-sport', dataset.roomSport);
+    selectRoomEditorSport(dataset.roomSport);
     setValue('room-editor-title-input', dataset.roomTitle);
     setValue('room-editor-date', dataset.roomDate);
     setValue('room-editor-team', dataset.roomTeam);
@@ -487,6 +626,13 @@
     if (event.target === facilityConfirmModal) cancelFacilityConfirmation();
   });
 
+  roomErrorModal?.addEventListener('click', function (event) {
+    if (event.target === roomErrorModal || (event.target instanceof Element
+        && event.target.closest('[data-close-room-error]'))) {
+      closeRoomError();
+    }
+  });
+
   /* Escape는 가장 위에 열린 모달 하나만 닫습니다. 확인 창이 열려 있으면 확인 창만 닫힙니다. */
   /* 확인 창이 열려 있으면 Escape는 확인 창만 닫고, 아래 수정 모달은 그대로 둡니다. */
   function hasOpenNotificationModal() {
@@ -501,6 +647,7 @@
     const top = topModal();
     if (!top) return;
     if (top === facilityConfirmModal) cancelFacilityConfirmation();
+    else if (top === roomErrorModal) closeRoomError();
     else if (top === facilityModal) closeFacilityModal();
     else closeModal(top);
   });
@@ -615,37 +762,11 @@
     }
 
     if (form === roomEditorForm) {
-      /* 사진 형식·크기는 서버도 다시 검사한다. 여기서는 큰 파일을 보내기 전에 막는다. */
-      const photoProblem = roomPhotoProblem();
-      if (photoProblem) {
+      const problem = roomEditorProblem(form);
+      if (problem) {
         event.preventDefault();
-        setRoomPhotoError(photoProblem);
-        admin?.toast(photoProblem, true);
-        roomPhotoInput?.focus();
-        return;
-      }
-      /* 일정이 잠긴 수정은 시간 블록을 보내지 않는다. */
-      if (form.dataset.roomLocked === 'true') return;
-      const grid = document.getElementById('room-editor-hour-grid');
-      if (grid && !grid.querySelector('input[name="hours"]:checked')) {
-        event.preventDefault();
-        admin?.toast('예약 시간 블록을 하나 이상 선택해 주세요.', true);
-        grid.querySelector('input:not(:disabled)')?.focus();
-        return;
-      }
-      /* 한 방은 연속된 시간 하나만 쓴다. 수정 때 기존 블록을 해제하지 않고 새 블록을 더하는 실수도 여기서 막는다. */
-      if (grid && selectedRanges(grid).rangeCount > 1) {
-        event.preventDefault();
-        admin?.toast('예약 시간은 연속된 블록만 선택할 수 있습니다. 선택한 시간을 확인해 주세요.', true);
-        grid.querySelector('input[name="hours"]:checked')?.focus();
-        return;
-      }
-      /* 시작 시각이 이미 지났으면 보내지 않는다. 서버도 한국 시간 기준으로 다시 검사한다. */
-      const startAt = roomEditorStartAt(grid);
-      if (startAt && startAt.getTime() <= Date.now()) {
-        event.preventDefault();
-        admin?.toast('지난 시간에는 매칭방을 만들 수 없습니다. 날짜와 시간을 확인해 주세요.', true);
-        document.getElementById('room-editor-date')?.focus();
+        if (problem.photo) setRoomPhotoError(problem.message);
+        showRoomError(problem.message, problem.field);
       }
       return;
     }
@@ -1001,6 +1122,7 @@
   });
 
   openScheduleConflicts();
+  openServerRoomError();
 
   /* 시설 삭제 차단 경고: 삭제가 거부되어 차단 목록이 돌아온 경우에만 자동으로 연다.
      목록이 없으면 정상 삭제 흐름이며 아무것도 열지 않는다. */

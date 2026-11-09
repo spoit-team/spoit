@@ -132,6 +132,8 @@ public class SecurityConfig {
                 // 위에서 등록한 저장소를 필터 체인이 실제로 쓰게 한다. 기본값과 같은 구현이지만,
                 // 웹소켓 핸드셰이크가 읽는 저장소와 어긋나지 않도록 한 곳에서 정한다.
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository()))
+                // 세션 만료로 매칭방 저장이 CSRF에 막히면 403 화면 대신 매칭방 관리 화면에서 안내한다.
+                .exceptionHandling(exceptions -> exceptions.accessDeniedHandler(new RoomCsrfAccessDeniedHandler()))
                 .httpBasic(basic -> basic.disable());
         return http.build();
     }
