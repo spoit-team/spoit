@@ -7,7 +7,7 @@
       담당자(facility_manager)로 범위를 제한하고 삭제된 시설은 제외한다.
       facility_manager PK가 (facility_id, user_id)이므로 조인으로 행이 늘지 않는다.
     -->
-    <sql id="managedRoomFrom">
+    <sql id="managedMatchFrom">
         FROM social_match sm
         JOIN facility f  ON f.facility_id = sm.facility_id
                         AND f.deleted_at IS NULL
@@ -17,24 +17,28 @@
     </sql>
 
     <!--
-      통계 대상 매칭방 조건: 선택 시설, start_at 구간, 취소 제외.
+      통계 대상 매칭방 조건: 선택 시설, start_at 구간, 종료 상태.
       범위는 [startAt, endAt] 양끝 포함이며 경계 변환은 서비스가 맡는다.
+      모집 중·매칭 완료·취소는 모두 빠지고 종료된 경기만 남는다.
     -->
-    <sql id="targetRoomWhere">
+    <sql id="finishedMatchWhere">
         WHERE sm.facility_id = #{facilityId}
           AND sm.start_at &gt;= #{startAt}
           AND sm.start_at &lt;= #{endAt}
-          AND sm.status &lt;&gt; '취소'
+          AND sm.status = '종료'
     </sql>
 
-    <select id="countMatches" resultType="long">
+    <select id="countFinishedMatches" resultType="long">
         SELECT COUNT(*)
-        <include refid="managedRoomFrom"/>
-        <include refid="targetRoomWhere"/>
+        <include refid="managedMatchFrom"/>
+        <include refid="finishedMatchWhere"/>
     </select>
 
-    <!-- 취소된 방은 대상에서 빠지므로 참가자 행도 그 방 기준으로 함께 제외된다. -->
-    <select id="sumParticipants" resultType="long">
+    <!--
+      종료 매칭의 확정 참가자 행만 센다. 같은 사람이 두 경기에 참여하면 두 번 집계되고
+      노쇼(경기 미참여)는 판별하지 못한다. 대기·취소·반려 참가자는 제외한다.
+    -->
+    <select id="countConfirmedParticipants" resultType="long">
         SELECT COUNT(*)
           FROM match_participant mp
           JOIN social_match sm ON sm.match_id = mp.match_id
@@ -45,13 +49,14 @@
          WHERE sm.facility_id = #{facilityId}
            AND sm.start_at &gt;= #{startAt}
            AND sm.start_at &lt;= #{endAt}
-           AND sm.status &lt;&gt; '취소'
-           AND mp.participation_status IN ('대기', '확정')
+           AND sm.status = '종료'
+           AND mp.participation_status = '확정'
     </select>
 
     <!--
       팀 신청은 팀원마다 행이 있으므로 대표 행만 센다
       (group_application_id IS NULL OR = application_id).
+      승인 수는 신청 상태가 확정인 대표 행 수로, 기존 계산 의미를 유지한다.
     -->
     <select id="countApplications" resultType="co.kr.spoit.facility.dto.ApplicationCountSummary">
         SELECT COUNT(*) AS total,
@@ -67,25 +72,65 @@
          WHERE sm.facility_id = #{facilityId}
            AND sm.start_at &gt;= #{startAt}
            AND sm.start_at &lt;= #{endAt}
-           AND sm.status &lt;&gt; '취소'
+           AND sm.status = '종료'
            AND (ma.group_application_id IS NULL
                 OR ma.group_application_id = ma.application_id)
     </select>
 
-    <select id="countByWeekday" resultType="co.kr.spoit.facility.dto.WeekdayRoomCount">
-        SELECT DAYOFWEEK(sm.start_at) AS weekday,
-               COUNT(*)               AS room_count
-        <include refid="managedRoomFrom"/>
-        <include refid="targetRoomWhere"/>
-        GROUP BY DAYOFWEEK(sm.start_at)
+    <!-- 종료 매칭에 확정으로 참여한 행만 요일별로 합산한다. -->
+    <select id="countParticipantsByWeekday"
+            resultType="co.kr.spoit.facility.dto.WeekdayParticipantCount">
+        SELECT DAYOFWEEK(sm.start_at)  AS weekday,
+               COUNT(mp.participant_id) AS participant_count
+          FROM match_participant mp
+          JOIN social_match sm ON sm.match_id = mp.match_id
+          JOIN facility f      ON f.facility_id = sm.facility_id
+                              AND f.deleted_at IS NULL
+          JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                  AND fm.user_id = #{managerUserId}
+         WHERE sm.facility_id = #{facilityId}
+           AND sm.start_at &gt;= #{startAt}
+           AND sm.start_at &lt;= #{endAt}
+           AND sm.status = '종료'
+           AND mp.participation_status = '확정'
+         GROUP BY DAYOFWEEK(sm.start_at)
     </select>
 
-    <select id="countByHour" resultType="co.kr.spoit.facility.dto.HourRoomCount">
-        SELECT HOUR(sm.start_at) AS hour,
-               COUNT(*)          AS room_count
-        <include refid="managedRoomFrom"/>
-        <include refid="targetRoomWhere"/>
-        GROUP BY HOUR(sm.start_at)
+    <select id="countParticipantsByHour"
+            resultType="co.kr.spoit.facility.dto.HourParticipantCount">
+        SELECT HOUR(sm.start_at)      AS hour,
+               COUNT(mp.participant_id) AS participant_count
+          FROM match_participant mp
+          JOIN social_match sm ON sm.match_id = mp.match_id
+          JOIN facility f      ON f.facility_id = sm.facility_id
+                              AND f.deleted_at IS NULL
+          JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                  AND fm.user_id = #{managerUserId}
+         WHERE sm.facility_id = #{facilityId}
+           AND sm.start_at &gt;= #{startAt}
+           AND sm.start_at &lt;= #{endAt}
+           AND sm.status = '종료'
+           AND mp.participation_status = '확정'
+         GROUP BY HOUR(sm.start_at)
+    </select>
+
+    <select id="countParticipantsByWeekdayAndHour"
+            resultType="co.kr.spoit.facility.dto.WeekdayHourParticipantCount">
+        SELECT DAYOFWEEK(sm.start_at)  AS weekday,
+               HOUR(sm.start_at)       AS hour,
+               COUNT(mp.participant_id) AS participant_count
+          FROM match_participant mp
+          JOIN social_match sm ON sm.match_id = mp.match_id
+          JOIN facility f      ON f.facility_id = sm.facility_id
+                              AND f.deleted_at IS NULL
+          JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                  AND fm.user_id = #{managerUserId}
+         WHERE sm.facility_id = #{facilityId}
+           AND sm.start_at &gt;= #{startAt}
+           AND sm.start_at &lt;= #{endAt}
+           AND sm.status = '종료'
+           AND mp.participation_status = '확정'
+         GROUP BY DAYOFWEEK(sm.start_at), HOUR(sm.start_at)
     </select>
 
 </mapper>

@@ -38,11 +38,14 @@
           <tr th:if="${#lists.isEmpty(dashboard?.recentErrors)}"><td class="table-empty" colspan="6" th:text="${dashboard?.recentErrorCount == null ? '오류 수집 기능이 아직 연결되지 않아 표시할 로그가 없습니다.' : '최근 1시간 동안 발생한 오류가 없습니다.'}">최근 1시간 동안 발생한 오류가 없습니다.</td></tr>
         </tbody></table></div></div>
 
-        <div class="section-heading"><div class="section-title-wrap"><h2>최근 접수된 신고</h2><p>신고만으로 자동 제재하지 않고, 관련 로그를 검토한 뒤 처리합니다.</p></div><button class="admin-button small" type="button" data-view-target="system-reports">신고함 열기 →</button></div>
-        <div class="card"><div class="table-scroll"><table class="admin-table"><thead><tr><th>신고 번호</th><th>신고 유형</th><th>신고 대상</th><th>접수 시각</th><th>우선순위</th><th>처리 상태</th><th>조사</th></tr></thead><tbody>
-          <tr th:each="report : ${dashboard?.recentReports}"><td th:text="${report.reportId}">신고 번호</td><td th:text="${report.type}">유형</td><td th:text="${report.target}">대상</td><td th:text="${report.receivedAt}">시각</td><td><span class="status-badge" th:classappend="${report.priorityTone}" th:text="${report.priority}">우선순위</span></td><td><span class="status-badge" th:classappend="${report.statusTone}" th:text="${report.statusLabel}">상태</span></td><td><a class="table-link" th:href="@{/admin/system(view='reports')} + '#system-reports'">보기</a></td></tr>
-          <tr th:if="${#lists.isEmpty(dashboard?.recentReports)}"><td class="table-empty" colspan="7">접수된 신고가 없습니다.</td></tr>
-        </tbody></table></div></div>
+        <div class="section-heading"><div class="section-title-wrap"><h2>신고 접수함</h2><p>접수된 신고는 별도 접수함에서 한 건씩 열어 내용을 확인하고 처리합니다.</p></div><a class="admin-button small" th:href="@{/admin/system/reports}">신고함 열기 →</a></div>
+        <div class="card">
+          <div class="empty-state">
+            <b>신고 목록과 처리는 신고 접수함에서 확인합니다.</b>
+            <p>이 화면은 시스템 모니터링만 담당합니다. 신고 내용·처리 상태·처리 사유는 신고 접수함에서 한 건씩 열어 확인할 수 있습니다.</p>
+            <p><a class="admin-button small primary" th:href="@{/admin/system/reports}">신고 접수함으로 이동</a></p>
+          </div>
+        </div>
       </section>
 
       <!-- 서버·오류 로그 -->
@@ -68,76 +71,31 @@
         </div>
       </section>
 
-      <!-- 신고·제재 -->
-      <section class="admin-view" id="system-reports" data-view-title="신고·제재" hidden>
+      <!-- 구형 신고·제재 화면: 실제 신고 접수함(/admin/system/reports)으로 안내만 합니다.
+           #system-reports 해시·옛 링크로 들어와도 빈 접수함이나 미구현 제재 폼을 보여 주지 않습니다.
+           페널티 메뉴(#system-penalties)는 이 안내에서 링크하지 않고 기존 항목 그대로 둡니다. -->
+      <section class="admin-view" id="system-reports" data-view-title="신고 접수함 안내" hidden>
         <div class="page-heading">
-          <div class="page-heading-copy"><div class="page-eyebrow">사용자 보호 · 운영 검토</div><h1>신고·제재</h1><p>신고 대상의 관련 이용 기록과 이전 신고를 검토한 뒤 조치합니다.</p></div>
-          <div class="heading-actions"><span class="status-badge warn" th:text="${'미처리 신고 ' + (reportMetrics?.openCount ?: 0) + '건'}">미처리 신고</span><button class="admin-button small" type="button" data-view-target="system-penalties">페널티 내역 →</button></div>
+          <div class="page-heading-copy">
+            <div class="page-eyebrow">사용자 보호 · 신고 처리</div>
+            <h1>신고 처리는 신고 접수함에서 합니다</h1>
+            <p>이 화면은 더 이상 신고를 접수하거나 처리하지 않습니다. 실제 신고 목록·상세·처리는 신고 접수함으로 옮겨졌습니다.</p>
+          </div>
+          <div class="heading-actions">
+            <a class="admin-button primary" th:href="@{/admin/system/reports}">신고 접수함으로 이동 →</a>
+          </div>
         </div>
-        <div class="notice-strip notice-policy"><strong>검토 원칙</strong><p>신고만으로 자동 제재하지 말고 관련 로그와 이전 이력을 검토해 주세요. 조치 결과와 사유는 대상자 안내와 감사 로그에 기록되며, 실제 계정 상태 변경은 서버 권한 검증을 거칩니다.</p></div>
-        <div class="metric-grid report-metrics">
-          <article class="card metric-card"><div class="metric-top">미처리 신고</div><div class="metric-value"><span th:text="${reportMetrics?.openCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">운영자 확인이 필요합니다.</div></article>
-          <article class="card metric-card"><div class="metric-top">긴급 검토</div><div class="metric-value"><span th:text="${reportMetrics?.highCount ?: 0}">0</span><small>건</small></div><div class="metric-foot"><span class="down">우선순위 높음</span></div></article>
-          <article class="card metric-card"><div class="metric-top">이번 달 제재</div><div class="metric-value"><span th:text="${reportMetrics?.sanctionCount ?: 0}">0</span><small>건</small></div><div class="metric-foot">신고 및 운영 검토 결과</div></article>
-          <article class="card metric-card"><div class="metric-top">재신고 대상</div><div class="metric-value"><span th:text="${reportMetrics?.repeatCount ?: 0}">0</span><small>명</small></div><div class="metric-foot">이전 신고 기록이 있습니다.</div></article>
+        <div class="notice-strip notice-policy">
+          <strong>신고 접수함에서 할 수 있는 일</strong>
+          <p>접수된 신고 목록을 상태별로 보고, 신고 한 건의 원문과 신고자·대상을 확인한 뒤 검토 중·처리 완료·기각으로 처리하고 사유를 기록합니다.</p>
         </div>
-        <div class="section-heading"><div class="section-title-wrap"><h2>신고 접수함</h2><p>신고를 열면 대상 계정의 이용 이력과 관련 로그를 함께 확인할 수 있습니다.</p></div></div>
         <div class="card">
-          <form class="toolbar" method="get" th:action="@{/admin/system}">
-            <input type="hidden" name="view" value="reports" />
-            <label class="search-control"><span aria-hidden="true">⌕</span><input id="report-search" name="q" type="search" placeholder="신고 번호, 유형, 계정 검색" th:value="${reportFilters?.q}" /></label>
-            <select class="field-control" id="report-status-filter" name="status" aria-label="신고 처리 상태"><option value="all">전체 처리 상태</option><option value="open" th:selected="${reportFilters?.status == 'open'}">조사 필요</option><option value="reviewing" th:selected="${reportFilters?.status == 'reviewing'}">조사 중</option><option value="done" th:selected="${reportFilters?.status == 'done'}">처리 완료</option><option value="dismissed" th:selected="${reportFilters?.status == 'dismissed'}">기각</option></select>
-            <select class="field-control" id="report-priority-filter" name="priority" aria-label="신고 우선순위"><option value="all">전체 우선순위</option><option value="high" th:selected="${reportFilters?.priority == 'high'}">높음</option><option value="normal" th:selected="${reportFilters?.priority == 'normal'}">보통</option><option value="low" th:selected="${reportFilters?.priority == 'low'}">낮음</option></select>
-            <span class="toolbar-spacer"></span>
-            <button class="admin-button small" type="submit">검색</button>
-            <a class="admin-button small" th:href="@{/admin/system(view='reports')} + '#system-reports'">초기화</a>
-          </form>
-          <div class="result-meta"><b th:text="${#lists.size(reports)}">0</b>건의 신고</div>
-          <div class="table-scroll"><table class="admin-table"><thead><tr><th>신고 번호</th><th>신고 유형</th><th>신고 대상</th><th>신고자</th><th>접수 시각</th><th>관련 로그</th><th>우선순위</th><th>처리 상태</th><th>관리</th></tr></thead><tbody>
-            <tr th:each="report : ${reports}"><td th:text="${report.reportId}">신고 번호</td><td th:text="${report.type}">유형</td><td><span class="cell-primary" th:text="${report.target}">대상</span></td><td th:text="${report.reporter}">신고자</td><td th:text="${report.receivedAt}">시각</td><td th:text="${report.relatedLogs + '건'}">0건</td><td><span class="status-badge" th:classappend="${report.priorityTone}" th:text="${report.priority}">우선순위</span></td><td><span class="status-badge" th:classappend="${report.statusTone}" th:text="${report.statusLabel}">상태</span></td><td><button class="table-link" type="button" data-open-report th:attr="data-report-id=${report.reportId}">조사</button></td></tr>
-            <tr th:if="${#lists.isEmpty(reports)}"><td class="table-empty" colspan="9">조건에 맞는 신고가 없습니다.</td></tr>
-          </tbody></table></div>
-          <div class="table-footer" th:if="${reportPagination?.totalPages != null and reportPagination.totalPages > 1}"><span>신고자·대상자 정보는 권한이 있는 관리자에게만 표시됩니다.</span><div class="pagination"><a class="page-button" th:href="@{${reportPagination.prevUrl}}" aria-label="이전 페이지">‹</a><span class="page-button" aria-current="page" th:text="${reportPagination.page}">1</span><a class="page-button" th:href="@{${reportPagination.nextUrl}}" aria-label="다음 페이지">›</a></div></div>
+          <div class="empty-state">
+            <b>이전 화면의 신고 목록과 조치 양식은 제거되었습니다.</b>
+            <p>신고 원문은 접수함에서 한 건씩만 열리며, 처리 결과는 신고자에게 알림으로 전달됩니다. 이 화면에는 신고 데이터가 표시되지 않습니다.</p>
+            <p><a class="admin-button small primary" th:href="@{/admin/system/reports}">신고 접수함 열기</a></p>
+          </div>
         </div>
-
-        <!-- 신고별 상세: 서버가 렌더링한 내용을 모달에서 엽니다. -->
-        <template th:each="report : ${reports}" th:id="${'report-detail-' + report.reportId}" th:attr="data-report-title=${report.type + ' · ' + report.reportId},data-report-subtitle=${report.summary}">
-          <form th:id="${'report-decision-form-' + report.reportId}" method="post" th:action="@{/admin/system/reports/{id}/decision(id=${report.reportId})}">
-            <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-            <div class="modal-body">
-              <div class="report-detail-grid">
-                <div class="report-evidence-column">
-                  <div class="report-summary-card">
-                    <div class="report-summary-top"><b th:text="${report.summary}">신고 요약</b><span class="status-badge" th:classappend="${report.priorityTone}" th:text="${report.priority + ' 우선순위'}">우선순위</span></div>
-                    <p class="report-summary-copy" th:text="${report.detail}">신고 상세 내용</p>
-                    <div class="report-kv-grid">
-                      <div class="report-kv"><small>신고 번호</small><b th:text="${report.reportId}">신고 번호</b></div>
-                      <div class="report-kv"><small>접수 시각</small><b th:text="${report.receivedAt}">시각</b></div>
-                      <div class="report-kv"><small>신고자</small><b th:text="${report.reporter}">신고자</b></div>
-                      <div class="report-kv"><small>신고 대상</small><b th:text="${report.target}">대상</b></div>
-                      <div class="report-kv"><small>관련 로그</small><b th:text="${report.relatedLogs + '건'}">0건</b></div>
-                      <div class="report-kv"><small>처리 상태</small><b th:text="${report.statusLabel}">상태</b></div>
-                    </div>
-                  </div>
-                  <div class="report-evidence-heading"><div><h3>관련 이용 기록</h3><p>신고 대상 계정에서 수집된 관련 로그</p></div><span class="report-log-count" th:text="${#lists.size(report.evidence) + '개'}">0개</span></div>
-                  <div class="report-evidence-list">
-                    <div class="report-evidence-item" th:each="evidence : ${report.evidence}"><time th:text="${evidence.time}">시간</time><i class="evidence-marker" th:classappend="${evidence.tone}"></i><div class="evidence-copy"><b th:text="${evidence.title}">로그 제목</b><p th:text="${evidence.detail}">로그 내용</p></div></div>
-                    <p th:if="${#lists.isEmpty(report.evidence)}" class="table-empty">수집된 관련 로그가 없습니다.</p>
-                  </div>
-                  <div class="report-history" th:if="${report.history != null and !#lists.isEmpty(report.history)}"><strong>이전 신고 이력</strong><p th:each="history : ${report.history}" th:text="${history.date + ' · ' + history.type + ' · ' + history.status}">이력</p></div>
-                </div>
-                <aside class="report-decision-card">
-                  <span class="report-decision-label">검토 결과</span>
-                  <div class="form-field"><label th:for="${'sanction-action-' + report.reportId}">처리 조치</label><select th:id="${'sanction-action-' + report.reportId}" name="action"><option value="warn">경고 발송</option><option value="suspend-3">3일 이용 정지</option><option value="suspend-7">7일 이용 정지</option><option value="suspend-permanent">영구 이용 정지</option><option value="dismiss">신고 기각</option></select></div>
-                  <div class="form-field"><label th:for="${'sanction-reason-' + report.reportId}">처리 사유</label><textarea th:id="${'sanction-reason-' + report.reportId}" name="reason" placeholder="확인한 로그와 운영 정책에 따른 판단 근거를 기록해 주세요." required></textarea><small>이 사유는 대상자 안내와 감사 로그에 남습니다.</small></div>
-                  <label class="report-notify-option"><input name="notify" type="checkbox" checked /> 처리 결과를 신고자와 대상자에게 안내</label>
-                  <div class="report-action-note">신고 내용과 관련 로그를 확인한 뒤 조치를 선택해 주세요.</div>
-                </aside>
-              </div>
-            </div>
-            <div class="modal-footer"><button class="admin-button" type="button" data-close-report>닫기</button><button class="admin-button primary" type="submit">조치 기록 및 적용</button></div>
-          </form>
-        </template>
       </section>
 
       <!-- 페널티 관리 -->
@@ -295,14 +253,6 @@
       </div></div>
       <div class="modal-footer"><button class="admin-button" type="button" data-close-role>취소</button><button class="admin-button primary" type="submit">변경 저장</button></div>
     </form>
-  </section>
-</div>
-
-<!-- 신고 상세 -->
-<div class="modal-backdrop" id="report-modal" hidden>
-  <section class="admin-modal wide report-modal" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
-    <div class="modal-header"><div><div class="report-modal-kicker">신고 조사</div><h2 id="report-modal-title">신고 상세</h2><p id="report-modal-subtitle">관련 활동 내역을 검토해 주세요.</p></div><button class="modal-close" type="button" data-close-report aria-label="닫기">×</button></div>
-    <div id="report-modal-body"></div>
   </section>
 </div>
 

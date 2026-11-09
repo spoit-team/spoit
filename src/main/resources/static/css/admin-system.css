@@ -9,6 +9,33 @@
 .admin-body[data-admin-role="system"] .admin-content .section-heading { padding-top: 13px; border-top: 1px solid var(--admin-line-strong); }
 .admin-body[data-admin-role="system"] .admin-content .setting-grid { border: 0; border-bottom: 1px solid var(--admin-line-strong); border-radius: 0; background: transparent; }
 
+/* Fit up to 144 five-minute buckets without letting the gaps consume the plot. */
+#system-dashboard .bar-chart { container-type: inline-size; gap: 0; }
+#system-dashboard .bar-group {
+  display: grid;
+  grid-template: minmax(0, 1fr) 24px / minmax(0, 1fr);
+  place-items: stretch center;
+  gap: 0;
+}
+#system-dashboard .bar-pair {
+  display: grid;
+  width: min(90%, 28px);
+  grid-template: minmax(0, 1fr) / repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: min(1px, 8%);
+}
+#system-dashboard .bar { grid-area: 1 / 1; width: 100%; }
+#system-dashboard .bar.green { grid-column: 2; }
+
+/* Reserve a shared label row and show intermediate ticks at three-hour intervals. */
+#system-dashboard .bar-label { visibility: hidden; white-space: nowrap; }
+#system-dashboard .bar-group:first-child .bar-label { visibility: visible; justify-self: start; }
+#system-dashboard .bar-group:last-child:not(:first-child) .bar-label { visibility: visible; justify-self: end; }
+
+@container (min-width: 170px) {
+  #system-dashboard .bar-group:nth-child(36n + 37):nth-last-child(n + 36) .bar-label { visibility: visible; }
+}
+
 @media (max-width: 960px) {
   .admin-body[data-admin-role="system"] #system-dashboard .dashboard-grid { grid-template-columns: minmax(0,1fr); }
   .admin-body[data-admin-role="system"] #system-dashboard .dashboard-grid > .card + .card { border-top: 1px solid var(--admin-line-strong); border-left: 0; }

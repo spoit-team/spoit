@@ -27,11 +27,20 @@ public class NotificationDispatcher {
 
     public void notifyAfterCommit(List<Long> recipients, String type, String title, String body,
             Long matchId, Long applicationId, Long joinRequestId, Long clubId) {
+        notifyAfterCommit(recipients, type, title, body, matchId, applicationId, joinRequestId, clubId, null);
+    }
+
+    /**
+     * 신고 번호를 함께 저장하는 저장 계약. 신고 알림 외의 기존 호출은 이 오버로드를 쓰지 않는다.
+     */
+    public void notifyAfterCommit(List<Long> recipients, String type, String title, String body,
+            Long matchId, Long applicationId, Long joinRequestId, Long clubId, Long reportId) {
         List<Long> targets = normalize(recipients);
         if (targets.isEmpty() || type == null || type.isBlank()) {
             return;
         }
-        notificationService.notifyRecipients(targets, type, title, body, matchId, applicationId, joinRequestId, clubId);
+        notificationService.notifyRecipients(targets, type, title, body, matchId, applicationId, joinRequestId,
+                clubId, reportId);
     }
 
     /** 호출 측 목록을 건드리지 않도록 복사한 뒤 순서를 유지하며 중복을 제거한다. */

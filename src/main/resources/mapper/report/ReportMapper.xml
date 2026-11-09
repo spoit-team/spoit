@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- ReportMapper: 신고 접수·조회·처리. 목록 조회는 summary를 선택하지 않아 신고 원문을 목록에 싣지 않는다. -->
+<mapper namespace="co.kr.spoit.report.mapper.ReportMapper">
+
+    <!-- 담당 활성 시설의 이용 완료 경기만 선택지로 준다. 예정 시각은 게이트로 쓰지 않고 정렬에만 쓴다.
+         LIMIT은 pageSize+1로 넘겨 다음 페이지 존재 여부를 함께 판정한다. offset은 서비스가 안전 범위로 제한한다. -->
+    <select id="findReportableMatches" resultType="co.kr.spoit.report.domain.ReportMatchRow">
+        SELECT m.match_id AS matchId
+              ,f.name AS facilityName
+              ,m.title AS title
+              ,m.start_at AS startAt
+          FROM social_match m
+          JOIN facility f ON f.facility_id = m.facility_id
+          JOIN facility_manager fm ON fm.facility_id = m.facility_id
+         WHERE fm.user_id = #{managerUserId}
+           AND f.deleted_at IS NULL
+           AND m.status = #{matchStatus}
+         ORDER BY m.start_at DESC, m.match_id DESC
+         LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 페이지 밖 경기를 운영 화면 링크로 골랐을 때 쓰는 단건 선택 조회. 담당 활성 시설·종료 조건을
+         쿼리에서 함께 강제해, 담당 밖이거나 상태가 다르면 null이라 다른 경기 정보가 새지 않는다. -->
+    <select id="findReportableMatch" resultType="co.kr.spoit.report.domain.ReportMatchRow">
+        SELECT m.match_id AS matchId
+              ,f.name AS facilityName
+              ,m.title AS title
+              ,m.start_at AS startAt
+          FROM social_match m
+          JOIN facility f ON f.facility_id = m.facility_id
+          JOIN facility_manager fm ON fm.facility_id = m.facility_id
+         WHERE fm.user_id = #{managerUserId}
+           AND f.deleted_at IS NULL
+           AND m.status = #{matchStatus}
+           AND m.match_id = #{matchId}
+    </select>
+
+    <select id="existsFacilityManager" resultType="boolean">
+        SELECT COUNT(*) > 0
+          FROM facility_manager fm
+          JOIN facility f ON f.facility_id = fm.facility_id
+         WHERE fm.facility_id = #{facilityId}
+           AND fm.user_id = #{userId}
+           AND f.deleted_at IS NULL
+    </select>
+
+    <select id="findMatchSnapshot" resultType="co.kr.spoit.report.domain.MatchSnapshot">
+        SELECT m.match_id AS matchId
+              ,m.facility_id AS facilityId
+              ,m.status AS status
+          FROM social_match m
+         WHERE m.match_id = #{matchId}
+    </select>
+
+    <!-- 접수 트랜잭션에서 경기 행을 잠가, 상태 재검사와 신고 저장 사이에 다른 변경이 끼지 않게 한다. -->
+    <select id="findMatchSnapshotForUpdate" resultType="co.kr.spoit.report.domain.MatchSnapshot">
+        SELECT m.match_id AS matchId
+              ,m.facility_id AS facilityId
+              ,m.status AS status
+          FROM social_match m
+         WHERE m.match_id = #{matchId}
+           FOR UPDATE
+    </select>
+
+    <!-- 대상 선택지는 그 경기의 확정 참가자 전부다. 대기·취소·반려는 제외한다.
+         한 경기의 참가자는 팀 정원으로 제한되며, 임의 건수 절단은 뒤쪽 참가자 신고를 막으므로 두지 않는다.
+         경기 자체는 서비스가 담당 시설·종료 상태를 먼저 검증한 뒤에만 이 조회를 호출한다. -->
+    <select id="findParticipants" resultType="co.kr.spoit.report.domain.ReportParticipantRow">
+        SELECT u.user_id AS userId
+              ,u.nickname AS nickname
+          FROM match_participant p
+          JOIN app_user u ON u.user_id = p.user_id
+         WHERE p.match_id = #{matchId}
+           AND p.participation_status = #{participationStatus}
+         GROUP BY u.user_id, u.nickname
+         ORDER BY u.nickname ASC, u.user_id ASC
+    </select>
+
+    <select id="existsParticipant" resultType="boolean">
+        SELECT COUNT(*) > 0
+          FROM match_participant p
+         WHERE p.match_id = #{matchId}
+           AND p.user_id = #{userId}
+           AND p.participation_status = #{participationStatus}
+    </select>
+
+    <!--
+      중복 클릭 방어: 같은 신고자·경기·대상·유형·원문 조합의 아주 최근 동일 요청을 찾는다.
+      다른 내용의 사건은 이 조건에 걸리지 않으므로 별도 신고로 접수된다.
+      created_at은 insert가 DB CURRENT_TIMESTAMP로 쓰므로 비교도 같은 DB 시계로 한다(세션 타임존 무관).
+      summary 컬럼 collation(utf8mb4_0900_ai_ci)은 대소문자·악센트를 무시하므로, 서로 다른 진술이
+      중복으로 묶이지 않도록 BINARY로 정확히 비교한다. category는 코드 값이라 그대로 정확 비교한다.
+      시간 조건은 중복 클릭 방어일 뿐 신고 가능 여부를 가르는 게이트가 아니다.
+      report에는 이 조합의 보조 인덱스가 없어 범위 잠금은 스캔 행 전체를 잠근다. 그래서 후보만
+      잠금 없이 찾고, 실제 중복 여부는 lockReportById가 PK로 잠가 확인한다.
+    -->
+    <select id="findRecentDuplicate" resultType="java.lang.Long">
+        SELECT r.report_id
+          FROM report r
+         WHERE r.reporter_user_id = #{reporterUserId}
+           AND r.match_id = #{matchId}
+           AND r.target_user_id = #{targetUserId}
+           AND r.category = #{category}
+           AND BINARY r.summary = BINARY #{summary}
+           AND r.created_at &gt;= TIMESTAMPADD(SECOND, 0 - #{windowSeconds}, CURRENT_TIMESTAMP)
+         ORDER BY r.report_id DESC
+         LIMIT 1
+    </select>
+
+    <!-- 후보 한 행만 PK로 잠근다. 다른 접수의 범위 잠금을 만들지 않는다. -->
+    <select id="lockReportById" resultType="java.lang.Long">
+        SELECT report_id
+          FROM report
+         WHERE report_id = #{reportId}
+           FOR UPDATE
+    </select>
+
+    <insert id="insertReport" parameterType="co.kr.spoit.report.domain.Report"
+            useGeneratedKeys="true" keyProperty="reportId">
+        INSERT INTO report (
+            reporter_user_id, target_user_id, match_id, reviewed_by,
+            category, summary, status, resolution, created_at, reviewed_at
+        ) VALUES (
+            #{reporterUserId}, #{targetUserId}, #{matchId}, NULL,
+            #{category}, #{summary}, #{status}, NULL, CURRENT_TIMESTAMP, NULL
+        )
+    </insert>
+
+    <!-- 신고자는 본인이 접수한 신고만, 범위는 현재 담당 활성 시설로 제한한다. 원문은 선택하지 않는다.
+         LIMIT은 pageSize+1로 넘겨 다음 페이지 존재 여부를 함께 판정한다. -->
+    <select id="findReportsForFacilityManager" resultType="co.kr.spoit.report.domain.ReportRow">
+        SELECT r.report_id AS reportId
+              ,r.match_id AS matchId
+              ,f.name AS facilityName
+              ,m.title AS matchTitle
+              ,target.nickname AS targetName
+              ,r.category AS category
+              ,r.status AS status
+              ,r.created_at AS createdAt
+              ,r.resolution AS resolution
+          FROM report r
+          JOIN social_match m ON m.match_id = r.match_id
+          JOIN facility f ON f.facility_id = m.facility_id
+          JOIN app_user target ON target.user_id = r.target_user_id
+          JOIN facility_manager fm ON fm.facility_id = m.facility_id
+         WHERE r.reporter_user_id = #{reporterUserId}
+           AND fm.user_id = #{managerUserId}
+           AND f.deleted_at IS NULL
+         ORDER BY r.created_at DESC, r.report_id DESC
+         LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="findFacilityManagerReport" resultType="co.kr.spoit.report.domain.ReportRow">
+        SELECT r.report_id AS reportId
+              ,r.match_id AS matchId
+              ,f.name AS facilityName
+              ,m.title AS matchTitle
+              ,target.nickname AS targetName
+              ,r.category AS category
+              ,r.status AS status
+              ,r.created_at AS createdAt
+              ,r.summary AS summary
+              ,r.resolution AS resolution
+          FROM report r
+          JOIN social_match m ON m.match_id = r.match_id
+          JOIN facility f ON f.facility_id = m.facility_id
+          JOIN app_user target ON target.user_id = r.target_user_id
+          JOIN facility_manager fm ON fm.facility_id = m.facility_id
+         WHERE r.report_id = #{reportId}
+           AND r.reporter_user_id = #{reporterUserId}
+           AND fm.user_id = #{managerUserId}
+           AND f.deleted_at IS NULL
+    </select>
+
+    <!-- 시스템 접수함 목록. 신고 원문(summary)은 상세에서만 읽는다. LIMIT은 pageSize+1로 넘긴다. -->
+    <select id="findSystemReports" resultType="co.kr.spoit.report.domain.ReportRow">
+        SELECT r.report_id AS reportId
+              ,r.match_id AS matchId
+              ,f.name AS facilityName
+              ,m.title AS matchTitle
+              ,target.nickname AS targetName
+              ,reporter.nickname AS reporterName
+              ,r.category AS category
+              ,r.status AS status
+              ,r.created_at AS createdAt
+              ,r.resolution AS resolution
+          FROM report r
+          LEFT JOIN social_match m ON m.match_id = r.match_id
+          LEFT JOIN facility f ON f.facility_id = m.facility_id
+          LEFT JOIN app_user target ON target.user_id = r.target_user_id
+          LEFT JOIN app_user reporter ON reporter.user_id = r.reporter_user_id
+        <where>
+            <if test="status != null and status != ''">
+                r.status = #{status}
+            </if>
+        </where>
+         ORDER BY r.created_at DESC, r.report_id DESC
+         LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="findSystemReport" resultType="co.kr.spoit.report.domain.ReportRow">
+        SELECT r.report_id AS reportId
+              ,r.match_id AS matchId
+              ,f.name AS facilityName
+              ,m.title AS matchTitle
+              ,target.nickname AS targetName
+              ,reporter.nickname AS reporterName
+              ,r.category AS category
+              ,r.status AS status
+              ,r.created_at AS createdAt
+              ,r.summary AS summary
+              ,r.resolution AS resolution
+          FROM report r
+          LEFT JOIN social_match m ON m.match_id = r.match_id
+          LEFT JOIN facility f ON f.facility_id = m.facility_id
+          LEFT JOIN app_user target ON target.user_id = r.target_user_id
+          LEFT JOIN app_user reporter ON reporter.user_id = r.reporter_user_id
+         WHERE r.report_id = #{reportId}
+    </select>
+
+    <select id="findReportForUpdate" resultType="co.kr.spoit.report.domain.Report">
+        SELECT r.report_id AS reportId
+              ,r.reporter_user_id AS reporterUserId
+              ,r.target_user_id AS targetUserId
+              ,r.match_id AS matchId
+              ,r.reviewed_by AS reviewedBy
+              ,r.category AS category
+              ,r.summary AS summary
+              ,r.status AS status
+              ,r.resolution AS resolution
+              ,r.created_at AS createdAt
+              ,r.reviewed_at AS reviewedAt
+          FROM report r
+         WHERE r.report_id = #{reportId}
+           FOR UPDATE
+    </select>
+
+    <!--
+      기대 상태 조건에 더해, 허용 원본 상태를 SQL에서도 명시한다. 서비스가 이미 전이를 판정하지만,
+      DB 레벨에서도 완결(처리 완료·기각) 건이 다시 바뀌지 않도록 이중으로 막는다.
+      markReviewing은 접수에서만, applyFinalDecision은 접수·검토 중에서만 갱신한다.
+    -->
+    <update id="markReviewing">
+        UPDATE report
+           SET status = #{targetStatus},
+               reviewed_by = #{reviewedBy}
+         WHERE report_id = #{reportId}
+           AND status = #{expectedStatus}
+           AND status = '접수'
+    </update>
+
+    <update id="applyFinalDecision">
+        UPDATE report
+           SET status = #{targetStatus},
+               resolution = #{resolution},
+               reviewed_by = #{reviewedBy},
+               reviewed_at = CURRENT_TIMESTAMP
+         WHERE report_id = #{reportId}
+           AND status = #{expectedStatus}
+           AND status IN ('접수', '검토 중')
+    </update>
+
+</mapper>

@@ -19,8 +19,9 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.transaction.BeforeTransaction;
 
 import co.kr.spoit.facility.dto.ApplicationCountSummary;
-import co.kr.spoit.facility.dto.HourRoomCount;
-import co.kr.spoit.facility.dto.WeekdayRoomCount;
+import co.kr.spoit.facility.dto.HourParticipantCount;
+import co.kr.spoit.facility.dto.WeekdayHourParticipantCount;
+import co.kr.spoit.facility.dto.WeekdayParticipantCount;
 
 /**
  * 시설 관리자 예약 통계 SQL을 전용 MySQL DB에서만 검증한다.
@@ -28,8 +29,10 @@ import co.kr.spoit.facility.dto.WeekdayRoomCount;
  * <p>{@code MAT_TEST_DB_URL} 등 환경변수가 없으면 실행되지 않는다. fixture는 테스트 트랜잭션 안에서만
  * 저장되고 종료 시 롤백되므로 개발·운영 DB에는 흔적을 남기지 않는다.</p>
  *
- * <p>검증 기간은 2026-10-05(월) 09:00 ~ 2026-10-09(금) 18:00이며, 같은 시설에 기간 경계값·취소
- * 매칭방·다른 담당자의 시설 매칭방을 함께 둬 대상 필터를 확인한다.</p>
+ * <p>검증 기간은 2026-10-05(월) 09:00 ~ 2026-10-09(금) 18:00이며, 같은 시설에 기간 경계값·모집 중·
+ * 매칭 완료·취소 매칭방과 다른 담당자의 시설 매칭방을 함께 둬 대상 필터를 확인한다. 요일·시간대
+ * 집계가 매칭방 수가 아니라 종료 매칭의 확정 참가 인원임을 확인하기 위해 화요일 매칭방 하나에
+ * 확정 참가자 2명을 두고, 같은 회원이 두 경기에 참여하는 반복 참가자도 넣는다.</p>
  */
 @EnabledIfEnvironmentVariable(named = "MAT_TEST_DB_URL", matches = ".+")
 @MybatisTest(properties = {
@@ -52,6 +55,8 @@ class FacilityStatsMapperIntegrationTest {
     private static final long MANAGER_USER_ID = 9501L;
     /** fixture의 시설 관리자 B. 담당 범위 밖 검증에 쓴다. */
     private static final long OTHER_MANAGER_USER_ID = 9503L;
+    /** 관리자 A가 담당하지 않는 다른 시설. */
+    private static final long OTHER_FACILITY_ID = 9602L;
 
     private static final LocalDateTime RANGE_START = LocalDateTime.of(2026, 10, 5, 9, 0);
     private static final LocalDateTime RANGE_END = LocalDateTime.of(2026, 10, 9, 18, 0);
@@ -83,8 +88,8 @@ class FacilityStatsMapperIntegrationTest {
     }
 
     /**
-     * 테스트 트랜잭션 안에서만 쓰는 fixture다. 기간 안의 매칭방 5건(월 09시, 화 10시, 수 14시,
-     * 목 10시, 금 18시)과 기간 밖·취소·다른 담당자 매칭방을 함께 넣는다.
+     * 테스트 트랜잭션 안에서만 쓰는 fixture다. 기간 안의 종료 매칭 3건(월 09시, 화 10시, 금 18시)과
+     * 기간 밖·모집 중·매칭 완료·취소·다른 담당자 매칭방을 함께 넣는다.
      */
     @BeforeEach
     void insertFixture() {
@@ -132,30 +137,32 @@ class FacilityStatsMapperIntegrationTest {
                     (9601, 9501, '2026-10-01 09:00:00'),
                     (9602, 9503, '2026-10-01 09:00:00')
                 """);
+        // 종료 3건만 대상이다. 9804(모집 중)·9805(매칭 완료)·9808(취소)는 상태로,
+        // 9802·9807은 기간 경계로, 9809는 다른 시설·담당자로 빠진다.
         jdbcTemplate.update("""
                 INSERT INTO social_match (
                     match_id, facility_id, sport_id, created_by, title, start_at, end_at,
                     min_participants, max_participants, team_a_capacity, team_b_capacity,
                     fee_per_person, required_skill, status, assignment_method, rating_status
                 ) VALUES
-                    (9801, 9601, 9701, 9501, '통계 경계 시작 포함', '2026-10-05 09:00:00', '2026-10-05 11:00:00',
-                     1, 2, 1, 1, 0.00, '무관', '모집 중', 'MANUAL', 'WAITING'),
+                    (9801, 9601, 9701, 9501, '통계 종료 시작 경계', '2026-10-05 09:00:00', '2026-10-05 11:00:00',
+                     1, 2, 1, 1, 0.00, '무관', '종료', 'MANUAL', 'APPLIED'),
                     (9802, 9601, 9701, 9501, '통계 기간 이전', '2026-10-05 08:59:59', '2026-10-05 10:59:59',
+                     1, 2, 1, 1, 0.00, '무관', '종료', 'MANUAL', 'APPLIED'),
+                    (9803, 9601, 9701, 9501, '통계 종료 화요일', '2026-10-06 10:00:00', '2026-10-06 12:00:00',
+                     1, 2, 1, 1, 0.00, '무관', '종료', 'MANUAL', 'APPLIED'),
+                    (9804, 9601, 9701, 9501, '통계 모집 중 수요일', '2026-10-07 14:00:00', '2026-10-07 16:00:00',
                      1, 2, 1, 1, 0.00, '무관', '모집 중', 'MANUAL', 'WAITING'),
-                    (9803, 9601, 9701, 9501, '통계 화요일', '2026-10-06 10:00:00', '2026-10-06 12:00:00',
+                    (9805, 9601, 9701, 9501, '통계 매칭 완료 목요일', '2026-10-08 10:00:00', '2026-10-08 12:00:00',
                      1, 2, 1, 1, 0.00, '무관', '매칭 완료', 'MANUAL', 'WAITING'),
-                    (9804, 9601, 9701, 9501, '통계 수요일', '2026-10-07 14:00:00', '2026-10-07 16:00:00',
-                     1, 2, 1, 1, 0.00, '무관', '모집 중', 'MANUAL', 'WAITING'),
-                    (9805, 9601, 9701, 9501, '통계 목요일', '2026-10-08 10:00:00', '2026-10-08 12:00:00',
-                     1, 2, 1, 1, 0.00, '무관', '모집 중', 'MANUAL', 'WAITING'),
-                    (9806, 9601, 9701, 9501, '통계 경계 끝 포함', '2026-10-09 18:00:00', '2026-10-09 20:00:00',
-                     1, 2, 1, 1, 0.00, '무관', '모집 중', 'MANUAL', 'WAITING'),
+                    (9806, 9601, 9701, 9501, '통계 종료 끝 경계', '2026-10-09 18:00:00', '2026-10-09 20:00:00',
+                     1, 2, 1, 1, 0.00, '무관', '종료', 'MANUAL', 'APPLIED'),
                     (9807, 9601, 9701, 9501, '통계 기간 이후', '2026-10-09 18:00:01', '2026-10-09 20:00:01',
-                     1, 2, 1, 1, 0.00, '무관', '모집 중', 'MANUAL', 'WAITING'),
+                     1, 2, 1, 1, 0.00, '무관', '종료', 'MANUAL', 'APPLIED'),
                     (9808, 9601, 9701, 9501, '통계 취소 매칭방', '2026-10-06 10:00:00', '2026-10-06 12:00:00',
                      1, 2, 1, 1, 0.00, '무관', '취소', 'MANUAL', 'EXCLUDED'),
                     (9809, 9602, 9701, 9503, '통계 다른 담당자 시설', '2026-10-07 11:00:00', '2026-10-07 13:00:00',
-                     1, 2, 1, 1, 0.00, '무관', '모집 중', 'MANUAL', 'WAITING')
+                     1, 2, 1, 1, 0.00, '무관', '종료', 'MANUAL', 'APPLIED')
                 """);
         jdbcTemplate.update("""
                 INSERT INTO match_application (
@@ -171,107 +178,134 @@ class FacilityStatsMapperIntegrationTest {
                      '2026-10-01 09:00:00', NULL, NULL, NULL, 9902),
                     (9904, 9803, 9504, NULL, '동호회', '확정', 'STATS-RECEIPT-9904',
                      '2026-10-01 09:00:00', '2026-10-02 09:00:00', NULL, NULL, 9902),
-                    (9905, 9804, 9503, NULL, '개인', '대기', 'STATS-RECEIPT-9905',
-                     '2026-10-01 09:00:00', NULL, NULL, NULL, NULL),
-                    (9906, 9805, 9504, NULL, '개인', '확정', 'STATS-RECEIPT-9906',
+                    (9905, 9806, 9505, NULL, '개인', '확정', 'STATS-RECEIPT-9905',
                      '2026-10-01 09:00:00', '2026-10-02 09:00:00', NULL, NULL, NULL),
-                    (9907, 9806, 9505, NULL, '개인', '취소', 'STATS-RECEIPT-9907',
-                     '2026-10-01 09:00:00', NULL, '2026-10-03 09:00:00', 9505, NULL),
+                    (9906, 9804, 9502, NULL, '개인', '확정', 'STATS-RECEIPT-9906',
+                     '2026-10-01 09:00:00', '2026-10-02 09:00:00', NULL, NULL, NULL),
+                    (9907, 9805, 9503, NULL, '개인', '확정', 'STATS-RECEIPT-9907',
+                     '2026-10-01 09:00:00', '2026-10-02 09:00:00', NULL, NULL, NULL),
                     (9908, 9808, 9502, NULL, '개인', '확정', 'STATS-RECEIPT-9908',
                      '2026-10-01 09:00:00', '2026-10-02 09:00:00', NULL, NULL, NULL),
-                    (9909, 9807, 9502, NULL, '개인', '확정', 'STATS-RECEIPT-9909',
+                    (9909, 9802, 9502, NULL, '개인', '확정', 'STATS-RECEIPT-9909',
+                     '2026-10-01 09:00:00', '2026-10-02 09:00:00', NULL, NULL, NULL),
+                    (9910, 9807, 9504, NULL, '개인', '확정', 'STATS-RECEIPT-9910',
+                     '2026-10-01 09:00:00', '2026-10-02 09:00:00', NULL, NULL, NULL),
+                    (9911, 9809, 9503, NULL, '개인', '확정', 'STATS-RECEIPT-9911',
                      '2026-10-01 09:00:00', '2026-10-02 09:00:00', NULL, NULL, NULL)
                 """);
+        // 9921이 확정이므로 9801은 참가 인원 1명, 9803은 확정 2명(9931·9933)이다.
+        // 회원 9502는 9801과 9803에 모두 참여해 2인으로 집계된다(반복 참가자).
         jdbcTemplate.update("""
                 INSERT INTO match_participant (
                     participant_id, application_id, match_id, user_id, participation_status,
                     match_side, entry_mmr, joined_at, cancelled_at
                 ) VALUES
-                    (9911, 9901, 9801, 9502, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
-                    (9912, 9901, 9801, 9503, '취소', 'B', 1000.00, '2026-10-01 09:00:00', '2026-10-03 09:00:00'),
-                    (9921, 9902, 9803, 9502, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
-                    (9922, 9903, 9803, 9503, '대기', NULL, 1000.00, '2026-10-01 09:00:00', NULL),
-                    (9923, 9904, 9803, 9504, '취소', 'B', 1000.00, '2026-10-01 09:00:00', '2026-10-03 09:00:00'),
-                    (9931, 9905, 9804, 9503, '대기', NULL, 1000.00, '2026-10-01 09:00:00', NULL),
-                    (9941, 9906, 9805, 9504, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
-                    (9951, 9907, 9806, 9505, '확정', 'B', 1000.00, '2026-10-01 09:00:00', NULL),
-                    (9961, 9908, 9808, 9502, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
-                    (9971, 9909, 9807, 9502, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL)
+                    (9921, 9901, 9801, 9502, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
+                    (9922, 9901, 9801, 9503, '대기', NULL, 1000.00, '2026-10-01 09:00:00', NULL),
+                    (9923, 9901, 9801, 9504, '취소', 'B', 1000.00, '2026-10-01 09:00:00', '2026-10-03 09:00:00'),
+                    (9931, 9902, 9803, 9502, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
+                    (9932, 9903, 9803, 9503, '대기', NULL, 1000.00, '2026-10-01 09:00:00', NULL),
+                    (9933, 9904, 9803, 9504, '확정', 'B', 1000.00, '2026-10-01 09:00:00', NULL),
+                    (9941, 9905, 9806, 9505, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
+                    (9951, 9906, 9804, 9502, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
+                    (9961, 9907, 9805, 9503, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
+                    (9971, 9908, 9808, 9502, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
+                    (9981, 9909, 9802, 9502, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
+                    (9991, 9910, 9807, 9504, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
+                    (9992, 9911, 9809, 9503, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL)
                 """);
     }
 
     @Test
-    @DisplayName("기간 양끝을 포함하고 취소 매칭방·기간 밖 매칭방은 제외한다")
-    void countsOnlyInRangeNonCancelledMatches() {
-        long count = statsMapper.countMatches(MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END);
+    @DisplayName("종료 매칭방만 기간 양끝을 포함해 세고 모집 중·매칭 완료·취소는 제외한다")
+    void countsOnlyFinishedMatchesInRange() {
+        long count = statsMapper.countFinishedMatches(MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END);
 
-        // 9801(시작 경계), 9803, 9804, 9805, 9806(끝 경계)만 대상이다.
-        assertThat(count).isEqualTo(5);
+        // 9801(시작 경계), 9803, 9806(끝 경계)만 대상이다.
+        assertThat(count).isEqualTo(3);
     }
 
     @Test
-    @DisplayName("대기·확정 참가자만 더하고 취소 참가자와 취소 매칭방 인원은 제외한다")
-    void sumsParticipantsWithActiveStatusesOnly() {
-        long participants = statsMapper.sumParticipants(MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END);
+    @DisplayName("종료 매칭의 확정 참가자 행만 세고 대기·취소·다른 상태 매칭방 인원은 제외한다")
+    void countsConfirmedParticipantsOnly() {
+        long participants =
+                statsMapper.countConfirmedParticipants(MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END);
 
-        // 9911, 9921, 9922, 9931, 9941, 9951 = 6. 9912·9923(취소), 9961(취소 매칭방)은 빠진다.
-        assertThat(participants).isEqualTo(6);
+        // 9921(9801) + 9931·9933(9803) + 9941(9806) = 4. 9922·9932(대기), 9923(취소)는 빠지고,
+        // 모집 중(9951)·매칭 완료(9961)·취소 매칭방(9971)·기간 밖(9981·9991)·다른 시설(9992)도 빠진다.
+        // 회원 9502가 9921·9931에 두 번 참여해 2인으로 집계된다.
+        assertThat(participants).isEqualTo(4);
     }
 
     @Test
-    @DisplayName("팀 신청은 대표 행만 세어 한 건으로 집계하고 유형·확정 수를 함께 센다")
-    void countsRepresentativeApplicationRows() {
+    @DisplayName("신청 지표도 종료 매칭방으로 제한하고 팀 신청은 대표 행만 센다")
+    void countsRepresentativeApplicationRowsOfFinishedMatches() {
         ApplicationCountSummary summary =
                 statsMapper.countApplications(MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END);
 
-        // 9901·9905·9906·9907(개인) + 9902(동호회 대표) = 5, 팀원 9903·9904는 제외.
-        assertThat(summary.getTotal()).isEqualTo(5);
-        assertThat(summary.getIndividualCount()).isEqualTo(4);
+        // 9901(개인) + 9902(동호회 대표) + 9905(개인) = 3, 팀원 9903·9904는 제외.
+        // 모집 중(9906)·매칭 완료(9907)·취소(9908)·기간 밖(9909·9910)·다른 시설(9911)도 제외.
+        assertThat(summary.getTotal()).isEqualTo(3);
+        assertThat(summary.getIndividualCount()).isEqualTo(2);
         assertThat(summary.getClubCount()).isEqualTo(1);
-        // 9901, 9902 대표, 9906만 확정이다.
         assertThat(summary.getApprovedCount()).isEqualTo(3);
     }
 
     @Test
-    @DisplayName("요일별로 취소 제외 매칭방 수를 DAYOFWEEK 기준으로 묶는다")
-    void groupsMatchCountByWeekday() {
-        var counts = statsMapper.countByWeekday(MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END);
+    @DisplayName("요일별로 종료 매칭의 확정 참가 인원을 묶어 방 수보다 큰 값을 돌려준다")
+    void groupsParticipantCountByWeekday() {
+        var counts = statsMapper.countParticipantsByWeekday(MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END);
 
+        // 종료 방은 3건이지만 확정 참가 인원은 4명이다. 화요일은 방 1건에 참가자 2명이다.
         assertThat(counts)
-                .extracting(WeekdayRoomCount::getWeekday, WeekdayRoomCount::getRoomCount)
-                .containsExactly(
+                .extracting(WeekdayParticipantCount::getWeekday, WeekdayParticipantCount::getParticipantCount)
+                .containsExactlyInAnyOrder(
                         tuple(2, 1L),  // 월
-                        tuple(3, 1L),  // 화
-                        tuple(4, 1L),  // 수
-                        tuple(5, 1L),  // 목
+                        tuple(3, 2L),  // 화
                         tuple(6, 1L)); // 금
     }
 
     @Test
-    @DisplayName("시간대별로 취소 제외 매칭방 수를 HOUR 기준으로 묶는다")
-    void groupsMatchCountByHour() {
-        var counts = statsMapper.countByHour(MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END);
+    @DisplayName("시간대별로 종료 매칭의 확정 참가 인원을 묶는다")
+    void groupsParticipantCountByHour() {
+        var counts = statsMapper.countParticipantsByHour(MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END);
 
         assertThat(counts)
-                .extracting(HourRoomCount::getHour, HourRoomCount::getRoomCount)
-                .containsExactly(
+                .extracting(HourParticipantCount::getHour, HourParticipantCount::getParticipantCount)
+                .containsExactlyInAnyOrder(
                         tuple(9, 1L),
                         tuple(10, 2L),
-                        tuple(14, 1L),
                         tuple(18, 1L));
+    }
+
+    @Test
+    @DisplayName("요일×시작 시간대별로 종료 매칭의 확정 참가 인원을 함께 묶는다")
+    void groupsParticipantCountByWeekdayAndHour() {
+        var counts = statsMapper.countParticipantsByWeekdayAndHour(MANAGER_USER_ID, FACILITY_ID, RANGE_START,
+                RANGE_END);
+
+        assertThat(counts)
+                .extracting(WeekdayHourParticipantCount::getWeekday, WeekdayHourParticipantCount::getHour,
+                        WeekdayHourParticipantCount::getParticipantCount)
+                .containsExactlyInAnyOrder(
+                        tuple(2, 9, 1L),   // 월 09시
+                        tuple(3, 10, 2L),  // 화 10시
+                        tuple(6, 18, 1L)); // 금 18시
     }
 
     @Test
     @DisplayName("담당하지 않은 관리자나 다른 시설로 조회하면 모든 지표가 0이다")
     void scopesEveryQueryToManagerAndFacility() {
-        assertThat(statsMapper.countMatches(OTHER_MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END))
+        assertThat(statsMapper.countFinishedMatches(OTHER_MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END))
                 .isZero();
-        assertThat(statsMapper.sumParticipants(OTHER_MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END))
-                .isZero();
-        assertThat(statsMapper.countByWeekday(OTHER_MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END))
-                .isEmpty();
-        assertThat(statsMapper.countByHour(OTHER_MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END))
-                .isEmpty();
+        assertThat(statsMapper.countConfirmedParticipants(OTHER_MANAGER_USER_ID, FACILITY_ID, RANGE_START,
+                RANGE_END)).isZero();
+        assertThat(statsMapper.countParticipantsByWeekday(OTHER_MANAGER_USER_ID, FACILITY_ID, RANGE_START,
+                RANGE_END)).isEmpty();
+        assertThat(statsMapper.countParticipantsByHour(OTHER_MANAGER_USER_ID, FACILITY_ID, RANGE_START,
+                RANGE_END)).isEmpty();
+        assertThat(statsMapper.countParticipantsByWeekdayAndHour(OTHER_MANAGER_USER_ID, FACILITY_ID,
+                RANGE_START, RANGE_END)).isEmpty();
 
         ApplicationCountSummary summary =
                 statsMapper.countApplications(OTHER_MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END);
@@ -281,7 +315,37 @@ class FacilityStatsMapperIntegrationTest {
         assertThat(summary.getApprovedCount()).isZero();
 
         // 관리자 A가 담당하지 않은 시설(9602)도 같은 방식으로 0건이다.
-        assertThat(statsMapper.countMatches(MANAGER_USER_ID, 9602L, RANGE_START, RANGE_END)).isZero();
+        assertThat(statsMapper.countFinishedMatches(MANAGER_USER_ID, OTHER_FACILITY_ID, RANGE_START, RANGE_END))
+                .isZero();
+        assertThat(statsMapper.countConfirmedParticipants(MANAGER_USER_ID, OTHER_FACILITY_ID, RANGE_START,
+                RANGE_END)).isZero();
+        assertThat(statsMapper.countParticipantsByWeekday(MANAGER_USER_ID, OTHER_FACILITY_ID, RANGE_START,
+                RANGE_END)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("대상 기간에 종료 매칭이 없으면 모든 지표가 0건이다")
+    void returnsZeroWhenNoFinishedMatchesInRange() {
+        LocalDateTime emptyStart = LocalDateTime.of(2026, 11, 1, 0, 0);
+        LocalDateTime emptyEnd = LocalDateTime.of(2026, 11, 30, 23, 59, 59);
+
+        assertThat(statsMapper.countFinishedMatches(MANAGER_USER_ID, FACILITY_ID, emptyStart, emptyEnd))
+                .isZero();
+        assertThat(statsMapper.countConfirmedParticipants(MANAGER_USER_ID, FACILITY_ID, emptyStart, emptyEnd))
+                .isZero();
+        assertThat(statsMapper.countParticipantsByWeekday(MANAGER_USER_ID, FACILITY_ID, emptyStart, emptyEnd))
+                .isEmpty();
+        assertThat(statsMapper.countParticipantsByHour(MANAGER_USER_ID, FACILITY_ID, emptyStart, emptyEnd))
+                .isEmpty();
+        assertThat(statsMapper.countParticipantsByWeekdayAndHour(MANAGER_USER_ID, FACILITY_ID, emptyStart,
+                emptyEnd)).isEmpty();
+
+        ApplicationCountSummary summary =
+                statsMapper.countApplications(MANAGER_USER_ID, FACILITY_ID, emptyStart, emptyEnd);
+        assertThat(summary.getTotal()).isZero();
+        assertThat(summary.getIndividualCount()).isZero();
+        assertThat(summary.getClubCount()).isZero();
+        assertThat(summary.getApprovedCount()).isZero();
     }
 
     static String validateUrl(String url) {

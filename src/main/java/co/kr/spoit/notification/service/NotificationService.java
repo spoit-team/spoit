@@ -16,4 +16,12 @@ public interface NotificationService {
      */
     void notifyRecipients(List<Long> recipientUserIds, String type, String title, String body,
             Long matchId, Long applicationId, Long joinRequestId, Long clubId);
+
+    /**
+     * 신고 번호를 함께 저장하는 저장 계약. 기존 8인자 호출은 신고 번호 없이 위임된다.
+     */
+    default void notifyRecipients(List<Long> recipientUserIds, String type, String title, String body,
+            Long matchId, Long applicationId, Long joinRequestId, Long clubId, Long reportId) {
+        notifyRecipients(recipientUserIds, type, title, body, matchId, applicationId, joinRequestId, clubId);
+    }
 }
