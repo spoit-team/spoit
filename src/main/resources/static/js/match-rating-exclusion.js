@@ -10,6 +10,12 @@
   if (!root || !modal) return;
 
   const admin = global.PlayOnAdmin;
+
+  /* 실패 안내는 사라지지 않는 모달로 보여 준다. 공통 셸이 없으면 예전처럼 토스트로 알린다. */
+  function showError(title, message) {
+    if (admin?.showErrorModal) admin.showErrorModal(title, message);
+    else admin?.toast(message, true);
+  }
   const url = root.dataset.exclusionUrl;
   const csrfHeader = root.dataset.csrfHeader;
   const csrfToken = root.dataset.csrfToken;
@@ -78,7 +84,8 @@
     close();
     const state = PROCESSED[outcome];
     if (state) renderProcessed(state);
-    admin?.toast(text, !ok);
+    if (ok) admin?.toast(text, false);
+    else showError('레이팅 제외를 처리할 수 없습니다', text);
   }
 
   root.addEventListener('click', function (event) {
