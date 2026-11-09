@@ -554,21 +554,75 @@
   background: var(--color-danger-soft);
 }
 
+/* accent-color로 색을 바꾸면 Chrome은 밝은 색에 대비를 맞추려고 남은 트랙을 검게 칠하고, 비활성이면 그 색을 무시한다.
+   그래서 두 엔진 모두 트랙과 손잡이를 직접 그리고, 상태마다 아래 두 색만 바꾼다. */
 .match-evaluation-slider {
+  --match-evaluation-slider-fill: var(--color-book);
+  --match-evaluation-slider-thumb: var(--color-book);
   width: 100%;
   min-width: 0;
+  height: 20px;
   margin: 0;
-  accent-color: var(--color-book);
+  appearance: none;
+  background: transparent;
   cursor: pointer;
 }
 
-/* 고르기 전 슬라이더는 가운데에 있어도 점수가 아니므로 회색으로 둔다. */
-.match-evaluation-score.is-empty .match-evaluation-slider { accent-color: var(--color-faint); }
-
-.match-evaluation-slider:disabled {
-  cursor: not-allowed;
-  opacity: .4;
+/* Chrome에는 채운 구간만 그리는 선택자가 없어 그라데이션으로 손잡이 가운데까지 칠한다.
+   손잡이 가운데는 양 끝에서 반지름(8px)만큼 안쪽에서만 움직인다. */
+.match-evaluation-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right,
+    var(--match-evaluation-slider-fill) 0 calc(8px + (100% - 16px) * var(--match-evaluation-slider-ratio, .5)),
+    var(--color-line) 0);
 }
+
+.match-evaluation-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-line);
+}
+
+.match-evaluation-slider::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--match-evaluation-slider-fill);
+}
+
+.match-evaluation-slider::-webkit-slider-thumb {
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border: 2px solid var(--color-paper);
+  border-radius: 50%;
+  appearance: none;
+  background: var(--match-evaluation-slider-thumb);
+  box-shadow: 0 0 0 1px var(--color-line-strong);
+}
+
+.match-evaluation-slider::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-paper);
+  border-radius: 50%;
+  background: var(--match-evaluation-slider-thumb);
+  box-shadow: 0 0 0 1px var(--color-line-strong);
+}
+
+/* 고르기 전과 못 봄은 손잡이가 어디 있든 점수가 아니므로 트랙 전체를 옅게, 손잡이를 흐리게 둔다. */
+.match-evaluation-score.is-empty .match-evaluation-slider,
+.match-evaluation-score.is-skipped .match-evaluation-slider {
+  --match-evaluation-slider-fill: var(--color-line);
+  --match-evaluation-slider-thumb: var(--color-faint);
+}
+
+.match-evaluation-slider:disabled { cursor: not-allowed; }
+
+/* 못 봄은 위 색으로 이미 흐리므로, 확인 단계에서 잠긴 점수만 옅게 한다. */
+.match-evaluation-score.is-scored .match-evaluation-slider:disabled { opacity: .5; }
 
 .match-evaluation-score-value {
   color: var(--color-book-ink);

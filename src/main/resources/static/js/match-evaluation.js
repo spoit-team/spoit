@@ -70,9 +70,10 @@
     const value = values[key] ?? '';
     const skipped = value === NOT_OBSERVED;
     const isMissing = missing.has(key);
+    const position = value && !skipped ? value : START_POSITION;
     return `<div class="match-evaluation-score ${stateClass(value)}${isMissing ? ' is-missing' : ''}" data-score-cell>
       <input type="range" class="match-evaluation-slider" min="0" max="10" step="1"
-        value="${value && !skipped ? value : START_POSITION}" data-key="${key}" data-item-name="${escapeHTML(item.itemName)}"
+        value="${position}" style="--match-evaluation-slider-ratio: ${position / 10}" data-key="${key}" data-item-name="${escapeHTML(item.itemName)}"
         aria-label="${escapeHTML(`${target.nickname} ${item.itemName}`)}" aria-valuetext="${escapeHTML(valueText(item.itemName, value))}"${isMissing ? ' aria-invalid="true"' : ''}${locked || skipped ? ' disabled' : ''}>
       <span class="match-evaluation-score-value" data-score-value aria-hidden="true">${scoreText(value)}</span>
       <button type="button" class="match-evaluation-skip" data-skip aria-pressed="${skipped}"
@@ -313,6 +314,8 @@
     cell.classList.remove('is-empty', 'is-scored', 'is-skipped');
     cell.classList.add(stateClass(value));
     slider.disabled = value === NOT_OBSERVED;
+    // Chrome 트랙은 CSS 그라데이션으로 채우므로 손잡이 위치를 넘겨준다(match-result.css).
+    slider.style.setProperty('--match-evaluation-slider-ratio', slider.value / 10);
     slider.setAttribute('aria-valuetext', valueText(slider.dataset.itemName, value));
     cell.querySelector('[data-score-value]').textContent = scoreText(value);
     cell.querySelector('[data-skip]').setAttribute('aria-pressed', String(value === NOT_OBSERVED));

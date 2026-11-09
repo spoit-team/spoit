@@ -14,7 +14,7 @@ class FakeNode {
   constructor(properties = {}) {
     Object.assign(this, { hidden: false, textContent: '', value: '' }, properties);
     this.attributes = {};
-    this.style = {};
+    this.style = { setProperty(name, value) { this[name] = String(value); } };
     this.listeners = {};
     this.dispatched = [];
     this.bySelector = {};
@@ -160,7 +160,8 @@ async function open(page, name) {
   assert.equal(first.match(/type="range"/g).length, 4, '칸마다 슬라이더가 하나씩 있어야 합니다.');
   assert.doesNotMatch(first, /<select/, '선택 칸은 슬라이더로 바뀌었습니다.');
   assert.match(first, /class="match-evaluation-score is-empty" data-score-cell/);
-  assert.match(first, /min="0" max="10" step="1"\s+value="5"/);
+  assert.match(first, /min="0" max="10" step="1"\s+value="5" style="--match-evaluation-slider-ratio: 0\.5"/,
+    'Chrome 트랙은 이 비율로 채운 구간을 그립니다.');
   assert.match(first, /aria-label="에이 패스" aria-valuetext="패스 점수 없음"/);
   assert.match(first, /data-score-value aria-hidden="true">–<\/span>/, '고르기 전 점수는 회색 "–"입니다.');
   assert.match(first, /aria-pressed="false"[^>]*>못 봄<\/button>/);
@@ -177,6 +178,7 @@ async function open(page, name) {
   assert.equal(page.progressFill.style.width, '25%');
   assert.equal(pass.number.textContent, '7');
   assert.equal(pass.slider.getAttribute('aria-valuetext'), '패스 7점', '스크린 리더가 "패스 7점"으로 읽어야 합니다.');
+  assert.equal(pass.slider.style['--match-evaluation-slider-ratio'], '0.7', '채운 구간이 손잡이를 따라가야 합니다.');
   assert.ok(pass.cell.classList.contains('is-scored') && !pass.cell.classList.contains('is-empty'));
 }
 
@@ -223,6 +225,7 @@ async function open(page, name) {
   assert.equal(defense.skip.getAttribute('aria-pressed'), 'false');
   assert.equal(defense.slider.disabled, false);
   assert.equal(defense.slider.value, '5');
+  assert.equal(defense.slider.style['--match-evaluation-slider-ratio'], '0.5');
   assert.equal(defense.number.textContent, '–');
   assert.equal(defense.slider.getAttribute('aria-valuetext'), '수비 점수 없음');
 }
