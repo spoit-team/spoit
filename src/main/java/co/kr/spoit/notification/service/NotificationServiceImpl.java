@@ -41,13 +41,20 @@ public class NotificationServiceImpl implements NotificationService {
         if (recipientUserId == null || recipientUserId <= 0 || type == null) {
             return;
         }
-        store(recipientUserId, type.name(), title, body, matchId, null, null, null);
+        store(recipientUserId, type.name(), title, body, matchId, null, null, null, null);
     }
 
     @Override
     @Transactional
     public void notifyRecipients(List<Long> recipientUserIds, String type, String title, String body,
             Long matchId, Long applicationId, Long joinRequestId, Long clubId) {
+        notifyRecipients(recipientUserIds, type, title, body, matchId, applicationId, joinRequestId, clubId, null);
+    }
+
+    @Override
+    @Transactional
+    public void notifyRecipients(List<Long> recipientUserIds, String type, String title, String body,
+            Long matchId, Long applicationId, Long joinRequestId, Long clubId, Long reportId) {
         if (recipientUserIds == null || type == null || type.isBlank()) {
             return;
         }
@@ -55,7 +62,7 @@ public class NotificationServiceImpl implements NotificationService {
             if (recipientUserId == null || recipientUserId <= 0) {
                 continue;
             }
-            store(recipientUserId, type, title, body, matchId, applicationId, joinRequestId, clubId);
+            store(recipientUserId, type, title, body, matchId, applicationId, joinRequestId, clubId, reportId);
         }
     }
 
@@ -64,7 +71,7 @@ public class NotificationServiceImpl implements NotificationService {
      * 저장 트랜잭션이 없으면(동기화 비활성) 즉시 전송하지 않고 저장만 한다.
      */
     private void store(Long recipientUserId, String type, String title, String body,
-            Long matchId, Long applicationId, Long joinRequestId, Long clubId) {
+            Long matchId, Long applicationId, Long joinRequestId, Long clubId, Long reportId) {
         Notification notification = new Notification();
         notification.setRecipientUserId(recipientUserId);
         notification.setType(type);
@@ -75,6 +82,7 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setApplicationId(applicationId);
         notification.setJoinRequestId(joinRequestId);
         notification.setClubId(clubId);
+        notification.setReportId(reportId);
         // DB 기본값에만 맡기면 커밋 전 실시간 payload의 시간이 비므로, 저장 시각을 명시한다.
         notification.setCreatedAt(LocalDateTime.now());
         notificationMapper.insert(notification);

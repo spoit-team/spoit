@@ -86,4 +86,21 @@ class NotificationDispatcherTest {
 
         verifyNoInteractions(mapper, sender);
     }
+
+    @Test
+    @DisplayName("기존 8인자 호출은 신고 번호 없이 저장해 과거 동작을 유지한다")
+    void legacyCallStoresWithoutReportId() {
+        dispatcher.notifyAfterCommit(List.of(7L), TYPE, "제목", "본문", null, null, 3L);
+
+        verify(mapper).insert(argThat(n -> n.getRecipientUserId().equals(7L) && n.getReportId() == null));
+    }
+
+    @Test
+    @DisplayName("신고 번호를 넘긴 호출은 저장 행에 그대로 전달한다")
+    void reportCallStoresReportId() {
+        dispatcher.notifyAfterCommit(List.of(7L), "REPORT_SUBMITTED", "제목", "본문",
+                null, null, null, null, 15L);
+
+        verify(mapper).insert(argThat(n -> n.getReportId() != null && n.getReportId().equals(15L)));
+    }
 }

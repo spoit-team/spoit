@@ -672,6 +672,30 @@ check(!/시설 관리자 제외/.test(statsSource ?? ''),
 const statsNotice = fragmentSlice(statsSource ?? '', 'class="notice-strip"', '</div>') ?? '';
 check(statsNotice.length > 0 && !/생성된 매칭방/.test(statsNotice),
   'facility.html: the stats basis notice must describe the start_at range, not creation time');
+/* 요일·시간대 상세는 "최대값 대비 상대 길이"가 아니라 "전체 확정 참가 인원 대비 인원/비중"이다.
+   예전 weekday.percent/hour.height 막대는 최대 요일 대비 상대값이라 비중으로 오해됐고,
+   0명 시간대도 목록에서 사라졌다. 계약이 상세 목록으로 바뀌었으므로 되돌아가지 않게 고정한다.
+   값의 단위는 인원(명)이며 매칭방 수(건)가 아니다. */
+for (const field of ['stats?.weekdayDetails', 'detail.count', 'detail.share']) {
+  check(statsSource?.includes(field), `facility.html: the weekday detail must render ${field}`);
+}
+for (const field of ['stats?.hourDetails', 'stats?.weekdayHourDetails', 'row.hourlyCounts']) {
+  check(statsSource?.includes(field), `facility.html: the detail views must render ${field}`);
+}
+check(/00시부터 23시까지/.test(statsSource ?? '') && /0명인 칸도/.test(statsSource ?? ''),
+  'facility.html: the hour/heatmap detail must state that zero-person rows stay visible');
+check((statsSource?.match(/detail\.count \?: 0\) \+ '명'/g) ?? []).length === 2,
+  'facility.html: weekday/hour detail counts must be read as people(명), not rooms(건)');
+const statsLegend = fragmentSlice(statsSource ?? '', 'class="stats-heat-legend"', '</div>') ?? '';
+check(statsLegend.length > 0 && /0명/.test(statsLegend) && !/건/.test(statsLegend),
+  'facility.html: the heatmap legend must use people units, not room counts');
+check(!/weekday\.percent|hour\.height|weekday-value/.test(statsSource ?? ''),
+  'facility.html: stats must not fall back to the max-relative percent/height bars');
+check(/시작하는/.test(statsNotice) && /전체 확정 참가 인원/.test(statsNotice)
+  && /취소/.test(statsNotice),
+  'facility.html: the stats notice must name the start_at basis, cancelled exclusion and total denominator');
+check(/출석·노쇼/.test(statsNotice) && /여러 경기/.test(statsNotice) && /이용 중/.test(statsNotice),
+  'facility.html: the stats notice must explain per-match counting, attendance limits and start-time basis');
 
 const operationsSource = await readFile(path.join(resources, 'templates/admin/operations.html'), 'utf8');
 check(operationsSource.includes('th:if="${match == null}"'),
@@ -930,6 +954,328 @@ check(!/accent-color\s*:/.test(matchResultCss)
 check(/setProperty\('--match-evaluation-slider-ratio'/.test(matchEvaluationScript)
     && /var\(--match-evaluation-slider-ratio\b/.test(matchResultCss),
   'match-evaluation.js: the Chrome track fill must follow the slider position');
+
+/* ── 신고 접수·처리 화면 계약 ──────────────────────────────────────────────
+   시설 관리자 신고 화면과 시스템 관리자 신고 접수함은 서버 lane과 모델 키·폼 필드·경로를
+   공유한다. 화면이 경로나 필드 이름을 바꾸면 접수·처리가 조용히 실패하므로 여기서 고정한다.
+   신고 원문은 서버가 단건만 내려주며, 화면은 th:text로만 표시한다(마크업 주입 금지). */
+const facilityReportSource = await readFile(path.join(resources, 'templates/admin/report-facility.html'), 'utf8');
+const systemReportSource = await readFile(path.join(resources, 'templates/admin/report-system.html'), 'utf8');
+const reportStyles = await readFile(path.join(resources, 'static/css/report-center.css'), 'utf8');
+const reportScript = await readFile(path.join(resources, 'static/js/admin-report.js'), 'utf8');
+
+// 1) 경로: 접수와 처리는 각 역할의 별도 URL이며, 시설 신고 POST는 GET과 같은 경로를 쓴다.
+check(facilityReportSource.includes('th:action="@{/admin/facility/reports}"'),
+  'report-facility.html: the intake form must post to /admin/facility/reports');
+check((facilityReportSource.match(/th:action="@\{\/admin\/facility\/reports\}"/g) ?? []).length >= 1
+  && (facilityReportSource.match(/method="post"/g) ?? []).length === 1,
+  'report-facility.html: exactly one POST intake form must target the facility reports route');
+check(systemReportSource.includes(
+  'th:action="@{/admin/system/reports/{reportId}/decision(reportId=${selectedReport.reportId})}"'),
+  'report-system.html: decisions must post to /admin/system/reports/{reportId}/decision');
+check(systemReportSource.includes('reportId=${report.reportId}, status=${statusFilter}, page=${reportPage != null ? reportPage : 0}'),
+  'report-system.html: each row must deep-link to its own single report detail, keeping filter and page');
+
+// 2) 폼 바인딩: 고정된 서버 계약 필드만 보낸다.
+const facilityReportForm = namedForms.get('facility-report-form');
+check(facilityReportForm?.attributes.method?.toLowerCase() === 'post',
+  'facility-report-form: intake must stay a POST form');
+for (const name of ['matchId', 'targetUserId', 'category', 'summary']) {
+  check(facilityReportForm?.inputs.some(input => input.name === name),
+    `facility-report-form: missing binding ${name}`);
+}
+check(facilityReportForm?.inputs.some(input => input['th:name'] === '${_csrf.parameterName}'
+  && input['th:value'] === '${_csrf.token}'), 'facility-report-form: missing CSRF binding');
+const systemReportForm = namedForms.get('report-decision-form');
+for (const name of ['expectedStatus', 'resolution']) {
+  check(systemReportForm?.inputs.some(input => input.name === name),
+    `report-decision-form: missing binding ${name}`);
+}
+check(systemReportForm?.inputs.some(input => input['th:name'] === '${_csrf.parameterName}'
+  && input['th:value'] === '${_csrf.token}'), 'report-decision-form: missing CSRF binding');
+check(systemReportForm?.inputs.some(input => input.name === 'expectedStatus'
+  && input['th:value'] === '${selectedReport.status}'),
+  'report-decision-form: expectedStatus must echo the status the screen was rendered from');
+for (const action of ['review', 'complete', 'dismiss']) {
+  check(new RegExp(`name="action" value="${action}"`).test(systemReportSource),
+    `report-system.html: decision action ${action} must stay a submit button value`);
+}
+// 상태 전이는 서버가 판정하며, 화면은 현재 상태로 불가능한 동작만 미리 잠근다.
+check(/name="action" value="review"[^>]*th:disabled="\$\{selectedReport\.status != '접수'\}"/.test(systemReportSource),
+  'report-system.html: 검토 중으로 must be locked outside the 접수 state');
+check(/th:with="reportOpen=\$\{selectedReport\.status == '접수' or selectedReport\.status == '검토 중'\}"/.test(systemReportSource)
+  && /name="action" value="complete"[\s\S]{0,120}th:disabled="\$\{!reportOpen\}"/.test(systemReportSource),
+  'report-system.html: final decisions must unlock only from 접수/검토 중');
+
+// 3) 값 목록: 신고 유형과 처리 상태는 서버가 정한 네 가지뿐이다.
+for (const category of ['노쇼', '비매너·욕설', '폭력·싸움', '기타']) {
+  check(facilityReportSource.includes(`name="category" value="${category}"`),
+    `report-facility.html: category ${category} must be offered verbatim`);
+}
+for (const status of ['접수', '검토 중', '처리 완료', '기각']) {
+  check(systemReportSource.includes(`value="${status}"`),
+    `report-system.html: status filter must offer ${status} verbatim`);
+}
+
+// 4-1) 접수 실패 시 서버가 돌려준 입력을 복원한다(입력 소실 방지).
+//     유형은 고정 네 값과만 비교해 checked를 정하고, 원문은 textarea에 th:text로만 넣는다.
+//     th:utext나 값의 URL·JS 주입은 금지한다(XSS·주입 방지).
+const categoryInputs = Array.from(facilityReportSource.matchAll(
+  /<input type="radio" name="category" value="([^"]+)"[^>]*>/g));
+check(categoryInputs.length === 4, 'report-facility.html: exactly four category radios must render');
+for (const [, category] of categoryInputs) {
+  const tag = categoryInputs.find(match => match[1] === category)[0];
+  check(tag.includes(`th:checked="\${submittedCategory != null and submittedCategory == '${category}'}"`),
+    `report-facility.html: the ${category} radio must be restored from submittedCategory`);
+}
+// 라디오 그룹은 한 구성원에만 required가 있어도 그룹 전체가 필수입니다(원래 마크업 유지).
+check(categoryInputs.filter(match => /\brequired\b/.test(match[0])).length >= 1,
+  'report-facility.html: the category radio group must keep its required validation');
+check(/<fieldset class="report-fieldset">\s*<legend class="sr-only">신고 유형<\/legend>/.test(facilityReportSource),
+  'report-facility.html: the category group must stay a labelled fieldset');
+check(/<textarea id="report-summary" name="summary"[^>]*th:text="\$\{submittedSummary != null \? submittedSummary : ''\}"/.test(
+  facilityReportSource),
+  'report-facility.html: the summary textarea must restore submittedSummary with th:text');
+const summaryTextarea = facilityReportSource.match(/<textarea id="report-summary"[\s\S]*?<\/textarea>/)?.[0] ?? '';
+check(Boolean(summaryTextarea) && /\brequired\b/.test(summaryTextarea)
+  && summaryTextarea.includes('maxlength="1000"'),
+  'report-facility.html: the summary textarea must keep required and its length limit');
+check(!/th:utext/.test(facilityReportSource),
+  'report-facility.html: restored input must never be rendered with th:utext');
+for (const injected of ['submittedSummary', 'submittedCategory']) {
+  check(!new RegExp(`th:(?:href|src|action)="[^"]*${injected}`).test(facilityReportSource),
+    `report-facility.html: ${injected} must not be injected into URLs`);
+}
+check(!reportScript.includes('submittedSummary') && !reportScript.includes('submittedCategory'),
+  'admin-report.js: restored draft values must stay out of scripts');
+check(/submittedSummary != null or submittedCategory != null/.test(facilityReportSource),
+  'report-facility.html: the error flash must tell the user the draft was kept');
+
+// 4-2) 원문 표시: 서버가 내려준 단건만 th:text로 그리고, HTML 주입·JS 상세 전달은 금지한다.
+check(/<p class="report-statement" th:text="\$\{selectedReport\.summary/.test(systemReportSource),
+  'report-system.html: the report statement must render selectedReport.summary with th:text');
+check(systemReportSource.includes('selectedReport.resolution')
+  && facilityReportSource.includes('selectedReport.resolution'),
+  'both report screens must render the stored resolution text');
+check(!/th:utext/.test(facilityReportSource) && !/th:utext/.test(systemReportSource),
+  'report screens: report text must never be rendered with th:utext');
+for (const hook of ['data-report-summary', 'data-report-detail', 'data-selected-report']) {
+  check(!(facilityReportSource + systemReportSource).includes(hook),
+    `report screens: report text must not be shipped to scripts (${hook})`);
+}
+check(!/innerHTML\s*=/.test(reportScript) && !/summary/.test(reportScript),
+  'admin-report.js: the script must not receive or inject report text');
+check(reportScript.includes("action === 'complete' || action === 'dismiss'"),
+  'admin-report.js: complete/dismiss must require a resolution before submit');
+
+// 5) 빈 목록·미선택 상태: 모든 목록과 상세 영역은 빈 상태를 스스로 렌더한다.
+for (const [source, label] of [[facilityReportSource, 'report-facility.html'],
+  [systemReportSource, 'report-system.html']]) {
+  check(source.includes('#lists.isEmpty(reports)'), `${label}: the report list needs an empty state`);
+}
+check(facilityReportSource.includes('#lists.isEmpty(matches)')
+  && facilityReportSource.includes('#lists.isEmpty(participants)'),
+  'report-facility.html: matches and participants need empty states');
+check(facilityReportSource.includes('th:if="${selectedReport != null}"')
+  && systemReportSource.includes('th:if="${selectedReport != null}"'),
+  'both report screens: the detail must render only when the server supplied a single report');
+
+// 6) 운영 상세 연계: 이용 완료 경기의 '확정 참가자'만 matchId·targetUserId를 미리 채운다.
+//    match.participants에는 대기·확정이 모두 실리고 statusLabel이 '확정 대기'/'참가 확정'으로 갈린다
+//    (RoomManagementService.toParticipant). 경기 상태만 검사하면 대기자에게도 신고 링크가 생기므로
+//    참가 상태까지 계약으로 고정한다.
+const participantReportLink = operationsSource.includes(
+  '@{/admin/facility/reports(matchId=${match.matchId}, targetUserId=${participant.historyUserId})}');
+check(participantReportLink,
+  'operations.html: completed matches must link participants with matchId and targetUserId prefilled');
+check(operationsSource.includes(
+  "reportable=${match.statusLabel == '이용 완료' and participant.statusLabel == '참가 확정' and participant.historyUserId != null}"),
+  'operations.html: the report link must require 이용 완료 match, 참가 확정 participant and a known member');
+check(!/th:if="\$\{match\.statusLabel == '이용 완료' and participant\.historyUserId != null\}"/.test(operationsSource),
+  'operations.html: the report link must not ignore the participant participation status');
+check(operationsSource.includes('확정 참가자만') && operationsSource.includes('이용 완료 후'),
+  'operations.html: the non-reportable cell must explain both the match-state and participant-state reasons');
+
+// 7) 사이드바: 신고 화면은 별도 URL이다. data-view-target이 붙으면 같은 경로 안의 화면 전환으로
+//    가로채여 이동이 막히므로, 신고 링크에는 화면 전환 훅을 두지 않는다.
+const facilityReportNav = anchorsOf(facilitySidebar ?? '').find(tag => tag.includes('@{/admin/facility/reports}'));
+const systemReportNav = anchorsOf(systemSidebar ?? '').find(tag => tag.includes('@{/admin/system/reports}'));
+check(Boolean(facilityReportNav), 'admin.html: facility sidebar must link to 신고 관리');
+check(Boolean(systemReportNav), 'admin.html: system sidebar must link to 신고 접수함');
+check(!/data-view-target/.test(facilityReportNav ?? '') && !/data-view-target/.test(systemReportNav ?? ''),
+  'admin.html: report menu links must not be intercepted by the in-page view switcher');
+check(/aria-current=/.test(facilityReportNav ?? '') && /aria-current=/.test(systemReportNav ?? ''),
+  'admin.html: report menu links must mark the current page from the sidebar active value');
+check(!(systemSidebar ?? '').includes("data-view-target=\"system-reports\""),
+  'admin.html: the system report menu must point at the inbox screen, not the removed in-page view');
+
+/* ── 구형 시스템 신고 화면 정리 계약 ───────────────────────────────────────
+   system.html의 옛 인페이지 신고 뷰(#system-reports)에는 빈 신고 목록과 서버 처리 없는
+   제재 폼이 남아 있었다. 실제 신고 접수함(/admin/system/reports)과 충돌하므로, 모든 신고
+   진입점은 접수함 URL로 보내고 옛 뷰는 접수함으로 안내하는 화면만 남긴다.
+   페널티 화면(#system-penalties)과 페널티 메뉴는 이번 범위에서 그대로 둔다. */
+const systemSource = await readFile(path.join(resources, 'templates/admin/system.html'), 'utf8');
+const penaltySection = fragmentSlice(systemSource, 'id="system-penalties"', 'id="system-users"') ?? '';
+const outsidePenalty = systemSource.split(penaltySection).join('');
+
+// 8-1) 대시보드의 신고 진입점은 접수함 URL이다.
+check(/<a class="admin-button small" th:href="@\{\/admin\/system\/reports\}">신고함 열기/.test(systemSource),
+  'system.html: the dashboard 신고함 열기 control must link to /admin/system/reports');
+check(!/data-view-target="system-reports"/.test(systemSource),
+  'system.html: no control may switch to the legacy in-page report view any more');
+check(!/view='reports'/.test(outsidePenalty),
+  'system.html: report routing must use /admin/system/reports instead of view=reports');
+
+// 8-2) 옛 뷰는 빈 목록·가짜 수치·제재 폼 없이 접수함으로 안내만 한다.
+check(/<section class="admin-view" id="system-reports"/.test(systemSource),
+  'system.html: the legacy #system-reports anchor must stay so old hashes land on guidance');
+const legacyReportView = fragmentSlice(systemSource, 'id="system-reports"', 'id="system-penalties"') ?? '';
+check(legacyReportView.length > 0, 'system.html: legacy report view slice missing');
+check((legacyReportView.match(/@\{\/admin\/system\/reports\}/g) ?? []).length >= 2,
+  'system.html: the legacy report view must offer the real inbox route prominently');
+for (const removed of ['reportMetrics', 'reportFilters', 'reportPagination', '<template',
+  'data-open-report', 'data-close-report', '관련 이용 기록', '이전 신고 이력']) {
+  check(!legacyReportView.includes(removed),
+    `system.html: the legacy report view must not keep fake data or modals (${removed})`);
+}
+for (const removed of ['경고 발송', '이용 정지', '영구 정지', 'suspend', 'sanction']) {
+  check(!legacyReportView.includes(removed),
+    `system.html: unimplemented sanction controls must be removed from the legacy view (${removed})`);
+}
+
+// 8-3) 신고 모달·모달 스크립트 훅도 실제 접수함 화면과 중복되므로 남기지 않는다.
+for (const removed of ['id="report-modal"', 'report-modal-body', 'data-open-report',
+  'data-close-report', 'report-modal-title', 'report-modal-subtitle']) {
+  check(!systemSource.includes(removed),
+    `system.html: the legacy report modal hook must be removed (${removed})`);
+}
+
+// 8-4) 페널티 화면·메뉴는 손대지 않는다.
+check(/id="system-penalties"/.test(systemSource)
+  && /data-view-target="system-penalties"/.test(adminSource),
+  'system.html: the penalty view and its sidebar entry must stay untouched');
+
+// 9) 제재 UI 부재: 이번 범위에서는 신고 접수·검토 상태만 다룬다.
+for (const removed of ['경고 발송', '이용 정지', '영구 정지', 'suspend', 'penalty']) {
+  check(!(facilityReportSource + systemReportSource).includes(removed),
+    `report screens: sanction controls must stay out of scope (${removed})`);
+}
+
+// 10) 반응형: 좁은 화면에서 입력 양식과 상세 2단이 한 열로 쌓여야 한다.
+check(/@media \(max-width: 1080px\)[\s\S]*\.report-workbench,[\s\S]{0,80}\.report-selected\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/
+  .test(reportStyles),
+  'report-center.css: the form/detail two-column layout must collapse to one column on narrow screens');
+check(/@media \(max-width: 720px\)[\s\S]*\.report-category-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/
+  .test(reportStyles),
+  'report-center.css: category choices must stack on small screens');
+
+/* ── 신고 목록 페이지 계약 ─────────────────────────────────────────────────
+   신고·경기 선택지는 200건 고정 절단 대신 0-based 페이지로 나눕니다.
+   시설 화면은 matchPage/reportPage를, 시스템 접수함은 page를 씁니다. 모델 이름도 고정한다.
+   페이지 링크는 native GET 링크여야 하며(스크립트 이동 금지), 첫 페이지엔 이전이,
+   마지막 페이지엔 다음이 없습니다. 선택한 경기·신고·상태 필터는 페이지를 옮겨도 보존합니다. */
+
+// 11-1) 모델 키: 서버 lane이 내려주는 이름 그대로만 쓴다.
+for (const model of ['matchPage', 'hasNextMatches', 'reportPage', 'hasNextReports']) {
+  check(facilityReportSource.includes(model),
+    `report-facility.html: the facility paging model must render ${model}`);
+}
+for (const model of ['reportPage', 'hasNextReports']) {
+  check(systemReportSource.includes(model),
+    `report-system.html: the inbox paging model must render ${model}`);
+}
+
+// 11-2) 경기 선택 폼: 같은 GET으로 고르면서 두 페이지를 hidden으로 유지한다.
+check(facilityReportForm?.inputs.some(input => input.name === 'matchPage'
+  && input['th:value'] === '${matchPage != null ? matchPage : 0}'),
+  'facility-report-match-form: the match search must post the current matchPage');
+check(facilityReportForm?.inputs.some(input => input.name === 'reportPage'
+  && input['th:value'] === '${reportPage != null ? reportPage : 0}'),
+  'facility-report-match-form: the match search must keep reportPage');
+// 접수 폼(POST)도 같은 페이지로 돌아온다.
+check(facilityReportForm?.inputs.some(input => input.name === 'matchId')
+  && namedForms.get('facility-report-form')?.inputs.some(input => input.name === 'matchPage'),
+  'facility-report-form: the intake POST must echo matchId and matchPage');
+
+// 11-3) 두 화면 모두 이전/다음 링크와 1-based 현재 페이지를 갖는다.
+for (const [source, label] of [[facilityReportSource, 'report-facility.html'],
+  [systemReportSource, 'report-system.html']]) {
+  check((source.match(/class="report-page-link" rel="prev"/g) ?? []).length >= 1,
+    `${label}: each list needs a previous-page link`);
+  check((source.match(/class="report-page-link" rel="next"/g) ?? []).length >= 1,
+    `${label}: each list needs a next-page link`);
+  check(source.includes('class="report-page-current" aria-current="page"'),
+    `${label}: the current page must be shown as an aria-current page number`);
+}
+// 첫 페이지 이전 없음 / 마지막 페이지 다음 없음.
+check(/rel="prev" th:if="\$\{matchPage != null and matchPage > 0\}"/.test(facilityReportSource),
+  'report-facility.html: the previous match page must not render on page 1');
+check(/rel="prev" th:if="\$\{reportPage != null and reportPage > 0\}"/.test(facilityReportSource),
+  'report-facility.html: the previous report page must not render on page 1');
+check(/rel="next" th:if="\$\{hasNextReports\}"/.test(facilityReportSource),
+  'report-facility.html: the next report page must be gated by hasNextReports');
+check(/rel="next" th:if="\$\{hasNextMatches\}"/.test(facilityReportSource),
+  'report-facility.html: the next match page must be gated by hasNextMatches');
+check(/rel="prev" th:if="\$\{reportPage != null and reportPage > 0\}"/.test(systemReportSource),
+  'report-system.html: the previous page must not render on page 1');
+check(/rel="next" th:if="\$\{hasNextReports\}"/.test(systemReportSource),
+  'report-system.html: the next page must be gated by hasNextReports');
+
+// 11-4) 페이지 링크는 query param만 쓰는 native GET 링크다(JS 이동·data 훅 금지).
+for (const [source, label] of [[facilityReportSource, 'report-facility.html'],
+  [systemReportSource, 'report-system.html']]) {
+  check(!/report-page-link[^>]*data-[a-z-]+/.test(source),
+    `${label}: paging links must not carry JS hooks`);
+}
+check(!/reportPage|matchPage|page=\$\{/.test(reportScript),
+  'admin-report.js: paging must stay server-rendered, not handled in script');
+// href 값에는 중첩된 ${...} 식이 있으므로, 앵커 구간을 잘라 그 안의 파라미터를 검사한다.
+function pagerHref(source, rel) {
+  const start = source.indexOf(`rel="${rel}"`);
+  if (start < 0) return '';
+  const end = source.indexOf('</a>', start);
+  return end < 0 ? '' : source.slice(start, end);
+}
+
+const facilityNextMatch = pagerHref(facilityReportSource, 'next');
+check(facilityNextMatch.includes('matchPage=${(matchPage != null ? matchPage : 0) + 1}')
+  && facilityNextMatch.includes('hasNextMatches')
+  && facilityNextMatch.includes('matchId=${selectedMatchId}')
+  && facilityNextMatch.includes('targetUserId=${selectedTargetUserId}'),
+  'report-facility.html: the next match page must keep the selection and advance matchPage');
+const facilityReportPager = facilityReportSource.slice(
+  facilityReportSource.indexOf('aria-label="내가 접수한 신고 페이지"'));
+const facilityPrevReport = pagerHref(facilityReportPager, 'prev');
+check(facilityPrevReport.includes('reportPage=${reportPage - 1}')
+  && facilityPrevReport.includes('matchPage=${matchPage != null ? matchPage : 0}'),
+  'report-facility.html: the report pager must keep matchPage and step reportPage back');
+check(pagerHref(facilityReportPager, 'next').includes('hasNextReports'),
+  'report-facility.html: the report pager next link must be gated by hasNextReports');
+const systemNext = pagerHref(systemReportSource, 'next');
+check(systemNext.includes('page=${(reportPage != null ? reportPage : 0) + 1}')
+  && systemNext.includes('status=${statusFilter}'),
+  'report-system.html: the next page must advance page and keep the status filter');
+
+// 11-5) 상세 링크도 현재 페이지를 실어 돌아올 때 같은 페이지를 본다.
+check(facilityReportSource.includes('reportId=${report.reportId}, reportPage=${reportPage != null ? reportPage : 0}'),
+  'report-facility.html: report detail links must carry the current reportPage');
+check(systemReportSource.includes('reportId=${report.reportId}, status=${statusFilter}, page=${reportPage != null ? reportPage : 0}'),
+  'report-system.html: report detail links must carry page and status filter');
+check(systemReportForm?.inputs.some(input => input.name === 'page'
+  && input['th:value'] === '${reportPage != null ? reportPage : 0}'),
+  'report-decision-form: decisions must return to the page they were made from');
+
+// 11-6) 페이지 단위임을 문구로 밝힌다: 전체 건수로 오해할 표기 금지.
+check(!/최근 200건/.test(facilityReportSource + systemReportSource),
+  'report screens: the UI must not claim a 최근 200건 window');
+for (const phrase of ['이 페이지', '페이지']) {
+  check((facilityReportSource + systemReportSource).includes(phrase),
+    `report screens: the paging unit must be named in the UI (${phrase})`);
+}
+check(/한 번에 한 페이지씩 표시하며, 전체 건수는 아닙니다/.test(facilityReportSource),
+  'report-facility.html: the report ledger must state that the list is one page, not the total');
+check(/페이지 단위로 나뉘어 표시됩니다/.test(systemReportSource),
+  'report-system.html: the inbox heading must state that the list is paged');
 
 if (failures.length) {
   console.error(failures.join('\n'));

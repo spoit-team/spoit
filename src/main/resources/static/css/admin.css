@@ -356,9 +356,66 @@ button { color: inherit; }
 .heading-actions input[type="date"].field-control:disabled { background: var(--admin-paper); color: var(--admin-muted); }
 .metric-grid.three-metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
 .metric-grid.two-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
-.weekday-chart { display: grid; gap: 13px; padding: 18px 20px 20px; }
-.weekday-row { display: grid; grid-template-columns: 24px minmax(0,1fr) 40px; align-items: center; gap: 10px; color: var(--admin-muted); font-size: 10.5px; font-weight: 700; }
-.weekday-row b { color: var(--admin-ink-2); font-family: Archivo, sans-serif; font-size: 10.5px; text-align: right; }
+/* 예약 통계 상세: 요일·시간대별 확정 참가 인원(명)과 '전체 확정 참가 인원 대비' 비중(%).
+   막대 길이·숫자 모두 같은 분모(확정 참가 인원 합계)를 쓰는 share로 통일했다.
+   값은 종료된 매칭의 시작 시각 기준이며, 그 시간에 이용 중인 전체 인원이 아니다. */
+.page-heading p.stats-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 9px; margin-top: 7px; color: var(--admin-muted); font-size: 11px; font-weight: 500; }
+.stats-scope b { color: var(--admin-ink-2); font-weight: 800; }
+.stats-scope span + span::before { margin-right: 8px; color: var(--admin-line-strong); content: "|"; }
+.stats-empty-note { margin: 12px 0 0; padding: 10px 12px; border: 1px dashed var(--admin-line-strong); border-radius: 10px; color: var(--admin-muted); font-size: 11px; line-height: 1.65; }
+.dashboard-grid.stats-detail-grid { grid-template-columns: minmax(0,.8fr) minmax(0,1.6fr); }
+.stats-panel { min-width: 0; }
+.stats-day-list, .stats-hour-list { margin: 0; padding: 14px 20px 18px; list-style: none; }
+.stats-day-list { display: grid; }
+/* 24칸 시간대는 오른쪽 카드에서 세로로 길어지므로 12행×2단으로 놓는다. 왼쪽 단 00~11시, 오른쪽 단 12~23시. */
+.stats-hour-list { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); grid-template-rows: repeat(12, auto); grid-auto-flow: column; column-gap: 26px; }
+.stats-day-row, .stats-hour-row { display: grid; grid-template-columns: 34px minmax(0,1fr) 44px 62px; align-items: center; gap: 9px; padding: 5px 0; border-bottom: 1px solid var(--admin-line); }
+.stats-hour-row { grid-template-columns: 40px minmax(0,1fr) 38px 58px; gap: 8px; }
+.stats-day-row:last-child { border-bottom: 0; }
+/* 두 단 각각의 마지막 행(12·24번째)은 아래 행이 없으므로 구분선을 그리지 않는다. */
+.stats-hour-row:nth-child(12n) { border-bottom: 0; }
+.stats-row-label { color: var(--admin-ink-2); font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stats-bar { display: block; height: 6px; overflow: hidden; border-radius: 99px; background: #eef0f3; }
+.stats-bar i { display: block; height: 100%; border-radius: inherit; background: var(--admin-blue); transition: width .2s ease; }
+.stats-day-row.is-zero .stats-count, .stats-day-row.is-zero .stats-share,
+.stats-hour-row.is-zero .stats-count, .stats-hour-row.is-zero .stats-share { color: var(--admin-faint); font-weight: 600; }
+.stats-count, .stats-share { color: var(--admin-ink-2); font-family: Archivo, "Pretendard Variable", sans-serif; font-size: 10.5px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stats-share { color: var(--admin-muted); }
+.stats-panel-empty { margin: 0; padding: 14px 20px 16px; color: var(--admin-muted); font-size: 10.5px; line-height: 1.65; }
+/* 요일 × 시작 시각: 7×24칸을 접지 않고 그대로 보여 주되, 좁은 화면에서는 가로 스크롤과
+   첫 열 고정으로 요일을 잃지 않게 한다. 0명 칸도 지우지 않고 옅은 바탕으로 남긴다. */
+.stats-heatmap-card { margin-top: 14px; padding-bottom: 0; }
+.stats-heatmap-scroll { margin-top: 13px; padding: 0 20px 5px; overflow-x: auto; }
+.stats-heatmap-scroll:focus-visible { outline: 2px solid var(--admin-blue); outline-offset: -2px; }
+.stats-heatmap { width: 100%; min-width: 840px; table-layout: fixed; border-collapse: separate; border-spacing: 2px; font-variant-numeric: tabular-nums; }
+.stats-heatmap th, .stats-heatmap td { min-width: 0; padding: 5px 2px; border-radius: 4px; text-align: center; font-size: 9.5px; font-weight: 700; white-space: nowrap; }
+.stats-heatmap thead th { color: var(--admin-faint); font-weight: 700; }
+/* 가로로 스크롤해도 요일 열은 왼쪽에 남겨 어느 행인지 잃지 않게 한다. */
+.stats-heatmap thead th:first-child, .stats-heatmap tbody th { position: sticky; left: 0; z-index: 1; width: 46px; background: var(--admin-canvas); }
+.stats-heatmap thead th:first-child { z-index: 2; }
+.stats-heatmap tbody th { padding-left: 6px; color: var(--admin-ink-2); font-weight: 800; text-align: left; }
+.stats-heatmap td { background: #f2f4f7; color: var(--admin-muted); }
+/* 0명 칸은 배경만 옅게 낮추고 숫자는 읽을 수 있는 대비를 유지한다(인원 0도 정보이므로 숨기지 않는다). */
+.stats-heatmap td.is-zero { background: #f8f9fb; color: var(--admin-muted); font-weight: 600; }
+.stats-heatmap td[data-heat-level="1"] { background: #e2edfa; color: #2f5d92; }
+.stats-heatmap td[data-heat-level="2"] { background: #c8ddf5; color: #234f80; }
+.stats-heatmap td[data-heat-level="3"] { background: #9cc4ec; color: #17395f; }
+.stats-heatmap td[data-heat-level="4"] { background: var(--admin-blue); color: #fff; }
+.stats-heat-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 4px 20px 15px; color: var(--admin-faint); font-size: 9.5px; font-weight: 600; }
+.stats-heat-legend-item { display: inline-flex; align-items: center; gap: 4px; }
+.stats-heat-legend i { width: 14px; height: 10px; flex: 0 0 14px; border-radius: 3px; background: #f2f4f7; }
+.stats-heat-legend i[data-heat-level="1"] { background: #e2edfa; }
+.stats-heat-legend i[data-heat-level="2"] { background: #c8ddf5; }
+.stats-heat-legend i[data-heat-level="3"] { background: #9cc4ec; }
+.stats-heat-legend i[data-heat-level="4"] { background: var(--admin-blue); }
+.stats-heat-legend-note { flex: 1 0 auto; margin-left: auto; font-weight: 500; }
+@media (max-width: 1000px) {
+  /* 좁아지면 요일 카드와 시간대 카드를 쌓는다. 남아 있던 세로 구분선을 가로선으로 바꾼다. */
+  .dashboard-grid.stats-detail-grid { grid-template-columns: minmax(0,1fr); }
+  .dashboard-grid.stats-detail-grid > .card + .card { border-top: 1px solid var(--admin-line); border-left: 0; }
+  .admin-body[data-admin-role="facility"] .admin-content .dashboard-grid.stats-detail-grid > .card + .card { border-top: 1px solid var(--admin-line-strong); border-left: 0; }
+  .admin-body[data-admin-role="facility"] .admin-content .dashboard-grid.stats-detail-grid > .card + .card::before { display: none; }
+}
 .wrap-content { max-width: 320px; white-space: normal; line-height: 1.5; }
 .wrap-content .cell-secondary { overflow: visible; white-space: normal; }
 .form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
@@ -637,15 +694,7 @@ body.has-admin-modal { overflow: hidden; }
 .closure-impact-lines strong { color: var(--admin-blue-ink); font-weight: 700; }
 .closure-impact-lines .blocked strong { color: #95620d; }
 .booking-impact-note { display: block; margin-top: 3px; color: #95620d; font-size: 9px; line-height: 1.35; }
-.popular-hours-chart { display: grid; gap: 15px; padding: 18px 20px 20px; }
-.popular-hour-row { display: grid; gap: 5px; }
-.popular-hour-header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.popular-hour-header span { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
-.popular-hour-header b { color: var(--admin-ink-2); font-size: 10.5px; }
-.popular-hour-header small, .popular-hour-header strong { color: var(--admin-muted); font-size: 9.5px; }
-.popular-hour-header strong { font-family: Archivo,sans-serif; font-weight: 700; white-space: nowrap; }
-.popular-hour-track { height: 6px; overflow: hidden; border-radius: 99px; background: #edf0f4; }
-.popular-hour-track i { display: block; height: 100%; border-radius: inherit; background: var(--admin-blue); }
+/* (예약 통계의 인기 시간대 막대는 전체 대비 비중을 보여 주는 .stats-hour-list로 대체되었습니다.) */
 .room-detail-summary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); border-block: 1px solid var(--admin-line); }
 .room-detail-summary > div { display: grid; gap: 4px; min-width: 0; padding: 11px 12px 11px 0; }
 .room-detail-summary > div:nth-child(even) { padding-left: 14px; border-left: 1px solid var(--admin-line); }
@@ -745,7 +794,16 @@ body.has-admin-modal { overflow: hidden; }
   .date-calendar-day small { font-size: 8px; }
   .date-hour-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .hour-slot { font-size: 9px; }
-  .popular-hours-chart { padding: 15px; }
+  /* 통계 상세: 24칸 시간대는 두 열이면 한 칸이 40px 아래로 줄어 숫자가 붙는다. 한 열로 쌓는다. */
+  .stats-day-list, .stats-hour-list { padding: 12px 15px 15px; }
+  .stats-hour-list { grid-template-columns: minmax(0,1fr); grid-template-rows: none; grid-auto-flow: row; column-gap: 0; }
+  .stats-hour-row:nth-child(12n) { border-bottom: 1px solid var(--admin-line); }
+  .stats-hour-row:last-child { border-bottom: 0; }
+  .stats-day-row { grid-template-columns: 28px minmax(0,1fr) 40px 58px; gap: 7px; }
+  .stats-hour-row { grid-template-columns: 36px minmax(0,1fr) 36px 54px; gap: 7px; }
+  .stats-heatmap-scroll { padding: 0 15px 5px; }
+  .stats-heat-legend { padding: 4px 15px 15px; }
+  .stats-heat-legend-note { flex: 1 0 100%; margin-left: 0; }
 }
 
 @media (max-width: 400px) {
