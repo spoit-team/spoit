@@ -867,6 +867,12 @@ check(/<ol\b(?=[^>]*\sdata-result-steps(?=[\s>=]))(?=[^>]*\shidden(?=[\s>=]))[^>
   'match-result.html: the captain step bar must start hidden so participants never see it');
 check(/missing = missingKeys\(\)/.test(matchEvaluationScript) && /missingKeys\(\)\.size/.test(matchEvaluationScript),
   'match-evaluation.js: the progress count must use the same empty-cell check as submission review');
+// 점수는 슬라이더로 고르고, 스크린 리더가 "항목 n점"을 읽을 수 있게 값이 바뀔 때마다 aria-valuetext를 고친다.
+check(/type="range"/.test(matchEvaluationScript) && !/<select\b/.test(matchEvaluationScript),
+  'match-evaluation.js: scores must be chosen with sliders, not select boxes');
+check(/aria-valuetext="\$\{/.test(matchEvaluationScript)
+    && /setAttribute\('aria-valuetext'/.test(matchEvaluationScript),
+  'match-evaluation.js: each score slider must keep aria-valuetext in step with its value');
 
 if (failures.length) {
   console.error(failures.join('\n'));

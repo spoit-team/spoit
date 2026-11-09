@@ -14,7 +14,9 @@
   const messageBox = root.querySelector('[data-evaluation-message]');
 
   const NOT_OBSERVED = 'NOT_OBSERVED';
-  const SCORES = Array.from({ length: 11 }, (_, score) => String(score));
+  // 슬라이더는 값을 비워 둘 수 없어 고르기 전에도 가운데에 둔다. 빈 칸 여부는 values로만 판단한다.
+  const START_POSITION = '5';
+  const SCORE_GUIDE = '5 = 보통 · 7 = 눈에 띄게 잘함 · 3 = 눈에 띄게 아쉬움';
   const FALLBACK_MESSAGES = {
     403: '이 경기의 팀장만 평가를 조회하고 제출할 수 있습니다.',
     404: '경기 정보를 찾을 수 없습니다.'
@@ -49,16 +51,33 @@
       .filter(team => team.targets.length > 0);
   }
 
-  function scoreSelect(target, item, locked) {
+  function stateClass(value) {
+    if (!value) return 'is-empty';
+    return value === NOT_OBSERVED ? 'is-skipped' : 'is-scored';
+  }
+
+  function scoreText(value) {
+    return !value || value === NOT_OBSERVED ? '–' : value;
+  }
+
+  function valueText(itemName, value) {
+    if (!value) return `${itemName} 점수 없음`;
+    return value === NOT_OBSERVED ? `${itemName} 관찰 불가` : `${itemName} ${value}점`;
+  }
+
+  function scoreCell(target, item, locked) {
     const key = keyOf(target, item);
     const value = values[key] ?? '';
+    const skipped = value === NOT_OBSERVED;
     const isMissing = missing.has(key);
-    const option = (optionValue, text) =>
-      `<option value="${optionValue}"${optionValue === value ? ' selected' : ''}>${text}</option>`;
-    return `<select class="match-evaluation-select${isMissing ? ' is-missing' : ''}" data-key="${key}"
-      aria-label="${escapeHTML(`${target.nickname} · ${item.itemName}`)}"${isMissing ? ' aria-invalid="true"' : ''}${locked ? ' disabled' : ''}>
-      ${option('', '선택')}${SCORES.map(score => option(score, `${score}점`)).join('')}${option(NOT_OBSERVED, '관찰 불가')}
-    </select>`;
+    return `<div class="match-evaluation-score ${stateClass(value)}${isMissing ? ' is-missing' : ''}" data-score-cell>
+      <input type="range" class="match-evaluation-slider" min="0" max="10" step="1"
+        value="${value && !skipped ? value : START_POSITION}" data-key="${key}" data-item-name="${escapeHTML(item.itemName)}"
+        aria-label="${escapeHTML(`${target.nickname} ${item.itemName}`)}" aria-valuetext="${escapeHTML(valueText(item.itemName, value))}"${isMissing ? ' aria-invalid="true"' : ''}${locked || skipped ? ' disabled' : ''}>
+      <span class="match-evaluation-score-value" data-score-value aria-hidden="true">${scoreText(value)}</span>
+      <button type="button" class="match-evaluation-skip" data-skip aria-pressed="${skipped}"
+        aria-label="${escapeHTML(`${target.nickname} ${item.itemName} 못 봄`)}"${locked ? ' disabled' : ''}>못 봄</button>
+    </div>`;
   }
 
   function teamTable(team, locked) {
@@ -74,7 +93,7 @@
         <tbody>${team.targets.map(target => `
           <tr>
             <th scope="row">${escapeHTML(target.nickname)}</th>
-            ${view.items.map(item => `<td data-label="${escapeHTML(item.itemName)}">${scoreSelect(target, item, locked)}</td>`).join('')}
+            ${view.items.map(item => `<td data-label="${escapeHTML(item.itemName)}">${scoreCell(target, item, locked)}</td>`).join('')}
             <td class="match-evaluation-fill">
               <button type="button" class="match-evaluation-fill-button" data-fill="${target.participantId}"
                 aria-label="${escapeHTML(target.nickname)} 모든 항목 관찰 불가"${locked ? ' disabled' : ''}>모두 관찰 불가</button>
@@ -126,7 +145,7 @@
     </div>`;
   }
 
-  // 칸을 고를 때마다 표를 다시 그리면 선택 칸 포커스를 잃으므로 숫자와 막대만 바꾼다.
+  // 칸을 고를 때마다 표를 다시 그리면 슬라이더 포커스를 잃으므로 숫자와 막대만 바꾼다.
   function updateProgress() {
     const progress = body.querySelector('[data-evaluation-progress]');
     if (!progress) return;
@@ -175,6 +194,7 @@
     body.innerHTML = `${progressBar(locked)}
       <div data-evaluation-missing>${missingAlert()}</div>
       ${confirming ? confirmPanel() : ''}
+      <p class="match-evaluation-guide">${SCORE_GUIDE}</p>
       ${teams().map(team => teamTable(team, locked)).join('')}`;
   }
 
@@ -252,7 +272,7 @@
     missing = missingKeys();
     if (missing.size > 0) {
       render();
-      body.querySelector('.match-evaluation-select.is-missing')?.focus();
+      body.querySelector('.match-evaluation-score.is-missing input[data-key]')?.focus();
       return;
     }
     confirming = true;
@@ -287,20 +307,61 @@
     body.querySelector(`[data-fill="${participantId}"]`)?.focus();
   }
 
-  root.addEventListener('change', function (event) {
-    const select = event.target.closest('select[data-key]');
-    if (!select || !view) return;
-    values[select.dataset.key] = select.value;
+  function updateCell(cell, slider) {
+    const key = slider.dataset.key;
+    const value = values[key] ?? '';
+    cell.classList.remove('is-empty', 'is-scored', 'is-skipped');
+    cell.classList.add(stateClass(value));
+    slider.disabled = value === NOT_OBSERVED;
+    slider.setAttribute('aria-valuetext', valueText(slider.dataset.itemName, value));
+    cell.querySelector('[data-score-value]').textContent = scoreText(value);
+    cell.querySelector('[data-skip]').setAttribute('aria-pressed', String(value === NOT_OBSERVED));
     updateProgress();
-    if (select.value && missing.delete(select.dataset.key)) {
-      select.classList.remove('is-missing');
-      select.removeAttribute('aria-invalid');
+    if (value && missing.delete(key)) {
+      cell.classList.remove('is-missing');
+      slider.removeAttribute('aria-invalid');
       body.querySelector('[data-evaluation-missing]').innerHTML = missingAlert();
     }
+  }
+
+  function chooseScore(slider) {
+    if (slider.disabled) return;
+    values[slider.dataset.key] = String(slider.value);
+    updateCell(slider.closest('[data-score-cell]'), slider);
+  }
+
+  // 못 봄을 끄면 점수를 되살리지 않고 빈 칸으로 돌린다. 다시 고르게 해야 모르고 남은 점수가 제출되지 않는다.
+  function toggleSkip(button) {
+    const cell = button.closest('[data-score-cell]');
+    const slider = cell.querySelector('input[data-key]');
+    if (values[slider.dataset.key] === NOT_OBSERVED) {
+      delete values[slider.dataset.key];
+      slider.value = START_POSITION;
+    } else {
+      values[slider.dataset.key] = NOT_OBSERVED;
+    }
+    updateCell(cell, slider);
+  }
+
+  root.addEventListener('input', function (event) {
+    const slider = event.target.closest('input[data-key]');
+    if (!slider || busy || !view) return;
+    chooseScore(slider);
   });
 
   root.addEventListener('click', function (event) {
     if (busy || !view) return;
+    // 처음 위치(5)를 그대로 고르면 값이 바뀌지 않아 input이 오지 않으므로, 탭·클릭도 그 위치 점수로 채운다.
+    const slider = event.target.closest('input[data-key]');
+    if (slider) {
+      chooseScore(slider);
+      return;
+    }
+    const skip = event.target.closest('[data-skip]');
+    if (skip) {
+      toggleSkip(skip);
+      return;
+    }
     const fill = event.target.closest('[data-fill]');
     if (fill) {
       fillNotObserved(Number(fill.dataset.fill));
