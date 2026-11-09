@@ -272,8 +272,77 @@
     if (pending && typeof pending.message === 'string') toastMessage(pending.message, pending.isError);
   }
 
+  /* 다른 모달이 아직 열려 있으면 뒤 페이지 스크롤 잠금을 유지한다. */
+  function syncModalScrollLock() {
+    const anyOpen = Array.from(document.querySelectorAll('.modal-backdrop'))
+      .some(function (backdrop) { return !backdrop.hidden; });
+    document.body.classList.toggle('has-admin-modal', anyOpen);
+  }
+
+  /* 실패 안내 모달: 토스트처럼 사라지지 않고, 사용자가 [확인]을 눌러야 닫힌다.
+     화면마다 마크업을 두지 않도록 처음 쓸 때 만들고, 시설 관리자 화면의 확인 모달과 같은 모양을 쓴다. */
+  let errorModal = null;
+  let errorReturnFocus = null;
+
+  function ensureErrorModal() {
+    if (errorModal) return errorModal;
+    errorModal = document.createElement('div');
+    errorModal.className = 'modal-backdrop';
+    errorModal.id = 'admin-error-modal';
+    errorModal.hidden = true;
+    errorModal.innerHTML = '<section class="admin-modal" role="alertdialog" aria-modal="true"'
+      + ' aria-labelledby="admin-error-title" aria-describedby="admin-error-message">'
+      + '<div class="modal-header"><div><h2 id="admin-error-title"></h2></div>'
+      + '<button class="modal-close" type="button" data-close-admin-error aria-label="닫기">×</button></div>'
+      + '<div class="modal-body"><p class="facility-confirm-message" id="admin-error-message"></p></div>'
+      + '<div class="modal-footer"><button class="admin-button primary" type="button" id="admin-error-confirm"'
+      + ' data-close-admin-error>확인</button></div></section>';
+    document.body.appendChild(errorModal);
+    errorModal.addEventListener('click', function (event) {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target === errorModal || target?.closest('[data-close-admin-error]')) closeErrorModal();
+    });
+    return errorModal;
+  }
+
+  function showErrorModal(title, message, returnFocus) {
+    if (!message) return;
+    const modal = ensureErrorModal();
+    modal.querySelector('#admin-error-title').textContent = title || '요청을 처리할 수 없습니다';
+    modal.querySelector('#admin-error-message').textContent = message;
+    errorReturnFocus = returnFocus || document.activeElement;
+    modal.hidden = false;
+    document.body.classList.add('has-admin-modal');
+    modal.querySelector('#admin-error-confirm')?.focus();
+  }
+
+  function closeErrorModal() {
+    if (!errorModal || errorModal.hidden) return;
+    errorModal.hidden = true;
+    syncModalScrollLock();
+    const target = errorReturnFocus;
+    errorReturnFocus = null;
+    if (target && target.isConnected && !target.closest('[hidden]')) target.focus?.();
+  }
+
+  /* 안내 모달은 항상 맨 위에 있으므로, 다른 화면 스크립트보다 먼저(capture) Escape·Tab을 처리한다. */
+  document.addEventListener('keydown', function (event) {
+    if (!errorModal || errorModal.hidden) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeErrorModal();
+      return;
+    }
+    if (event.key === 'Tab') {
+      event.stopImmediatePropagation();
+      trapModalFocus(errorModal, event);
+    }
+  }, true);
+
   global.PlayOnAdmin = {
     toast: toastMessage,
+    showErrorModal: showErrorModal,
     reloadWithToast: reloadWithToast,
     openModal: function (modal, focusSelector) {
       if (!modal) return;
@@ -285,7 +354,7 @@
     closeModal: function (modal) {
       if (!modal) return;
       modal.hidden = true;
-      document.body.classList.remove('has-admin-modal');
+      syncModalScrollLock();
       modalOpener?.focus?.();
       modalOpener = null;
     },
