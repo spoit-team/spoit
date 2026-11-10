@@ -3,7 +3,10 @@ package co.kr.spoit.report.dto;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+import lombok.Getter;
+
 /** 신고 화면의 경기 선택지다. 이용 완료(종료) 상태 경기만 담는다. */
+@Getter
 public class ReportMatchOption {
 
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -18,21 +21,5 @@ public class ReportMatchOption {
         this.facilityName = facilityName;
         this.title = title;
         this.startAt = startAt == null ? "—" : DATE_TIME.format(startAt);
-    }
-
-    public Long getMatchId() {
-        return matchId;
-    }
-
-    public String getFacilityName() {
-        return facilityName;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public String getStartAt() {
-        return startAt;
     }
 }

@@ -4,8 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Pattern;
 
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,9 +22,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.transaction.BeforeTransaction;
 
 import co.kr.spoit.facility.dto.ApplicationCountSummary;
-import co.kr.spoit.facility.dto.HourParticipantCount;
 import co.kr.spoit.facility.dto.WeekdayHourParticipantCount;
-import co.kr.spoit.facility.dto.WeekdayParticipantCount;
 
 /**
  * 시설 관리자 예약 통계 SQL을 전용 MySQL DB에서만 검증한다.
@@ -32,7 +33,8 @@ import co.kr.spoit.facility.dto.WeekdayParticipantCount;
  * <p>검증 기간은 2026-10-05(월) 09:00 ~ 2026-10-09(금) 18:00이며, 같은 시설에 기간 경계값·모집 중·
  * 매칭 완료·취소 매칭방과 다른 담당자의 시설 매칭방을 함께 둬 대상 필터를 확인한다. 요일·시간대
  * 집계가 매칭방 수가 아니라 종료 매칭의 확정 참가 인원임을 확인하기 위해 화요일 매칭방 하나에
- * 확정 참가자 2명을 두고, 같은 회원이 두 경기에 참여하는 반복 참가자도 넣는다.</p>
+ * 확정 참가자 2명을 두고, 같은 회원이 두 경기에 참여하는 반복 참가자도 넣는다. 요일별·시간대별
+ * 합계는 요일×시간대 집계 한 번에서 서비스가 파생하므로, 이 테스트도 같은 방식으로 접어 검증한다.</p>
  */
 @EnabledIfEnvironmentVariable(named = "MAT_TEST_DB_URL", matches = ".+")
 @MybatisTest(properties = {
@@ -252,13 +254,14 @@ class FacilityStatsMapperIntegrationTest {
     }
 
     @Test
-    @DisplayName("요일별로 종료 매칭의 확정 참가 인원을 묶어 방 수보다 큰 값을 돌려준다")
-    void groupsParticipantCountByWeekday() {
-        var counts = statsMapper.countParticipantsByWeekday(MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END);
+    @DisplayName("요일별 확정 참가 인원은 요일×시간대 집계의 요일 합계로 방 수보다 큰 값을 돌려준다")
+    void derivesWeekdayTotalsFromWeekdayHourGroups() {
+        var counts = statsMapper.countParticipantsByWeekdayAndHour(MANAGER_USER_ID, FACILITY_ID, RANGE_START,
+                RANGE_END);
 
         // 종료 방은 3건이지만 확정 참가 인원은 4명이다. 화요일은 방 1건에 참가자 2명이다.
-        assertThat(counts)
-                .extracting(WeekdayParticipantCount::getWeekday, WeekdayParticipantCount::getParticipantCount)
+        // 서비스가 쓰는 것과 같은 파생 방식(요일 합계)으로 검증한다.
+        assertThat(weekdayTotals(counts))
                 .containsExactlyInAnyOrder(
                         tuple(2, 1L),  // 월
                         tuple(3, 2L),  // 화
@@ -266,12 +269,12 @@ class FacilityStatsMapperIntegrationTest {
     }
 
     @Test
-    @DisplayName("시간대별로 종료 매칭의 확정 참가 인원을 묶는다")
-    void groupsParticipantCountByHour() {
-        var counts = statsMapper.countParticipantsByHour(MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END);
+    @DisplayName("시간대별 확정 참가 인원은 요일×시간대 집계의 시간대 합계로 파생한다")
+    void derivesHourTotalsFromWeekdayHourGroups() {
+        var counts = statsMapper.countParticipantsByWeekdayAndHour(MANAGER_USER_ID, FACILITY_ID, RANGE_START,
+                RANGE_END);
 
-        assertThat(counts)
-                .extracting(HourParticipantCount::getHour, HourParticipantCount::getParticipantCount)
+        assertThat(hourTotals(counts))
                 .containsExactlyInAnyOrder(
                         tuple(9, 1L),
                         tuple(10, 2L),
@@ -300,12 +303,11 @@ class FacilityStatsMapperIntegrationTest {
                 .isZero();
         assertThat(statsMapper.countConfirmedParticipants(OTHER_MANAGER_USER_ID, FACILITY_ID, RANGE_START,
                 RANGE_END)).isZero();
-        assertThat(statsMapper.countParticipantsByWeekday(OTHER_MANAGER_USER_ID, FACILITY_ID, RANGE_START,
-                RANGE_END)).isEmpty();
-        assertThat(statsMapper.countParticipantsByHour(OTHER_MANAGER_USER_ID, FACILITY_ID, RANGE_START,
-                RANGE_END)).isEmpty();
-        assertThat(statsMapper.countParticipantsByWeekdayAndHour(OTHER_MANAGER_USER_ID, FACILITY_ID,
-                RANGE_START, RANGE_END)).isEmpty();
+        var otherCounts = statsMapper.countParticipantsByWeekdayAndHour(OTHER_MANAGER_USER_ID, FACILITY_ID,
+                RANGE_START, RANGE_END);
+        assertThat(otherCounts).isEmpty();
+        assertThat(weekdayTotals(otherCounts)).isEmpty();
+        assertThat(hourTotals(otherCounts)).isEmpty();
 
         ApplicationCountSummary summary =
                 statsMapper.countApplications(OTHER_MANAGER_USER_ID, FACILITY_ID, RANGE_START, RANGE_END);
@@ -319,12 +321,14 @@ class FacilityStatsMapperIntegrationTest {
                 .isZero();
         assertThat(statsMapper.countConfirmedParticipants(MANAGER_USER_ID, OTHER_FACILITY_ID, RANGE_START,
                 RANGE_END)).isZero();
-        assertThat(statsMapper.countParticipantsByWeekday(MANAGER_USER_ID, OTHER_FACILITY_ID, RANGE_START,
-                RANGE_END)).isEmpty();
+        var otherFacilityCounts = statsMapper.countParticipantsByWeekdayAndHour(MANAGER_USER_ID,
+                OTHER_FACILITY_ID, RANGE_START, RANGE_END);
+        assertThat(otherFacilityCounts).isEmpty();
+        assertThat(weekdayTotals(otherFacilityCounts)).isEmpty();
     }
 
     @Test
-    @DisplayName("대상 기간에 종료 매칭이 없으면 모든 지표가 0건이다")
+    @DisplayName("대상 기간에 종료 매칭이 없으면 모든 지표가 0건이고 파생 합계도 비어 있다")
     void returnsZeroWhenNoFinishedMatchesInRange() {
         LocalDateTime emptyStart = LocalDateTime.of(2026, 11, 1, 0, 0);
         LocalDateTime emptyEnd = LocalDateTime.of(2026, 11, 30, 23, 59, 59);
@@ -333,12 +337,11 @@ class FacilityStatsMapperIntegrationTest {
                 .isZero();
         assertThat(statsMapper.countConfirmedParticipants(MANAGER_USER_ID, FACILITY_ID, emptyStart, emptyEnd))
                 .isZero();
-        assertThat(statsMapper.countParticipantsByWeekday(MANAGER_USER_ID, FACILITY_ID, emptyStart, emptyEnd))
-                .isEmpty();
-        assertThat(statsMapper.countParticipantsByHour(MANAGER_USER_ID, FACILITY_ID, emptyStart, emptyEnd))
-                .isEmpty();
-        assertThat(statsMapper.countParticipantsByWeekdayAndHour(MANAGER_USER_ID, FACILITY_ID, emptyStart,
-                emptyEnd)).isEmpty();
+        var counts = statsMapper.countParticipantsByWeekdayAndHour(MANAGER_USER_ID, FACILITY_ID, emptyStart,
+                emptyEnd);
+        assertThat(counts).isEmpty();
+        assertThat(weekdayTotals(counts)).isEmpty();
+        assertThat(hourTotals(counts)).isEmpty();
 
         ApplicationCountSummary summary =
                 statsMapper.countApplications(MANAGER_USER_ID, FACILITY_ID, emptyStart, emptyEnd);
@@ -367,5 +370,39 @@ class FacilityStatsMapperIntegrationTest {
             throw new IllegalStateException(name + " 환경변수가 필요합니다. 개발 DB 설정으로 대체하지 않습니다.");
         }
         return value;
+    }
+
+    /** 서비스와 같은 방식으로 요일×시간대 행을 요일 합계(DAYOFWEEK)로 접는다. 0건 요일은 뺀다. */
+    private static List<Tuple> weekdayTotals(List<WeekdayHourParticipantCount> counts) {
+        List<Tuple> totals = new ArrayList<>();
+        for (int day = 1; day <= 7; day++) {
+            long sum = 0;
+            for (WeekdayHourParticipantCount row : counts) {
+                if (row.getWeekday() == day) {
+                    sum += row.getParticipantCount();
+                }
+            }
+            if (sum > 0) {
+                totals.add(tuple(day, sum));
+            }
+        }
+        return totals;
+    }
+
+    /** 서비스와 같은 방식으로 요일×시간대 행을 시간대 합계(0~23시)로 접는다. 0건 시간대는 뺀다. */
+    private static List<Tuple> hourTotals(List<WeekdayHourParticipantCount> counts) {
+        long[] totalsByHour = new long[24];
+        for (WeekdayHourParticipantCount row : counts) {
+            if (row.getHour() >= 0 && row.getHour() < totalsByHour.length) {
+                totalsByHour[row.getHour()] += row.getParticipantCount();
+            }
+        }
+        List<Tuple> totals = new ArrayList<>();
+        for (int hour = 0; hour < totalsByHour.length; hour++) {
+            if (totalsByHour[hour] > 0) {
+                totals.add(tuple(hour, totalsByHour[hour]));
+            }
+        }
+        return totals;
     }
 }

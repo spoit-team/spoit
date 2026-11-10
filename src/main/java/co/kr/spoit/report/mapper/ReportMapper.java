@@ -35,9 +35,6 @@ public interface ReportMapper {
     /** 해당 시설의 담당자인지 확인한다. */
     boolean existsFacilityManager(@Param("facilityId") Long facilityId, @Param("userId") Long userId);
 
-    /** 경기 상태 스냅샷을 잠그지 않고 읽는다. 화면 조회용이다. */
-    MatchSnapshot findMatchSnapshot(@Param("matchId") Long matchId);
-
     /** 경기 상태 스냅샷을 잠그고 읽는다. 접수 트랜잭션에서 상태를 다시 검사할 때 쓴다. */
     MatchSnapshot findMatchSnapshotForUpdate(@Param("matchId") Long matchId);
 

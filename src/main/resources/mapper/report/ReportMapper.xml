@@ -45,14 +45,6 @@
            AND f.deleted_at IS NULL
     </select>
 
-    <select id="findMatchSnapshot" resultType="co.kr.spoit.report.domain.MatchSnapshot">
-        SELECT m.match_id AS matchId
-              ,m.facility_id AS facilityId
-              ,m.status AS status
-          FROM social_match m
-         WHERE m.match_id = #{matchId}
-    </select>
-
     <!-- 접수 트랜잭션에서 경기 행을 잠가, 상태 재검사와 신고 저장 사이에 다른 변경이 끼지 않게 한다. -->
     <select id="findMatchSnapshotForUpdate" resultType="co.kr.spoit.report.domain.MatchSnapshot">
         SELECT m.match_id AS matchId

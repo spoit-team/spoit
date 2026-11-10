@@ -14,9 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import co.kr.spoit.facility.dto.ApplicationCountSummary;
 import co.kr.spoit.facility.dto.FacilityStats;
-import co.kr.spoit.facility.dto.HourParticipantCount;
 import co.kr.spoit.facility.dto.WeekdayHourParticipantCount;
-import co.kr.spoit.facility.dto.WeekdayParticipantCount;
 import co.kr.spoit.facility.mapper.FacilityMapper;
 import co.kr.spoit.facility.mapper.FacilityStatsMapper;
 
@@ -31,7 +29,8 @@ import co.kr.spoit.facility.mapper.FacilityStatsMapper;
  * 분포는 매칭방 수가 아니라 종료 매칭의 확정 참가 인원
  * ({@code match_participant.participation_status = '확정'})을 센다. 참가자는 매칭별로 한 행씩
  * 세므로 같은 사람이 두 경기에 참여하면 2인으로 집계되고, 노쇼 여부는 구분하지 못한다.
- * 상세 비율({@code share})의 분모는 전체 종료 매칭 확정 참가 인원이다.</p>
+ * 요일 합계·시간대 합계는 요일×시간대 집계 한 번에서 파생하며, 상세 비율({@code share})의 분모는
+ * 전체 종료 매칭 확정 참가 인원이다.</p>
  *
  * <p>기간 파라미터는 화면 계약({@code period=7/30/90/custom})을 그대로 받는다. 알 수 없는 값이나
  * 직접 입력 기간의 누락·역전·파싱 실패는 기본 30일로 되돌린다. 경계는 시작일 00:00:00부터
@@ -50,10 +49,11 @@ public class FacilityStatsService {
     /** 직접 입력 기간을 뜻하는 파라미터 값 */
     private static final String CUSTOM_PERIOD = "custom";
 
-    /** 요일 차트 표시 순서(월~일)와 같은 순서의 라벨 */
+    /** 요일 상세 표시 순서(월~일)와 같은 순서의 라벨 */
     private static final List<String> WEEKDAY_LABELS = List.of("월", "화", "수", "목", "금", "토", "일");
 
-    private static final String TONE_GOOD = "good";
+    /** 하루 시간대 수(00~23시) */
+    private static final int HOURS_PER_DAY = 24;
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
 
@@ -84,7 +84,7 @@ public class FacilityStatsService {
     public FacilityStats load(Long managerUserId, Long facilityId, String period, String periodFrom,
             String periodTo) {
         DateRange range = resolveRange(period, periodFrom, periodTo);
-        FacilityStats empty = FacilityStats.empty(range.period(), range.label());
+        FacilityStats empty = emptyStats(range.period(), range.label());
         empty.setRequestedPeriod(range.requestedPeriod());
         if (!hasManager(managerUserId) || facilityId == null || facilityId <= 0) {
             return empty;
@@ -102,25 +102,20 @@ public class FacilityStatsService {
                 endAt);
         ApplicationCountSummary applications = facilityStatsMapper.countApplications(managerUserId, facilityId,
                 startAt, endAt);
-        List<WeekdayParticipantCount> weekdayCounts = facilityStatsMapper.countParticipantsByWeekday(
-                managerUserId, facilityId, startAt, endAt);
-        List<HourParticipantCount> hourCounts = facilityStatsMapper.countParticipantsByHour(managerUserId,
-                facilityId, startAt, endAt);
         List<WeekdayHourParticipantCount> weekdayHourCounts =
                 facilityStatsMapper.countParticipantsByWeekdayAndHour(managerUserId, facilityId, startAt, endAt);
 
-        long[] participantsByDay = participantsByWeekday(weekdayCounts);
-        long[] participantsByHour = participantsByHour(hourCounts);
+        long[][] participantsByDayAndHour = participantsByDayAndHour(weekdayHourCounts);
+        long[] participantsByDay = sumByWeekday(participantsByDayAndHour);
+        long[] participantsByHour = sumByHour(participantsByDayAndHour);
         long participantsTotal = Math.max(0, participantCount);
 
-        WeekdayChart weekdayChart = buildWeekdayChart(participantsByDay);
-        HourChart hourChart = buildHourChart(participantsByHour);
         List<FacilityStats.WeekdayDetail> weekdayDetails =
                 buildWeekdayDetails(participantsByDay, participantsTotal);
         List<FacilityStats.HourDetail> hourDetails =
                 buildHourDetails(participantsByHour, participantsTotal);
         List<FacilityStats.WeekdayHourDetail> weekdayHourDetails =
-                buildWeekdayHourDetails(weekdayHourCounts);
+                buildWeekdayHourDetails(participantsByDayAndHour);
 
         long applicationTotal = applications == null ? 0 : applications.getTotal();
         long individualCount = applications == null ? 0 : applications.getIndividualCount();
@@ -132,10 +127,8 @@ public class FacilityStatsService {
                 range.label(),
                 Math.max(0, bookingCount),
                 Math.max(0, participantCount),
-                weekdayChart.popularDay(),
-                hourChart.peakTime(),
-                weekdayChart.rows(),
-                hourChart.rows(),
+                popularWeekdayLabel(participantsByDay),
+                peakHourLabel(participantsByHour),
                 Math.max(0, applicationTotal),
                 Math.max(0, individualCount),
                 Math.max(0, clubCount),
@@ -148,6 +141,24 @@ public class FacilityStatsService {
         stats.setWeekdayDetails(weekdayDetails);
         stats.setHourDetails(hourDetails);
         stats.setWeekdayHourDetails(weekdayHourDetails);
+        return stats;
+    }
+
+    /* ---------------- 0건 화면 모델 ---------------- */
+
+    /**
+     * 담당 시설이 없거나 시설 미선택일 때 쓰는 0건 집계를 만든다.
+     *
+     * <p>화면이 항상 같은 모양을 갖도록 상세 집계(요일 7행·시간대 24행·요일×시간대 7행)도
+     * 0으로 채운다. 기간 표시값만 호출자가 정하고 나머지 지표·인기 라벨은 0·null이며,
+     * 실제 조회 구간({@code periodFrom}·{@code periodTo})은 채우지 않는다.</p>
+     */
+    private static FacilityStats emptyStats(int period, String periodLabel) {
+        FacilityStats stats = new FacilityStats(period, periodLabel, 0, 0, null, null, 0, 0, 0, 0, 0);
+        stats.setWeekdayDetails(buildWeekdayDetails(new long[WEEKDAY_LABELS.size()], 0));
+        stats.setHourDetails(buildHourDetails(new long[HOURS_PER_DAY], 0));
+        stats.setWeekdayHourDetails(
+                buildWeekdayHourDetails(new long[WEEKDAY_LABELS.size()][HOURS_PER_DAY]));
         return stats;
     }
 
@@ -246,55 +257,81 @@ public class FacilityStatsService {
 
     /* ---------------- 차트 계산 ---------------- */
 
-    /** WEEKDAY_LABELS(월~일) 순서로 집계한 요일별 확정 참가 인원. 범위 밖 값은 버린다. */
-    private static long[] participantsByWeekday(List<WeekdayParticipantCount> counts) {
-        long[] participantsByDay = new long[WEEKDAY_LABELS.size()];
-        for (WeekdayParticipantCount row : nullSafe(counts)) {
+    /**
+     * 요일×시간대 집계를 월~일 × 00~23시 배열로 옮긴다.
+     *
+     * <p>알 수 없는 요일·시간대 값은 버리고, 같은 칸의 값은 버리지 않고 합산한다.</p>
+     */
+    private static long[][] participantsByDayAndHour(List<WeekdayHourParticipantCount> counts) {
+        long[][] participantsByDayAndHour = new long[WEEKDAY_LABELS.size()][HOURS_PER_DAY];
+        for (WeekdayHourParticipantCount row : nullSafe(counts)) {
             if (row == null) {
                 continue;
             }
-            int index = weekdayIndex(row.getWeekday());
-            if (index >= 0) {
-                participantsByDay[index] = Math.max(0, row.getParticipantCount());
+            int dayIndex = weekdayIndex(row.getWeekday());
+            int hour = row.getHour();
+            if (dayIndex < 0 || hour < 0 || hour >= HOURS_PER_DAY) {
+                continue;
             }
+            participantsByDayAndHour[dayIndex][hour] += Math.max(0, row.getParticipantCount());
+        }
+        return participantsByDayAndHour;
+    }
+
+    /** 요일×시간대 배열에서 요일별 합계를 월~일 순서로 파생한다. */
+    private static long[] sumByWeekday(long[][] participantsByDayAndHour) {
+        long[] participantsByDay = new long[WEEKDAY_LABELS.size()];
+        for (int dayIndex = 0; dayIndex < participantsByDay.length; dayIndex++) {
+            long sum = 0;
+            for (long count : participantsByDayAndHour[dayIndex]) {
+                sum += count;
+            }
+            participantsByDay[dayIndex] = sum;
         }
         return participantsByDay;
     }
 
-    /** 00~23시 순서로 집계한 시간대별 확정 참가 인원. 범위 밖 값은 버린다. */
-    private static long[] participantsByHour(List<HourParticipantCount> counts) {
-        long[] participantsByHour = new long[24];
-        for (HourParticipantCount row : nullSafe(counts)) {
-            if (row == null) {
-                continue;
+    /** 요일×시간대 배열에서 시간대별 합계를 00~23시 순서로 파생한다. */
+    private static long[] sumByHour(long[][] participantsByDayAndHour) {
+        long[] participantsByHour = new long[HOURS_PER_DAY];
+        for (long[] hourlyCounts : participantsByDayAndHour) {
+            for (int hour = 0; hour < participantsByHour.length; hour++) {
+                participantsByHour[hour] += hourlyCounts[hour];
             }
-            int hour = row.getHour();
-            if (hour < 0 || hour >= participantsByHour.length) {
-                continue;
-            }
-            participantsByHour[hour] = Math.max(0, row.getParticipantCount());
         }
         return participantsByHour;
     }
 
-    /** 요일 7행과 최대 참가 인원 요일 라벨. 집계 대상이 없으면 라벨은 null이다. */
-    private static WeekdayChart buildWeekdayChart(long[] participantsByDay) {
-        long max = 0;
+    /**
+     * 확정 참가 인원이 가장 많은 요일 라벨(월~일 순서)을 고른다. 동률이면 먼저 나오는 요일이고,
+     * 집계 대상이 없으면 null이다.
+     */
+    private static String popularWeekdayLabel(long[] participantsByDay) {
         int popularIndex = -1;
+        long max = 0;
         for (int index = 0; index < participantsByDay.length; index++) {
             if (participantsByDay[index] > max) {
                 max = participantsByDay[index];
                 popularIndex = index;
             }
         }
+        return popularIndex < 0 ? null : WEEKDAY_LABELS.get(popularIndex);
+    }
 
-        List<FacilityStats.WeekdayShare> rows = new ArrayList<>(WEEKDAY_LABELS.size());
-        for (int index = 0; index < participantsByDay.length; index++) {
-            String tone = index == popularIndex && max > 0 ? TONE_GOOD : "";
-            rows.add(new FacilityStats.WeekdayShare(WEEKDAY_LABELS.get(index), tone,
-                    percent(participantsByDay[index], max)));
+    /**
+     * 확정 참가 인원이 가장 많은 시간대 라벨(00~23시 순서)을 고른다. 동률이면 이른 시간대이고,
+     * 집계 대상이 없으면 null이다.
+     */
+    private static String peakHourLabel(long[] participantsByHour) {
+        int peakHour = -1;
+        long max = 0;
+        for (int hour = 0; hour < participantsByHour.length; hour++) {
+            if (participantsByHour[hour] > max) {
+                max = participantsByHour[hour];
+                peakHour = hour;
+            }
         }
-        return new WeekdayChart(rows, popularIndex < 0 ? null : WEEKDAY_LABELS.get(popularIndex));
+        return peakHour < 0 ? null : hourLabel(peakHour);
     }
 
     /** MySQL DAYOFWEEK(1=일, 2=월, … 7=토)를 월~일 인덱스로 바꾼다. 범위 밖은 -1이다. */
@@ -303,32 +340,6 @@ public class FacilityStatsService {
             return -1;
         }
         return (int) (dayOfWeek == 1 ? 6 : dayOfWeek - 2);
-    }
-
-    /**
-     * 집계된 시간대만 오름차순으로 담고, 최대 참가 인원 시간대 라벨을 함께 만든다.
-     *
-     * <p>집계 대상이 없으면 빈 목록과 null 라벨이다.</p>
-     */
-    private static HourChart buildHourChart(long[] participantsByHour) {
-        long max = 0;
-        int peakHour = -1;
-        for (int hour = 0; hour < participantsByHour.length; hour++) {
-            if (participantsByHour[hour] > max) {
-                max = participantsByHour[hour];
-                peakHour = hour;
-            }
-        }
-
-        List<FacilityStats.PopularHour> rows = new ArrayList<>();
-        for (int hour = 0; hour < participantsByHour.length; hour++) {
-            if (participantsByHour[hour] <= 0) {
-                continue;
-            }
-            rows.add(new FacilityStats.PopularHour(hourLabel(hour), participantsByHour[hour],
-                    percent(participantsByHour[hour], max)));
-        }
-        return new HourChart(rows, peakHour < 0 ? null : hourLabel(peakHour));
     }
 
     /** 요일 상세 7행(월~일). share는 전체 확정 참가 인원 대비 반올림 백분율이며 전체가 0이면 0이다. */
@@ -353,29 +364,12 @@ public class FacilityStatsService {
         return rows;
     }
 
-    /**
-     * 요일×시간대 상세 7행(월~일)을 만들고 각 행의 시간대 24칸(00~23시)을 집계값으로 채운다.
-     *
-     * <p>집계되지 않은 칸은 0이며, 알 수 없는 요일·시간대 값은 버린다.</p>
-     */
+    /** 요일×시간대 상세 7행(월~일)의 시간대 24칸(00~23시)을 집계값으로 채운다. */
     private static List<FacilityStats.WeekdayHourDetail> buildWeekdayHourDetails(
-            List<WeekdayHourParticipantCount> counts) {
-        long[][] participantsByDayAndHour = new long[WEEKDAY_LABELS.size()][24];
-        for (WeekdayHourParticipantCount row : nullSafe(counts)) {
-            if (row == null) {
-                continue;
-            }
-            int dayIndex = weekdayIndex(row.getWeekday());
-            int hour = row.getHour();
-            if (dayIndex < 0 || hour < 0 || hour >= participantsByDayAndHour[dayIndex].length) {
-                continue;
-            }
-            participantsByDayAndHour[dayIndex][hour] = Math.max(0, row.getParticipantCount());
-        }
-
+            long[][] participantsByDayAndHour) {
         List<FacilityStats.WeekdayHourDetail> rows = new ArrayList<>(WEEKDAY_LABELS.size());
         for (int dayIndex = 0; dayIndex < WEEKDAY_LABELS.size(); dayIndex++) {
-            List<Long> hourlyCounts = new ArrayList<>(participantsByDayAndHour[dayIndex].length);
+            List<Long> hourlyCounts = new ArrayList<>(HOURS_PER_DAY);
             for (long count : participantsByDayAndHour[dayIndex]) {
                 hourlyCounts.add(count);
             }
@@ -397,26 +391,12 @@ public class FacilityStatsService {
         return String.format("%02d시", hour);
     }
 
-    /** 최대값 대비 상대 백분율(0~100). 최대값이 0이면 0이다. */
-    private static int percent(long count, long max) {
-        if (max <= 0) {
-            return 0;
-        }
-        return (int) Math.round(count * 100.0 / max);
-    }
-
     /** 승인율(%). 신청 총계가 0이면 0이고, 그 밖에는 반올림한 정수 백분율이다. */
     private static double approvalRate(long approvedCount, long applicationTotal) {
         if (applicationTotal <= 0) {
             return 0;
         }
         return Math.round(Math.max(0, approvedCount) * 100.0 / applicationTotal);
-    }
-
-    private record WeekdayChart(List<FacilityStats.WeekdayShare> rows, String popularDay) {
-    }
-
-    private record HourChart(List<FacilityStats.PopularHour> rows, String peakTime) {
     }
 
     /* ---------------- 공통 ---------------- */

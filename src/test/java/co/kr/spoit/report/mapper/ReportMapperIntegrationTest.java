@@ -443,15 +443,15 @@ class ReportMapperIntegrationTest {
     }
 
     @Test
-    @DisplayName("경기 스냅샷은 종료·모집 중 상태를 원문으로 읽는다")
+    @DisplayName("경기 스냅샷은 종료·모집 중 상태와 시설 매핑을 잠금 조회로 읽는다")
     void matchSnapshotReadsStatus() {
-        var closed = reportMapper.findMatchSnapshot(CLOSED_MATCH);
-        var recruiting = reportMapper.findMatchSnapshot(RECRUITING_MATCH);
+        var closed = reportMapper.findMatchSnapshotForUpdate(CLOSED_MATCH);
+        var recruiting = reportMapper.findMatchSnapshotForUpdate(RECRUITING_MATCH);
 
         assertThat(closed.getStatus()).isEqualTo(MatchStatus.CLOSED.dbValue());
         assertThat(closed.getFacilityId()).isEqualTo(FACILITY_A);
         assertThat(recruiting.getStatus()).isEqualTo(MatchStatus.RECRUITING.dbValue());
-        assertThat(reportMapper.findMatchSnapshot(999999L)).isNull();
+        assertThat(reportMapper.findMatchSnapshotForUpdate(999999L)).isNull();
     }
 
     private long insertReportMinutesAgo(long reporterId, long targetId, long matchId, String category,
