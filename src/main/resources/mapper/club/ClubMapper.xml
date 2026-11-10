@@ -13,13 +13,15 @@
             AND sr.rated_match_count &gt;= #{placementMatches})
     </sql>
 
-    <!-- 최근 활동(레이팅 반영 시각 기준)-->
+    <!-- 최근 활동: 지난 일정 탭과 같은 조건의 마지막 경기 시작 시각 -->
     <sql id="lastActivityAt">
-        (SELECT MAX(h.calculated_at)
-        FROM sport_rating_history h
-        JOIN match_participant p ON h.participant_id = p.participant_id
-        JOIN match_application a ON p.application_id = a.application_id
-        WHERE a.club_id = c.club_id)
+        (SELECT MAX(sm.start_at)
+        FROM match_application ma
+        JOIN social_match sm ON sm.match_id = ma.match_id
+        WHERE ma.club_id = c.club_id
+            AND ma.status = '확정'
+            AND sm.status IN ('매칭 완료', '종료')
+            AND sm.end_at &lt; #{now})
     </sql>
 
     <!-- 동호회 목록: 해체되지 않은 동호회만 -->
@@ -312,6 +314,7 @@
             </if>
     </select>
 
+    <!-- 예정 일정: 아직 안 끝난 경기(경기 중 포함) -->
     <select id="selectUpcomingSchedules" resultType="co.kr.spoit.club.domain.ClubSchedule">
         SELECT sm.match_id AS matchId
                 ,sm.title AS title
@@ -325,7 +328,7 @@
                             AND ma.club_id = #{clubId}
                             AND ma.status IN ('대기', '확정'))
             AND sm.status IN ('모집 중', '매칭 완료')
-            AND sm.start_at &gt; #{now}
+            AND sm.end_at &gt; #{now}
             ORDER BY sm.start_at, sm.match_id
     </select>
     
@@ -433,18 +436,13 @@
             AND role = '동호회원' AND left_at IS NULL
     </select>
 
-    <select id="selectActiveMemberUserId" resultType="java.lang.Long">
-        SELECT user_id FROM club_member
-        WHERE club_id = #{clubId} AND club_member_id = #{clubMemberId} AND left_at IS NULL
-    </select>
-
     <update id="updateMemberKick">
         UPDATE club_member
         SET left_at = NOW(), leave_type = '내보내기', kick_reason = #{kickReason}
-        WHERE club_id = #{clubId} AND club_member_id = #{clubMemberId} 
+        WHERE club_id = #{clubId} AND club_member_id = #{clubMemberId}
             AND left_at IS NULL
     </update>
-        
+
     <update id="cancelPendingJoinRequests">
         UPDATE club_join_request
         SET status = '취소', processed_at = NOW()
@@ -461,6 +459,12 @@
     <update id="updateClubDisband">
         UPDATE club
         SET deleted_at = NOW()
+        WHERE club_id = #{clubId} AND deleted_at IS NULL
+    </update>
+
+    <update id="updateClubRecruitClosed">
+        UPDATE club
+        SET recruit_status = '마감'
         WHERE club_id = #{clubId} AND deleted_at IS NULL
     </update>
 

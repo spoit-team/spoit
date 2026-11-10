@@ -120,9 +120,6 @@ public interface ClubMapper {
         int cancelJoinRequest(@Param("clubId") Long clubId, @Param("joinRequestId") Long joinRequestId,
                         @Param("userId") Long userId);
 
-        // 알림 수신자: 활성 동호회원 번호(club_member_id)의 회원 번호. 동호회원 번호와 회원 번호를 구분한다.
-        Long selectActiveMemberUserId(@Param("clubId") Long clubId, @Param("clubMemberId") Long clubMemberId);
-
         // 동호회장 위임: 남을 동호회장으로
         int updateRoleToLeader(@Param("clubId") Long clubId, @Param("clubMemberId") Long clubMemberId);
 
@@ -153,6 +150,9 @@ public interface ClubMapper {
 
         // 해체: 동호회 해체 시각 기록
         int updateClubDisband(@Param("clubId") Long clubId);
+
+        // 승인으로 정원이 차면 모집 마감
+        int updateClubRecruitClosed(@Param ("clubId") Long clubId);
 
         // 수정: 활성 동호회 정보 수정
         int updateClub(Club club);
