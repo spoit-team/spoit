@@ -623,4 +623,12 @@ class RoomManagementServiceTest {
         row.setCreatedAt(LocalDateTime.of(2026, 11, 1, 10, 0));
         return row;
     }
+
+    @Test
+    @DisplayName("운영 화면 결제 열은 신청 행 한 명 몫의 결제·환불 상태를 보여 준다")
+    void paymentLabelShowsPerRowStatus() {
+        assertThat(RoomManagementService.paymentLabel(false, 0, false)).isEqualTo("무료");
+        assertThat(RoomManagementService.paymentLabel(true, 9000, false)).isEqualTo("결제 완료 9,000원");
+        assertThat(RoomManagementService.paymentLabel(true, 9000, true)).isEqualTo("환불 완료 9,000원");
+    }
 }

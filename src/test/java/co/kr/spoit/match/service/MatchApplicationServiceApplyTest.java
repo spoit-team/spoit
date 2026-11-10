@@ -36,6 +36,9 @@ import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.mapper.MemberMapper;
 import co.kr.spoit.member.service.MemberAccountLockService;
 import co.kr.spoit.notification.service.NotificationDispatcher;
+import co.kr.spoit.payment.service.PaymentLedgerService;
+import java.math.BigDecimal;
+import co.kr.spoit.match.service.MatchApplicationService.PaidApply;
 
 /**
  * RES-03 개인 신청이 기존 매칭방이라도 시설의 최신 운영 일정을 다시 확인하는지 검증한다.
@@ -56,6 +59,7 @@ class MatchApplicationServiceApplyTest {
     private MemberAccountLockService accountLockService;
     private NotificationDispatcher notificationDispatcher;
     private MatchApplicationService service;
+    private final PaymentLedgerService paymentLedger = mock(PaymentLedgerService.class);
 
     private Member member;
 
@@ -68,7 +72,7 @@ class MatchApplicationServiceApplyTest {
         notificationDispatcher = mock(NotificationDispatcher.class);
         service = new MatchApplicationService(applicationMapper, memberMapper,
                 mock(SportRatingMapper.class), mock(MatchService.class), facilityReservationService,
-                accountLockService, mock(ClubService.class), notificationDispatcher);
+                accountLockService, mock(ClubService.class), notificationDispatcher, paymentLedger);
 
         member = new Member();
         member.setUserId(USER_ID);
@@ -290,5 +294,88 @@ class MatchApplicationServiceApplyTest {
         FacilityScheduleUnavailableException e = mock(FacilityScheduleUnavailableException.class);
         given(e.getMessage()).willReturn(message);
         return e;
+    }
+
+    /* ---------------- 참가비 결제 ---------------- */
+
+    private MatchRow paidMatch(String fee) {
+        LocalDateTime startAt = LocalDateTime.now(KST).plusDays(1);
+        MatchRow match = recruitingMatch(startAt, startAt.plusHours(2));
+        match.setFeePerPerson(new BigDecimal(fee));
+        return match;
+    }
+
+    @Test
+    @DisplayName("참가비가 있는 매치는 결제 없이 신청할 수 없다")
+    void freeApplyRejectsPaidMatch() {
+        given(applicationMapper.lockMatch(MATCH_ID)).willReturn(paidMatch("9000"));
+
+        assertThatThrownBy(() -> service.applyIndividual(MATCH_ID, USER_ID))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessageContaining("참가비 결제가 필요한 매치");
+        verify(applicationMapper, never()).insert(any(MatchApplication.class));
+    }
+
+    @Test
+    @DisplayName("결제 신청은 정원·중복 확인 뒤 카카오페이를 승인하고, 신청 행을 만든 다음 결제에 연결한다")
+    void paidApplyApprovesThenLinks() {
+        given(applicationMapper.lockMatch(MATCH_ID)).willReturn(paidMatch("9000.00"));
+        given(applicationMapper.countOccupiedSeats(anyLong(), anyList(), anyString())).willReturn(0);
+        given(applicationMapper.insert(any(MatchApplication.class))).willAnswer(invocation -> {
+            invocation.<MatchApplication>getArgument(0).setApplicationId(77L);
+            return 1;
+        });
+        LocalDateTime approvedAt = LocalDateTime.of(2026, 11, 10, 12, 0);
+        given(paymentLedger.approve(eq("pay-1"), eq("pg"), any())).willReturn(approvedAt);
+
+        String receiptNo = service.applyIndividualPaid(MATCH_ID, USER_ID,
+                new PaidApply("pay-1", new BigDecimal("9000"), 1, "pg"));
+
+        assertThat(receiptNo).startsWith("RCPT-");
+        InOrder order = inOrder(applicationMapper, paymentLedger);
+        order.verify(applicationMapper).countOccupiedSeats(anyLong(), anyList(), anyString());
+        order.verify(paymentLedger).approve(eq("pay-1"), eq("pg"), any());
+        order.verify(applicationMapper).insert(any(MatchApplication.class));
+        order.verify(paymentLedger).markPaid(eq("pay-1"), eq(List.of(77L)), eq(approvedAt), any());
+    }
+
+    @Test
+    @DisplayName("정원이 찼으면 카카오페이를 승인하지 않는다 (돈이 빠져나가지 않는다)")
+    void paidApplyDoesNotApproveWhenFull() {
+        given(applicationMapper.lockMatch(MATCH_ID)).willReturn(paidMatch("9000"));
+        given(applicationMapper.countOccupiedSeats(anyLong(), anyList(), anyString())).willReturn(10);
+
+        assertThatThrownBy(() -> service.applyIndividualPaid(MATCH_ID, USER_ID,
+                new PaidApply("pay-1", new BigDecimal("9000"), 1, "pg")))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("정원이 모두 찼습니다.");
+        verify(paymentLedger, never()).approve(anyString(), anyString(), any());
+        verify(applicationMapper, never()).insert(any(MatchApplication.class));
+    }
+
+    @Test
+    @DisplayName("카카오페이 승인이 실패하면 신청 행을 만들지 않는다")
+    void paidApplyStopsWhenApproveFails() {
+        given(applicationMapper.lockMatch(MATCH_ID)).willReturn(paidMatch("9000"));
+        given(applicationMapper.countOccupiedSeats(anyLong(), anyList(), anyString())).willReturn(0);
+        given(paymentLedger.approve(anyString(), anyString(), any()))
+                .willThrow(new MatchApplyException("카카오페이 결제 승인에 실패했습니다."));
+
+        assertThatThrownBy(() -> service.applyIndividualPaid(MATCH_ID, USER_ID,
+                new PaidApply("pay-1", new BigDecimal("9000"), 1, "pg")))
+                .isInstanceOf(MatchApplyException.class);
+        verify(applicationMapper, never()).insert(any(MatchApplication.class));
+    }
+
+    @Test
+    @DisplayName("결제하는 동안 참가비가 바뀌었으면 신청을 만들지 않는다")
+    void paidApplyRejectsChangedFee() {
+        given(applicationMapper.lockMatch(MATCH_ID)).willReturn(paidMatch("10000"));
+
+        assertThatThrownBy(() -> service.applyIndividualPaid(MATCH_ID, USER_ID,
+                new PaidApply("pay-1", new BigDecimal("9000"), 1, "pg")))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("결제하는 동안 참가비가 바뀌어 신청하지 못했습니다.");
+        verify(applicationMapper, never()).insert(any(MatchApplication.class));
     }
 }

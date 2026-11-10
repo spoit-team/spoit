@@ -25,6 +25,7 @@ import co.kr.spoit.match.mapper.MatchApplicationMapper;
 import co.kr.spoit.member.mapper.MemberMapper;
 import co.kr.spoit.member.service.MemberAccountLockService;
 import co.kr.spoit.notification.service.NotificationDispatcher;
+import co.kr.spoit.payment.service.PaymentLedgerService;
 
 /**
  * 탈퇴를 막는 개인 매치 신청 조회가 "진행 중" 상태만 넘기는지 검증한다.
@@ -45,7 +46,7 @@ class MatchApplicationServiceWithdrawalBlockTest {
         service = new MatchApplicationService(applicationMapper, mock(MemberMapper.class),
                 mock(SportRatingMapper.class), mock(MatchService.class), mock(FacilityReservationService.class),
                 mock(MemberAccountLockService.class), mock(ClubService.class),
-                mock(NotificationDispatcher.class));
+                mock(NotificationDispatcher.class), mock(PaymentLedgerService.class));
     }
 
     @Test

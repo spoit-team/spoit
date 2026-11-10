@@ -32,6 +32,7 @@ import co.kr.spoit.match.service.MatchService;
 import co.kr.spoit.member.security.MemberLoginFailureHandler;
 import co.kr.spoit.member.security.MemberLoginSuccessHandler;
 import co.kr.spoit.member.service.MemberUserDetailsService;
+import co.kr.spoit.payment.service.PaymentService;
 
 /**
  * 기존 {@code POST /matches/{id}/apply} 경로·인증·CSRF 계약이 그대로인지 검증한다.
@@ -51,6 +52,9 @@ class MatchApplyRouteTest {
 
     @MockitoBean
     private MatchApplicationService applicationService;
+
+    @MockitoBean
+    private PaymentService paymentService;
 
     @MockitoBean
     private MemberLoginSuccessHandler loginSuccessHandler;

@@ -43,6 +43,7 @@ import co.kr.spoit.match.service.MatchService;
 import co.kr.spoit.member.security.MemberLoginFailureHandler;
 import co.kr.spoit.member.security.MemberLoginSuccessHandler;
 import co.kr.spoit.member.service.MemberUserDetailsService;
+import co.kr.spoit.payment.service.PaymentService;
 
 /** RES-04 팀 신청 화면(상세 팀원 선택, 팀 신청 내용)이 실제 템플릿으로 렌더링되는지 검증한다. */
 @WebMvcTest(controllers = MatchController.class)
@@ -59,6 +60,9 @@ class MatchTeamPageRenderTest {
 
     @MockitoBean
     private MatchApplicationService applicationService;
+
+    @MockitoBean
+    private PaymentService paymentService;
 
     @MockitoBean
     private MemberLoginSuccessHandler loginSuccessHandler;
@@ -235,5 +239,58 @@ class MatchTeamPageRenderTest {
                 .feeTotalText("0원")
                 .feeSummaryNote("현재는 결제 없이 무료로 신청이 접수됩니다.")
                 .build();
+    }
+
+    @Test
+    @DisplayName("유료 팀 신청 화면은 3단계와 카카오페이·결제 금액·환불 안내를 그리고 결제 준비 주소를 넘긴다")
+    void paidJoinPageRendersPaymentStep() throws Exception {
+        JoinPage page = JoinPage.builder()
+                .match(teamJoinPage().getMatch())
+                .selection(teamJoinPage().getSelection())
+                .canReserve(true)
+                .capacityNotice("")
+                .paid(true)
+                .unitAmount(9000)
+                .totalAmount(27000)
+                .feeTotalText("27,000원")
+                .feeSummaryNote("9,000원 × 3명")
+                .build();
+        given(applicationService.prepareTeam(MATCH_ID, 7L, 5L, List.of(21L, 22L))).willReturn(Optional.of(page));
+        given(paymentService.isAvailable()).willReturn(true);
+        given(paymentService.isTestMode()).willReturn(true);
+
+        mockMvc.perform(get("/matches/{matchId}/apply/team", MATCH_ID)
+                        .param("clubId", "5")
+                        .param("clubMemberIds", "21,22")
+                        .with(user(member())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(allOf(
+                        containsString("data-paid=\"true\""),
+                        containsString("data-payment-prepare-url=\"/matches/1/apply/payment/prepare\""),
+                        containsString("STEP 01 / 03"),
+                        containsString("다음: 참가비 결제"),
+                        containsString("id=\"payment-method\""),
+                        containsString("카카오페이"),
+                        containsString("9,000원 × 3명"),
+                        containsString("카카오페이로 27,000원 결제"),
+                        containsString("테스트 결제입니다. 실제 금액이 청구되지 않습니다."),
+                        containsString("인원만큼 즉시 환불됩니다."))));
+    }
+
+    @Test
+    @DisplayName("무료 신청 화면은 결제 단계 없이 2단계로 바로 접수한다")
+    void freeJoinPageSkipsPaymentStep() throws Exception {
+        given(applicationService.prepareTeam(MATCH_ID, 7L, 5L, List.of(21L, 22L))).willReturn(Optional.of(teamJoinPage()));
+
+        mockMvc.perform(get("/matches/{matchId}/apply/team", MATCH_ID)
+                        .param("clubId", "5")
+                        .param("clubMemberIds", "21,22")
+                        .with(user(member())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(allOf(
+                        containsString("data-paid=\"false\""),
+                        containsString("STEP 01 / 02"),
+                        containsString(">참가 신청하기<"),
+                        not(containsString("data-step-panel=\"2\"")))));
     }
 }
