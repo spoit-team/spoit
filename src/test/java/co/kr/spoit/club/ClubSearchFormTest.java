@@ -19,9 +19,9 @@ public class ClubSearchFormTest {
         assertThat(form.getQuery()).isNull();
     }
 
-    @Test 
-    @DisplayName ("LIKE 검색어는 %, _, ! 앞에 !를 붙이고, 검색칸 표시는 입력 그대로 둔다")
-    void 검색어_LIKE_이스케이프(){
+    @Test
+    @DisplayName("LIKE 검색어는 %, _, ! 앞에 !를 붙이고, 검색칸 표시는 입력 그대로 둔다")
+    void 검색어_LIKE_이스케이프() {
         ClubSearchForm form = new ClubSearchForm();
         form.setQ(" 100%_! ");
         assertThat(form.getQuery()).isEqualTo("100%_!");
@@ -47,4 +47,35 @@ public class ClubSearchFormTest {
         assertThat(form.getMinMmr()).isNull();
         assertThat(form.getMaxMmr()).isNull();
     }
+
+    @Test
+    @DisplayName("첫 화면은 1장부터 page장까지 한 번에, 최대 5장, 잘못된 page는 1장")
+    void 첫_화면_개수() {
+        ClubSearchForm form = new ClubSearchForm();
+        form.setPage(3);
+        assertThat(form.getSize()).isEqualTo(36);
+        assertThat(form.getSkip()).isZero();
+        form.setPage(9);
+        assertThat(form.getShownPage()).isEqualTo(5);
+        assertThat(form.getSize()).isEqualTo(60);
+        form.setPage(0);
+        assertThat(form.getPage()).isEqualTo(1);
+        assertThat(form.getSize()).isEqualTo(12);
+        form.setPage(null);
+        assertThat(form.getPage()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("다음 장 요청은 그 장 12개만, 앞 장들은 건너뜀")
+    void 다음_장_개수() {
+        ClubSearchForm form = new ClubSearchForm();
+        form.setCardsOnly(true);
+        form.setPage(3);
+        assertThat(form.getSize()).isEqualTo(12);
+        assertThat(form.getSkip()).isEqualTo(24);
+        form.setPage(9);
+        assertThat(form.getSize()).isEqualTo(12);
+        assertThat(form.getSkip()).isEqualTo(96);
+    }
+
 }

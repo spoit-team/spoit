@@ -101,6 +101,17 @@ class CorePageRouteTest {
                 .andExpect(content().string(containsString("동호회 관리")));
     }
 
+    @Test
+    void clubListSendsOnlyCardsForFetch() throws Exception {
+        // 무한 스크롤 다음 장: 헤더가 fetch면 카드 조각만(head 없음)
+        mockMvc.perform(get("/teams").param("page", "2").header("X-Requested-With", "fetch"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("teams/list :: clubCards"))
+                .andExpect(content().string(not(containsString("<html"))))
+                .andExpect(content().string(not(containsString("SPO:IT 동호회"))));
+    }
+
+
     private static Stream<Arguments> pageRoutes() {
         return Stream.of(
                 Arguments.of("/signup", "auth/signup", "회원가입"),

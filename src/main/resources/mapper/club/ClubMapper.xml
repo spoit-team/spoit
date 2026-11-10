@@ -24,27 +24,8 @@
             AND sm.end_at &lt; #{now})
     </sql>
 
-    <!-- 동호회 목록: 해체되지 않은 동호회만 -->
-    <select id="selectClubs" resultType="co.kr.spoit.club.domain.ClubSummary">
-        SELECT club_id AS clubId
-              ,club_name AS clubName
-              ,c.sport_id AS sportId
-              ,c.recruit_status AS recruitStatus
-              ,c.max_members AS maxMembers
-              ,c.activity_days AS activityDays
-              ,c.activity_start_time AS activityStartTime
-              ,c.activity_end_time AS activityEndTime
-              ,c.created_at AS createdAt
-              ,s.name AS sportName
-              ,(SELECT COUNT(*) FROM club_member m where m.club_id = c.club_id
-              AND m.left_at IS NULL) AS memberCount
-              ,<include refid="averageMmr" /> AS averageMmr
-              ,(SELECT GROUP_CONCAT(rg.name ORDER BY rg.region_id SEPARATOR ', ')
-                FROM club_region cr
-                JOIN region rg ON cr.region_id = rg.region_id
-                WHERE cr.club_id = c.club_id) AS areaLabel
-        FROM club c
-    JOIN sport s ON c.sport_id = s.sport_id
+    <!-- 동호회 목록 조건: 목록과 전체 개수가 같이 씀 -->
+    <sql id="clubFilters">
     WHERE c.deleted_at IS NULL
         <if test="query != null">
             AND (c.club_name LIKE CONCAT('%', #{likeQuery}, '%') ESCAPE '!'
@@ -71,6 +52,30 @@
         <if test="maxMmr != null">
             AND <include refid="averageMmr"/> &lt; #{maxMmr}
         </if>
+    </sql>
+
+    <!-- 동호회 목록: 해체되지 않은 동호회만 -->
+    <select id="selectClubs" resultType="co.kr.spoit.club.domain.ClubSummary">
+        SELECT club_id AS clubId
+              ,club_name AS clubName
+              ,c.sport_id AS sportId
+              ,c.recruit_status AS recruitStatus
+              ,c.max_members AS maxMembers
+              ,c.activity_days AS activityDays
+              ,c.activity_start_time AS activityStartTime
+              ,c.activity_end_time AS activityEndTime
+              ,c.created_at AS createdAt
+              ,s.name AS sportName
+              ,(SELECT COUNT(*) FROM club_member m where m.club_id = c.club_id
+              AND m.left_at IS NULL) AS memberCount
+              ,<include refid="averageMmr" /> AS averageMmr
+              ,(SELECT GROUP_CONCAT(rg.name ORDER BY rg.region_id SEPARATOR ', ')
+                FROM club_region cr
+                JOIN region rg ON cr.region_id = rg.region_id
+                WHERE cr.club_id = c.club_id) AS areaLabel
+        FROM club c
+    JOIN sport s ON c.sport_id = s.sport_id
+    <include refid="clubFilters"/>
     <!-- 정렬: newest-최신순(기본) -->
     <choose>
     <when test="sort == 'rating'">
@@ -89,6 +94,16 @@
             ,c.club_id DESC
     </otherwise>
     </choose>
+    <!-- 앞 장들은 건너뛰고 필요한 개수만(첫 화면은 여러 장, 다음 장은 12개) -->
+    LIMIT #{size} OFFSET #{skip}
+    </select>
+
+    <!-- 동호회 목록 전체 개수: 개수 문구와 마지막 장 계산 -->
+    <select id="countClubs" resultType="int">
+        SELECT COUNT(*)
+        FROM club c
+    JOIN sport s ON c.sport_id = s.sport_id
+    <include refid="clubFilters"/>
     </select>
 
     <!-- 동호회 상세: 목록에 intro만 추가 -->

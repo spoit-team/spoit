@@ -29,6 +29,7 @@ import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
 import co.kr.spoit.club.dto.ClubMemberHistoryView;
+import co.kr.spoit.club.dto.ClubPageResponse;
 import co.kr.spoit.club.dto.ClubWithdrawalBlocks;
 import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.dto.ClubSportTabResponse;
@@ -85,6 +86,14 @@ public class ClubServiceImpl implements ClubService {
             cards.add(ClubCardResponse.from(club));
         }
         return cards;
+    }
+
+    // 목록 첫 화면: 카드와 같은 조건의 전체 개수를 같이
+    @Override 
+    public ClubPageResponse findClubPage(ClubSearchForm filters){
+        List<ClubCardResponse> cards = findClubCards(filters);
+        int totalCount = clubMapper.countClubs(filters);
+        return new ClubPageResponse(filters, cards, totalCount);
     }
 
     @Override

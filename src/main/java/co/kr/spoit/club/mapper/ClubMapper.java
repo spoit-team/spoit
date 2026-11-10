@@ -24,6 +24,9 @@ public interface ClubMapper {
         // 동호회 목록(조건 null이면 그 조건은 빠짐)
         List<ClubSummary> selectClubs(ClubSearchForm filters);
 
+        // 동호회 목록 전체 개수(검색 조건은 목록과 같음)
+        int countClubs(ClubSearchForm filters);
+
         // 목록 종목별 조회
         List<ClubSportCount> selectClubSportCounts();
 
