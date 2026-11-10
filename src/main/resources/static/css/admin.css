@@ -351,6 +351,12 @@ button { color: inherit; }
 .facility-map-preview span, .facility-map-preview small { color: var(--admin-muted); }
 .facility-map-preview small { font-size: 10px; }
 .stats-metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.stats-metrics > .metric-card:first-child::before, .stats-metric-divider + .metric-card::before { position: absolute; top: 18px; bottom: 18px; left: 0; width: 1px; background: var(--metric-divider-color); content: ""; }
+.stats-metric-divider { grid-column: 1/-1; height: 1px; background: var(--metric-divider-color); }
+.stats-metrics .metric-card:last-child::after { position: absolute; top: 18px; right: 0; bottom: 18px; width: 1px; background: var(--metric-divider-color); content: ""; }
+/* 3칸씩 두 줄로 놓이므로 각 줄의 오른쪽 끝(3·6번째 카드)에도 바깥선을 그린다.
+   마지막 카드 규칙만으로는 첫 줄 오른쪽이 비어 두 묶음의 테두리가 어긋난다. */
+.stats-metrics > .metric-card:nth-of-type(3n)::after { position: absolute; top: 18px; right: 0; bottom: 18px; width: 1px; background: var(--metric-divider-color); content: ""; }
 /* 예약 통계 기간 직접 입력: 드롭다운(.field-control 40px)과 같은 줄에 나란히 놓는다. */
 .heading-actions input[type="date"].field-control { min-width: 130px; }
 .heading-actions input[type="date"].field-control:disabled { background: var(--admin-paper); color: var(--admin-muted); }
@@ -409,12 +415,97 @@ button { color: inherit; }
 .stats-heat-legend i[data-heat-level="3"] { background: #9cc4ec; }
 .stats-heat-legend i[data-heat-level="4"] { background: var(--admin-blue); }
 .stats-heat-legend-note { flex: 1 0 auto; margin-left: auto; font-weight: 500; }
+/* 신청 상태 분포: 요일 7칸·시간대 24칸·요일×시간대 7행을 모두 세로 누적 막대로 그린다.
+   확정은 단색, 반려·취소는 빗금이라 색을 구분하기 어려워도 두 상태가 나뉜다.
+   막대 높이는 각 그래프의 최대 처리 건수(확정+반려·취소)를 100%로 삼는 공통 눈금이고,
+   값이 0인 칸도 지우지 않고 바닥선과 0을 남긴다. */
+.stats-apply-grid { grid-template-columns: minmax(0,.8fr) minmax(0,1.6fr); margin-top: 12px; }
+.stats-section-heading { margin-top: 26px; flex-wrap: wrap; }
+.stats-apply-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 0; padding: 0; list-style: none; color: var(--admin-muted); font-size: 10px; font-weight: 600; }
+.stats-apply-legend li { display: inline-flex; align-items: center; gap: 5px; }
+.stats-apply-legend i { width: 14px; height: 10px; flex: 0 0 14px; border-radius: 2px; }
+.stats-apply-legend i.is-approved { background: var(--admin-blue); }
+.stats-apply-legend i.is-cancelled { background: repeating-linear-gradient(135deg,#d74745 0 2px,#f6c9c6 2px 4px); }
+.stats-apply-scale { flex: 0 0 auto; align-self: flex-start; color: var(--admin-muted); font-size: 9.5px; font-weight: 600; white-space: nowrap; }
+.stats-apply-scale b { color: var(--admin-ink-2); font-family: Archivo,"Pretendard Variable",sans-serif; font-variant-numeric: tabular-nums; }
+.stats-heading-meta { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 12px; }
+.stats-heading-meta .stats-apply-scale { align-self: center; }
+.stats-stack-chart { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0,1fr); align-items: end; gap: 6px; margin: 16px 20px 0; padding: 12px 0 0; list-style: none; }
+.stats-stack-col { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 5px; }
+.stats-stack-sum { color: var(--admin-ink-2); font-family: Archivo,"Pretendard Variable",sans-serif; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stats-stack-track { display: flex; width: 100%; max-width: 40px; height: 104px; flex-direction: column-reverse; justify-content: flex-start; overflow: hidden; border-bottom: 1px solid var(--admin-line-strong); border-radius: 3px 3px 0 0; }
+/* 0건 칸은 회색 트랙을 채우지 않고 바닥선만 남긴다. 값이 있는 칸만 옅은 눈금 트랙을 보여 준다. */
+.stats-stack-col:not(.is-zero) .stats-stack-track,
+.stats-mini-cell:not(.is-zero) { background: #eef0f3; }
+.stats-stack-track > i, .stats-mini-cell > i { display: block; width: 100%; flex: 0 0 auto; transition: height .2s ease; }
+.stats-stack-approved { background: var(--admin-blue); }
+.stats-stack-cancelled { background: repeating-linear-gradient(135deg,#d74745 0 2px,#f6c9c6 2px 4px); }
+.stats-stack-track > i.is-positive, .stats-mini-cell > i.is-positive { min-height: 2px; }
+.stats-stack-col.is-zero .stats-stack-sum { color: var(--admin-faint); font-weight: 600; }
+.stats-stack-label { min-height: 13px; color: var(--admin-muted); font-size: 10px; font-weight: 700; }
+.stats-chart-scroll { margin: 14px 20px 6px; overflow-x: auto; }
+.stats-chart-scroll:focus-visible { outline: 2px solid var(--admin-blue); outline-offset: -2px; }
+.stats-stack-chart.is-hour { grid-auto-columns: minmax(22px,1fr); gap: 4px; min-width: 680px; margin: 0; }
+.stats-stack-chart.is-hour .stats-stack-label { font-size: 8.5px; letter-spacing: -.03em; }
+/* 요일×시간대: 7행 × 24칸 미니 막대. 가로 스크롤에서도 요일 열은 왼쪽에 남긴다. */
+.stats-apply-matrix { margin-top: 14px; }
+.stats-mini-scroll { margin-top: 12px; padding: 0 20px; overflow-x: auto; }
+.stats-mini-scroll:focus-visible { outline: 2px solid var(--admin-blue); outline-offset: -2px; }
+.stats-mini-chart { display: grid; grid-template-columns: 30px repeat(24,minmax(16px,1fr)); align-items: end; gap: 6px 4px; min-width: 700px; padding: 6px 0 2px; }
+.stats-mini-hour { color: var(--admin-faint); font-family: Archivo,"Pretendard Variable",sans-serif; font-size: 8px; font-weight: 700; text-align: center; }
+.stats-mini-label { position: sticky; left: 0; z-index: 1; align-self: center; background: var(--admin-canvas); color: var(--admin-ink-2); font-size: 10px; font-weight: 800; }
+.stats-mini-cell { position: relative; display: flex; height: 34px; flex-direction: column-reverse; justify-content: flex-start; overflow: hidden; border-bottom: 1px solid var(--admin-line-strong); border-radius: 2px 2px 0 0; }
+.stats-mini-note { margin: 8px 0 0; color: var(--admin-muted); font-size: 9.5px; line-height: 1.55; }
+.stats-mini-note b { color: var(--admin-ink-2); font-weight: 700; }
+/* 정확한 값 표: 막대와 같은 숫자를 글자로도 제공한다. details로 접어 두어 화면을 가리지 않는다. */
+.stats-exact { margin: 0 20px 16px; }
+.stats-exact > summary { margin-top: 12px; padding: 4px 0; color: var(--admin-blue-ink); font-size: 10.5px; font-weight: 700; cursor: pointer; }
+.stats-exact > summary:hover { text-decoration: underline; }
+.stats-exact > summary:focus-visible { border-radius: 4px; outline: 2px solid var(--admin-blue); outline-offset: 2px; }
+.stats-exact-scroll { overflow-x: auto; }
+.stats-exact-table { width: 100%; margin-top: 6px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.stats-exact-table caption { margin-bottom: 6px; color: var(--admin-muted); font-size: 9.5px; text-align: left; }
+.stats-exact-table th, .stats-exact-table td { padding: 5px 8px; border-bottom: 1px solid var(--admin-line); font-size: 10px; white-space: nowrap; }
+.stats-exact-table thead th { color: var(--admin-faint); font-size: 9px; font-weight: 700; text-align: right; }
+.stats-exact-table thead th:first-child, .stats-exact-table tbody th { text-align: left; }
+.stats-exact-table tbody th { color: var(--admin-ink-2); font-weight: 700; }
+.stats-exact-table td { color: var(--admin-muted); text-align: right; }
+.stats-exact-table td b { color: var(--admin-ink-2); font-weight: 700; }
+.stats-exact-table tr.is-zero td, .stats-exact-table tr.is-zero td b { color: var(--admin-faint); font-weight: 600; }
+.stats-matrix-scroll { margin-top: 14px; padding: 0 20px 4px; overflow-x: auto; }
+.stats-matrix-scroll:focus-visible { outline: 2px solid var(--admin-blue); outline-offset: -2px; }
+.stats-matrix-table { width: 100%; min-width: 880px; table-layout: fixed; border-collapse: separate; border-spacing: 2px; font-variant-numeric: tabular-nums; }
+.stats-matrix-table th, .stats-matrix-table td { min-width: 0; padding: 4px 1px; border-radius: 4px; text-align: center; font-size: 9px; white-space: nowrap; }
+.stats-matrix-table thead th { color: var(--admin-faint); font-weight: 700; }
+.stats-matrix-table thead th:first-child, .stats-matrix-table tbody th { position: sticky; left: 0; z-index: 1; width: 44px; background: var(--admin-canvas); }
+.stats-matrix-table thead th:first-child { z-index: 2; }
+.stats-matrix-table tbody th { color: var(--admin-ink-2); font-weight: 800; text-align: left; }
+.stats-matrix-table td { background: #f3f5f8; color: var(--admin-muted); }
+.stats-matrix-table td b { display: block; color: var(--admin-ink-2); font-size: 9.5px; }
+.stats-matrix-table td small { display: block; color: var(--admin-muted); font-size: 8px; }
+.stats-matrix-table td.is-zero { background: #f8f9fb; }
+.stats-matrix-table td.is-zero b, .stats-matrix-table td.is-zero small { color: var(--admin-faint); font-weight: 600; }
+@media (max-width: 600px) {
+  .stats-apply-legend { font-size: 9px; }
+  .stats-stack-chart { margin-right: 15px; margin-left: 15px; gap: 4px; }
+  .stats-stack-track { height: 84px; }
+  .stats-chart-scroll { margin-right: 15px; margin-left: 15px; }
+  .stats-mini-scroll { padding: 0 15px; }
+  .stats-exact { margin-right: 15px; margin-left: 15px; }
+  .stats-exact-table th, .stats-exact-table td { padding: 4px 6px; }
+  .stats-matrix-scroll { padding: 0 15px 4px; }
+}
 @media (max-width: 1000px) {
   /* 좁아지면 요일 카드와 시간대 카드를 쌓는다. 남아 있던 세로 구분선을 가로선으로 바꾼다. */
   .dashboard-grid.stats-detail-grid { grid-template-columns: minmax(0,1fr); }
   .dashboard-grid.stats-detail-grid > .card + .card { border-top: 1px solid var(--admin-line); border-left: 0; }
   .admin-body[data-admin-role="facility"] .admin-content .dashboard-grid.stats-detail-grid > .card + .card { border-top: 1px solid var(--admin-line-strong); border-left: 0; }
   .admin-body[data-admin-role="facility"] .admin-content .dashboard-grid.stats-detail-grid > .card + .card::before { display: none; }
+  /* 신청 상태 카드도 같은 기준으로 쌓는다. */
+  .dashboard-grid.stats-apply-grid { grid-template-columns: minmax(0,1fr); }
+  .dashboard-grid.stats-apply-grid > .card + .card { border-top: 1px solid var(--admin-line); border-left: 0; }
+  .admin-body[data-admin-role="facility"] .admin-content .dashboard-grid.stats-apply-grid > .card + .card { border-top: 1px solid var(--admin-line-strong); border-left: 0; }
+  .admin-body[data-admin-role="facility"] .admin-content .dashboard-grid.stats-apply-grid > .card + .card::before { display: none; }
 }
 .wrap-content { max-width: 320px; white-space: normal; line-height: 1.5; }
 .wrap-content .cell-secondary { overflow: visible; white-space: normal; }
@@ -516,12 +607,21 @@ body.has-admin-modal { overflow: hidden; }
 @media (max-width: 1120px) {
   .metric-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .stats-metrics .metric-card:last-child, .metric-grid.three-metrics .metric-card:last-child { grid-column: 1/-1; }
+  .stats-metrics .metric-card:last-child { grid-column: auto; }
   .metric-card + .metric-card { border-left: 0; }
   .metric-card + .metric-card::before { display: none; }
   .metric-card:nth-child(even)::before { display: block; }
   .metric-card:nth-child(-n+2) { border-bottom: 1px solid var(--metric-divider-color); }
   /* 지표가 두 칸뿐이면 한 줄로 끝나므로 줄 사이 구분선을 그리지 않는다. */
   .metric-grid.two-metrics .metric-card:nth-child(-n+2) { border-bottom: 0; }
+  /* 통계 지표는 확정 인원 3칸 + 신청 3칸 구성이다. 2열로 접으면 사용자가 넣은
+     .stats-metric-divider가 행 사이에 끼어 배치를 밀어내므로 숨기고, 기사(article) 기준으로
+     세로선(오른쪽 열)과 가로선(앞 두 행)을 직접 그린다. 구분선 div 때문에 :nth-of-type을 쓴다. */
+  .stats-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .stats-metric-divider { display: none; }
+  .stats-metrics .metric-card::before { display: none; }
+  .stats-metrics .metric-card:nth-of-type(even)::before { display: block; top: 18px; bottom: 18px; left: 0; width: 1px; background: var(--metric-divider-color); content: ""; }
+  .stats-metrics .metric-card:nth-of-type(-n+4) { border-bottom: 1px solid var(--metric-divider-color); }
   .admin-content { padding-right: 22px; padding-left: 22px; }
   .admin-topbar { padding-right: 22px; padding-left: 22px; }
   .dashboard-grid { grid-template-columns: minmax(0,1.35fr) minmax(270px,1fr); }
@@ -579,6 +679,15 @@ body.has-admin-modal { overflow: hidden; }
   .metric-grid.two-metrics { grid-template-columns: 1fr; }
   .metric-grid.two-metrics .metric-card:nth-child(even)::before { display: none; }
   .metric-grid.two-metrics .metric-card + .metric-card { border-top: 1px solid var(--metric-divider-color); }
+  /* 좁은 화면에서 6칸 지표는 2열에서도 한 칸이 160px 아래로 좁아 기준 문구가 끊긴다.
+     한 칸씩 쌓고 세로·가로 구분선(의사 요소)은 모두 지운 뒤 카드 아래 테두리로만 나눈다.
+     1120px 블록의 :nth-of-type(even) 세로선 규칙과 명시도를 맞춰 덮어야 하므로 같은 형태를 쓴다. */
+  .stats-metrics { grid-template-columns: 1fr; }
+  .stats-metrics .metric-card { border: 0; border-bottom: 1px solid var(--metric-divider-color); }
+  .stats-metrics .metric-card:last-child { border-bottom: 0; }
+  .stats-metrics .metric-card:nth-of-type(n)::before,
+  .stats-metrics .metric-card:nth-of-type(n)::after { display: none; }
+  .stats-metrics .metric-foot { flex-wrap: wrap; row-gap: 2px; }
   .toolbar { align-items: stretch; padding: 11px; }
   .field-control, .search-control { min-width: calc(50% - 5px); flex: 1; }
   .toolbar-spacer { display: none; }

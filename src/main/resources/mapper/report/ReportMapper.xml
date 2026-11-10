@@ -194,6 +194,7 @@
     <select id="findSystemReport" resultType="co.kr.spoit.report.domain.ReportRow">
         SELECT r.report_id AS reportId
               ,r.match_id AS matchId
+              ,r.target_user_id AS targetUserId
               ,f.name AS facilityName
               ,m.title AS matchTitle
               ,target.nickname AS targetName

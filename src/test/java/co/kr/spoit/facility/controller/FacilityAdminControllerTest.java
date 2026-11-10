@@ -385,6 +385,95 @@ class FacilityAdminControllerTest {
     }
 
     @Test
+    @DisplayName("신청 상태 분포는 확정·반려취소·대기 제외 처리 합계를 7/24/7×24 실제 HTML로 렌더한다")
+    void rendersApplicationDistributionChartsFromFacilityStatsModel() throws Exception {
+        when(facilityService.findManagedFacilities(7L))
+                .thenReturn(List.of(facility(10L, "송파 풋살파크")));
+        when(facilityStatsService.load(eq(7L), eq(10L), any(), any(), any()))
+                .thenReturn(applicationStats());
+
+        String html = mockMvc.perform(get("/admin/facility")
+                        .param("view", "stats")
+                        .param("facilityId", "10")
+                        .with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andExpect(view().name("admin/facility"))
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        // 신청 수 카드는 대기 포함 20건(개인 12·동호회 8)이다. 확정 9건·처리 12건과 구분되어야 한다.
+        String applicationCard = card(html, "신청 수");
+        assertThat(applicationCard).contains("<span>20</span><small>건</small>")
+                .contains("대기 포함 · 개인 <span>12</span> · 동호회 <span>8</span>");
+
+        // 승인율·취소율은 처리(확정 9 + 반려·취소 3 = 12)를 분모로 75%·25%다.
+        assertThat(card(html, "승인율")).contains("<span>75</span>")
+                .contains("확정 ÷ 처리(확정+반려·취소)")
+                .contains("확정 <span>9</span>건");
+        assertThat(card(html, "취소율")).contains("<span>25</span>")
+                .contains("반려·취소 <span>3</span>건 · 처리 <span>12</span>건");
+
+        // 요일 막대: 7칸(월~일), 대기 제외 처리 합계 5·5·2와 0인 요일 4칸.
+        String weekdayChart = section(html, "class=\"stats-stack-chart\"", "</ul>");
+        assertThat(countOf(weekdayChart, "class=\"stats-stack-col")).isEqualTo(7);
+        assertThat(countOf(weekdayChart, "stats-stack-col is-zero")).isEqualTo(4);
+        assertThat(weekdayChart).contains("<b class=\"stats-stack-sum\" aria-hidden=\"true\">5</b>")
+                .contains("<b class=\"stats-stack-sum\" aria-hidden=\"true\">2</b>")
+                .contains("<span class=\"stats-stack-label\" aria-hidden=\"true\">월</span>")
+                .contains("<span class=\"stats-stack-label\" aria-hidden=\"true\">일</span>")
+                // 접근성: 칸마다 처리 합계가 대기 제외임을 문장으로 제공한다.
+                .contains("월요일 · 확정 4건 · 반려·취소 1건 · 처리 합계 5건(대기 제외)")
+                .contains("화요일 · 확정 3건 · 반려·취소 2건 · 처리 합계 5건(대기 제외)")
+                .contains("수요일 · 확정 2건 · 반려·취소 0건 · 처리 합계 2건(대기 제외)");
+
+        // 요일 정확한 값 표: 7행, 처리 합계 열을 두고 0행은 is-zero로 구분한다.
+        String weekdayTable = section(html, "<caption>요일별 최신 신청 상태입니다", "</table>");
+        assertThat(countOf(weekdayTable, "<tr")).isEqualTo(1 + 7);
+        assertThat(weekdayTable).contains("<th scope=\"col\">처리 합계</th>")
+                .contains("대기 중인 신청은 제외");
+        assertThat(countOf(weekdayTable, "is-zero")).isEqualTo(4);
+
+        // 시간대 막대: 00~23시 24칸, 0건 시간대 20칸, 레이블 00시·23시.
+        String hourChart = section(html, "class=\"stats-stack-chart is-hour\"", "</ul>");
+        assertThat(countOf(hourChart, "class=\"stats-stack-col")).isEqualTo(24);
+        assertThat(countOf(hourChart, "stats-stack-col is-zero")).isEqualTo(20);
+        assertThat(hourChart).contains("<span class=\"stats-stack-label\" aria-hidden=\"true\">00시</span>")
+                .contains("<span class=\"stats-stack-label\" aria-hidden=\"true\">23시</span>")
+                .contains("09시 시작 · 확정 3건 · 반려·취소 1건 · 처리 합계 4건(대기 제외)")
+                .contains("20시 시작 · 확정 0건 · 반려·취소 1건 · 처리 합계 1건(대기 제외)");
+
+        String hourTable = section(html, "<caption>시간대별 최신 신청 상태입니다", "</table>");
+        assertThat(countOf(hourTable, "<tr")).isEqualTo(1 + 24);
+        assertThat(hourTable).contains("<th scope=\"col\">시간대</th>")
+                .contains("<th scope=\"col\">처리 합계</th>");
+
+        // 요일×시각 표: 7행 × 24칸, 칸 title은 확정·반려·취소 건수를 담고 0칸은 is-zero다.
+        String matrix = section(html, "class=\"stats-matrix-table\"", "</table>");
+        assertThat(countOf(matrix, "<td")).isEqualTo(7 * 24);
+        assertThat(matrix).contains("월요일 09시 시작 · 확정 3건 · 반려·취소 1건")
+                .contains("월요일 14시 시작 · 확정 1건 · 반려·취소 0건")
+                .contains("화요일 18시 시작 · 확정 3건 · 반려·취소 1건")
+                .contains("수요일 18시 시작 · 확정 2건 · 반려·취소 0건");
+        // 채워진 칸은 5개(월 09·14시, 화 18·20시, 수 18시)이고 나머지 163칸은 0이다.
+        assertThat(countOf(matrix, "is-zero")).isEqualTo(7 * 24 - 5);
+        assertThat(html).contains("대기 중인 신청은 막대와 표 모두에서 제외했습니다");
+
+        // 접근성 핵심: 세 차트 모두 스크롤 영역·이름·키보드 진입과 표 머리글을 갖춘다.
+        assertThat(html).contains("role=\"region\" aria-label=\"시간대별 신청 상태 막대 그래프\" tabindex=\"0\"")
+                .contains("role=\"region\" aria-label=\"요일과 시작 시각별 신청 상태 막대 그래프\" tabindex=\"0\"")
+                .contains("role=\"region\" aria-label=\"요일과 시작 시각별 최신 신청 상태 표\" tabindex=\"0\"")
+                .contains("<caption class=\"sr-only\">요일과 시작 시각별 최신 신청 상태입니다")
+                .contains("<th scope=\"col\">확정</th><th scope=\"col\">반려·취소</th><th scope=\"col\">처리 합계</th>")
+                .contains("<th scope=\"row\">월</th>");
+
+        // 차트 최대값은 대기 제외 처리 건수 기준이다(요일 5, 시간대 6, 한 칸 4).
+        assertThat(html).contains("막대 최대 <b>5</b>건")
+                .contains("막대 최대 <b>6</b>건")
+                .contains("한 칸 최대 <b>4</b>건");
+        // 신청 총계 20(대기 포함)과 처리 12(대기 제외)가 화면 문구로도 구분된다.
+        assertThat(html).contains("승인율은 확정 ÷ (확정+반려·취소)");
+    }
+
+    @Test
     @DisplayName("시설 미선택이면 상세 집계 표 없이 안전하게 렌더한다")
     void rendersSafelyWhenFacilityNotSelected() throws Exception {
         when(facilityService.findManagedFacilities(7L))
@@ -425,12 +514,100 @@ class FacilityAdminControllerTest {
         return count;
     }
 
+    /** 지표 그리드에서 제목이 같은 metric-card 하나를 잘라 낸다. */
+    private static String card(String cards, String title) {
+        int titleIndex = cards.indexOf(">" + title + "</div>");
+        assertThat(titleIndex).as("카드 %s", title).isNotNegative();
+        int start = cards.lastIndexOf("<article", titleIndex);
+        assertThat(start).as("카드 시작 %s", title).isNotNegative();
+        int end = cards.indexOf("</article>", titleIndex);
+        assertThat(end).as("카드 끝 %s", title).isNotNegative();
+        return cards.substring(start, end);
+    }
+
     /**
      * 0건 통계 스텁. 0건 화면 모델(7행·24행·7×24) 조립은 서비스 책임이므로 이 픽스처는
      * 지표만 0으로 둔 전달 모델을 만든다.
      */
     private static FacilityStats emptyStats(int period, String periodLabel) {
         return new FacilityStats(period, periodLabel, 0, 0, null, null, 0, 0, 0, 0, 0);
+    }
+
+    /**
+     * 기존 {@link #detailStats()}를 그대로 재사용하고 신청 상태 분포만 얹은 통계.
+     *
+     * <p>최신 신청 20건(대기 포함, 개인 12·동호회 8) 중 확정 9·반려+취소 3이라 처리 수는 12건이고
+     * 승인율 75%·취소율 25%다. 대기 8건은 신청 총계에만 들어간다. 확정 참가 인원(30명)과 신청 지표는
+     * 세는 단위가 달라 값이 다르다.</p>
+     *
+     * <p>요일×시각 칸은 월 09시 3/1·월 14시 1/0·화 18시 3/1·화 20시 0/1·수 18시 2/0(확정/반려·취소)이라
+     * 요일 합계는 월 5(4/1)·화 5(3/2)·수 2(2/0), 시간대 합계는 09시 4(3/1)·14시 1(1/0)·18시 6(5/1)·20시
+     * 1(0/1)로 서로 맞는다. 차트 상한은 요일 5·시간대 6·한 칸 4다.</p>
+     */
+    private static FacilityStats applicationStats() {
+        List<String> days = List.of("월", "화", "수", "목", "금", "토", "일");
+        FacilityStats stats = detailStats();
+        stats.setApplicationTotal(20);
+        stats.setIndividualCount(12);
+        stats.setClubCount(8);
+        stats.setApprovedCount(9);
+        stats.setCancelledCount(3);
+        stats.setResolvedCount(12);
+        stats.setApprovalRate(75.0);
+        stats.setCancelRate(25.0);
+
+        // (요일 인덱스, 시각) → {확정, 반려·취소}. 나머지 칸은 0이다.
+        long[][][] cellsByKey = new long[days.size()][24][];
+        cellsByKey[0][9] = new long[] {3, 1};   // 월 09시
+        cellsByKey[0][14] = new long[] {1, 0};  // 월 14시
+        cellsByKey[1][18] = new long[] {3, 1};  // 화 18시
+        cellsByKey[1][20] = new long[] {0, 1};  // 화 20시
+        cellsByKey[2][18] = new long[] {2, 0};  // 수 18시
+
+        List<FacilityStats.ApplicationDistributionDetail> weekdays = new java.util.ArrayList<>();
+        List<FacilityStats.ApplicationDistributionDetail> hours = new java.util.ArrayList<>();
+        List<FacilityStats.ApplicationWeekdayHourDetail> weekdayHours = new java.util.ArrayList<>();
+        for (int day = 0; day < days.size(); day++) {
+            long dayApproved = 0;
+            long dayCancelled = 0;
+            List<FacilityStats.ApplicationDistributionDetail> cells = new java.util.ArrayList<>();
+            for (int hour = 0; hour < 24; hour++) {
+                long cellApproved = cellsByKey[day][hour] == null ? 0 : cellsByKey[day][hour][0];
+                long cellCancelled = cellsByKey[day][hour] == null ? 0 : cellsByKey[day][hour][1];
+                dayApproved += cellApproved;
+                dayCancelled += cellCancelled;
+                cells.add(new FacilityStats.ApplicationDistributionDetail(hourLabel(hour),
+                        cellApproved, cellCancelled, cellApproved + cellCancelled));
+            }
+            weekdays.add(new FacilityStats.ApplicationDistributionDetail(days.get(day), dayApproved,
+                    dayCancelled, dayApproved + dayCancelled));
+            weekdayHours.add(new FacilityStats.ApplicationWeekdayHourDetail(days.get(day), cells));
+        }
+        for (int hour = 0; hour < 24; hour++) {
+            long hourApproved = 0;
+            long hourCancelled = 0;
+            for (int day = 0; day < days.size(); day++) {
+                if (cellsByKey[day][hour] != null) {
+                    hourApproved += cellsByKey[day][hour][0];
+                    hourCancelled += cellsByKey[day][hour][1];
+                }
+            }
+            hours.add(new FacilityStats.ApplicationDistributionDetail(hourLabel(hour),
+                    hourApproved, hourCancelled, hourApproved + hourCancelled));
+        }
+
+        stats.setApplicationWeekdayDetails(weekdays);
+        stats.setApplicationHourDetails(hours);
+        stats.setApplicationWeekdayHourDetails(weekdayHours);
+        stats.setWeekdayChartMax(5);
+        stats.setHourChartMax(6);
+        stats.setWeekdayHourChartMax(4);
+        return stats;
+    }
+
+    /** 화면과 같은 "00시"~"23시" 표기. */
+    private static String hourLabel(int hour) {
+        return String.format("%02d시", hour);
     }
 
     /**

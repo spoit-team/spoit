@@ -25,6 +25,7 @@ class SystemMonitoringServiceTest {
     private DatabaseAvailabilityProbe databaseProbe;
 
     private final SystemResourceHistory history = new SystemResourceHistory();
+    private final SystemErrorLogBuffer errorLogBuffer = new SystemErrorLogBuffer();
 
     @Test
     void reportsMeasuredValuesAndHealthyProbes() {
@@ -42,9 +43,9 @@ class SystemMonitoringServiceTest {
         assertThat(dashboard.getServices())
                 .extracting(SystemDashboard.ServiceStatus::getName)
                 .containsExactly("API 서버", "데이터베이스");
-        // 오류 수집은 이번 범위가 아니다.
-        assertThat(dashboard.getRecentErrorCount()).isNull();
-        assertThat(dashboard.getRecentErrorAttention()).isNull();
+        // 오류 버퍼가 비어 있으면 0건이고 목록도 비어 있다(0으로 위장한 값이 아니라 실제 수집 결과).
+        assertThat(dashboard.getRecentErrorCount()).isZero();
+        assertThat(dashboard.getRecentErrorAttention()).isZero();
         assertThat(dashboard.getRecentErrors()).isEmpty();
         assertThat(dashboard.getRecentReports()).isEmpty();
     }
@@ -227,7 +228,7 @@ class SystemMonitoringServiceTest {
 
     private SystemMonitoringService service(SystemResourceProbe probe, LocalDateTime now) {
         Clock clock = Clock.fixed(now.atZone(ZONE).toInstant(), ZONE);
-        return new SystemMonitoringService(probe, history, databaseProbe, clock);
+        return new SystemMonitoringService(probe, history, databaseProbe, errorLogBuffer, clock);
     }
 
     private static SystemResourceProbe describeProbe(Integer cpu, Integer heap, Integer disk) {

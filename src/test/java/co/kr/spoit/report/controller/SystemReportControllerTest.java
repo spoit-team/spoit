@@ -220,4 +220,64 @@ class SystemReportControllerTest {
 
         verify(systemReportService).loadPage(isNull(), isNull(), eq(0));
     }
+
+    @Test
+    @DisplayName("제재 POST는 서버가 대상 회원을 찾도록 reportId·종류·기간·사유만 넘기고 PRG로 복귀한다")
+    void appliesPenaltyWithPrg() throws Exception {
+        mockMvc.perform(post("/admin/system/reports/15/penalty")
+                        .param("penaltyType", "이용 제한")
+                        .param("durationDays", "14")
+                        .param("reason", "반복 위반")
+                        .param("expectedStatus", "검토 중")
+                        .param("status", "검토 중")
+                        .param("page", "1")
+                        .with(csrf())
+                        .with(user(admin())))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrlPattern(
+                        "/admin/system/reports?status=*&page=1&reportId=15#report-case"))
+                .andExpect(flash().attribute("message", "이용 제한을 적용하고 신고를 처리 완료로 마무리했습니다."));
+
+        verify(systemReportService).applyPenalty(15L, "이용 제한", 14, "반복 위반", "검토 중", null, 7L);
+    }
+
+    @Test
+    @DisplayName("제재 검증 실패는 flash 오류로 되돌리고 저장하지 않는다")
+    void penaltyValidationBecomesFlashError() throws Exception {
+        doThrow(new IllegalArgumentException("이용 제한 기간은 1·3·7·14·30일 중에서 선택해 주세요."))
+                .when(systemReportService).applyPenalty(anyLong(), any(), any(), any(), any(), any(), anyLong());
+
+        mockMvc.perform(post("/admin/system/reports/15/penalty")
+                        .param("penaltyType", "이용 제한")
+                        .param("durationDays", "2")
+                        .param("reason", "사유")
+                        .param("expectedStatus", "접수")
+                        .with(csrf())
+                        .with(user(admin())))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/system/reports?reportId=15#report-case"))
+                .andExpect(flash().attribute("error",
+                        "이용 제한 기간은 1·3·7·14·30일 중에서 선택해 주세요."));
+    }
+
+    @Test
+    @DisplayName("제재 POST도 CSRF 토큰과 시스템 관리자 역할을 요구한다")
+    void penaltyRequiresCsrfAndAdmin() throws Exception {
+        mockMvc.perform(post("/admin/system/reports/15/penalty")
+                        .param("penaltyType", "경고")
+                        .param("reason", "사유")
+                        .param("expectedStatus", "접수")
+                        .with(user(admin())))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/admin/system/reports/15/penalty")
+                        .param("penaltyType", "경고")
+                        .param("reason", "사유")
+                        .param("expectedStatus", "접수")
+                        .with(csrf())
+                        .with(user(facilityManager())))
+                .andExpect(status().isForbidden());
+
+        verify(systemReportService, never()).applyPenalty(anyLong(), any(), any(), any(), any(), any(), anyLong());
+    }
 }

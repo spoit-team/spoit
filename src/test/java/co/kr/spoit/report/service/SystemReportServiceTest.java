@@ -39,11 +39,13 @@ class SystemReportServiceTest {
 
     private static final long REPORT_ID = 15L;
     private static final long REPORTER_ID = 7L;
+    private static final long TARGET_ID = 11L;
     private static final long ADMIN_ID = 3L;
 
     private final ReportMapper mapper = mock(ReportMapper.class);
     private final ReportNotificationService notification = mock(ReportNotificationService.class);
-    private final SystemReportService service = new SystemReportService(mapper, notification);
+    private final PenaltyService penaltyService = mock(PenaltyService.class);
+    private final SystemReportService service = new SystemReportService(mapper, notification, penaltyService);
 
     @BeforeEach
     void stubDefaults() {
@@ -261,10 +263,93 @@ class SystemReportServiceTest {
                 .isInstanceOf(ReportNotFoundException.class);
     }
 
+    @Test
+    @DisplayName("신고 상세에서 제재를 적용하면 대상 회원은 신고 행에서 가져와 처리 완료로 마무리한다")
+    void appliesPenaltyUsingServerTarget() {
+        when(mapper.findReportForUpdate(REPORT_ID)).thenReturn(report("검토 중"));
+        when(mapper.applyFinalDecision(REPORT_ID, "검토 중", "처리 완료", "반복 위반 확인", ADMIN_ID))
+                .thenReturn(1);
+
+        service.applyPenalty(REPORT_ID, "이용 제한", 7, "반복 위반 확인", "검토 중", null, ADMIN_ID);
+
+        // 대상 회원은 클라이언트 값이 아니라 신고 행의 target_user_id에서 온다.
+        verify(penaltyService).issueForReport(REPORT_ID, TARGET_ID, ADMIN_ID, "이용 제한", 7, "반복 위반 확인");
+        verify(mapper).applyFinalDecision(REPORT_ID, "검토 중", "처리 완료", "반복 위반 확인", ADMIN_ID);
+        verify(notification).notifyResolved(REPORT_ID, REPORTER_ID, "처리 완료");
+    }
+
+    @Test
+    @DisplayName("제재 적용에서 처리 사유를 비우면 제재 사유를 신고 처리 사유로 쓴다")
+    void penaltyFallsBackToReasonAsResolution() {
+        when(mapper.findReportForUpdate(REPORT_ID)).thenReturn(report("접수"));
+        when(mapper.applyFinalDecision(REPORT_ID, "접수", "처리 완료", "경고 사유", ADMIN_ID)).thenReturn(1);
+
+        service.applyPenalty(REPORT_ID, "경고", null, "경고 사유", "접수", "   ", ADMIN_ID);
+
+        verify(mapper).applyFinalDecision(REPORT_ID, "접수", "처리 완료", "경고 사유", ADMIN_ID);
+    }
+
+    @Test
+    @DisplayName("이미 끝난 신고에는 제재를 적용하지 않는다")
+    void rejectsPenaltyOnFinishedReport() {
+        when(mapper.findReportForUpdate(REPORT_ID)).thenReturn(report("처리 완료"));
+
+        assertThatThrownBy(() -> service.applyPenalty(REPORT_ID, "경고", null, "사유", "처리 완료", null, ADMIN_ID))
+                .isInstanceOf(ReportStateConflictException.class);
+
+        verify(penaltyService, never()).issueForReport(anyLong(), anyLong(), anyLong(), any(), any(), any());
+        verifyNoInteractions(notification);
+    }
+
+    @Test
+    @DisplayName("화면이 보낸 알 수 없는 기대 상태는 생략으로 취급하지 않고 경합으로 거부한다")
+    void rejectsMalformedExpectedStatusForPenalty() {
+        when(mapper.findReportForUpdate(REPORT_ID)).thenReturn(report("검토 중"));
+
+        assertThatThrownBy(() -> service.applyPenalty(REPORT_ID, "경고", null, "사유", "보류", null, ADMIN_ID))
+                .isInstanceOf(ReportStateConflictException.class)
+                .hasMessageContaining("신고 상태를 확인할 수 없습니다");
+
+        verify(mapper, never()).findReportForUpdate(anyLong());
+        verify(penaltyService, never()).issueForReport(anyLong(), anyLong(), anyLong(), any(), any(), any());
+        verifyNoInteractions(notification);
+    }
+
+    @Test
+    @DisplayName("잠근 신고의 실제 상태가 기대 상태와 다르면 제재를 적용하지 않는다")
+    void rejectsStaleExpectedStatusForPenalty() {
+        when(mapper.findReportForUpdate(REPORT_ID)).thenReturn(report("검토 중"));
+
+        assertThatThrownBy(() -> service.applyPenalty(REPORT_ID, "경고", null, "사유", "접수", null, ADMIN_ID))
+                .isInstanceOf(ReportStateConflictException.class)
+                .hasMessageContaining("상태가 바뀌었습니다");
+
+        verify(penaltyService, never()).issueForReport(anyLong(), anyLong(), anyLong(), any(), any(), any());
+        verify(mapper, never()).applyFinalDecision(anyLong(), anyString(), anyString(), anyString(), anyLong());
+        verifyNoInteractions(notification);
+    }
+
+    @Test
+    @DisplayName("상세 단독 조회는 목록 조회 없이 한 건만 읽고, 없으면 404 예외다")
+    void loadsDetailOnly() {
+        ReportRow row = new ReportRow();
+        row.setReportId(REPORT_ID);
+        row.setTargetUserId(TARGET_ID);
+        row.setSummary("원문");
+        when(mapper.findSystemReport(REPORT_ID)).thenReturn(row);
+
+        assertThat(service.loadDetail(REPORT_ID).getTargetUserId()).isEqualTo(TARGET_ID);
+        verify(mapper, never()).findSystemReports(any(), anyInt(), anyInt());
+
+        when(mapper.findSystemReport(999L)).thenReturn(null);
+        assertThatThrownBy(() -> service.loadDetail(999L)).isInstanceOf(ReportNotFoundException.class);
+    }
+
     private static Report report(String status) {
         Report report = new Report();
         report.setReportId(REPORT_ID);
         report.setReporterUserId(REPORTER_ID);
+        report.setTargetUserId(TARGET_ID);
         report.setStatus(status);
         return report;
     }

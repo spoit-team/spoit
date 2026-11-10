@@ -47,11 +47,13 @@ public class SystemReportService {
 
     private final ReportMapper reportMapper;
     private final ReportNotificationService reportNotificationService;
+    private final PenaltyService penaltyService;
 
     public SystemReportService(ReportMapper reportMapper,
-            ReportNotificationService reportNotificationService) {
+            ReportNotificationService reportNotificationService, PenaltyService penaltyService) {
         this.reportMapper = reportMapper;
         this.reportNotificationService = reportNotificationService;
+        this.penaltyService = penaltyService;
     }
 
     /** 접수함 목록(offset 페이지)과, 요청으로 고른 한 건의 상세를 구성한다. */
@@ -78,7 +80,7 @@ public class SystemReportService {
         // 상세는 reportId에 관계없이 요청받은 한 건만 조회한다. 원문·처리 사유는 이 모델에만 있다.
         ReportDetail selectedReport = selectedReportId == null || selectedReportId <= 0
                 ? null
-                : detail(reportMapper.findSystemReport(selectedReportId));
+                : loadDetail(selectedReportId);
 
         return new SystemReportPage(reports, selectedReport, normalizedFilter, safePage, hasNextReports);
     }
@@ -148,6 +150,95 @@ public class SystemReportService {
             reportNotificationService.notifyResolved(reportId, report.getReporterUserId(),
                     decision.targetStatus().dbValue());
         }
+    }
+
+    /** 신고 한 건의 상세를 단독으로 조회한다. 상세가 필요한 호출은 목록 조회를 거치지 않는다. */
+    @Transactional(readOnly = true)
+    public ReportDetail loadDetail(Long reportId) {
+        if (reportId == null || reportId <= 0) {
+            throw new ReportNotFoundException("신고를 찾을 수 없습니다.");
+        }
+        ReportDetail detail = detail(reportMapper.findSystemReport(reportId));
+        // 상세 조회만으로는 대상 회원 번호가 비어 있을 수 있어(레거시 행) 그대로 둔다.
+        return detail;
+    }
+
+    /**
+     * 신고 상세에서 확인한 대상 회원에게 제재를 적용한다.
+     *
+     * <p>대상 회원 번호는 <strong>클라이언트 값이 아니라 서버가 조회한 신고 상세</strong>에서 가져온다.
+     * 신고 행을 잠근 뒤 현재 상태를 확인해, 이미 끝난 신고에는 제재를 걸지 않는다. 상태 변경과
+     * 알림·제재 기록은 같은 트랜잭션에서 처리한다.</p>
+     *
+     * @param reportId      근거 신고 번호
+     * @param penaltyType   {@code 경고} 또는 {@code 이용 제한}
+     * @param durationDays  이용 제한 기간(1/3/7/14/30). 경고에서는 무시한다
+     * @param reason        제재 사유
+     * @param expectedStatus 화면이 본 신고 상태
+     * @param resolution    신고 처리 사유(선택, 비어 있으면 제재 사유를 쓴다)
+     * @param reviewerUserId 인증 주체의 시스템 관리자 번호
+     */
+    @Transactional
+    public void applyPenalty(Long reportId, String penaltyType, Integer durationDays, String reason,
+            String expectedStatus, String resolution, Long reviewerUserId) {
+        if (reportId == null || reportId <= 0) {
+            throw new ReportNotFoundException("신고를 찾을 수 없습니다.");
+        }
+        if (reviewerUserId == null || reviewerUserId <= 0) {
+            throw new ReportAccessDeniedException("로그인이 필요합니다.");
+        }
+        // 화면이 현재 상태를 보내지 않을 수는 있지만(계약상 선택 값), 비어 있지 않은 값이면 반드시
+        // 알려진 상태여야 한다. 알 수 없는 값을 '보내지 않음'으로 취급하면 상태 경합 검사를 우회한다.
+        Optional<ReportStatus> expected;
+        if (expectedStatus == null || expectedStatus.isBlank()) {
+            expected = Optional.empty();
+        } else {
+            expected = Optional.of(ReportStatus.from(expectedStatus)
+                    .orElseThrow(() -> new ReportStateConflictException(
+                            "현재 신고 상태를 확인할 수 없습니다. 화면을 새로 고친 뒤 다시 시도해 주세요.")));
+        }
+        String trimmedReason = PenaltyService.normalizeReason(reason);
+
+        Report report = reportMapper.findReportForUpdate(reportId);
+        if (report == null) {
+            throw new ReportNotFoundException("신고를 찾을 수 없습니다.");
+        }
+        Optional<ReportStatus> currentStatus = ReportStatus.from(report.getStatus());
+        if (currentStatus.isEmpty()) {
+            throw new ReportStateConflictException("현재 신고 상태로는 제재를 적용할 수 없습니다.");
+        }
+        // 화면이 본 상태를 잠근 행에 그대로 강제한다. 화면이 보낸 기대 상태로 조건부 갱신해,
+        // 잠금 이후 상태가 달라졌다면 DB에서도 0행으로 드러나게 한다.
+        String expectedDbValue = expected.map(ReportStatus::dbValue).orElse(report.getStatus());
+        if (expected.isPresent() && !report.getStatus().equals(expectedDbValue)) {
+            throw new ReportStateConflictException(
+                    "다른 관리자가 먼저 처리해 신고 상태가 바뀌었습니다. 화면을 새로 고친 뒤 다시 시도해 주세요.");
+        }
+        if (!currentStatus.get().canFinish()) {
+            throw new ReportStateConflictException("이미 처리가 끝난 신고에는 제재를 적용할 수 없습니다.");
+        }
+        Long targetUserId = report.getTargetUserId();
+        if (targetUserId == null) {
+            throw new IllegalArgumentException("신고 대상 회원을 확인할 수 없습니다.");
+        }
+
+        penaltyService.issueForReport(reportId, targetUserId, reviewerUserId, penaltyType, durationDays,
+                trimmedReason);
+
+        // 제재를 적용하면 신고를 처리 완료로 마무리한다. 처리 사유는 입력한 사유를 우선 쓴다.
+        String finalResolution = resolution != null && !resolution.isBlank()
+                ? normalizeResolution(resolution)
+                : normalizeResolution(trimmedReason.length() > RESOLUTION_MAX
+                        ? trimmedReason.substring(0, RESOLUTION_MAX)
+                        : trimmedReason);
+        int changed = reportMapper.applyFinalDecision(reportId, expectedDbValue,
+                ReportStatus.COMPLETED.dbValue(), finalResolution, reviewerUserId);
+        if (changed == 0) {
+            throw new ReportStateConflictException(
+                    "다른 관리자가 먼저 처리해 신고 상태가 바뀌었습니다. 화면을 새로 고친 뒤 다시 시도해 주세요.");
+        }
+        reportNotificationService.notifyResolved(reportId, report.getReporterUserId(),
+                ReportStatus.COMPLETED.dbValue());
     }
 
     private static String normalizeFilter(String statusFilter) {

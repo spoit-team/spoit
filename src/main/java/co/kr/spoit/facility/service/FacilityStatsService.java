@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import co.kr.spoit.facility.dto.ApplicationCountSummary;
 import co.kr.spoit.facility.dto.FacilityStats;
+import co.kr.spoit.facility.dto.WeekdayHourApplicationStatusCount;
 import co.kr.spoit.facility.dto.WeekdayHourParticipantCount;
 import co.kr.spoit.facility.mapper.FacilityMapper;
 import co.kr.spoit.facility.mapper.FacilityStatsMapper;
@@ -31,6 +32,16 @@ import co.kr.spoit.facility.mapper.FacilityStatsMapper;
  * 세므로 같은 사람이 두 경기에 참여하면 2인으로 집계되고, 노쇼 여부는 구분하지 못한다.
  * 요일 합계·시간대 합계는 요일×시간대 집계 한 번에서 파생하며, 상세 비율({@code share})의 분모는
  * 전체 종료 매칭 확정 참가 인원이다.</p>
+ *
+ * <p>신청 지표는 같은 매칭방에 같은 사람이 여러 번 신청할 수 있으므로
+ * {@code (match_id, applicant_user_id)}별 가장 최근 신청 한 건만 센다
+ * ({@code created_at DESC, application_id DESC}). 팀 신청은 팀원이 각자 한 건이고, 같은 사람이 서로
+ * 다른 매칭방에 신청하면 각각 센다. 최신 신청이 {@code 대기}면 신청 총계에는 들어가지만 승인율·취소율
+ * 분모(처리 수)와 분포 차트에서는 빠진다. 처리 수는 {@code 확정 + 반려 + 취소}이고, 승인율은
+ * {@code 확정 / 처리 수}, 취소율은 {@code (반려+취소) / 처리 수}를 반올림한 백분율이다(분모 0이면 0).
+ * 신청 분포 차트도 같은 최신 신청 기준이며, 막대의 {@code totalCount}는 대기를 뺀 처리 수
+ * ({@code approvedCount + cancelledCount})다. 요일·시간대·요일×시간대 목록과 차트 상한(최소 1)을
+ * 서비스가 계산해 DTO에 담는다.</p>
  *
  * <p>기간 파라미터는 화면 계약({@code period=7/30/90/custom})을 그대로 받는다. 알 수 없는 값이나
  * 직접 입력 기간의 누락·역전·파싱 실패는 기본 30일로 되돌린다. 경계는 시작일 00:00:00부터
@@ -104,6 +115,9 @@ public class FacilityStatsService {
                 startAt, endAt);
         List<WeekdayHourParticipantCount> weekdayHourCounts =
                 facilityStatsMapper.countParticipantsByWeekdayAndHour(managerUserId, facilityId, startAt, endAt);
+        List<WeekdayHourApplicationStatusCount> applicationStatusCounts =
+                facilityStatsMapper.countApplicationStatusesByWeekdayAndHour(managerUserId, facilityId, startAt,
+                        endAt);
 
         long[][] participantsByDayAndHour = participantsByDayAndHour(weekdayHourCounts);
         long[] participantsByDay = sumByWeekday(participantsByDayAndHour);
@@ -117,10 +131,29 @@ public class FacilityStatsService {
         List<FacilityStats.WeekdayHourDetail> weekdayHourDetails =
                 buildWeekdayHourDetails(participantsByDayAndHour);
 
+        ApplicationDistribution applicationDistribution =
+                applicationDistributionByDayAndHour(applicationStatusCounts);
+        // 차트의 totalCount는 대기를 뺀 처리 수(확정+반려+취소)다. 신청 총계(applicationTotal)만 대기를 포함한다.
+        long[][] applicationResolvedByDayAndHour = applicationDistribution.resolved();
+        long[][] applicationApprovedByDayAndHour = applicationDistribution.approved();
+        long[][] applicationCancelledByDayAndHour = applicationDistribution.cancelled();
+
+        List<FacilityStats.ApplicationDistributionDetail> applicationWeekdayDetails =
+                buildApplicationWeekdayDetails(applicationResolvedByDayAndHour, applicationApprovedByDayAndHour,
+                        applicationCancelledByDayAndHour);
+        List<FacilityStats.ApplicationDistributionDetail> applicationHourDetails =
+                buildApplicationHourDetails(applicationResolvedByDayAndHour, applicationApprovedByDayAndHour,
+                        applicationCancelledByDayAndHour);
+        List<FacilityStats.ApplicationWeekdayHourDetail> applicationWeekdayHourDetails =
+                buildApplicationWeekdayHourDetails(applicationResolvedByDayAndHour, applicationApprovedByDayAndHour,
+                        applicationCancelledByDayAndHour);
+
         long applicationTotal = applications == null ? 0 : applications.getTotal();
         long individualCount = applications == null ? 0 : applications.getIndividualCount();
         long clubCount = applications == null ? 0 : applications.getClubCount();
         long approvedCount = applications == null ? 0 : applications.getApprovedCount();
+        long cancelledCount = applications == null ? 0 : applications.getCancelledCount();
+        long resolvedCount = Math.max(0, approvedCount) + Math.max(0, cancelledCount);
 
         FacilityStats stats = new FacilityStats(
                 range.period(),
@@ -133,7 +166,7 @@ public class FacilityStatsService {
                 Math.max(0, individualCount),
                 Math.max(0, clubCount),
                 Math.max(0, approvedCount),
-                approvalRate(approvedCount, applicationTotal));
+                approvalRate(approvedCount, resolvedCount));
         // 화면의 직접 입력 기간 칸이 실제 조회 구간을 그대로 보여 주도록 계산된 경계일을 채운다.
         stats.setPeriodFrom(range.startDate().toString());
         stats.setPeriodTo(range.endDate().toString());
@@ -141,6 +174,18 @@ public class FacilityStatsService {
         stats.setWeekdayDetails(weekdayDetails);
         stats.setHourDetails(hourDetails);
         stats.setWeekdayHourDetails(weekdayHourDetails);
+        stats.setCancelledCount(Math.max(0, cancelledCount));
+        stats.setResolvedCount(resolvedCount);
+        stats.setCancelRate(cancelRate(cancelledCount, resolvedCount));
+        stats.setApplicationWeekdayDetails(applicationWeekdayDetails);
+        stats.setApplicationHourDetails(applicationHourDetails);
+        stats.setApplicationWeekdayHourDetails(applicationWeekdayHourDetails);
+        stats.setWeekdayChartMax(weekdayChartMax(applicationApprovedByDayAndHour,
+                applicationCancelledByDayAndHour));
+        stats.setHourChartMax(hourChartMax(applicationApprovedByDayAndHour,
+                applicationCancelledByDayAndHour));
+        stats.setWeekdayHourChartMax(weekdayHourChartMax(applicationApprovedByDayAndHour,
+                applicationCancelledByDayAndHour));
         return stats;
     }
 
@@ -149,9 +194,10 @@ public class FacilityStatsService {
     /**
      * 담당 시설이 없거나 시설 미선택일 때 쓰는 0건 집계를 만든다.
      *
-     * <p>화면이 항상 같은 모양을 갖도록 상세 집계(요일 7행·시간대 24행·요일×시간대 7행)도
-     * 0으로 채운다. 기간 표시값만 호출자가 정하고 나머지 지표·인기 라벨은 0·null이며,
-     * 실제 조회 구간({@code periodFrom}·{@code periodTo})은 채우지 않는다.</p>
+     * <p>화면이 항상 같은 모양을 갖도록 상세 집계(요일 7행·시간대 24행·요일×시간대 7행)와 신청 분포
+     * (요일 7행·시간대 24행·요일×시간대 7행)도 0으로 채우고, 차트 상한은 최소 1로 둔다. 기간
+     * 표시값만 호출자가 정하고 나머지 지표·인기 라벨은 0·null이며, 실제 조회 구간
+     * ({@code periodFrom}·{@code periodTo})은 채우지 않는다.</p>
      */
     private static FacilityStats emptyStats(int period, String periodLabel) {
         FacilityStats stats = new FacilityStats(period, periodLabel, 0, 0, null, null, 0, 0, 0, 0, 0);
@@ -159,6 +205,16 @@ public class FacilityStatsService {
         stats.setHourDetails(buildHourDetails(new long[HOURS_PER_DAY], 0));
         stats.setWeekdayHourDetails(
                 buildWeekdayHourDetails(new long[WEEKDAY_LABELS.size()][HOURS_PER_DAY]));
+        long[][] zeroCounts = new long[WEEKDAY_LABELS.size()][HOURS_PER_DAY];
+        stats.setApplicationWeekdayDetails(
+                buildApplicationWeekdayDetails(zeroCounts, zeroCounts, zeroCounts));
+        stats.setApplicationHourDetails(
+                buildApplicationHourDetails(zeroCounts, zeroCounts, zeroCounts));
+        stats.setApplicationWeekdayHourDetails(
+                buildApplicationWeekdayHourDetails(zeroCounts, zeroCounts, zeroCounts));
+        stats.setWeekdayChartMax(1);
+        stats.setHourChartMax(1);
+        stats.setWeekdayHourChartMax(1);
         return stats;
     }
 
@@ -302,6 +358,149 @@ public class FacilityStatsService {
         return participantsByHour;
     }
 
+    /* ---------------- 최신 신청 분포 계산 ---------------- */
+
+    /**
+     * 요일×시간대 신청 상태 건수를 월~일 × 00~23시 배열 세 벌(처리·확정·반려+취소)로 옮긴다.
+     *
+     * <p>차트 계약상 처리 수는 대기를 뺀 {@code 확정 + 반려+취소}다. SQL 행의 전체 건수
+     * ({@code totalCount}, 대기 포함)는 차트에 쓰지 않는다. 알 수 없는 요일·시간대 값은 버리고,
+     * 같은 칸의 값은 합산한다. 음수는 0으로 올린다.</p>
+     */
+    private static ApplicationDistribution applicationDistributionByDayAndHour(
+            List<WeekdayHourApplicationStatusCount> counts) {
+        long[][] resolved = new long[WEEKDAY_LABELS.size()][HOURS_PER_DAY];
+        long[][] approved = new long[WEEKDAY_LABELS.size()][HOURS_PER_DAY];
+        long[][] cancelled = new long[WEEKDAY_LABELS.size()][HOURS_PER_DAY];
+        for (WeekdayHourApplicationStatusCount row : nullSafe(counts)) {
+            if (row == null) {
+                continue;
+            }
+            int dayIndex = weekdayIndex(row.getWeekday());
+            int hour = row.getHour();
+            if (dayIndex < 0 || hour < 0 || hour >= HOURS_PER_DAY) {
+                continue;
+            }
+            approved[dayIndex][hour] += Math.max(0, row.getApprovedCount());
+            cancelled[dayIndex][hour] += Math.max(0, row.getCancelledCount());
+        }
+        // 같은 칸의 중복 행을 합산한 뒤 처리 수를 확정+반려+취소로 다시 계산한다(대기 제외).
+        for (int dayIndex = 0; dayIndex < WEEKDAY_LABELS.size(); dayIndex++) {
+            for (int hour = 0; hour < HOURS_PER_DAY; hour++) {
+                resolved[dayIndex][hour] = approved[dayIndex][hour] + cancelled[dayIndex][hour];
+            }
+        }
+        return new ApplicationDistribution(resolved, approved, cancelled);
+    }
+
+    /**
+     * 요일별 최신 신청 분포 7행(월~일)을 만든다. 각 행은 그 요일의 확정·반려+취소·처리(확정+반려+취소)
+     * 합계이며 대기는 세지 않는다.
+     */
+    private static List<FacilityStats.ApplicationDistributionDetail> buildApplicationWeekdayDetails(
+            long[][] resolved, long[][] approved, long[][] cancelled) {
+        List<FacilityStats.ApplicationDistributionDetail> rows = new ArrayList<>(WEEKDAY_LABELS.size());
+        for (int dayIndex = 0; dayIndex < WEEKDAY_LABELS.size(); dayIndex++) {
+            rows.add(new FacilityStats.ApplicationDistributionDetail(
+                    WEEKDAY_LABELS.get(dayIndex),
+                    sum(approved[dayIndex]),
+                    sum(cancelled[dayIndex]),
+                    sum(resolved[dayIndex])));
+        }
+        return rows;
+    }
+
+    /**
+     * 시간대별 최신 신청 분포 24행(00~23시)을 만든다. 각 행은 그 시간대의 확정·반려+취소·
+     * 처리(확정+반려+취소) 합계이며 대기는 세지 않는다.
+     */
+    private static List<FacilityStats.ApplicationDistributionDetail> buildApplicationHourDetails(
+            long[][] resolved, long[][] approved, long[][] cancelled) {
+        List<FacilityStats.ApplicationDistributionDetail> rows = new ArrayList<>(HOURS_PER_DAY);
+        for (int hour = 0; hour < HOURS_PER_DAY; hour++) {
+            long approvedSum = 0;
+            long cancelledSum = 0;
+            long resolvedSum = 0;
+            for (int dayIndex = 0; dayIndex < WEEKDAY_LABELS.size(); dayIndex++) {
+                approvedSum += approved[dayIndex][hour];
+                cancelledSum += cancelled[dayIndex][hour];
+                resolvedSum += resolved[dayIndex][hour];
+            }
+            rows.add(new FacilityStats.ApplicationDistributionDetail(hourLabel(hour), approvedSum,
+                    cancelledSum, resolvedSum));
+        }
+        return rows;
+    }
+
+    /**
+     * 요일×시간대 최신 신청 분포 7행(월~일)을 만든다. 각 행의 {@code hours}는 00~23시 순서 24개이고
+     * 각 요소의 label은 그 시간대이며, 처리 수는 대기를 뺀 확정+반려+취소다.
+     */
+    private static List<FacilityStats.ApplicationWeekdayHourDetail> buildApplicationWeekdayHourDetails(
+            long[][] resolved, long[][] approved, long[][] cancelled) {
+        List<FacilityStats.ApplicationWeekdayHourDetail> rows = new ArrayList<>(WEEKDAY_LABELS.size());
+        for (int dayIndex = 0; dayIndex < WEEKDAY_LABELS.size(); dayIndex++) {
+            List<FacilityStats.ApplicationDistributionDetail> hours = new ArrayList<>(HOURS_PER_DAY);
+            for (int hour = 0; hour < HOURS_PER_DAY; hour++) {
+                hours.add(new FacilityStats.ApplicationDistributionDetail(hourLabel(hour),
+                        approved[dayIndex][hour], cancelled[dayIndex][hour], resolved[dayIndex][hour]));
+            }
+            rows.add(new FacilityStats.ApplicationWeekdayHourDetail(WEEKDAY_LABELS.get(dayIndex), hours));
+        }
+        return rows;
+    }
+
+    /**
+     * 요일 차트 상한. 각 요일의 처리 건수(확정+반려+취소) 중 최대값이며 최소 1이다.
+     * 대기는 막대에서 빠지므로 상한에도 넣지 않는다.
+     */
+    private static long weekdayChartMax(long[][] approved, long[][] cancelled) {
+        long max = 0;
+        for (int dayIndex = 0; dayIndex < WEEKDAY_LABELS.size(); dayIndex++) {
+            max = Math.max(max, sum(approved[dayIndex]) + sum(cancelled[dayIndex]));
+        }
+        return Math.max(1, max);
+    }
+
+    /** 시간대 차트 상한. 각 시간대의 처리 건수(확정+반려+취소) 중 최대값이며 최소 1이다. */
+    private static long hourChartMax(long[][] approved, long[][] cancelled) {
+        long max = 0;
+        for (int hour = 0; hour < HOURS_PER_DAY; hour++) {
+            long approvedSum = 0;
+            long cancelledSum = 0;
+            for (int dayIndex = 0; dayIndex < WEEKDAY_LABELS.size(); dayIndex++) {
+                approvedSum += approved[dayIndex][hour];
+                cancelledSum += cancelled[dayIndex][hour];
+            }
+            max = Math.max(max, approvedSum + cancelledSum);
+        }
+        return Math.max(1, max);
+    }
+
+    /** 요일×시간대 차트 상한. 한 칸의 처리 건수(확정+반려+취소) 최대값이며 최소 1이다. */
+    private static long weekdayHourChartMax(long[][] approved, long[][] cancelled) {
+        long max = 0;
+        for (int dayIndex = 0; dayIndex < WEEKDAY_LABELS.size(); dayIndex++) {
+            for (int hour = 0; hour < HOURS_PER_DAY; hour++) {
+                max = Math.max(max, approved[dayIndex][hour] + cancelled[dayIndex][hour]);
+            }
+        }
+        return Math.max(1, max);
+    }
+
+    /** 배열 원소의 합. */
+    private static long sum(long[] values) {
+        long sum = 0;
+        for (long value : values) {
+            sum += value;
+        }
+        return sum;
+    }
+
+    /** 최신 신청 상태를 월~일 × 00~23시 배열 세 벌(처리·확정·반려+취소)로 담는다. */
+    private record ApplicationDistribution(long[][] resolved, long[][] approved, long[][] cancelled) {
+    }
+
     /**
      * 확정 참가 인원이 가장 많은 요일 라벨(월~일 순서)을 고른다. 동률이면 먼저 나오는 요일이고,
      * 집계 대상이 없으면 null이다.
@@ -391,12 +590,20 @@ public class FacilityStatsService {
         return String.format("%02d시", hour);
     }
 
-    /** 승인율(%). 신청 총계가 0이면 0이고, 그 밖에는 반올림한 정수 백분율이다. */
-    private static double approvalRate(long approvedCount, long applicationTotal) {
-        if (applicationTotal <= 0) {
+    /** 승인율(%) = 확정 / 처리 수. 처리 수가 0이면 0이고, 그 밖에는 반올림한 정수 백분율이다. */
+    private static double approvalRate(long approvedCount, long resolvedCount) {
+        if (resolvedCount <= 0) {
             return 0;
         }
-        return Math.round(Math.max(0, approvedCount) * 100.0 / applicationTotal);
+        return Math.round(Math.max(0, approvedCount) * 100.0 / resolvedCount);
+    }
+
+    /** 취소율(%) = (반려+취소) / 처리 수. 처리 수가 0이면 0이고, 그 밖에는 반올림한 정수 백분율이다. */
+    private static double cancelRate(long cancelledCount, long resolvedCount) {
+        if (resolvedCount <= 0) {
+            return 0;
+        }
+        return Math.round(Math.max(0, cancelledCount) * 100.0 / resolvedCount);
     }
 
     /* ---------------- 공통 ---------------- */

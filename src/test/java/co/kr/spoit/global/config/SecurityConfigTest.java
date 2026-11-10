@@ -5,9 +5,15 @@ import static co.kr.spoit.member.domain.MemberPrincipalFixture.facilityManager;
 import static co.kr.spoit.member.domain.MemberPrincipalFixture.member;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.web.servlet.function.RequestPredicates.GET;
 import static org.springframework.web.servlet.function.RouterFunctions.route;
@@ -30,7 +36,10 @@ import co.kr.spoit.member.security.MemberLoginFailureHandler;
 import co.kr.spoit.member.security.MemberLoginSuccessHandler;
 import co.kr.spoit.member.service.MemberUserDetailsService;
 import co.kr.spoit.admin.controller.SystemAdminController;
+import co.kr.spoit.admin.service.SystemErrorLogService;
 import co.kr.spoit.admin.service.SystemMonitoringService;
+import co.kr.spoit.member.service.AdminUserService;
+import co.kr.spoit.report.service.PenaltyService;
 
 /** 실제 보안 필터 체인에서 마이페이지는 인증을 요구하고 관리자 화면은 역할별로 분리되는지 검증한다. */
 @WebMvcTest(controllers = SystemAdminController.class)
@@ -54,6 +63,28 @@ class SecurityConfigTest {
 
     @MockitoBean
     private SystemMonitoringService systemMonitoringService;
+
+    @MockitoBean
+    private SystemErrorLogService systemErrorLogService;
+
+    @MockitoBean
+    private AdminUserService adminUserService;
+
+    @MockitoBean
+    private PenaltyService penaltyService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void stubSystemServices() {
+        when(systemErrorLogService.load(any(), any(), any())).thenReturn(
+                new co.kr.spoit.admin.dto.SystemErrorLogPage(
+                        new co.kr.spoit.admin.dto.SystemErrorMetrics(0, 0, 0, null, null),
+                        new co.kr.spoit.admin.dto.SystemErrorFilters(null, "all", 24), java.util.List.of()));
+        when(adminUserService.loadPage(any(), any(), any(), any(Integer.class))).thenReturn(
+                co.kr.spoit.member.dto.AdminUserPage.empty());
+        when(penaltyService.loadPage(any(), any(), any(Integer.class)))
+                .thenReturn(co.kr.spoit.report.dto.PenaltyPage.empty());
+        when(systemMonitoringService.currentDashboard()).thenReturn(null);
+    }
 
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {
@@ -204,6 +235,101 @@ class SecurityConfigTest {
     void monitoringPostRequiresCsrf() throws Exception {
         mockMvc.perform(post("/admin/system/monitoring").with(user(admin())))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("사용자 관리 상태 변경 라우트는 시스템 관리자만 호출할 수 있다")
+    void userActionRoutesRequireSystemAdmin() throws Exception {
+        for (String path : new String[] {
+                "/admin/system/users/5/approve",
+                "/admin/system/users/5/reject",
+                "/admin/system/users/5/suspend",
+                "/admin/system/users/suspend",
+                "/admin/system/users/5/restore",
+                "/admin/system/users/role",
+                "/admin/system/penalties/9/release"}) {
+            mockMvc.perform(post(path).with(csrf()).with(user(member())))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(post(path).with(csrf()).with(user(facilityManager())))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    @DisplayName("사용자 관리 상태 변경은 CSRF 토큰이 없으면 거부한다")
+    void userActionRoutesRequireCsrf() throws Exception {
+        mockMvc.perform(post("/admin/system/users/5/suspend").with(user(admin())))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/admin/system/users/role").with(user(admin())))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/admin/system/penalties/9/release").with(user(admin())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("경로에 userId가 없는 정지 폼은 본문 userId로 처리하고 사용자 화면으로 되돌린다")
+    void suspendWithoutPathVariableUsesBodyUserId() throws Exception {
+        when(adminUserService.suspend(eq(7L), eq(5L), eq(7), any()))
+                .thenReturn(co.kr.spoit.member.dto.AdminUserActionResult.applied("정지"));
+
+        mockMvc.perform(post("/admin/system/users/suspend")
+                        .param("userId", "5")
+                        .param("durationDays", "7")
+                        .param("reason", "운영 정책 위반")
+                        .with(csrf())
+                        .with(user(admin())))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrlPattern("/admin/system?view=users*"));
+
+        verify(adminUserService).suspend(7L, 5L, 7, "운영 정책 위반");
+    }
+
+    @Test
+    @DisplayName("역할 변경은 로그인 관리자 ID와 입력 역할을 서비스로 넘긴다")
+    void roleChangeUsesPrincipalId() throws Exception {
+        when(adminUserService.changeRole(eq(7L), eq(5L), eq("facility"), any()))
+                .thenReturn(co.kr.spoit.member.dto.AdminUserActionResult.applied("변경"));
+
+        mockMvc.perform(post("/admin/system/users/role")
+                        .param("userId", "5")
+                        .param("role", "facility")
+                        .param("reason", "시설 담당")
+                        .with(csrf())
+                        .with(user(admin())))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/system?view=users"));
+
+        verify(adminUserService).changeRole(7L, 5L, "facility", "시설 담당");
+    }
+
+    @Test
+    @DisplayName("페널티 해제는 인증 주체 ID로 조기 해제하고 페널티 화면으로 돌아간다")
+    void releasePenaltyUsesPrincipalId() throws Exception {
+        mockMvc.perform(post("/admin/system/penalties/9/release")
+                        .param("status", "active")
+                        .param("page", "2")
+                        .with(csrf())
+                        .with(user(admin())))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrlPattern("/admin/system?view=penalties*"));
+
+        verify(penaltyService).release(9L, 7L);
+    }
+
+    @Test
+    @DisplayName("사용자 관리 export GET은 실제 CSV 응답을 돌려준다")
+    void userExportReturnsCsv() throws Exception {
+        mockMvc.perform(get("/admin/system/users/export").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("attachment")));
+    }
+
+    @Test
+    @DisplayName("오류 로그 export GET은 실제 CSV 응답을 돌려준다")
+    void errorExportReturnsCsv() throws Exception {
+        mockMvc.perform(get("/admin/system/errors/export").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("attachment")));
     }
 
     @ParameterizedTest(name = "{0}")

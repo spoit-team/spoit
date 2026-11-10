@@ -27,5 +27,7 @@ class FacilityStatsMapperXmlBindingTest {
         assertThat(configuration.hasStatement(NAMESPACE + "countConfirmedParticipants")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "countApplications")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "countParticipantsByWeekdayAndHour")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "countApplicationStatusesByWeekdayAndHour"))
+                .isTrue();
     }
 }

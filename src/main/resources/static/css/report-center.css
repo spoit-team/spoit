@@ -717,6 +717,158 @@
   margin-top: 20px;
 }
 
+/* ── 신고 상세 모달 ──────────────────────────────────────
+   페이지 하단 상세 패널 대신 모달로 상세를 엽니다. .admin-modal.wide 위에
+   신고 접수함의 문서형 결을 얹고, 처리·페널티 패널은 footer 영역에 둡니다. */
+.report-modal .admin-modal {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.report-modal .modal-header {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.report-modal .modal-header .report-kicker {
+  margin: 0 0 2px;
+}
+
+.report-modal .modal-header h2 {
+  margin: 0;
+}
+
+.report-modal .report-case-target {
+  margin: 4px 0 0;
+}
+
+.report-modal .modal-header .status-badge {
+  flex: 0 0 auto;
+  margin-right: 6px;
+}
+
+.report-modal .modal-header .modal-close {
+  margin-left: auto;
+}
+
+.report-modal .report-selected-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 23px 20px;
+}
+
+/* 모달에서는 4칸 facts가 좁아질 수 있으므로 2×2로 쌓습니다. */
+.report-modal .report-selected-facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--admin-line);
+  border-bottom: 0;
+}
+
+.report-modal .report-selected-facts > div {
+  border-top: 1px solid var(--admin-line);
+  padding: 10px 12px 11px;
+}
+
+.report-modal .report-selected-facts > div:first-child {
+  padding-left: 0;
+  border-top: 0;
+}
+
+.report-modal .report-selected-facts > div:nth-child(2) {
+  padding-right: 0;
+  border-top: 0;
+}
+
+.report-modal .report-selected-facts > div + div {
+  border-left: 1px solid var(--admin-line);
+}
+
+.report-modal .report-selected-facts > div:nth-child(3) {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.report-modal .report-case-summary {
+  padding-top: 16px;
+}
+
+.report-modal .report-case-result {
+  margin-top: 16px;
+}
+
+.report-decision.report-modal-panel {
+  display: block;
+  flex: 0 0 auto;
+  padding: 16px 23px 20px;
+  border-top: 1px solid var(--admin-line);
+  background: var(--admin-soft);
+}
+
+.report-decision-form h3 {
+  margin: 0;
+  color: var(--admin-ink);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+.report-decision-form .report-decision-help {
+  margin: 5px 0 10px;
+}
+
+.report-decision-form textarea {
+  min-height: 74px;
+}
+
+.report-decision-form .report-decision-actions {
+  margin-top: 11px;
+}
+
+.report-decision-form .report-decision-note {
+  margin-top: 11px;
+}
+
+/* 페널티 적용: 처리 방향 아래에 붙는 별도 전송 폼입니다. */
+.report-penalty {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--admin-line);
+}
+
+.report-penalty h4 {
+  margin: 0;
+  color: var(--admin-ink);
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+.report-penalty .report-penalty-help {
+  margin: 4px 0 10px;
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+
+.report-penalty-form .form-grid {
+  gap: 10px;
+}
+
+.report-penalty-reason {
+  margin-top: 10px;
+}
+
+.report-penalty-reason textarea {
+  min-height: 64px;
+}
+
+.report-penalty-form .report-decision-actions {
+  margin-top: 11px;
+}
+
 .report-decision {
   min-width: 0;
   padding: 20px 22px 22px;
@@ -808,7 +960,7 @@
   }
 
   .report-selected-result,
-  .report-decision {
+  .report-decision:not(.report-modal-panel) {
     border-top: 1px solid var(--admin-line);
     border-left: 0;
   }
@@ -849,6 +1001,29 @@
   .report-selected-result,
   .report-decision {
     padding: 16px 15px;
+  }
+
+  .report-modal .report-selected-main,
+  .report-decision.report-modal-panel {
+    padding: 14px 16px 16px;
+  }
+
+  .report-modal .report-selected-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .report-modal .report-selected-facts > div {
+    border-left: 0;
+    padding-left: 0;
+  }
+
+  .report-modal .report-selected-facts > div:first-child,
+  .report-modal .report-selected-facts > div:nth-child(2) {
+    border-top: 0;
+  }
+
+  .report-modal .report-selected-facts > div:nth-child(n + 3) {
+    border-top: 1px solid var(--admin-line);
   }
 
   .report-selected-facts {

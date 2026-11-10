@@ -17,6 +17,7 @@ public class ReportDetail {
 
     private final Long reportId;
     private final Long matchId;
+    private final Long targetUserId;
     private final String facilityName;
     private final String matchTitle;
     private final String targetName;
@@ -30,8 +31,16 @@ public class ReportDetail {
     public ReportDetail(Long reportId, Long matchId, String facilityName, String matchTitle,
             String targetName, String reporterName, String category, String status, String createdAt,
             String summary, String resolution) {
+        this(reportId, matchId, null, facilityName, matchTitle, targetName, reporterName, category, status,
+                createdAt, summary, resolution);
+    }
+
+    public ReportDetail(Long reportId, Long matchId, Long targetUserId, String facilityName, String matchTitle,
+            String targetName, String reporterName, String category, String status, String createdAt,
+            String summary, String resolution) {
         this.reportId = reportId;
         this.matchId = matchId;
+        this.targetUserId = targetUserId;
         this.facilityName = facilityName;
         this.matchTitle = matchTitle;
         this.targetName = targetName;

@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import co.kr.spoit.facility.dto.ApplicationCountSummary;
 import co.kr.spoit.facility.dto.FacilityStats;
+import co.kr.spoit.facility.dto.WeekdayHourApplicationStatusCount;
 import co.kr.spoit.facility.dto.WeekdayHourParticipantCount;
 import co.kr.spoit.facility.mapper.FacilityMapper;
 import co.kr.spoit.facility.mapper.FacilityStatsMapper;
@@ -263,10 +264,10 @@ class FacilityStatsServiceTest {
     }
 
     @Test
-    @DisplayName("승인율은 확정/총계 백분율을 반올림하고 신청 구분을 그대로 담는다")
+    @DisplayName("승인율은 확정/처리 수(확정+반려+취소) 백분율을 반올림하고 신청 구분을 그대로 담는다")
     void calculatesApprovalRateWithRounding() {
         stubOwnedFacility();
-        stubCounts(0, 0, summary(3, 2, 1, 2));
+        stubCounts(0, 0, summary(3, 2, 1, 2, 1));
 
         FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
 
@@ -274,7 +275,40 @@ class FacilityStatsServiceTest {
         assertThat(stats.getIndividualCount()).isEqualTo(2L);
         assertThat(stats.getClubCount()).isEqualTo(1L);
         assertThat(stats.getApprovedCount()).isEqualTo(2L);
+        assertThat(stats.getCancelledCount()).isEqualTo(1L);
+        assertThat(stats.getResolvedCount()).isEqualTo(3L);
+        // 확정 2 / 처리 3 = 66.67 → 67, (반려+취소) 1 / 처리 3 = 33.33 → 33
         assertThat(stats.getApprovalRate()).isEqualTo(67.0);
+        assertThat(stats.getCancelRate()).isEqualTo(33.0);
+    }
+
+    @Test
+    @DisplayName("대기는 신청 총계에는 들어가지만 승인율·취소율 분모(처리 수)에서는 빠진다")
+    void waitingCountIsInTotalButNotInResolvedDenominator() {
+        stubOwnedFacility();
+        // 최신 신청 5건: 확정 2, 반려+취소 1, 대기 2
+        stubCounts(0, 0, summary(5, 3, 2, 2, 1));
+
+        FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
+
+        assertThat(stats.getApplicationTotal()).isEqualTo(5L);
+        assertThat(stats.getResolvedCount()).isEqualTo(3L);
+        assertThat(stats.getApprovalRate()).isEqualTo(67.0);
+        assertThat(stats.getCancelRate()).isEqualTo(33.0);
+    }
+
+    @Test
+    @DisplayName("처리 수가 0이면(대기만 있으면) 승인율·취소율은 0이다")
+    void ratesAreZeroWhenOnlyWaiting() {
+        stubOwnedFacility();
+        stubCounts(0, 0, summary(4, 4, 0, 0, 0));
+
+        FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
+
+        assertThat(stats.getApplicationTotal()).isEqualTo(4L);
+        assertThat(stats.getResolvedCount()).isZero();
+        assertThat(stats.getApprovalRate()).isZero();
+        assertThat(stats.getCancelRate()).isZero();
     }
 
     @Test
@@ -507,10 +541,213 @@ class FacilityStatsServiceTest {
                 .containsExactly("월", "화", "수", "목", "금", "토", "일");
         assertThat(stats.getWeekdayHourDetails())
                 .allSatisfy(row -> assertThat(row.getHourlyCounts()).hasSize(24).containsOnly(0L));
+
+        // 신청 분포도 7/24/7×24 목록을 0으로 채우고 차트 상한은 최소 1이다.
+        assertThat(stats.getCancelledCount()).isZero();
+        assertThat(stats.getResolvedCount()).isZero();
+        assertThat(stats.getCancelRate()).isZero();
+        assertThat(stats.getApplicationWeekdayDetails()).hasSize(7);
+        assertThat(stats.getApplicationWeekdayDetails())
+                .extracting(FacilityStats.ApplicationDistributionDetail::getLabel)
+                .containsExactly("월", "화", "수", "목", "금", "토", "일");
+        assertThat(stats.getApplicationWeekdayDetails())
+                .allSatisfy(row -> {
+                    assertThat(row.getApprovedCount()).isZero();
+                    assertThat(row.getCancelledCount()).isZero();
+                    assertThat(row.getTotalCount()).isZero();
+                });
+        assertThat(stats.getApplicationHourDetails()).hasSize(24);
+        assertThat(stats.getApplicationHourDetails())
+                .extracting(FacilityStats.ApplicationDistributionDetail::getLabel)
+                .first().isEqualTo("00시");
+        assertThat(stats.getApplicationHourDetails())
+                .extracting(FacilityStats.ApplicationDistributionDetail::getLabel)
+                .last().isEqualTo("23시");
+        assertThat(stats.getApplicationWeekdayHourDetails()).hasSize(7);
+        assertThat(stats.getApplicationWeekdayHourDetails())
+                .allSatisfy(row -> assertThat(row.getHours()).hasSize(24)
+                        .allSatisfy(hour -> {
+                            assertThat(hour.getApprovedCount()).isZero();
+                            assertThat(hour.getCancelledCount()).isZero();
+                            assertThat(hour.getTotalCount()).isZero();
+                        }));
+        assertThat(stats.getWeekdayChartMax()).isEqualTo(1L);
+        assertThat(stats.getHourChartMax()).isEqualTo(1L);
+        assertThat(stats.getWeekdayHourChartMax()).isEqualTo(1L);
+        assertAllTotalCountsEqualResolved(stats);
         verifyNoInteractions(facilityStatsMapper, facilityMapper);
     }
 
+    /* ---------------- 최신 신청 분포 차트 ---------------- */
+
+    @Test
+    @DisplayName("최신 신청 분포는 요일·시간대·요일×시간대 목록을 7/24/7×24로 채운다")
+    void buildsApplicationDistributionLists() {
+        stubOwnedFacility();
+        // 최신 신청 5건: 확정 2, 반려+취소 1, 대기 2. 신청 총계는 대기를 포함한다.
+        stubCounts(0, 0, summary(5, 3, 2, 2, 1));
+        stubApplicationStatuses(
+                applicationStatus(2, 9, 1, 0, 1),   // 월 09시: 확정 1
+                applicationStatus(2, 9, 1, 1, 2),   // 같은 월 09시 행: 확정 1 + 반려 1 (합산)
+                applicationStatus(3, 20, 0, 0, 1),  // 화 20시: 대기 1뿐 → 차트에서는 0
+                applicationStatus(4, 18, 0, 0, 1)); // 수 18시: 대기 1뿐 → 차트에서는 0
+
+        FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
+
+        // 신청 총계는 대기를 포함한 5건이다.
+        assertThat(stats.getApplicationTotal()).isEqualTo(5L);
+        assertThat(stats.getResolvedCount()).isEqualTo(3L);
+
+        assertThat(stats.getApplicationWeekdayDetails()).hasSize(7);
+        assertThat(stats.getApplicationWeekdayDetails())
+                .extracting(FacilityStats.ApplicationDistributionDetail::getLabel)
+                .containsExactly("월", "화", "수", "목", "금", "토", "일");
+        // 수요일은 대기만 있어 차트 막대(처리 수)가 0이다.
+        assertThat(stats.getApplicationWeekdayDetails())
+                .extracting(FacilityStats.ApplicationDistributionDetail::getApprovedCount,
+                        FacilityStats.ApplicationDistributionDetail::getCancelledCount,
+                        FacilityStats.ApplicationDistributionDetail::getTotalCount)
+                .containsExactly(
+                        tuple(2L, 1L, 3L),
+                        tuple(0L, 0L, 0L),
+                        tuple(0L, 0L, 0L),
+                        tuple(0L, 0L, 0L),
+                        tuple(0L, 0L, 0L),
+                        tuple(0L, 0L, 0L),
+                        tuple(0L, 0L, 0L));
+
+        assertThat(stats.getApplicationHourDetails()).hasSize(24);
+        // 대기만 있는 18시는 차트에서 빠져 0으로 남는다.
+        assertThat(stats.getApplicationHourDetails()).filteredOn(row -> row.getTotalCount() > 0)
+                .extracting(FacilityStats.ApplicationDistributionDetail::getLabel,
+                        FacilityStats.ApplicationDistributionDetail::getApprovedCount,
+                        FacilityStats.ApplicationDistributionDetail::getCancelledCount,
+                        FacilityStats.ApplicationDistributionDetail::getTotalCount)
+                .containsExactly(tuple("09시", 2L, 1L, 3L));
+        assertThat(stats.getApplicationHourDetails().get(18).getTotalCount()).isZero();
+
+        assertThat(stats.getApplicationWeekdayHourDetails()).hasSize(7);
+        List<FacilityStats.ApplicationDistributionDetail> mondayHours =
+                stats.getApplicationWeekdayHourDetails().get(0).getHours();
+        assertThat(mondayHours).hasSize(24);
+        assertThat(mondayHours.get(0).getLabel()).isEqualTo("00시");
+        assertThat(mondayHours.get(23).getLabel()).isEqualTo("23시");
+        assertThat(mondayHours.get(9).getApprovedCount()).isEqualTo(2L);
+        assertThat(mondayHours.get(9).getCancelledCount()).isEqualTo(1L);
+        assertThat(mondayHours.get(9).getTotalCount()).isEqualTo(3L);
+        // 대기만 있는 수 18시 칸은 처리 수 0이다.
+        assertThat(stats.getApplicationWeekdayHourDetails().get(2).getHours().get(18).getTotalCount())
+                .isZero();
+        // 모든 막대는 처리 수(확정+반려+취소)이며 대기를 포함하지 않는다.
+        assertAllTotalCountsEqualResolved(stats);
+        // 한 번의 집계에서 요일별·시간대별·요일×시간대별을 모두 파생한다.
+        verify(facilityStatsMapper, org.mockito.Mockito.times(1))
+                .countApplicationStatusesByWeekdayAndHour(eq(USER_ID), eq(FACILITY_ID),
+                        any(LocalDateTime.class), any(LocalDateTime.class));
+    }
+
+    @Test
+    @DisplayName("차트 상한은 처리 건수(확정+반려+취소) 최대값이고 대기는 제외하며 최소 1이다")
+    void chartMaxUsesResolvedCountsAndMinimumOne() {
+        stubOwnedFacility();
+        // 최신 신청 7건: 확정 3, 반려+취소 1, 대기 3. 개인 4·동호회 3.
+        stubCounts(0, 0, summary(7, 4, 3, 3, 1));
+        // 월 09시: 확정 1 + 반려 1 = 처리 2, 대기 1은 제외된다.
+        // 화 20시: 대기 2뿐이므로 상한에도 막대에도 들어가지 않는다.
+        stubApplicationStatuses(
+                applicationStatus(2, 9, 1, 1, 3),
+                applicationStatus(3, 20, 0, 0, 2),
+                applicationStatus(4, 10, 2, 0, 2));
+
+        FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
+
+        // 요일별 처리 건수 최대: 월 2 (화 0, 수 2 → 동률이지만 상한 값은 2)
+        assertThat(stats.getWeekdayChartMax()).isEqualTo(2L);
+        // 시간대별 처리 건수 최대: 09시 2, 10시 2 → 2
+        assertThat(stats.getHourChartMax()).isEqualTo(2L);
+        // 한 칸 최대: 월 09시 2, 수 10시 2 → 2
+        assertThat(stats.getWeekdayHourChartMax()).isEqualTo(2L);
+        // 대기가 섞인 칸(월 09시 전체 3, 화 20시 전체 2)도 차트 total은 처리 수만 센다.
+        assertThat(stats.getApplicationWeekdayDetails().get(0).getTotalCount()).isEqualTo(2L);
+        assertThat(stats.getApplicationHourDetails().get(9).getTotalCount()).isEqualTo(2L);
+        assertThat(stats.getApplicationHourDetails().get(20).getTotalCount()).isZero();
+        assertThat(stats.getApplicationWeekdayHourDetails().get(0).getHours().get(9).getTotalCount())
+                .isEqualTo(2L);
+        assertAllTotalCountsEqualResolved(stats);
+    }
+
+    @Test
+    @DisplayName("처리된 신청이 없으면 차트 상한은 0이 아니라 1이고 막대 처리 수도 0이다")
+    void chartMaxIsAtLeastOneWhenNothingResolved() {
+        stubOwnedFacility();
+        // 최신 신청 3건이 모두 대기다. 신청 총계에는 들어가지만 차트에는 들어가지 않는다.
+        stubCounts(0, 0, summary(3, 3, 0, 0, 0));
+        stubApplicationStatuses(applicationStatus(2, 9, 0, 0, 3));
+
+        FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
+
+        assertThat(stats.getApplicationTotal()).isEqualTo(3L);
+        assertThat(stats.getResolvedCount()).isZero();
+        assertThat(stats.getWeekdayChartMax()).isEqualTo(1L);
+        assertThat(stats.getHourChartMax()).isEqualTo(1L);
+        assertThat(stats.getWeekdayHourChartMax()).isEqualTo(1L);
+        // 대기만 있는 칸은 차트 막대 처리 수가 0이다.
+        assertThat(stats.getApplicationWeekdayDetails().get(0).getTotalCount()).isZero();
+        assertThat(stats.getApplicationHourDetails().get(9).getTotalCount()).isZero();
+        assertThat(stats.getApplicationWeekdayHourDetails().get(0).getHours().get(9).getTotalCount())
+                .isZero();
+        assertAllTotalCountsEqualResolved(stats);
+    }
+
+    @Test
+    @DisplayName("신청 분포 집계의 알 수 없는 요일·시간대 행은 버리고 같은 칸은 합산한다")
+    void dropsUnknownApplicationStatusRowsAndSumsDuplicates() {
+        stubOwnedFacility();
+        // 범위 밖 행(확정 3·반려 3)은 버려지므로 확정 1·반려+취소 1만 남고, 대기 5는 차트에서 빠진다.
+        stubCounts(0, 0, summary(7, 4, 3, 1, 1));
+        stubApplicationStatuses(
+                applicationStatus(9, 5, 3, 3, 6),   // 범위 밖 요일은 버린다
+                applicationStatus(2, 30, 3, 3, 6),  // 범위 밖 시간대는 버린다
+                applicationStatus(1, 23, 1, 0, 1),  // 일 23시
+                applicationStatus(1, 23, 0, 1, 2),  // 일 23시 반려 추가 (같은 칸 합산)
+                applicationStatus(1, 23, 0, 0, 4)); // 일 23시 대기 4건은 합산돼도 차트에서 빠진다
+
+        FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
+
+        assertThat(stats.getApplicationWeekdayDetails().get(6).getApprovedCount()).isEqualTo(1L);
+        assertThat(stats.getApplicationWeekdayDetails().get(6).getCancelledCount()).isEqualTo(1L);
+        assertThat(stats.getApplicationWeekdayDetails().get(6).getTotalCount()).isEqualTo(2L);
+        assertThat(stats.getApplicationHourDetails().get(23).getTotalCount()).isEqualTo(2L);
+        assertThat(stats.getApplicationWeekdayHourDetails().get(6).getHours().get(23)
+                .getTotalCount()).isEqualTo(2L);
+        assertThat(stats.getWeekdayChartMax()).isEqualTo(2L);
+        assertAllTotalCountsEqualResolved(stats);
+    }
+
     /* ---------------- 도우미 ---------------- */
+
+    /**
+     * 차트 계약 불변식: 요일·시간대·요일×시간대의 모든 막대는
+     * {@code totalCount == approvedCount + cancelledCount}(대기 제외)다.
+     */
+    private static void assertAllTotalCountsEqualResolved(FacilityStats stats) {
+        assertThat(stats.getApplicationWeekdayDetails()).allSatisfy(row -> {
+            assertThat(row.getTotalCount())
+                    .isEqualTo(row.getApprovedCount() + row.getCancelledCount());
+            assertThat(row.getTotalCount()).isNotNegative();
+        });
+        assertThat(stats.getApplicationHourDetails()).allSatisfy(row -> {
+            assertThat(row.getTotalCount())
+                    .isEqualTo(row.getApprovedCount() + row.getCancelledCount());
+            assertThat(row.getTotalCount()).isNotNegative();
+        });
+        assertThat(stats.getApplicationWeekdayHourDetails()).allSatisfy(day ->
+                assertThat(day.getHours()).allSatisfy(hour -> {
+                    assertThat(hour.getTotalCount())
+                            .isEqualTo(hour.getApprovedCount() + hour.getCancelledCount());
+                    assertThat(hour.getTotalCount()).isNotNegative();
+                }));
+    }
 
     private void stubOwnedFacility() {
         when(facilityMapper.existsFacilityManager(FACILITY_ID, USER_ID)).thenReturn(true);
@@ -537,12 +774,34 @@ class FacilityStatsServiceTest {
                 any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of(rows));
     }
 
+    private void stubApplicationStatuses(WeekdayHourApplicationStatusCount... rows) {
+        when(facilityStatsMapper.countApplicationStatusesByWeekdayAndHour(eq(USER_ID), eq(FACILITY_ID),
+                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of(rows));
+    }
+
+    private static WeekdayHourApplicationStatusCount applicationStatus(int dayOfWeek, int hour,
+            long approvedCount, long cancelledCount, long totalCount) {
+        WeekdayHourApplicationStatusCount row = new WeekdayHourApplicationStatusCount();
+        row.setWeekday(dayOfWeek);
+        row.setHour(hour);
+        row.setApprovedCount(approvedCount);
+        row.setCancelledCount(cancelledCount);
+        row.setTotalCount(totalCount);
+        return row;
+    }
+
     private static ApplicationCountSummary summary(long total, long individual, long club, long approved) {
+        return summary(total, individual, club, approved, 0);
+    }
+
+    private static ApplicationCountSummary summary(long total, long individual, long club, long approved,
+            long cancelled) {
         ApplicationCountSummary summary = new ApplicationCountSummary();
         summary.setTotal(total);
         summary.setIndividualCount(individual);
         summary.setClubCount(club);
         summary.setApprovedCount(approved);
+        summary.setCancelledCount(cancelled);
         return summary;
     }
 

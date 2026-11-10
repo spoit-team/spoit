@@ -812,6 +812,19 @@ for (const kept of ['facility-dashboard', 'facility-assets', 'facility-schedule'
     `admin.html: facility sidebar must keep ${kept}`);
 }
 
+/* ── 시스템 관리자 메뉴 계약 ──────────────────────────────────────────────
+   공지·FAQ·약관(CMS)과 감사 로그는 메뉴와 화면에서 제거했다. 되살아나면 없는
+   데이터를 약속하게 되므로 부재를 고정하고, 남은 메뉴가 온전한지 확인한다. */
+for (const removed of ['system-cms', 'system-audit', '공지·FAQ·약관', '감사 로그']) {
+  check(!(systemSidebar ?? '').includes(removed),
+    `admin.html: removed system menu entry must stay gone (${removed})`);
+}
+for (const kept of ['system-dashboard', 'system-errors', 'system-users',
+  'system-penalties', 'system-settings']) {
+  check((systemSidebar ?? '').includes(kept),
+    `admin.html: system sidebar must keep ${kept}`);
+}
+
 /* ── 제거된 시설 관리자 화면 계약 ──────────────────────────────────────────
    민원·요청과 점검·유지보수는 서버 모델·핸들러가 없어 화면만 존재했다. 화면과 진입점,
    모달·스크립트 연결이 다시 생기면 없는 동작을 약속하게 되므로 부재를 고정한다. */
@@ -825,6 +838,7 @@ for (const removed of ['id="facility-requests"', 'id="facility-maintenance"',
 check(!facilityScript.includes('maintenanceModal') && !facilityScript.includes('maintenance-modal')
   && !facilityScript.includes('data-open-maintenance') && !facilityScript.includes('data-close-maintenance'),
   'admin-facility.js: maintenance modal handlers must be removed with the screen');
+
 
 // 실제 시설·시스템 템플릿의 모든 .admin-view가 대체 포커스 표시 대상(제목)을 가져야 한다.
 for (const file of ['templates/admin/facility.html', 'templates/admin/system.html']) {
@@ -1155,10 +1169,131 @@ check(/id="system-penalties"/.test(systemSource)
   && /data-view-target="system-penalties"/.test(adminSource),
   'system.html: the penalty view and its sidebar entry must stay untouched');
 
-// 9) 제재 UI 부재: 이번 범위에서는 신고 접수·검토 상태만 다룬다.
-for (const removed of ['경고 발송', '이용 정지', '영구 정지', 'suspend', 'penalty']) {
-  check(!(facilityReportSource + systemReportSource).includes(removed),
-    `report screens: sanction controls must stay out of scope (${removed})`);
+/* ── 페널티 목록 페이지 계약 ────────────────────────────────────────────────
+   제재 이력은 20건씩 나뉜다. 페이지 링크는 GET 이동이며 q·status 필터를 유지하고,
+   첫 페이지엔 이전이, 마지막 페이지엔 다음이 없다. 다음 페이지는 서버가 계산한
+   penaltyPage.hasNextPenalties로만 열린다. */
+const penaltyPager = fragmentSlice(systemSource, 'id="system-penalties"', 'id="system-users"') ?? '';
+check(penaltyPager.includes('penaltyPage?.hasNextPenalties'),
+  'system.html: the penalty next-page link must be gated by penaltyPage.hasNextPenalties');
+check(/rel="prev" th:if="\$\{penaltyFilters\?\.page != null and penaltyFilters\.page > 0\}"/.test(penaltyPager),
+  'system.html: the penalty previous page must not render on page 1');
+check((penaltyPager.match(/rel="next"/g) ?? []).length === 1
+  && (penaltyPager.match(/rel="prev"/g) ?? []).length === 1,
+  'system.html: the penalty pager must have exactly one prev/next pair');
+for (const keep of ['q=${penaltyFilters?.q}', 'status=${penaltyFilters?.status}']) {
+  check(penaltyPager.includes(keep),
+    `system.html: penalty paging links must keep the current filters (${keep})`);
+}
+check(penaltyPager.includes('view=\'penalties\''),
+  'system.html: penalty paging must return to the penalties view');
+// 현재 페이지 표시는 28px .page-button에 맞는 숫자뿐이고, "N페이지" 정보는 aria-label로 읽어 준다.
+const penaltyCurrent = fragmentSlice(penaltyPager, 'aria-current="page"', '</span>') ?? '';
+check(penaltyCurrent.includes("th:text=\"${penaltyCurrentPage}\""),
+  'system.html: the penalty current page must render only the bare number inside the fixed-width .page-button');
+check(!penaltyCurrent.includes('페이지</span>'),
+  'system.html: the penalty current page must not render the N페이지 text that overflows .page-button');
+check(/th:attr="aria-label=\$\{'현재 ' \+ penaltyCurrentPage \+ '페이지'\}"/.test(penaltyCurrent),
+  'system.html: the penalty current page must expose the N페이지 wording through aria-label');
+// 조기 해제 후에도 같은 필터·페이지 목록으로 돌아온다.
+const penaltyReleaseForm = fragmentSlice(penaltyPager, 'penalties/{id}/release', '</form>') ?? '';
+for (const name of ['q', 'status', 'page']) {
+  check(new RegExp(`<input type="hidden" name="${name}" th:value="\\$\\{penaltyFilters\\?\\.(q|status|page)\\}"`)
+    .test(penaltyReleaseForm),
+    `system.html: the release form must return to the same penalty list (${name})`);
+}
+
+/* ── 오류 로그 기간·내보내기 계약 ──────────────────────────────────────────
+   오류 로그 지표는 검색 폼에서 고른 기간(24시간·7일) 기준이다. 모니터링의 '최근 오류'와
+   다른 범위임을 문구로 밝히고, CSV 내보내기는 화면과 같은 조건(q·severity·period)을
+   그대로 요청한다. */
+const errorSection = fragmentSlice(systemSource, '<section class="admin-view" id="system-errors"',
+  '<section class="admin-view" id="system-reports"') ?? '';
+check(!errorSection.includes('>최근 1시간 오류<'),
+  'system.html: the error metric card must not mislabel the selectable window as 최근 1시간');
+for (const window of ['최근 24시간 기준', '최근 7일 기준']) {
+  check(errorSection.includes(window),
+    `system.html: the error metrics must name the selected window (${window})`);
+}
+check(errorSection.includes('모니터링') && errorSection.includes('최근 1시간 동안 발생한 건수'),
+  'system.html: the retention note must distinguish this window from the monitoring 1-hour errors');
+check(/period\s*==\s*168 \? '최근 7일 기준' : '최근 24시간 기준'/.test(errorSection),
+  'system.html: the metric window label must follow the selected period value');
+const errorExport = anchorsOf(errorSection).find(tag => tag.includes('/admin/system/errors/export')) ?? '';
+for (const keep of ['q=${errorFilters?.q}', 'severity=${errorFilters?.severity}', 'period=${errorFilters?.period}']) {
+  check(errorExport.includes(keep),
+    `system.html: the error CSV link must carry the current filters (${keep})`);
+}
+
+/* ── 제거된 시스템 관리자 화면 계약 ────────────────────────────────────────
+   공지·FAQ·약관(CMS)과 감사 로그 화면·모델은 이번 범위에서 제거했다. 옛 해시로
+   들어온 사용자를 위해 앵커 자체는 남기되, 화면·모델 바인딩이 돌아오지 않게 고정한다. */
+for (const removed of ['data-view-title="공지·FAQ·약관"', 'data-view-title="감사 로그"',
+  'data-cms-tab', 'cmsNotices', 'cmsFaqs', 'cmsTerms', 'auditFilters', 'auditLogs',
+  'auditPagination', '@{/admin/system/audit/export}']) {
+  check(!systemSource.includes(removed),
+    `system.html: removed CMS/audit UI must stay gone (${removed})`);
+}
+// 옛 앵커는 남아 있다(해시 진입 시 admin-shell.js가 첫 화면으로 되돌린다).
+check(systemSource.includes('id="system-cms"') && systemSource.includes('id="system-audit"'),
+  'system.html: the removed view anchors must stay so old hashes still resolve');
+
+/* ── 시스템 사용자 관리·정지 모달 계약 ───────────────────────────────────── */
+const suspendModal = fragmentSlice(systemSource, 'id="suspend-modal"', '</section>');
+check(Boolean(suspendModal), 'system.html: the account suspension modal is missing');
+check(/role="dialog" aria-modal="true"[\s\S]{0,200}aria-labelledby="suspend-modal-title"/.test(suspendModal ?? ''),
+  'system.html: the suspension modal must be an accessible dialog labelled by its title');
+check((suspendModal ?? '').includes('data-close-suspend'),
+  'system.html: the suspension modal must offer an explicit close control');
+const suspendForm = namedForms.get('suspend-form');
+check(suspendForm?.attributes.method?.toLowerCase() === 'post',
+  'suspend-form: suspension must stay a POST form');
+check((suspendForm?.attributes['th:action'] ?? '') === '@{/admin/system/users/suspend}',
+  'suspend-form: suspension must start from the suspend route');
+for (const name of ['userId', 'durationDays', 'reason', 'q', 'role', 'status', 'page']) {
+  check(suspendForm?.inputs.some(input => input.name === name),
+    `suspend-form: missing binding ${name}`);
+}
+check(suspendForm?.inputs.some(input => input['th:name'] === '${_csrf.parameterName}'
+  && input['th:value'] === '${_csrf.token}'), 'suspend-form: missing CSRF binding');
+check(suspendForm?.inputs.some(input => input.name === 'page' && input['th:value'] === '${userPagination?.page}'),
+  'suspend-form: suspension must return to the page it was made from');
+for (const day of ['1', '3', '7', '14', '30']) {
+  check(systemSource.includes(`<option value="${day}">`),
+    `suspend-form: suspension must offer ${day} days`);
+}
+check(systemSource.includes('data-user-suspend'),
+  'system.html: the account row must open the suspension modal');
+check(!systemSource.includes('user-suspension-reason'),
+  'system.html: the inline suspension input must be replaced by the modal');
+const systemScript = await readFile(path.join(resources, 'static/js/admin-system.js'), 'utf8');
+check(systemScript.includes("'/admin/system/users/'")
+  && systemScript.includes("'/suspend'"),
+  'admin-system.js: the suspension modal must post the account ID as the path variable');
+// 오류 로그의 보관 범위는 사실대로 안내한다(메모리 최근 500건, 재시작 시 초기화).
+check(/최근 500건[^<]*보관/.test(systemSource) && /다시 시작[^<]*지워/.test(systemSource),
+  'system.html: the error log screen must state the in-memory 500-entry retention');
+
+// 사용자 CSV 내보내기도 화면의 검색 조건(q·role·status)을 그대로 반영한다.
+const userSection = fragmentSlice(systemSource, '<section class="admin-view" id="system-users"',
+  '<div id="system-cms"') ?? '';
+const userExport = anchorsOf(userSection).find(tag => tag.includes('/admin/system/users/export')) ?? '';
+for (const keep of ['q=${userFilters?.q}', 'role=${userFilters?.role}', 'status=${userFilters?.status}']) {
+  check(userExport.includes(keep),
+    `system.html: the user CSV link must carry the current filters (${keep})`);
+}
+
+// 9) 제재 UI 부재: 시설 신고 화면(접수 양식)에는 여전히 제재 조작이 없다.
+//    시스템 신고 접수함의 상세 모달에는 검토 후 페널티를 적용하는 별도 폼이 있다(아래 계약).
+for (const removed of ['경고 발송', '이용 정지', '영구 정지', 'suspend']) {
+  check(!facilityReportSource.includes(removed),
+    `report screens: sanction controls must stay out of the facility intake (${removed})`);
+}
+check(!systemReportSource.includes('suspend'),
+  'report screens: sanction controls must stay out of scope (suspend)');
+for (const removed of ['경고 발송', '이용 정지', '영구 정지']) {
+  check(!systemReportSource.includes(removed),
+    `report screens: legacy sanction labels must stay out of the inbox (${removed})`);
 }
 
 // 10) 반응형: 좁은 화면에서 입력 양식과 상세 2단이 한 열로 쌓여야 한다.
@@ -1168,6 +1303,75 @@ check(/@media \(max-width: 1080px\)[\s\S]*\.report-workbench,[\s\S]{0,80}\.repor
 check(/@media \(max-width: 720px\)[\s\S]*\.report-category-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/
   .test(reportStyles),
   'report-center.css: category choices must stack on small screens');
+
+/* ── 신고 상세 모달·페널티 계약 ────────────────────────────────────────────
+   접수함 상세는 페이지 아래 패널이 아니라 모달로 열린다. 모달은 접근성 속성을 갖추고,
+   닫기는 상태 필터와 페이지를 유지해 목록으로 돌아간다. 원문은 여전히 서버 렌더
+   th:text뿐이며, 목록 행에는 원문을 싣지 않는다. 페널티는 신고 대상 계정에만 적용하고
+   대상 사용자 정보를 클라이언트에서 보내지 않는다. */
+check(systemReportSource.includes('id="report-case"'),
+  'report-system.html: the selected report detail must render inside a modal');
+const reportModalSource = systemReportSource.slice(
+  systemReportSource.indexOf('id="report-case"'));
+check(/role="dialog" aria-modal="true"[\s\S]{0,200}aria-labelledby="report-case-title"/.test(reportModalSource),
+  'report-system.html: the report modal must be an accessible dialog labelled by its title');
+check(reportModalSource.includes('data-close-report'),
+  'report-system.html: the report modal must offer an explicit close control');
+check(reportModalSource.includes('hidden'),
+  'report-system.html: the report modal starts hidden and admin-report.js opens it');
+// 닫기는 상태·페이지를 유지해 목록으로 돌아간다(모달 data 속성 → 스크립트 복원).
+check(/th:attr="data-report-list-url=@\{\/admin\/system\/reports\},data-report-status=\$\{statusFilter\},data-report-page=\$\{reportPage != null \? reportPage : 0\}"/.test(reportModalSource),
+  'report-system.html: the modal must carry the server list url plus status filter and page for returning');
+const reportModalScript = reportScript;
+check(reportModalScript.includes('data-report-list-url'),
+  'admin-report.js: closing the modal must reuse the server-provided list url (context path safe)');
+check(reportModalScript.includes('data-report-status') && reportModalScript.includes('data-report-page'),
+  'admin-report.js: closing the modal must restore the status filter and page from the modal data attributes');
+check(reportModalScript.includes('PlayOnAdmin') && reportModalScript.includes('openModal'),
+  'admin-report.js: the modal must open through the shared admin shell');
+// 목록 행은 여전히 상세 보기 링크일 뿐, 원문·대상 정보를 DOM data로 싣지 않는다.
+check(!/report-table[\s\S]*data-report-(summary|detail|statement|target)/.test(systemReportSource),
+  'report-system.html: report rows must not carry report text in data attributes');
+
+// 페널티 폼: 신고 대상 계정에 경고·이용 제한을 적용한다. 대상 사용자 필드는 없다(서버가 reportId로 찾는다).
+const penaltyForm = namedForms.get('report-penalty-form');
+check(penaltyForm?.attributes.method?.toLowerCase() === 'post',
+  'report-penalty-form: penalty must be a POST form');
+check(penaltyForm?.attributes['th:action'] === '@{/admin/system/reports/{reportId}/penalty(reportId=${selectedReport.reportId})}',
+  'report-penalty-form: penalties must post to /admin/system/reports/{reportId}/penalty');
+for (const name of ['penaltyType', 'durationDays', 'reason']) {
+  check(penaltyForm?.inputs.some(input => input.name === name),
+    `report-penalty-form: missing binding ${name}`);
+}
+check(penaltyForm?.inputs.some(input => input['th:name'] === '${_csrf.parameterName}'
+  && input['th:value'] === '${_csrf.token}'), 'report-penalty-form: missing CSRF binding');
+// status·page를 보존해 처리 뒤 같은 목록으로 돌아온다.
+check(penaltyForm?.inputs.some(input => input.name === 'status' && input['th:value'] === '${statusFilter}'),
+  'report-penalty-form: penalties must carry the status filter');
+check(penaltyForm?.inputs.some(input => input.name === 'page' && input['th:value'] === '${reportPage != null ? reportPage : 0}'),
+  'report-penalty-form: penalties must carry the page');
+check(penaltyForm?.inputs.some(input => input.name === 'expectedStatus' && input['th:value'] === '${selectedReport.status}'),
+  'report-penalty-form: penalties must echo the status the screen was rendered from');
+// penaltyType은 경고·이용 제한 두 값뿐이고, durationDays는 1/3/7/14/30이다.
+for (const value of ['경고', '이용 제한']) {
+  check(new RegExp(`name="penaltyType"[^>]*>\\s*<option value="${value}"`).test(systemReportSource)
+    || systemReportSource.includes(`<option value="${value}">`),
+    `report-penalty-form: penaltyType must offer ${value}`);
+}
+for (const day of ['1', '3', '7', '14', '30']) {
+  check(new RegExp(`<option value="${day}"[ >]`).test(systemReportSource),
+    `report-penalty-form: durationDays must offer ${day} days`);
+}
+// 사유는 필수이고, 대상 사용자 입력은 클라이언트로 보내지 않는다.
+const penaltyFormMarkup = systemReportSource.slice(
+  systemReportSource.indexOf('report-penalty-form'));
+check(penaltyFormMarkup.includes('name="reason"')
+  && /name="reason"[^>]*required/.test(penaltyFormMarkup.slice(0, penaltyFormMarkup.indexOf('</form>'))),
+  'report-penalty-form: the reason must be required');
+check(!/name="targetUserId"/.test(penaltyFormMarkup),
+  'report-penalty-form: the target user must not be sent from the client');
+check(!/th:utext/.test(reportModalSource),
+  'report-system.html: the report modal must never render report text with th:utext');
 
 /* ── 신고 목록 페이지 계약 ─────────────────────────────────────────────────
    신고·경기 선택지는 200건 고정 절단 대신 0-based 페이지로 나눕니다.

@@ -1,8 +1,57 @@
-/* 신고 접수함(시스템 관리자)의 처리 양식 보강만 담당합니다.
-   신고 원문은 서버가 렌더링한 텍스트를 그대로 두고, 이 스크립트는 검증과 중복 제출 방지만 합니다.
-   처리 결과와 상태 판정은 서버가 하며, 사유가 필요한 동작(처리 완료·기각)은 전송 전에 한 번 더 확인합니다. */
+/* 신고 접수함(시스템 관리자)의 상세 모달과 처리 양식 보강을 담당합니다.
+   신고 원문은 서버가 렌더링한 텍스트를 그대로 두고, 이 스크립트는 모달 열기·닫기와
+   검증·중복 제출 방지만 합니다. 처리 결과와 상태 판정은 서버가 하며, 사유가 필요한
+   동작(처리 완료·기각)은 전송 전에 한 번 더 확인합니다. */
 (function (global) {
   'use strict';
+
+  const admin = global.PlayOnAdmin;
+  const modal = document.getElementById('report-case');
+
+  /* 상세 모달을 닫으면 목록으로 돌아갑니다. 이동 주소는 서버가 모달에 싣은
+     data-report-list-url(context path 포함)로 정하며, 속성이 없을 때만 root-relative
+     기본 주소를 씁니다. 상태 필터와 페이지는 함께 복원하고, 신고 원문은 전송 대상에
+     포함하지 않습니다. */
+  function closeToList() {
+    const params = new URLSearchParams();
+    const status = modal?.getAttribute('data-report-status') || '';
+    const page = modal?.getAttribute('data-report-page') || '';
+    if (status) params.set('status', status);
+    if (page && page !== '0') params.set('page', page);
+    const query = params.toString();
+    const listUrl = modal?.getAttribute('data-report-list-url') || '/admin/system/reports';
+    global.location.href = listUrl + (query ? '?' + query : '') + '#report-ledger';
+  }
+
+  if (modal && modal.querySelector('section')) {
+    admin?.openModal(modal, '.modal-close');
+
+    modal.addEventListener('click', function (event) {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+      if (target.closest('[data-close-report]') || target === modal) closeToList();
+    });
+
+    // 알림 모달(관리자 공통)이 열려 있으면 그쪽이 먼저 닫혀야 하므로, 이 모달의
+    // Escape·Tab 처리를 건너뜁니다. admin-shell.js는 전파를 막지 않습니다.
+    function otherModalOpen() {
+      const notification = document.getElementById('admin-notification-modal');
+      return Boolean(notification && !notification.hidden);
+    }
+
+    document.addEventListener('keydown', function (event) {
+      if (modal.hidden || otherModalOpen()) return;
+      if (event.key === 'Escape') closeToList();
+      else if (event.key === 'Tab') admin?.trapFocus(modal, event);
+    });
+
+    // 처리·페널티 전송 뒤에는 서버 flash가 모달 뒤에 렌더됩니다. 닫으면 사라지므로
+    // 열리는 시점에 토스트로 한 번 보여 결과를 놓치지 않게 합니다.
+    const flash = document.querySelector('.admin-flash');
+    if (flash?.textContent?.trim()) {
+      admin?.toast(flash.textContent.trim(), flash.classList.contains('is-error'));
+    }
+  }
 
   const form = document.getElementById('report-decision-form');
   if (!form) return;

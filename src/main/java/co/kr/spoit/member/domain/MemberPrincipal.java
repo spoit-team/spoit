@@ -141,4 +141,28 @@ public class MemberPrincipal implements UserDetails, CredentialsContainer {
     public void eraseCredentials() {
         this.passwordHash = null;
     }
+
+    /**
+     * 회원 번호가 같으면 같은 주체로 본다.
+     *
+     * <p>세션 추적({@code SessionRegistry})이 주체를 키로 세션을 묶으므로, 역할 변경·닉네임 수정 등
+     * 다른 필드가 달라도 같은 회원의 세션이 하나로 모여야 한다. 로그인 시점과 이후 시점의 스냅샷이
+     * 서로 다른 인스턴스여도 같은 회원으로 식별되게 하려는 의도다.</p>
+     */
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof MemberPrincipal principal)) {
+            return false;
+        }
+        return userId != null && userId.equals(principal.userId);
+    }
+
+    /** {@link #equals(Object)}와 같은 기준(회원 번호)을 쓴다. */
+    @Override
+    public int hashCode() {
+        return userId == null ? 0 : userId.hashCode();
+    }
 }

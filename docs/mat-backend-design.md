@@ -1,6 +1,8 @@
 # MAT 백엔드 설계와 MySQL Mapper 통합 테스트
 
-> **읽는 법:** 1·5·7·9절은 PR #17 시점의 초기 조회 골격과 Mapper 테스트 기록이며, 범위와 검증 결과는 당시 기준이다. 2~4·6·8·10~13절은 현재 develop 코드 기준이고, 근거가 되는 클래스·메서드 이름을 함께 적는다.
+> **읽는 법:** 이 문서는 작성 당시 기록과 현재 코드 기준을 구분해 읽어야 한다. 1·5·7·9절은 PR #17(`1b205c1`) 시점의 초기 조회 골격과 Mapper 테스트 기록이며, 범위와 검증 결과는 그때 기준이다(7절 항목 뒤에 따로 붙인 "현재 코드와의 차이" 주석만 현재 기준이다). 2~4·6·10~13절은 현재 작업 트리(`feat/facility-reservation-stats`, HEAD `320128a`)의 코드를 기준으로 서술하고 근거가 되는 클래스·메서드 이름을 함께 적는다. 8절은 시점별 추가 구현 기록을 누적한 절이고, 14절은 2026-10-28 이후 특정 작성자 커밋을 분석한 기록이라, 두 절은 항목에 적힌 날짜·커밋을 기준으로 읽어야 한다.
+>
+> 여기서 "현재"는 원격 `develop`이 아니다. 이 작업 트리는 `origin/develop`(`5a19a38`, 2026-11-10)보다 5개 커밋 앞서 있고(`c41aefe`·`d61a472`·`57e1f6a`·`91a481e`·`320128a`), 그중 시설 예약 통계·이용자 신고(`facility` 통계, `report` 패키지) 코드는 `origin/develop`에 아직 없다. 로컬 `develop` 브랜치는 `b953650`(2026-11-03)로 더 오래됐다. 따라서 절별 서술의 "현재"는 별도 표기가 없으면 이 작업 트리를 뜻하고, `origin/develop`과 같은지 여부는 절마다 근거 커밋으로 확인해야 한다.
 >
 > 현재 MAT에는 팀 배정·경기 시작 처리, 결과 제출·확정, 팀장 평가, Elo·평가 보정 반영과 제외, 결과 마감·종료 스케줄러가 있다. 결과 화면과 알림(#89, #94), 마이페이지 레이팅 표시(#92, #97), 매치 운영 상세의 레이팅 제외 버튼(#99)도 연결되어 있다.
 
@@ -133,7 +135,7 @@ Fixture는 `src/test/resources/mat/mapper-fixture.sql`에 있다. FK를 만족�
 
 ### 연결 차단 조건과 DB 격리
 
-테스트는 `MAT_TEST_DB_URL`, `MAT_TEST_DB_USERNAME`, `MAT_TEST_DB_PASSWORD` 세 환경변수가 모두 있어야 시작한다. 누락하면 개발 DB 설정으로 대체하지 않고 실패한다. URL은 `jdbc:mysql://localhost:포트/spoit_mat_test` 또는 `jdbc:mysql://127.0.0.1:포트/spoit_mat_test`만 허용한다. 포트는 1~65535이며 사용자 지정 쿼리, 사용자 정보, 다중 호스트는 허용하지 않는다. 필요한 JDBC 옵션은 검증 후 고정값으로 추가한다. 오류에는 입력한 URL·비밀번호를 출력하지 않는다.
+테스트는 `MAT_TEST_DB_URL`, `MAT_TEST_DB_USERNAME`, `MAT_TEST_DB_PASSWORD` 세 환경변수가 모두 있어야 시작하며, 누락하면 개발 DB 설정으로 대체하지 않는다는 것이 이 절의 설계 계약이다. 실제 실행 동작은 그 뒤에 추가된 조건부 실행 규칙 때문에 다르다(아래 실행 방법의 "현재 코드와의 차이" 참고). URL은 `jdbc:mysql://localhost:포트/spoit_mat_test` 또는 `jdbc:mysql://127.0.0.1:포트/spoit_mat_test`만 허용한다. 포트는 1~65535이며 사용자 지정 쿼리, 사용자 정보, 다중 호스트는 허용하지 않는다. 필요한 JDBC 옵션은 검증 후 고정값으로 추가한다. 오류에는 입력한 URL·비밀번호를 출력하지 않는다.
 
 `spring.config.import`를 비우고 SQL 자동 초기화를 끈다. 검증한 연결 값과 JDBC 드라이버는 `@DynamicPropertySource`로 지정한다. `@BeforeTransaction`에서 `SELECT DATABASE()`가 `spoit_mat_test`인지 확인하므로 다른 DB에서는 fixture를 실행하지 않는다. 테스트 자체가 `db/schema.sql`을 실행하거나 기존 DB를 초기화하지 않는다.
 
@@ -157,7 +159,9 @@ MySQL이 기본 설치 경로와 다른 곳에 있다면 `-MySqlBin '<MySQL bin 
 & ./scripts/test-mat-mysql.ps1 -JavaHome '<JDK17 경로>' -GradleArgs @('test', '--tests', 'co.kr.spoit.mat.mapper.*', '--no-daemon', '--console=plain')
 ```
 
-일반 `gradlew test`만 실행하면 새 통합 테스트에 필요한 전용 환경변수가 없으므로 실패한다. 로컬에서는 위 스크립트로 준비와 실행을 함께 수행한다.
+당시 기록으로는 일반 `gradlew test`만 실행하면 새 통합 테스트에 필요한 전용 환경변수가 없으므로 실패했다. 로컬에서는 위 스크립트로 준비와 실행을 함께 수행했다.
+
+**현재 코드와의 차이:** 위 문단은 `8783062`가 테스트를 처음 추가한 당시 기록이고, 지금은 다르다. `AbstractMySqlMapperTest`는 여전히 `MAT_TEST_DB_URL`·`MAT_TEST_DB_USERNAME`·`MAT_TEST_DB_PASSWORD`가 없으면 `IllegalStateException`으로 시작을 거부하지만, 상속 클래스들이 클래스 수준 `@EnabledIfEnvironmentVariable(named = "MAT_TEST_DB_URL", matches = ".+")`를 붙여 두어 `MAT_TEST_DB_URL`이 없으면 JUnit이 조건 불충족으로 해당 테스트 클래스를 실행하지 않고 건너뛴다(`src/test/java/co/kr/spoit/mat/mapper/*IntegrationTest.java`). 판정 기준이 URL 하나이므로, URL만 있고 `MAT_TEST_DB_USERNAME`·`MAT_TEST_DB_PASSWORD`가 없으면 조건을 통과해 `AbstractMySqlMapperTest`의 `IllegalStateException`으로 실패한다. 같은 방식이 `facility`·`match`·`web`·`report` 패키지의 MySQL 통합 테스트에도 적용돼 있다(예: `FacilityStatsMapperIntegrationTest`, `ApplyLockOrderConcurrencyIntegrationTest`, `RoomManagementRouteIntegrationTest`, `ReportFlowIntegrationTest`). 반면 `MySqlTestConnectionValidationTest`처럼 DB에 붙지 않고 URL 검증 규칙만 보는 테스트는 이 조건이 없어 항상 실행된다. 그래서 전용 환경변수가 전혀 없는 일반 `gradlew test`에서는 해당 통합 테스트가 실행되지 않으며, 다른 테스트의 성공 여부와 관계없이 그 실행만으로 실제 SQL 검증이 통과했다고 볼 수 없다. DB 계약까지 확인하려면 위 스크립트처럼 전용 임시 DB를 준비해야 한다.
 
 CI는 기존 MySQL 8.4.11 서비스의 DB명을 `spoit_mat_test`로 바꾸고 `MAT_TEST_DB_*`를 제공한다. 기존 전체 컨텍스트 테스트의 `SPRING_DATASOURCE_*`와 스키마 적용 대상도 같은 임시 DB를 사용하며 `./gradlew build`에서 새 테스트를 함께 실행한다.
 
@@ -189,7 +193,7 @@ GitHub Actions는 설정만 변경했고 원격 실행은 하지 않았다. CI�
 - `MatchStartScheduler`는 서울 시간 기준 매분 시작 시각이 지난 모집 중 경기를 찾아 `TeamAssignmentService.startMatch`를 호출한다. 경기별 트랜잭션으로 자동 배정하거나, 이미 종료됐거나 참가 인원/정원이 맞지 않으면 취소한다. 한 경기 처리 실패가 다음 경기를 막지 않는다.
 - 스케줄러 설정은 `spoit.match-start-scheduler.enabled`이며 `matchIfMissing=true`로 기본 활성화된다. 로컬 데이터에 대한 자동 변경을 원하지 않으면 실행 설정에서 `false`로 끌 수 있다. 테스트에서는 Gradle 설정으로 스케줄링을 비활성화한다.
 - 배정 API는 2026-11-02에 관리자 HTML 화면과 연결됐다. `admin/operations.html`의 `#ops-assignment`가 `data-assignment-url`로 `/admin/operations/matches/{matchId}`를 넘기고, `match-assignment.js`가 같은 경로의 `mat` API(`TeamAssignmentController`)로 배정 조회·수동 확정·자동 배정·되돌리기를 호출한다. 초기 문서의 “팀 배정 미구현” 서술은 당시 상태 기록으로 읽어야 한다.
-- 2026-10-30 재base 검증 기록: `fix/optimeze`의 `b169040`에서 격리 MySQL을 사용한 `gradlew build`가 성공했고 516개 테스트가 통과했다. 이는 최적화 테스트 변경도 포함한 검증 결과이며, 개발 DB는 사용하지 않았다.
+- 2026-10-30 통합 검증 기록: `fix/optimeze` 브랜치의 `b169040`에서 격리 MySQL을 사용한 `gradlew build`가 성공했고 516개 테스트가 통과했다. 이는 최적화 테스트 변경도 포함한 그 브랜치 시점의 결과이며, 개발 DB는 사용하지 않았다. `b169040`은 현재 작업 트리와 `origin/develop` 어디에도 포함되지 않으므로(`fix/optimeze`에만 있음) 이 수치를 현재 코드의 검증 결과로 인용하지 않는다. 이 커밋과 이후 이력의 리베이스 관계는 확인하지 않았으므로 단정하지 않는다.
 
 ### 2026-11-02 추가 구현 상태
 
@@ -203,7 +207,15 @@ GitHub Actions는 설정만 변경했고 원격 실행은 하지 않았다. CI�
 - 참가 신청 승인·반려 API가 추가됐다(`ce842cc`). `MatchApplicationDecisionController`가 `/admin/operations/**`의 `ROLE_FACILITY_MANAGER` 규칙 아래에서 `POST /admin/operations/applications/{applicationId}/confirm`·`/reject`를 노출하고, `MatchApplicationService.confirm`·`reject`에 위임한다. 서비스는 신청 row와 담당 시설 여부(`countManagedApplication`)를 확인하고 매칭방을 잠근 뒤 모집 중·시작 전 조건을 재검증한다. 승인은 `markConfirmed`로 신청을 확정하고 `insertParticipant`로 참가자 행을 만들며 확정 알림(MATCH_APPLICATION_CONFIRMED)을 커밋 후 보내고, 반려는 `markRejected`로 참가자 행 없이 반려 처리한다. `MatchApplicationMapper`에는 `markConfirmed`·`markRejected`·`countManagedApplication`이 추가됐다.
 - 운영 화면에 승인·반려 UI가 연결됐다(`1596b50`). `admin/operations.html`의 `#ops-applications`가 `data-decision-url`로 API 기본 경로를 넘기고 `match-application-decision.js`가 승인·반려를 fetch + CSRF 헤더로 호출하며 성공 시 페이지를 새로 고친다. `RoomManagementService.findDetail`은 모집 중이고 시작 전인 경기의 대기 신청에 `decidable`을 표시하며, `RoomManagementMapper.xml`의 집계도 대기 신청과 확정 참가자를 같은 기준으로 센다.
 - 프런트엔드 계약 검사를 승인·반려 API에 맞춰 갱신했다. `src/test/frontend/check-contracts.mjs`가 라우트·폼·마크업 계약을 검증한다.
-- 시설 통계 집계와 조회 화면이 구현됐다(`353dce6`). `FacilityAdminController`는 `view=stats`일 때 `FacilityStatsService.load`를 호출하며 기존 `stats` null 하드코딩을 대체했다. `FacilityStatsService`(신규)는 `existsFacilityManager`로 담당 시설을 선검사한 뒤 `FacilityStatsMapper`(신규 XML)의 5개 쿼리(매칭방 수·참가 인원·신청 수·요일별 방 수·시간대별 방 수)로 집계한다. 모든 쿼리는 `social_match → facility(deleted_at IS NULL) → facility_manager(fm.user_id = 인증 주체)` 조인으로 담당 범위를 SQL 레벨에서도 재제한한다. 기간은 매칭방 `start_at` 기준이며 `status <> '취소'`만 세고, 7/30/90일 또는 직접 입력 기간(시작일 00:00:00~종료일 23:59:59)으로 정규화한다. 신청 수는 대표 행만(`group_application_id IS NULL OR = application_id`) 세고 개인·동호회·확정 건수를 함께 돌려준다. 화면(`admin/facility.html` stats 섹션)은 지표 카드 5개와 요일별·시간대별 CSS 막대 차트(최대값 대비 상대 %)로 표시하고, `POST /admin/facility/stats`는 조건을 쿼리로 되돌리는 PRG 리다이렉트다. `admin-facility.js`는 기간 select와 date 입력을 동기화하고 시설 미선택 제출을 막는다.
+- 시설 예약 통계 집계와 조회 화면이 구현됐다. 현재 작업 트리 기준 구현 커밋은 `c41aefe`(집계·화면) → `d61a472`(지표를 참가 인원 기준으로 전환, 요일×시각 히트맵 추가) → `57e1f6a`(쿼리 4개로 통합, 계산을 서비스로 이동)이다. 이전 판의 이 항목은 `353dce6`을 근거로 "5개 쿼리·`status <> '취소'`·요일별 방 수"라고 적었는데, 그 서술은 `353dce6`의 실제 내용(select 5개, `status <> '취소'`, 요일별·시간대별 방 수)과는 맞지만 현재 코드와는 다르다. 이 작업 트리에서 `353dce6`은 어떤 브랜치에서도 도달할 수 없고 `c41aefe`의 조상도 아니므로, 그 커밋이 현재 코드의 리베이스 전 버전이라거나 `c41aefe`가 `353dce6`을 리베이스한 결과라고 단정할 근거는 없다(작성자·커밋 시각이 같다는 사실만으로는 부족하다). 현재 코드는 `c41aefe` 계열이고, 이 항목은 그 계열의 실제 코드로 다시 적었다.
+  - 호출 경로: `FacilityAdminController`가 `view=stats`일 때 `facilityStatsService.load(userId, facilityId, period, periodFrom, periodTo)`를 호출해 `stats` 모델을 채운다(시설 미선택 판정은 서비스가 한다). 다른 view는 사이드바 해시 전환이라 `stats`를 `null`로 둔다. 별도로 `statsView && facilityId != null`이면 담당 시설 목록에서 찾은 항목을 `selectedFacility`로 덮어써 드롭다운 선택을 복원한다. 이전의 `stats` null 하드코딩은 이 경로로 대체됐다.
+  - 담당 범위 선검사: `FacilityStatsService.load`는 `FacilityMapper.existsFacilityManager(facilityId, managerUserId)`로 담당 여부를 먼저 확인하고, 미담당·시설 미선택·잘못된 식별자면 매퍼를 호출하지 않고 0건 통계를 돌려준다(이 선검사는 `FacilityStatsMapper`가 아니라 `FacilityMapper`를 쓴다). 매퍼 쪽도 모든 문장이 `social_match → facility(deleted_at IS NULL) → facility_manager(fm.user_id = 인증 주체)` 조인(공통 `<sql id="managedMatchFrom">`)으로 담당 범위를 SQL 레벨에서 다시 제한한다.
+  - 쿼리 수: `FacilityStatsMapper.xml`의 select는 **4개**다. `countFinishedMatches`(종료 매칭방 수), `countConfirmedParticipants`(확정 참가자 행 수), `countApplications`(대표 신청 행 총계·개인·동호회·확정), `countParticipantsByWeekdayAndHour`(요일×시작 시각별 확정 참가 인원)뿐이며, 요일별 합계와 시간대별 합계는 이 마지막 집계 결과에서 서비스가 파생한다(`sumByWeekday`, `sumByHour`).
+  - 집계 대상 상태: `WHERE sm.status = '종료'`다. 취소만 빼는 것이 아니라 **모집 중·매칭 완료·취소가 모두 빠지고 종료된 경기만** 남는다. 인원 지표는 `match_participant.participation_status = '확정'` 행만 세므로 대기·취소·반려 참가자는 제외되고, 같은 사람이 두 경기에 참여하면 두 번 집계되며 노쇼는 구분하지 못한다.
+  - 기간: 범위는 매칭방 `start_at` 기준 `[startAt, endAt]` 양끝 포함이다. 서비스가 `7`/`30`/`90`을 오늘 포함 과거 N일로, `custom`을 입력한 from~to로 정규화하고 경계는 시작일 00:00:00부터 종료일 23:59:59까지다. 알 수 없는 값·누락·역전·파싱 실패는 기본 30일로 되돌린다.
+  - 신청 수: `group_application_id IS NULL OR group_application_id = application_id`로 대표 행만 세고, 개인·동호회·확정 건수와 승인율(확정/총계, 반올림 정수 %)을 함께 돌려준다.
+  - 화면(`admin/facility.html`의 `#facility-stats`): 지표 카드 5개(완료된 매칭방 수·확정 참가 인원·가장 인기 있는 요일·신청 수·승인율)와 요일별 7행(월~일)·시간대별 24행(00~23시) 막대 목록, 그리고 **요일×시작 시각 히트맵**(7행 × 24칸 `<table id="facility-stat-heatmap">`)을 그린다. 막대 길이와 `share`(%)는 최대값 대비 상대값이 아니라 **전체 확정 참가 인원 대비 비중**이고, 히트맵 배경색은 0명이면 색이 없고, 1–2명·3–5명·6–9명·10명 이상은 `data-heat-level` 1~4로 구분한다. 요일·시간대 지표도 방 수가 아니라 확정 참가 인원이다.
+  - 조회 방식: `POST /admin/facility/stats`가 조건을 쿼리로 되돌리는 PRG 리다이렉트이며(`searchStats`), `admin-facility.js`가 기간 select와 date 입력을 동기화하고(`syncStatsPeriod`, 직접 입력일 때만 날짜 입력 활성) 시설 미선택 제출을 토스트로 막는다.
 
 ## 9. 이번 변경 파일과 이유 (초기 조회 골격 작업)
 

@@ -17,6 +17,7 @@ public class ReportRow {
 
     private Long reportId;
     private Long matchId;
+    private Long targetUserId;
     private String facilityName;
     private String matchTitle;
     private String targetName;

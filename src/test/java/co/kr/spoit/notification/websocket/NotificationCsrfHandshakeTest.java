@@ -15,6 +15,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.DefaultCsrfToken;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
@@ -45,11 +46,18 @@ class NotificationCsrfHandshakeTest {
     private MockHttpSession session;
     private String origin;
 
+    /**
+     * 핸드셰이크가 계정 상태를 다시 확인할 때 쓰는 사용자 조회. 인증 픽스처와 같은 활성
+     * {@link MemberPrincipal}을 돌려줘 정상 연결이 계속 통과하게 한다.
+     */
+    private final MemberPrincipal activePrincipal = MemberPrincipalFixture.member();
+    private final UserDetailsService userDetailsService = username -> activePrincipal;
+
     @BeforeEach
     void setUp() {
         // SecurityConfig 가 등록하는 것과 같은 저장소 구현이다.
         repository = new HttpSessionCsrfTokenRepository();
-        handshakeInterceptor = new NotificationHandshakeInterceptor(repository);
+        handshakeInterceptor = new NotificationHandshakeInterceptor(repository, userDetailsService);
         inboundInterceptor = new NotificationInboundInterceptor();
         session = new MockHttpSession();
         origin = "0f8a1c3e-5b7d-4a92-9c1e-2d3f4a5b6c7d";

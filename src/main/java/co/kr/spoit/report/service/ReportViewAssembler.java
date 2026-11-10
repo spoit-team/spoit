@@ -23,9 +23,9 @@ final class ReportViewAssembler {
     }
 
     static ReportDetail toDetail(ReportRow row) {
-        return new ReportDetail(row.getReportId(), row.getMatchId(), row.getFacilityName(),
-                row.getMatchTitle(), row.getTargetName(), row.getReporterName(), row.getCategory(),
-                row.getStatus(), ReportDetail.formatCreatedAt(row.getCreatedAt()), row.getSummary(),
-                row.getResolution());
+        return new ReportDetail(row.getReportId(), row.getMatchId(), row.getTargetUserId(),
+                row.getFacilityName(), row.getMatchTitle(), row.getTargetName(), row.getReporterName(),
+                row.getCategory(), row.getStatus(), ReportDetail.formatCreatedAt(row.getCreatedAt()),
+                row.getSummary(), row.getResolution());
     }
 }

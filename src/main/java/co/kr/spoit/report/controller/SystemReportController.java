@@ -13,6 +13,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import co.kr.spoit.admin.common.AdminShellModel;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.report.dto.SystemReportPage;
+import co.kr.spoit.report.service.PenaltyService;
 import co.kr.spoit.report.service.ReportAccessDeniedException;
 import co.kr.spoit.report.service.ReportNotFoundException;
 import co.kr.spoit.report.service.ReportStateConflictException;
@@ -81,6 +82,43 @@ public class SystemReportController {
             // 상태 경합·입력 오류는 화면 안내로 되돌린다.
             redirect.addFlashAttribute("error", exception.getMessage());
         }
+        return redirectTo(reportId, status, page);
+    }
+
+    /**
+     * 신고 상세 모달에서 제재(경고·이용 제한)를 적용하고 처리 완료로 마무리한다.
+     *
+     * <p>대상 회원 번호는 화면 값이 아니라 서비스가 신고 행에서 확인한다. 제재 종류·기간·사유는
+     * {@code penaltyType}·{@code durationDays}·{@code reason}으로 받고, 검증 실패는 flash 오류로
+     * 되돌린다. 성공해도 같은 필터·페이지·선택으로 PRG 복귀한다.</p>
+     */
+    @PostMapping("/admin/system/reports/{reportId}/penalty")
+    public String applyPenalty(@PathVariable("reportId") long reportId,
+            @AuthenticationPrincipal MemberPrincipal principal,
+            @RequestParam(name = "penaltyType", required = false) String penaltyType,
+            @RequestParam(name = "durationDays", required = false) Integer durationDays,
+            @RequestParam(name = "reason", required = false) String reason,
+            @RequestParam(name = "expectedStatus", required = false) String expectedStatus,
+            @RequestParam(name = "resolution", required = false) String resolution,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "page", required = false) String page,
+            RedirectAttributes redirect) {
+        if (principal == null) {
+            return REDIRECT_LOGIN;
+        }
+        try {
+            systemReportService.applyPenalty(reportId, penaltyType, durationDays, reason, expectedStatus,
+                    resolution, principal.getUserId());
+            redirect.addFlashAttribute("message", penaltyMessageFor(penaltyType));
+        } catch (IllegalArgumentException | ReportAccessDeniedException | ReportStateConflictException
+                | ReportNotFoundException exception) {
+            // 검증·상태 경합은 모달 밖 flash로 안내하고 목록을 다시 그린다.
+            redirect.addFlashAttribute("error", exception.getMessage());
+        }
+        return redirectTo(reportId, status, page);
+    }
+
+    private static String redirectTo(long reportId, String status, String page) {
         UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/admin/system/reports");
         if (status != null && !status.isBlank()) {
             builder.queryParam("status", status.strip());
@@ -91,6 +129,13 @@ public class SystemReportController {
         }
         builder.queryParam("reportId", reportId);
         return "redirect:" + builder.build().encode().toUriString() + "#report-case";
+    }
+
+    private static String penaltyMessageFor(String penaltyType) {
+        if (PenaltyService.TYPE_RESTRICTION.equals(penaltyType)) {
+            return "이용 제한을 적용하고 신고를 처리 완료로 마무리했습니다.";
+        }
+        return "경고를 부여하고 신고를 처리 완료로 마무리했습니다.";
     }
 
     private static String messageFor(String action) {
