@@ -148,6 +148,25 @@ SELECT
   - `seoul`: 서울특별시(`region_id` 1)가 없음
   - `unique_districts`: 서울특별시 아래 이름이 같은 구가 두 번 있음
   - `region_ids_free`: 새 구에 쓸 번호(6·7·10·11·12·13·14·17·19·21·22·24·27·29)를 다른 이름의 지역이 쓰고 있음
+    - `region_ids_free`가 `0`이고 `SELECT region_id, name FROM region WHERE region_id >= 29`에 "탈퇴검증 …" 지역이 보이면 `db/withdrawal-scenarios.sql`이 만든 테스트 지역입니다. 아래 SQL로 이 지역을 비어 있는 번호로 옮긴 뒤 마이그레이션을 다시 실행하세요. 외래 키 검사를 끄지 않고 새 번호 행을 만들어 참조를 옮긴 다음 옛 행을 지웁니다. 탈퇴 테스트 지역이 없으면 아무것도 바꾸지 않습니다.
+      ```sql
+      SET NAMES utf8mb4;
+      START TRANSACTION;
+      SET @wd_p = NULL, @wd_m = NULL, @wd_s = NULL;
+      SELECT MAX(region_id) INTO @wd_p FROM region WHERE parent_region_id IS NULL AND name = '탈퇴검증 광역시';
+      SELECT MAX(region_id) INTO @wd_m FROM region WHERE parent_region_id = @wd_p AND name = '탈퇴검증 중구';
+      SELECT MAX(region_id) INTO @wd_s FROM region WHERE parent_region_id = @wd_p AND name = '탈퇴검증 남구';
+      SELECT GREATEST(MAX(region_id), 29) INTO @wd_base FROM region;
+      INSERT INTO region (region_id, parent_region_id, name) SELECT @wd_base + 1, NULL, '탈퇴검증 광역시' FROM DUAL WHERE @wd_p IS NOT NULL;
+      INSERT INTO region (region_id, parent_region_id, name) SELECT @wd_base + 2, @wd_base + 1, '탈퇴검증 중구' FROM DUAL WHERE @wd_m IS NOT NULL;
+      INSERT INTO region (region_id, parent_region_id, name) SELECT @wd_base + 3, @wd_base + 1, '탈퇴검증 남구' FROM DUAL WHERE @wd_s IS NOT NULL;
+      UPDATE user_region SET region_id = CASE region_id WHEN @wd_p THEN @wd_base + 1 WHEN @wd_m THEN @wd_base + 2 ELSE @wd_base + 3 END WHERE region_id IN (@wd_p, @wd_m, @wd_s);
+      UPDATE facility SET region_id = CASE region_id WHEN @wd_p THEN @wd_base + 1 WHEN @wd_m THEN @wd_base + 2 ELSE @wd_base + 3 END WHERE region_id IN (@wd_p, @wd_m, @wd_s);
+      UPDATE club_region SET region_id = CASE region_id WHEN @wd_p THEN @wd_base + 1 WHEN @wd_m THEN @wd_base + 2 ELSE @wd_base + 3 END WHERE region_id IN (@wd_p, @wd_m, @wd_s);
+      DELETE FROM region WHERE region_id IN (@wd_m, @wd_s);
+      DELETE FROM region WHERE region_id = @wd_p;
+      COMMIT;
+      ```
 - **`skipped`에 장소가 나오면**: 이름과 구가 같은 다른 시설이 이미 있어 그 장소만 건너뛴 것입니다. 기존 시설은 바꾸지 않았으니 같은 시설인지 확인해 팀과 처리하세요.
 - **파일을 다시 만들 때**: 원본 JSON을 `out/public-facilities.json`에 두고 저장소 루트에서 `pwsh -File scripts/public-facility-import.ps1`을 실행합니다. 이름·운영 시간 수정 목록은 스크립트 안에 있습니다. 검수용 `out/public-facilities-review.csv`도 함께 만들어지며, 원본과 CSV는 커밋하지 않습니다(`out/`은 git 무시 대상).
 
