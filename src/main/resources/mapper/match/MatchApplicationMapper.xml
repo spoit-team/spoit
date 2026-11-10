@@ -144,7 +144,7 @@
 
     <sql id="applicationColumns">
         application_id, match_id, applicant_user_id, club_id, application_type,
-        status, receipt_no, created_at, confirmed_at, group_application_id, payment_id, refund_id
+        status, receipt_no, created_at, confirmed_at, group_application_id, payment_id, refunded_at
     </sql>
 
     <select id="findById" resultType="co.kr.spoit.match.domain.MatchApplication">

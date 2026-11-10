@@ -29,8 +29,8 @@ public class MatchApplication {
     private Long groupApplicationId;
     /** 참가비 결제 (팀 신청은 팀원 행이 대표 결제를 함께 가리킨다). 무료 신청이면 null */
     private String paymentId;
-    /** 이 행 몫을 환불한 환불 건. 환불 전이면 null */
-    private Long refundId;
+    /** 이 행 몫(1인 참가비)을 환불한 시각. 환불 전이면 null */
+    private LocalDateTime refundedAt;
 
     public static MatchApplication individual(long matchId, long userId, String receiptNo, LocalDateTime now) {
         MatchApplication a = new MatchApplication();
