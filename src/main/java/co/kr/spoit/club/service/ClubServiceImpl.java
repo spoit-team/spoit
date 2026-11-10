@@ -211,7 +211,7 @@ public class ClubServiceImpl implements ClubService {
     // 동호회 정보 수정
     @Override
     @Transactional
-    public void updateClub(Long userId, Long clubId, ClubCreateForm form) throws ClubNameExistException {
+    public boolean updateClub(Long userId, Long clubId, ClubCreateForm form) throws ClubNameExistException {
         Club club = toClub(clubId, form);
         if (!"모집중".equals(club.getRecruitStatus()) && !"마감".equals(club.getRecruitStatus())) {
             throw new IllegalArgumentException("모집 상태 값이 올바르지 않습니다.");
@@ -224,7 +224,8 @@ public class ClubServiceImpl implements ClubService {
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
             throw new IllegalArgumentException("동호회장만 동호회 정보를 수정할 수 있습니다.");
         }
-        if (club.getMaxMembers() < clubMapper.countActiveMembers(clubId)) {
+        int memberCount = clubMapper.countActiveMembers(clubId);
+        if (club.getMaxMembers() < memberCount) {
             throw new IllegalArgumentException("모집 정원은 현재 동호회원 수보다 작을 수 없습니다.");
         }
         if (clubMapper.existsOtherActiveClubName(clubId, club.getClubName())) {
@@ -236,9 +237,15 @@ public class ClubServiceImpl implements ClubService {
             log.warn("동호회 이름 동시 수정 충돌: {}", club.getClubName());
             throw new ClubNameExistException();
         }
+        // 정원이 차면 '모집중'을 골라도 마감 저장(승인 때와 같은 규칙)
+        boolean closed = memberCount >= club.getMaxMembers();
+        if (closed) {
+            clubMapper.updateClubRecruitClosed(clubId);
+        }
         clubMapper.deleteClubRegions(clubId);
         clubMapper.insertClubRegion(clubId, form.getRegionId());
         log.info("동호회 정보 수정 완료: clubId={}, userId={}", clubId, userId);
+        return closed;
     }
 
     // 요일 번호(1~7)를 "1,3" 형태로 만듬
