@@ -2,6 +2,10 @@ package co.kr.spoit.facility.service;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -153,5 +157,24 @@ class FacilityReservationServiceImplTest {
         when(scheduleMapper.selectFacilityNameForUpdate(FACILITY_ID)).thenReturn("테스트 체육관");
         when(scheduleLoader.snapshotForUpdate(FACILITY_ID))
                 .thenReturn(new FacilityScheduleLoader.ScheduleSnapshot(rules, List.of(), closures));
+    }
+
+    @Test
+    @DisplayName("화면 안내용 판정은 잠금 없이 읽고, 운영 시간 밖·미설정이면 requireAvailable과 같은 문구를 준다")
+    void findUnavailableReasonUsesNonLockingSnapshot() {
+        when(scheduleLoader.snapshot(FACILITY_ID)).thenReturn(new FacilityScheduleLoader.ScheduleSnapshot(
+                List.of(OperatingRule.open(DATE.getDayOfWeek().getValue(), LocalTime.of(6, 0), LocalTime.of(22, 0), false)),
+                List.of(), List.of()));
+
+        assertThat(service.findUnavailableReason(FACILITY_ID, DATE.atTime(10, 0), DATE.atTime(11, 0))).isEmpty();
+        assertThat(service.findUnavailableReason(FACILITY_ID, DATE.atTime(21, 0), DATE.atTime(23, 0)))
+                .contains("선택한 시간은 시설 운영 시간이 아니거나 휴관과 겹쳐 예약할 수 없습니다.");
+        verify(scheduleLoader, never()).snapshotForUpdate(anyLong());
+        verify(scheduleMapper, never()).selectFacilityNameForUpdate(anyLong());
+
+        when(scheduleLoader.snapshot(FACILITY_ID))
+                .thenReturn(new FacilityScheduleLoader.ScheduleSnapshot(List.of(), List.of(), List.of()));
+        assertThat(service.findUnavailableReason(FACILITY_ID, DATE.atTime(10, 0), DATE.atTime(11, 0)))
+                .hasValueSatisfying(reason -> assertThat(reason).contains("운영 시간이 아직 설정되지 않아"));
     }
 }

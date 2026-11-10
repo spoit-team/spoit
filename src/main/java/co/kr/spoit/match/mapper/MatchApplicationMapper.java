@@ -37,6 +37,9 @@ public interface MatchApplicationMapper {
     /** 매칭방 행 잠금 (없거나 시설이 삭제됐으면 null). 같은 방 신청·확정을 직렬화한다. */
     MatchRow lockMatch(@Param("matchId") long matchId);
 
+    /** 신청 화면 안내용: 잠금 없이 시설·이용 시간만 읽는다. */
+    MatchRow findMatchSchedule(@Param("matchId") long matchId);
+
     /** 시작 시각이 지났는데 결제한 대기 신청이 남은 매칭방 (취소된 매칭방 제외) */
     List<Long> findStartedMatchIdsWithWaiting(@Param("now") LocalDateTime now,
                                               @Param("waitingStatus") String waitingStatus,

@@ -151,6 +151,9 @@ public class MatchApplicationService {
         }
         return matchService.findDetail(matchId, userId).map(detail -> {
             String blocked = detail.isCanApply() ? null : detail.getApplyMessage();
+            if (blocked == null) {
+                blocked = scheduleBlock(matchId).orElse(null);
+            }
             List<ConflictPerson> conflicts = blocked == null ? findConflicts(matchId, List.of(userId), userId) : List.of();
             if (!conflicts.isEmpty()) {
                 blocked = conflictMessage(conflicts);
@@ -191,8 +194,11 @@ public class MatchApplicationService {
             int seats = 1 + selected.size();
 
             String blocked = null;
+            Optional<String> schedule = detail.isCanApply() ? scheduleBlock(matchId) : Optional.empty();
             if (!detail.isCanApply()) {
                 blocked = detail.getApplyMessage();
+            } else if (schedule.isPresent()) {
+                blocked = schedule.get();
             } else if (selected.isEmpty()) {
                 blocked = NO_TEAM_MEMBER;
             } else if (seats > detail.getAvailableSeats()) {
@@ -226,6 +232,19 @@ public class MatchApplicationService {
                     .timeConflicts(conflicts), detail, seats)
                     .build());
         });
+    }
+
+    /**
+     * 신청 화면 안내용 시설 운영 시간 확인. 운영 시간 밖·휴관이면 사유를 돌려준다.
+     * 유료 매치가 카카오페이 결제 화면으로 넘어가기 전에 막기 위함이다. 최종 확인은 접수 때 잠근 뒤 다시 한다.
+     */
+    private Optional<String> scheduleBlock(long matchId) {
+        MatchRow match = applicationMapper.findMatchSchedule(matchId);
+        if (match == null || match.getFacilityId() == null) {
+            return Optional.empty();
+        }
+        return facilityReservationService.findUnavailableReason(match.getFacilityId(), match.getStartAt(),
+                match.getEndAt());
     }
 
     /** 참가비 안내: 무료면 0원, 유료면 "45,000원"과 "9,000원 × 5명" */

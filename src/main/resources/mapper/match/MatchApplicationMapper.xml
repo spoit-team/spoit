@@ -75,6 +75,16 @@
            FOR UPDATE OF sm
     </select>
 
+    <!-- 신청 화면 안내용: 잠금 없이 매칭방의 시설·이용 시간만 읽는다. -->
+    <select id="findMatchSchedule" resultType="co.kr.spoit.match.dto.MatchRow">
+        SELECT sm.match_id,
+               sm.facility_id,
+               sm.start_at,
+               sm.end_at
+          FROM social_match sm
+         WHERE sm.match_id = #{matchId}
+    </select>
+
     <!-- 시작 시각이 지났는데 결제한 대기 신청이 남은 매칭방. 취소된 매칭방은 취소 때 이미 환불하므로 뺀다.
          무료 대기 신청은 기존처럼 '미확정 종료'로 남긴다(지난 경기의 옛 신청을 한꺼번에 반려·알림하지 않는다). -->
     <select id="findStartedMatchIdsWithWaiting" resultType="java.lang.Long">
