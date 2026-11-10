@@ -74,12 +74,13 @@ CREATE DATABASE spoit DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 mysql --default-character-set=utf8mb4 -u 개발용계정 -p
 ```
 
-클라이언트에서 스키마를 선택하고 두 SQL 파일을 순서대로 실행합니다. `SOURCE` 경로는 저장소 루트에서 실행할 때 기준입니다. 오류가 나면 중단하고 원인을 확인하세요. `--force`로 오류를 무시하지 마세요.
+클라이언트에서 스키마를 선택하고 세 SQL 파일(스키마, seed, 공공 체육시설 데이터)을 순서대로 실행합니다. `SOURCE` 경로는 저장소 루트에서 실행할 때 기준입니다. 오류가 나면 중단하고 원인을 확인하세요. `--force`로 오류를 무시하지 마세요.
 
 ```sql
 USE spoit;
 SOURCE db/schema.sql;
 SOURCE db/seed.sql;
+SOURCE db/migrations/20261110-seoul-public-facilities.sql;
 ```
 
 `seed.sql`은 빈 DB에 한 번만 넣는 개발용 더미 데이터입니다. 이미 가져온 DB에는 다시 실행하지 마세요. 재구성이 필요하면 먼저 데이터를 백업하고, 별도의 새 개발 DB를 만들어 스키마와 seed를 처음부터 적용하세요. [시드 계정 및 주의사항](db/seed-accounts.md)도 확인하세요.

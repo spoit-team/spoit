@@ -2,7 +2,7 @@
 
 이미 데이터가 들어 있는 로컬 DB를 지우지 않고 최신 `db/schema.sql`과 같은 구조로 맞출 때 이 폴더의 SQL을 실행합니다.
 
-- **새로 DB를 만드는 경우**에는 마이그레이션이 필요 없습니다. [README의 개발용 데이터베이스 준비](../../README.md#3-개발용-데이터베이스-준비)대로 `schema.sql`과 `seed.sql`을 처음부터 적용하세요.
+- **새로 DB를 만드는 경우**에는 마이그레이션이 필요 없습니다. [README의 개발용 데이터베이스 준비](../../README.md#3-개발용-데이터베이스-준비)대로 `schema.sql`과 `seed.sql`을 처음부터 적용하세요. 다만 `20261110-seoul-public-facilities.sql`은 seed에 없는 공공 체육시설 데이터라 `seed.sql` 다음에 적용합니다.
 - **운영 RDS**는 팀장이 따로 반영합니다. 이 문서는 각자의 로컬 DB용입니다.
 
 ## 마이그레이션 목록
@@ -20,6 +20,7 @@
 | `20261104-drop-club-hashtag.sql` | 동호회 태그 연결·태그 테이블을 순서대로 삭제 | `club_hashtag`와 `hashtag`가 모두 없으면 적용됨 |
 | `20261105-notification-club.sql` | `notification.club_id`와 `club` 참조 외래 키 추가 | 컬럼과 `fk_notification_club` 외래 키가 모두 있으면 적용됨 |
 | `20261109-evaluation-items.sql` | 평가 항목을 종목마다 공격·연결·수비 3개, 가중치 1.00으로 정리(축구+풋살 3개·족구 협동심 끔, 족구 토스·연결 추가, 농구 수비 → 수비·리바운드). 데이터만 바꾸고 여러 번 실행해도 안전하며, 시드가 없는 `spoit_mat_test`에는 필요 없음 | 파일 끝 확인 질의에서 종목마다 `active_items` 3, `weight_sum` 3.00이면 적용됨 |
+| `20261110-seoul-public-facilities.sql` | 서울시 공공서비스예약 체육시설 113곳, 서울 구 14개, 시설 관리자 계정 10개 등록. `scripts/public-facility-import.ps1`이 만든 파일이며 데이터만 넣고 여러 번 실행해도 안전함. 새 DB도 `seed.sql` 다음에 적용하고 `spoit_mat_test`에는 적용하지 않음. [공공 체육시설 등록](#공공-체육시설-등록-20261110) 참고 | 파일 끝 확인 질의에서 `facilities` 113, `skipped`가 NULL이면 적용됨 |
 
 ## 적용할 DB
 
@@ -123,6 +124,27 @@ SELECT
 ### 4. 다시 확인
 
 2단계 확인 명령을 다시 실행해 기존 여섯 열과 `m1105_column`·`m1105_fk`는 모두 `1`, `m1104_tables`는 `0`인지 봅니다. 이 확인은 각 마이그레이션의 모든 스키마 세부 사항을 검증하지는 않습니다. 테스트 DB도 적용하는 사람은 `$db = "spoit_mat_test"`로 바꾸고 1~4단계를 반복합니다.
+
+## 공공 체육시설 등록 (`20261110`)
+
+서울시 공공서비스예약 체육시설 113곳과 담당 시설 관리자 계정 10개(`facility-01@spoit.test`~`facility-10@spoit.test`, 비밀번호는 `facility@spoit.test`와 같음)를 넣는 데이터 마이그레이션입니다. 위 2단계의 확인 기준과 상관없이 아래대로 적용합니다.
+
+- **적용할 DB**: `spoit`. 기존 DB와 새로 만든 DB(`seed.sql` 다음) 모두 적용합니다. `spoit_mat_test`에는 적용하지 않습니다. 통합 테스트(`PublicFacilityMigrationIntegrationTest`)가 이 파일을 직접 실행해 확인합니다.
+- **적용**: 1단계처럼 백업한 뒤 실행합니다. 다시 실행해도 이미 있는 행은 건너뜁니다.
+
+  ```powershell
+  & "$mysqlBin\mysql.exe" -u 개발용계정 -p --default-character-set=utf8mb4 $db -e "source db/migrations/20261110-seoul-public-facilities.sql"
+  ```
+
+- **확인**: 첫 출력(사전 확인)의 다섯 값이 모두 `1`이어야 합니다. 마지막 두 출력이 `places`·`facilities` 113, `skipped` NULL, `seoul_districts` 25, `manager_accounts` 10, `facility_sports` 118, `operating_rules` 791, `facility_managers` 113이면 적용된 것입니다.
+- **`Subquery returns more than 1 row`로 멈추면**: 사전 확인에서 `0`인 값을 보세요. 한 트랜잭션이라 넣은 행은 없습니다.
+  - `demo_account`: `facility@spoit.test`가 없음
+  - `sports`: 종목 5개의 이름이 seed와 다름
+  - `seoul`: 서울특별시(`region_id` 1)가 없음
+  - `unique_districts`: 서울특별시 아래 이름이 같은 구가 두 번 있음
+  - `region_ids_free`: 새 구에 쓸 번호(6·7·10·11·12·13·14·17·19·21·22·24·27·29)를 다른 이름의 지역이 쓰고 있음
+- **`skipped`에 장소가 나오면**: 이름과 구가 같은 다른 시설이 이미 있어 그 장소만 건너뛴 것입니다. 기존 시설은 바꾸지 않았으니 같은 시설인지 확인해 팀과 처리하세요.
+- **파일을 다시 만들 때**: 원본 JSON을 `out/public-facilities.json`에 두고 저장소 루트에서 `pwsh -File scripts/public-facility-import.ps1`을 실행합니다. 이름·운영 시간 수정 목록은 스크립트 안에 있습니다. 검수용 `out/public-facilities-review.csv`도 함께 만들어지며, 원본과 CSV는 커밋하지 않습니다(`out/`은 git 무시 대상).
 
 ## 문제가 생기면
 
