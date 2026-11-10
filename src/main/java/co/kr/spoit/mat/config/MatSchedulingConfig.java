@@ -8,6 +8,7 @@ import co.kr.spoit.mat.scheduler.MatchResultScheduler;
 import co.kr.spoit.mat.scheduler.MatchStartScheduler;
 import co.kr.spoit.mat.service.MatchResultService;
 import co.kr.spoit.mat.service.TeamAssignmentService;
+import co.kr.spoit.match.service.MatchApplicationService;
 
 /**
  * 경기 시작·종료·결과 마감 스케줄러.
@@ -21,8 +22,9 @@ import co.kr.spoit.mat.service.TeamAssignmentService;
 public class MatSchedulingConfig {
 
     @Bean
-    public MatchStartScheduler matchStartScheduler(TeamAssignmentService teamAssignmentService) {
-        return new MatchStartScheduler(teamAssignmentService);
+    public MatchStartScheduler matchStartScheduler(TeamAssignmentService teamAssignmentService,
+                                                   MatchApplicationService applicationService) {
+        return new MatchStartScheduler(teamAssignmentService, applicationService);
     }
 
     @Bean

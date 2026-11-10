@@ -44,6 +44,9 @@ import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.mapper.MemberMapper;
 import co.kr.spoit.member.service.MemberAccountLockService;
 import co.kr.spoit.notification.service.NotificationDispatcher;
+import co.kr.spoit.payment.service.PaymentLedgerService;
+import java.math.BigDecimal;
+import co.kr.spoit.match.service.MatchApplicationService.PaidApply;
 
 /**
  * RES-04 팀 단위 신청: 대표가 고른 팀원마다 대기 신청 행을 만들고 대표 행 id로 묶는다.
@@ -67,6 +70,7 @@ class MatchApplicationServiceTeamTest {
     private MatchApplicationService service;
 
     private final List<MatchApplication> inserted = new ArrayList<>();
+    private final PaymentLedgerService paymentLedger = mock(PaymentLedgerService.class);
 
     @BeforeEach
     void setUp() {
@@ -78,7 +82,7 @@ class MatchApplicationServiceTeamTest {
         notificationDispatcher = mock(NotificationDispatcher.class);
         service = new MatchApplicationService(mapper, memberMapper, sportRatingMapper,
                 mock(MatchService.class), mock(FacilityReservationService.class), accountLockService,
-                clubService, notificationDispatcher);
+                clubService, notificationDispatcher, paymentLedger);
 
         Member leader = new Member();
         leader.setUserId(LEADER_ID);
@@ -691,5 +695,71 @@ class MatchApplicationServiceTeamTest {
         club.setSportId(SPORT_ID);
         club.setRecruitStatus("모집중");
         return club;
+    }
+
+    /* ---------------- 참가비 결제 ---------------- */
+
+    @Test
+    @DisplayName("팀 결제 신청은 대표·팀원 행 모두를 대표의 결제 한 건에 연결한다")
+    void paidTeamApplyLinksEveryRowToLeaderPayment() {
+        MatchRow paidMatch = match(10);
+        paidMatch.setFeePerPerson(new BigDecimal("9000"));
+        given(mapper.lockMatch(MATCH_ID)).willReturn(paidMatch);
+        given(mapper.countOccupiedSeats(anyLong(), anyList(), anyString())).willReturn(0);
+        LocalDateTime approvedAt = LocalDateTime.of(2026, 11, 10, 12, 0);
+        given(paymentLedger.approve(eq("pay-1"), eq("pg"), any())).willReturn(approvedAt);
+
+        service.applyTeamPaid(MATCH_ID, LEADER_ID, CLUB_ID, List.of(101L, 102L),
+                new PaidApply("pay-1", new BigDecimal("9000"), 3, "pg"));
+
+        verify(paymentLedger).markPaid(eq("pay-1"), eq(List.of(501L, 502L, 503L)), eq(approvedAt), any());
+    }
+
+    @Test
+    @DisplayName("결제 인원과 신청 인원이 다르면 팀 신청을 만들지 않는다")
+    void paidTeamApplyRejectsSeatMismatch() {
+        MatchRow paidMatch = match(10);
+        paidMatch.setFeePerPerson(new BigDecimal("9000"));
+        given(mapper.lockMatch(MATCH_ID)).willReturn(paidMatch);
+
+        assertThatThrownBy(() -> service.applyTeamPaid(MATCH_ID, LEADER_ID, CLUB_ID, List.of(101L, 102L),
+                new PaidApply("pay-1", new BigDecimal("9000"), 5, "pg")))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessage("결제한 인원과 신청 인원이 다릅니다.");
+        assertThat(inserted).isEmpty();
+    }
+
+    @Test
+    @DisplayName("참가비가 있는 매치는 결제 없이 팀 신청할 수 없다")
+    void freeTeamApplyRejectsPaidMatch() {
+        MatchRow paidMatch = match(10);
+        paidMatch.setFeePerPerson(new BigDecimal("9000"));
+        given(mapper.lockMatch(MATCH_ID)).willReturn(paidMatch);
+
+        assertThatThrownBy(() -> service.applyTeam(MATCH_ID, LEADER_ID, CLUB_ID, List.of(101L, 102L)))
+                .isInstanceOf(MatchApplyException.class)
+                .hasMessageContaining("참가비 결제가 필요한 매치");
+        assertThat(inserted).isEmpty();
+    }
+
+    @Test
+    @DisplayName("대표가 팀원 일부를 취소하면 취소한 팀원 행만 환불 요청한다 (인원만큼 부분 환불)")
+    void partialCancelRefundsOnlyCancelledMembers() {
+        givenActiveGroup();
+
+        service.cancel(500L, LEADER_ID, List.of(502L), null);
+
+        verify(paymentLedger).refundApplications(eq(List.of(502L)), eq("팀원 일부 취소"), any());
+    }
+
+    @Test
+    @DisplayName("팀 전체 취소는 취소 전 활성이던 모든 행을 환불 요청한다")
+    void groupCancelRefundsAllActiveRows() {
+        givenActiveGroup();
+        given(mapper.markGroupCancelled(eq(500L), anyList(), eq("취소"), eq(LEADER_ID), any())).willReturn(3);
+
+        service.cancel(500L, LEADER_ID);
+
+        verify(paymentLedger).refundApplications(eq(List.of(500L, 501L, 502L)), eq("팀 신청 취소"), any());
     }
 }

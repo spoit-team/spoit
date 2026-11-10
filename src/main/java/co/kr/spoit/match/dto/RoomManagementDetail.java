@@ -95,9 +95,20 @@ public class RoomManagementDetail {
         private final Long historyUserId;
         /** 확정 대기이고 모집 중인 경기라 승인·반려할 수 있으면 true */
         private final boolean decidable;
+        /** 결제 열: "무료" / "결제 완료 9,000원" / "환불 완료 9,000원" */
+        private final String paymentLabel;
+        /** 반려하면 환불되는 금액(원). 결제가 없거나 이미 환불했으면 0 */
+        private final long refundAmount;
 
         public Application(Long applicationId, String applicantName, String clubName, String kindLabel,
                 String statusLabel, String createdAtLabel, Long historyUserId, boolean decidable) {
+            this(applicationId, applicantName, clubName, kindLabel, statusLabel, createdAtLabel, historyUserId,
+                    decidable, "무료", 0L);
+        }
+
+        public Application(Long applicationId, String applicantName, String clubName, String kindLabel,
+                String statusLabel, String createdAtLabel, Long historyUserId, boolean decidable,
+                String paymentLabel, long refundAmount) {
             this.applicationId = applicationId;
             this.applicantName = applicantName;
             this.clubName = clubName;
@@ -106,6 +117,8 @@ public class RoomManagementDetail {
             this.createdAtLabel = createdAtLabel;
             this.historyUserId = historyUserId;
             this.decidable = decidable;
+            this.paymentLabel = paymentLabel;
+            this.refundAmount = refundAmount;
         }
     }
 

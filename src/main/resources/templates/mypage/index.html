@@ -153,11 +153,12 @@
                   <h4 class="mt-1 text-sm font-extrabold" th:text="${entry.title}">매칭방</h4>
                   <p class="mt-1 text-xs leading-5 text-muted" th:text="${entry.metaLine}">날짜 · 시간 · 장소</p>
                   <p class="mt-1 text-[11px] text-faint" th:text="${entry.seatLine}">참가 1명</p>
+                  <p th:if="${entry.paymentLine != null}" class="mt-1 text-[11px] text-muted" th:text="${entry.paymentLine}">카카오페이 9,000원 결제</p>
                   <p th:if="${entry.statusNote != null}" class="mt-1 text-[11px] text-muted" th:text="${entry.statusNote}">안내</p>
                 </div>
                 <div class="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
                   <a th:if="${entry.canViewPaymentGuidance}" th:href="@{${entry.paymentGuidanceUrl}}" class="h-9 shrink-0 self-start rounded-lg bg-match px-3 py-2 text-xs font-bold text-white hover:bg-match-hover sm:self-center">결제 안내</a>
-                  <form th:if="${entry.canCancel}" method="post" th:action="@{/mypage/applications/{applicationId}/cancel(applicationId=${entry.applicationId})}" th:attr="data-team-cancel=${entry.teamCancel ? 'true' : null}, data-team-cancel-title=${entry.teamCancel ? entry.title : null}, data-team-cancel-meta=${entry.teamCancel ? entry.metaLine : null}">
+                  <form th:if="${entry.canCancel}" method="post" th:action="@{/mypage/applications/{applicationId}/cancel(applicationId=${entry.applicationId})}" th:attr="data-team-cancel=${entry.teamCancel ? 'true' : null}, data-team-cancel-title=${entry.teamCancel ? entry.title : null}, data-team-cancel-meta=${entry.teamCancel ? entry.metaLine : null}, data-refund-unit=${entry.refundUnitAmount > 0 ? entry.refundUnitAmount : null}, data-refund-cancel=${!entry.teamCancel and entry.refundUnitAmount > 0 ? 'true' : null}, data-refund-cancel-title=${!entry.teamCancel and entry.refundUnitAmount > 0 ? entry.title : null}, data-refund-cancel-meta=${!entry.teamCancel and entry.refundUnitAmount > 0 ? entry.metaLine : null}">
                     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                     <!-- 확인창 팀원 목록 데이터. 스크립트가 없으면 폼은 팀 전체 취소로 제출된다. -->
                     <ul th:if="${entry.teamCancel}" hidden data-team-members>
@@ -187,6 +188,7 @@
                   <h4 class="mt-1 text-sm font-extrabold" th:text="${entry.title}">매칭방</h4>
                   <p class="mt-1 text-xs leading-5 text-muted" th:text="${entry.metaLine}">날짜 · 시간 · 장소</p>
                   <p class="mt-1 text-[11px] text-faint" th:text="${entry.seatLine}">참가 1명</p>
+                  <p th:if="${entry.paymentLine != null}" class="mt-1 text-[11px] text-muted" th:text="${entry.paymentLine}">카카오페이 9,000원 결제</p>
                   <p th:if="${entry.statusNote != null}" class="mt-1 text-[11px] text-muted" th:text="${entry.statusNote}">안내</p>
                 </div>
                 <!-- 경기가 끝난 참가 내역에서 결과 화면으로 이어 줍니다. 결과 화면은 확정 참가자만 열람할 수 있습니다.
@@ -239,6 +241,21 @@
 </main>
 
 <div th:replace="~{fragments/notification :: center(${currentMember != null})}"></div>
+
+<!-- 결제한 개인 신청 취소: 환불 금액을 알리고 확인을 받는다. 스크립트가 없으면 폼이 그대로 제출된다. -->
+<dialog id="refund-cancel-dialog" class="mypage-confirm-dialog" aria-labelledby="refund-cancel-title" aria-describedby="refund-cancel-message">
+  <div class="mypage-confirm-dialog-content">
+    <div class="mypage-confirm-dialog-heading">
+      <div><h2 id="refund-cancel-title">신청 취소</h2><p id="refund-cancel-match">매칭방</p></div>
+      <button class="mypage-confirm-close" type="button" data-close-refund-cancel aria-label="닫기">×</button>
+    </div>
+    <p id="refund-cancel-message" class="mypage-confirm-note">신청을 취소할까요?</p>
+    <div class="mypage-confirm-actions">
+      <button class="mypage-confirm-back" type="button" data-close-refund-cancel>돌아가기</button>
+      <button id="refund-cancel-confirm" class="mypage-confirm-submit" type="button">신청 취소</button>
+    </div>
+  </div>
+</dialog>
 
 <!-- RES-04 팀 신청 취소: 대표가 취소할 팀원을 고른다. 대표가 빠지고 남는 팀원이 있으면 새 대표를 고른다. -->
 <dialog id="team-cancel-dialog" class="mypage-confirm-dialog" aria-labelledby="team-cancel-title" aria-describedby="team-cancel-message">

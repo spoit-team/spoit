@@ -20,6 +20,10 @@ import co.kr.spoit.facility.mapper.FacilityScheduleMapper;
 @Service
 public class FacilityReservationServiceImpl implements FacilityReservationService {
 
+    private static final String NOT_CONFIGURED =
+            "시설 운영 시간이 아직 설정되지 않아 예약할 수 없습니다. 시설 관리자에게 운영 시간 등록을 요청해 주세요.";
+    private static final String UNAVAILABLE = "선택한 시간은 시설 운영 시간이 아니거나 휴관과 겹쳐 예약할 수 없습니다.";
+
     private final FacilityScheduleMapper scheduleMapper;
     private final FacilityScheduleLoader scheduleLoader;
 
@@ -47,13 +51,25 @@ public class FacilityReservationServiceImpl implements FacilityReservationServic
         // 써야 "저장은 되는데 신규 신청만 거부"되는 불일치가 생기지 않는다.
         FacilitySchedule schedule = scheduleLoader.snapshotForUpdate(facilityId).toSchedule();
         if (!schedule.isConfigured()) {
-            throw new FacilityScheduleUnavailableException(
-                    "시설 운영 시간이 아직 설정되지 않아 예약할 수 없습니다. 시설 관리자에게 운영 시간 등록을 요청해 주세요.");
+            throw new FacilityScheduleUnavailableException(NOT_CONFIGURED);
         }
         if (!schedule.covers(startAt, endAt)) {
-            throw new FacilityScheduleUnavailableException(
-                    "선택한 시간은 시설 운영 시간이 아니거나 휴관과 겹쳐 예약할 수 없습니다.");
+            throw new FacilityScheduleUnavailableException(UNAVAILABLE);
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRED)
+    public java.util.Optional<String> findUnavailableReason(long facilityId, LocalDateTime startAt,
+            LocalDateTime endAt) {
+        if (startAt == null || endAt == null || !startAt.isBefore(endAt)) {
+            return java.util.Optional.of("이용 시작과 종료 시각을 확인해 주세요.");
+        }
+        FacilitySchedule schedule = scheduleLoader.snapshot(facilityId).toSchedule();
+        if (!schedule.isConfigured()) {
+            return java.util.Optional.of(NOT_CONFIGURED);
+        }
+        return schedule.covers(startAt, endAt) ? java.util.Optional.empty() : java.util.Optional.of(UNAVAILABLE);
     }
 
     /** 활성 시설 행을 잠근다. 없거나 논리 삭제됐으면 사용자 안내 예외를 던진다. */

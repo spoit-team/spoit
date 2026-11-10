@@ -172,4 +172,47 @@ class MyReservationServiceTest {
         r.setMatchSide(side);
         return r;
     }
+
+    @Test
+    @DisplayName("결제한 회원에게만 결제·환불 금액을 보여 주고, 취소 확인창에 한 명당 환불 금액을 넘긴다")
+    void showsPaymentToPayerOnly() {
+        MyApplicationRow mine = row(1L, "대기", "모집 중", NOW.plusDays(1), null);
+        paid(mine, USER_ID, 9000, 45000, 18000);
+        MyApplicationRow pending = row(2L, "취소", "모집 중", NOW.plusDays(1), null);
+        paid(pending, USER_ID, 9000, 9000, 9000);
+        MyApplicationRow teamMember = teamRow(3L, 99L, 3L);
+        paid(teamMember, 99L, 9000, 27000, 0);
+        given(mapper.findMyApplications(eq(USER_ID), anyList())).willReturn(List.of(mine, pending, teamMember));
+
+        MyReservations result = service.find(USER_ID, NOW);
+
+        Entry current = result.getCurrent().get(0);
+        assertThat(current.getPaymentLine()).isEqualTo("카카오페이 45,000원 결제 · 18,000원 환불");
+        assertThat(current.getRefundUnitAmount()).isEqualTo(9000);
+        assertThat(result.getPast().get(0).getPaymentLine()).isEqualTo("카카오페이 9,000원 결제 · 9,000원 환불");
+        assertThat(result.getPast().get(0).getRefundUnitAmount()).isZero();
+        Entry member = result.getCurrent().get(1);
+        assertThat(member.getPaymentLine()).isNull();
+        assertThat(member.getRefundUnitAmount()).isZero();
+    }
+
+    @Test
+    @DisplayName("무료 신청은 결제 줄과 환불 금액이 없다")
+    void freeApplicationHasNoPayment() {
+        given(mapper.findMyApplications(eq(USER_ID), anyList()))
+                .willReturn(List.of(row(1L, "대기", "모집 중", NOW.plusDays(1), null)));
+
+        Entry entry = service.find(USER_ID, NOW).getCurrent().get(0);
+
+        assertThat(entry.getPaymentLine()).isNull();
+        assertThat(entry.getRefundUnitAmount()).isZero();
+    }
+
+    private static void paid(MyApplicationRow row, long payerUserId, long unit, long total, long refunded) {
+        row.setPaymentId("pay-" + row.getApplicationId());
+        row.setPayerUserId(payerUserId);
+        row.setUnitAmount(java.math.BigDecimal.valueOf(unit));
+        row.setTotalAmount(java.math.BigDecimal.valueOf(total));
+        row.setRefundedAmount(java.math.BigDecimal.valueOf(refunded));
+    }
 }

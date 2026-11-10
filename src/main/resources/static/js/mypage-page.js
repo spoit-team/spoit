@@ -1,4 +1,4 @@
-/* 마이페이지: 경기 이력 펼치기, 섹션 메뉴 표시, 팀 신청 취소(팀원 선택) 확인창을 처리합니다. 데이터는 서버가 렌더링합니다. */
+/* 마이페이지: 경기 이력 펼치기, 섹션 메뉴 표시, 팀 신청 취소(팀원 선택)·결제 신청 취소(환불 안내) 확인창을 처리합니다. 데이터는 서버가 렌더링합니다. */
 (function () {
   'use strict';
 
@@ -48,6 +48,16 @@
   const teamCancelLeaders = document.getElementById('team-cancel-leaders');
   let pendingTeamCancelForm = null;
   let teamMembers = [];
+  let refundUnit = 0;
+
+  function won(amount) {
+    return Number(amount).toLocaleString('ko-KR') + '원';
+  }
+
+  /* 결제한 팀 신청이면 취소 인원만큼 환불 금액을 덧붙입니다. */
+  function refundNote(count) {
+    return refundUnit > 0 && count > 0 ? ' ' + won(refundUnit * count) + '이 결제 수단으로 환불됩니다.' : '';
+  }
 
   function readTeamMembers(form) {
     return Array.from(form.querySelectorAll('[data-team-members] > li')).map(function (item) {
@@ -137,11 +147,11 @@
       label = '팀원 취소';
       ready = false;
     } else if (remaining.length === 0) {
-      message = '팀원 ' + total + '명의 신청이 모두 함께 취소됩니다.';
+      message = '팀원 ' + total + '명의 신청이 모두 함께 취소됩니다.' + refundNote(total);
       label = '팀 전체 취소';
       ready = true;
     } else {
-      message = '선택한 ' + checked.length + '명의 신청만 취소되고, 남은 ' + remaining.length + '명은 그대로 참가합니다.';
+      message = '선택한 ' + checked.length + '명의 신청만 취소되고, 남은 ' + remaining.length + '명은 그대로 참가합니다.' + refundNote(checked.length);
       label = checked.length + '명 취소';
       ready = !needsLeader || selectedLeaderId() !== null;
       if (!ready) message += ' 새 대표를 선택해 주세요.';
@@ -159,6 +169,7 @@
       event.preventDefault();
       pendingTeamCancelForm = form;
       teamMembers = members;
+      refundUnit = Number(form.dataset.refundUnit || 0);
       if (teamCancelMatch) {
         teamCancelMatch.textContent = [form.dataset.teamCancelTitle, form.dataset.teamCancelMeta].filter(Boolean).join(' · ');
       }
@@ -212,6 +223,51 @@
       if (leaderId) appendHidden(form, 'newLeaderApplicationId', leaderId);
     }
     teamCancelConfirm.disabled = true;
+    // form.submit()은 submit 이벤트를 다시 일으키지 않아 확인창이 반복되지 않는다.
+    form.submit();
+  });
+
+  /* 결제한 개인 신청 취소: 환불 금액을 알리고 확인하면 폼을 제출합니다. */
+  const refundCancelDialog = document.getElementById('refund-cancel-dialog');
+  const refundCancelMatch = document.getElementById('refund-cancel-match');
+  const refundCancelMessage = document.getElementById('refund-cancel-message');
+  const refundCancelConfirm = document.getElementById('refund-cancel-confirm');
+  let pendingRefundCancelForm = null;
+
+  document.querySelectorAll('form[data-refund-cancel]').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      if (!refundCancelDialog || typeof refundCancelDialog.showModal !== 'function') return;
+      event.preventDefault();
+      pendingRefundCancelForm = form;
+      if (refundCancelMatch) {
+        refundCancelMatch.textContent = [form.dataset.refundCancelTitle, form.dataset.refundCancelMeta].filter(Boolean).join(' · ');
+      }
+      if (refundCancelMessage) {
+        refundCancelMessage.textContent = '신청을 취소할까요?' + (Number(form.dataset.refundUnit || 0) > 0
+          ? ' ' + won(form.dataset.refundUnit) + '이 결제 수단으로 환불됩니다.' : '');
+      }
+      if (refundCancelConfirm) refundCancelConfirm.disabled = false;
+      refundCancelDialog.showModal();
+      refundCancelDialog.querySelector('.mypage-confirm-back')?.focus({ preventScroll: true });
+    });
+  });
+
+  refundCancelDialog?.querySelectorAll('[data-close-refund-cancel]').forEach(function (button) {
+    button.addEventListener('click', function () { refundCancelDialog.close(); });
+  });
+
+  refundCancelDialog?.addEventListener('click', function (event) {
+    if (event.target === refundCancelDialog) refundCancelDialog.close();
+  });
+
+  refundCancelDialog?.addEventListener('close', function () {
+    pendingRefundCancelForm = null;
+  });
+
+  refundCancelConfirm?.addEventListener('click', function () {
+    const form = pendingRefundCancelForm;
+    if (!form || refundCancelConfirm.disabled) return;
+    refundCancelConfirm.disabled = true;
     // form.submit()은 submit 이벤트를 다시 일으키지 않아 확인창이 반복되지 않는다.
     form.submit();
   });

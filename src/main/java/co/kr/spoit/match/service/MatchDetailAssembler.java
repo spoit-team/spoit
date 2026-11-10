@@ -110,6 +110,7 @@ public class MatchDetailAssembler {
                 .dateLabel(dateLabel)
                 .time(time)
                 .feeText(feeText)
+                .feeAmount(row.getFeePerPerson())
                 .levelLabel(row.getRequiredSkill())
                 .facts(List.of(
                         new Fact("일시", dateLabel + " " + time),

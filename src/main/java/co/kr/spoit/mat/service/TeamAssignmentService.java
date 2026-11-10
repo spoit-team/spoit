@@ -15,6 +15,7 @@ import co.kr.spoit.match.domain.ApplicationStatus;
 import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.domain.ParticipationStatus;
 import co.kr.spoit.notification.domain.NotificationType;
+import co.kr.spoit.payment.service.PaymentLedgerService;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HashSet;
@@ -55,17 +56,20 @@ public class TeamAssignmentService {
     private final AutoAssignmentService autoAssignmentService;
     private final TeamCaptainSelector captainSelector;
     private final MatchNotifier matchNotifier;
+    private final PaymentLedgerService paymentLedger;
 
     public TeamAssignmentService(MatchAssignmentMapper assignmentMapper,
                                  MatchParticipantMapper participantMapper,
                                  AutoAssignmentService autoAssignmentService,
                                  TeamCaptainSelector captainSelector,
-                                 MatchNotifier matchNotifier) {
+                                 MatchNotifier matchNotifier,
+                                 PaymentLedgerService paymentLedger) {
         this.assignmentMapper = assignmentMapper;
         this.participantMapper = participantMapper;
         this.autoAssignmentService = autoAssignmentService;
         this.captainSelector = captainSelector;
         this.matchNotifier = matchNotifier;
+        this.paymentLedger = paymentLedger;
     }
 
     /** 경기가 없으면 empty */
@@ -166,6 +170,7 @@ public class TeamAssignmentService {
     /**
      * 시작 시각이 된 모집 중 경기를 자동 배정하거나 취소한다. 스케줄러가 경기마다 호출한다.
      * 신청·참가자 상태는 바꾸지 않는다. 마이페이지는 경기 상태로 '매치 취소'를 표시한다.
+     * 자동 취소하면 대기·확정 결제 신청을 모두 전액 환불 요청한다.
      */
     @Transactional
     public StartResult startMatch(long matchId, LocalDateTime now) {
@@ -222,6 +227,7 @@ public class TeamAssignmentService {
         if (updated != 1) {
             throw new IllegalStateException("경기 취소에 실패했습니다. matchId=" + match.getMatchId());
         }
+        paymentLedger.refundActiveApplicationsOfMatch(match.getMatchId(), "경기 자동 취소", now);
         List<Long> recipients = assignmentMapper.findAutoCancelRecipients(match.getMatchId(),
                 ParticipationStatus.CONFIRMED.dbValue(), ApplicationStatus.WAITING.dbValue());
         matchNotifier.notifyAfterCommit(recipients, match.getMatchId(), NotificationType.MATCH_AUTO_CANCELLED,

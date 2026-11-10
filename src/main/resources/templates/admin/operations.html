@@ -78,7 +78,7 @@
           <div class="table-scroll">
             <table class="admin-table ops-table">
               <caption class="sr-only">매칭방 참가 신청 내역</caption>
-              <thead><tr><th scope="col">신청자</th><th scope="col">구분</th><th scope="col">신청 일시</th><th scope="col">상태</th><th scope="col">처리</th></tr></thead>
+              <thead><tr><th scope="col">신청자</th><th scope="col">구분</th><th scope="col">신청 일시</th><th scope="col">상태</th><th scope="col">결제</th><th scope="col">처리</th></tr></thead>
               <tbody>
                 <!-- 'application'는 Thymeleaf 예약어(웹 변수)라 지역 변수 이름으로 쓸 수 없다. -->
                 <!-- 이름 버튼은 participant-history.js가 참가자 이력 모달로 연다. 동호회 신청은 이름 옆에 동호회명을 붙인다. -->
@@ -93,6 +93,7 @@
                   <td th:text="${roomApplication.kindLabel}">구분</td>
                   <td th:text="${roomApplication.createdAtLabel}">신청 일시</td>
                   <td><span class="status-badge neutral" th:text="${roomApplication.statusLabel}">상태</span></td>
+                  <td th:text="${roomApplication.paymentLabel}">무료</td>
                   <td>
                     <div th:if="${roomApplication.decidable}" class="ops-decision-buttons">
                       <button class="admin-button small primary" type="button" data-decision="confirm"
@@ -104,13 +105,14 @@
                               th:data-application-id="${roomApplication.applicationId}"
                               th:data-applicant-name="${roomApplication.applicantName}"
                               th:data-club-name="${roomApplication.clubName}"
+                              th:data-refund-amount="${roomApplication.refundAmount > 0 ? roomApplication.refundAmount : null}"
                               th:aria-label="${roomApplication.applicantName + ' 참가 신청 반려'}">반려</button>
                     </div>
                     <span th:unless="${roomApplication.decidable}" class="ops-decision-none" aria-label="처리할 수 없음">—</span>
                   </td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(match.applications)}">
-                  <td class="table-empty" colspan="5" th:text="${match.teamAssigned} ? '참가자 목록에 없는 신청 기록이 없습니다.' : '접수된 참가 신청이 없습니다.'">접수된 참가 신청이 없습니다.</td>
+                  <td class="table-empty" colspan="6" th:text="${match.teamAssigned} ? '참가자 목록에 없는 신청 기록이 없습니다.' : '접수된 참가 신청이 없습니다.'">접수된 참가 신청이 없습니다.</td>
                 </tr>
               </tbody>
             </table>
@@ -218,7 +220,7 @@
         <div class="ops-footer-actions">
           <a class="admin-button small" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">매칭방 목록으로 돌아가기</a>
         </div>
-        <p class="ops-storage-note">표시되는 신청·참가 상태는 서버에 저장된 값입니다. 결제 상태는 이 화면에서 다루지 않습니다.</p>
+        <p class="ops-storage-note">표시되는 신청·참가·결제 상태는 서버에 저장된 값입니다. 반려하거나 매칭방을 취소하면 결제한 참가비는 자동으로 환불됩니다.</p>
       </div>
     </div>
   </main>

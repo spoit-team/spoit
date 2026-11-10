@@ -50,6 +50,8 @@ import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.mapper.MemberMapper;
 import co.kr.spoit.member.service.MemberAccountLockService;
 import co.kr.spoit.notification.service.NotificationDispatcher;
+import co.kr.spoit.payment.domain.Payment;
+import co.kr.spoit.payment.service.PaymentLedgerService;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -63,6 +65,10 @@ import lombok.RequiredArgsConstructor;
  *
  * <p>확정·반려는 시설 관리자가 운영 화면에서 신청 행 하나씩 처리한다({@link #confirm}, {@link #reject}).
  * 팀 신청도 팀원마다 따로 처리하며, 정원이 다 차도 신청은 대기로 남는다.</p>
+ *
+ * <p>참가비가 있는 매치는 정원·중복을 확인한 뒤 카카오페이 결제를 최종 승인하고 신청 행을 만든다
+ * ({@link #applyIndividualPaid}, {@link #applyTeamPaid}). 결제 없는 접수({@link #applyIndividual}, {@link #applyTeam})는 무료 매치만 받는다.
+ * 취소·반려된 결제 신청은 1인 참가비씩 환불 요청하고, 팀 신청은 대표의 결제에서 인원만큼 부분 환불한다.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -74,9 +80,10 @@ public class MatchApplicationService {
     /** sport_rating이 없는 회원의 시작 MMR (match_participant.entry_mmr 기본값과 같다) */
     private static final BigDecimal DEFAULT_MMR = new BigDecimal("1000.00");
 
-    /** 결제 연동 전까지 모든 매치를 무료로 접수한다. 유료 결제를 붙일 때 이 값과 문구를 바꾼다. */
+    /** 참가비가 없는 매치는 결제 없이 접수한다. */
     private static final String FREE_TOTAL_TEXT = "0원";
-    private static final String FREE_SUMMARY_NOTE = "현재는 결제 없이 무료로 신청이 접수됩니다.";
+    private static final String FREE_SUMMARY_NOTE = "참가비가 없는 매치라 결제 없이 신청이 접수됩니다.";
+    private static final DateTimeFormatter PAID_AT = DateTimeFormatter.ofPattern("M/d(E) HH:mm", Locale.KOREAN);
 
     private static final DateTimeFormatter RECEIPT_DATE = DateTimeFormatter.BASIC_ISO_DATE;
     private static final String RECEIPT_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -103,6 +110,17 @@ public class MatchApplicationService {
     private final MemberAccountLockService accountLockService;
     private final ClubService clubService;
     private final NotificationDispatcher notificationDispatcher;
+    private final PaymentLedgerService paymentLedger;
+
+    /**
+     * 카카오페이 결제를 승인하며 접수할 때 넘기는 결제 정보.
+     *
+     * @param unitAmount 결제 준비 때 1인 참가비 (지금 매칭방 참가비와 같아야 접수한다)
+     * @param seats      결제 인원 (신청 인원과 같아야 접수한다)
+     * @param pgToken    카카오페이가 승인 주소에 붙여 준 승인 토큰
+     */
+    public record PaidApply(String paymentId, BigDecimal unitAmount, int seats, String pgToken) {
+    }
 
     /**
      * 회원 탈퇴를 막는 진행 중 매치 신청(개인·동호회)의 매치 제목.
@@ -133,18 +151,19 @@ public class MatchApplicationService {
         }
         return matchService.findDetail(matchId, userId).map(detail -> {
             String blocked = detail.isCanApply() ? null : detail.getApplyMessage();
+            if (blocked == null) {
+                blocked = scheduleBlock(matchId).orElse(null);
+            }
             List<ConflictPerson> conflicts = blocked == null ? findConflicts(matchId, List.of(userId), userId) : List.of();
             if (!conflicts.isEmpty()) {
                 blocked = conflictMessage(conflicts);
             }
-            return JoinPage.builder()
+            return withFee(JoinPage.builder()
                     .match(toJoinMatch(detail))
                     .selection(individualSelection(member.get()))
                     .canReserve(blocked == null)
                     .capacityNotice(blocked == null ? "" : blocked)
-                    .timeConflicts(conflicts)
-                    .feeTotalText(FREE_TOTAL_TEXT)
-                    .feeSummaryNote(FREE_SUMMARY_NOTE)
+                    .timeConflicts(conflicts), detail, 1)
                     .build();
         });
     }
@@ -175,8 +194,11 @@ public class MatchApplicationService {
             int seats = 1 + selected.size();
 
             String blocked = null;
+            Optional<String> schedule = detail.isCanApply() ? scheduleBlock(matchId) : Optional.empty();
             if (!detail.isCanApply()) {
                 blocked = detail.getApplyMessage();
+            } else if (schedule.isPresent()) {
+                blocked = schedule.get();
             } else if (selected.isEmpty()) {
                 blocked = NO_TEAM_MEMBER;
             } else if (seats > detail.getAvailableSeats()) {
@@ -201,17 +223,81 @@ public class MatchApplicationService {
             persons.add(new Person(member.get().getNickname(), "신청 대표"));
             selected.forEach(m -> persons.add(new Person(m.getNickname(), m.isLeader() ? "동호회장" : "팀원")));
 
-            return Optional.of(JoinPage.builder()
+            return Optional.of(withFee(JoinPage.builder()
                     .match(toJoinMatch(detail))
                     .selection(new Selection(teamKindLabel(club.get().getClubName()), member.get().getNickname(),
                             member.get().getPhone(), TEAM, seats, persons, clubId, ids))
                     .canReserve(blocked == null)
                     .capacityNotice(blocked == null ? "" : blocked)
-                    .timeConflicts(conflicts)
-                    .feeTotalText(FREE_TOTAL_TEXT)
-                    .feeSummaryNote(FREE_SUMMARY_NOTE)
+                    .timeConflicts(conflicts), detail, seats)
                     .build());
         });
+    }
+
+    /**
+     * 신청 화면 안내용 시설 운영 시간 확인. 운영 시간 밖·휴관이면 사유를 돌려준다.
+     * 유료 매치가 카카오페이 결제 화면으로 넘어가기 전에 막기 위함이다. 최종 확인은 접수 때 잠근 뒤 다시 한다.
+     */
+    private Optional<String> scheduleBlock(long matchId) {
+        MatchRow match = applicationMapper.findMatchSchedule(matchId);
+        if (match == null || match.getFacilityId() == null) {
+            return Optional.empty();
+        }
+        return facilityReservationService.findUnavailableReason(match.getFacilityId(), match.getStartAt(),
+                match.getEndAt());
+    }
+
+    /** 참가비 안내: 무료면 0원, 유료면 "45,000원"과 "9,000원 × 5명" */
+    private static JoinPage.JoinPageBuilder withFee(JoinPage.JoinPageBuilder builder, MatchDetailPage detail, int seats) {
+        long unit = feeOf(detail.getFeeAmount());
+        if (unit <= 0) {
+            return builder.paid(false).unitAmount(0).totalAmount(0)
+                    .feeTotalText(FREE_TOTAL_TEXT).feeSummaryNote(FREE_SUMMARY_NOTE);
+        }
+        long total = unit * seats;
+        return builder.paid(true).unitAmount(unit).totalAmount(total)
+                .feeTotalText(won(total))
+                .feeSummaryNote(won(unit) + " × " + seats + "명");
+    }
+
+    private static long feeOf(BigDecimal fee) {
+        return fee == null ? 0 : fee.longValue();
+    }
+
+    private static String won(long amount) {
+        return MatchCardAssembler.formatFee(BigDecimal.valueOf(amount)) + "원";
+    }
+
+    /** 결제 없는 접수는 무료 매치만, 결제한 접수는 결제 시점 참가비·인원이 지금 값과 같을 때만 받는다. */
+    private static void requireFee(MatchRow match, PaidApply paid, int seats) {
+        BigDecimal fee = match.getFeePerPerson() == null ? BigDecimal.ZERO : match.getFeePerPerson();
+        if (paid == null) {
+            if (fee.signum() > 0) {
+                throw new MatchApplyException("참가비 결제가 필요한 매치입니다. 신청 화면에서 결제를 진행해 주세요.");
+            }
+            return;
+        }
+        if (fee.compareTo(paid.unitAmount()) != 0) {
+            throw new MatchApplyException("결제하는 동안 참가비가 바뀌어 신청하지 못했습니다.");
+        }
+        if (seats != paid.seats()) {
+            throw new MatchApplyException("결제한 인원과 신청 인원이 다릅니다.");
+        }
+    }
+
+    /**
+     * 정원·중복 확인을 마친 뒤 카카오페이 결제를 최종 승인한다. 무료 접수면 null.
+     * 이 뒤에 실패하면 결제 서비스가 승인된 결제를 바로 취소한다.
+     */
+    private LocalDateTime approvePayment(PaidApply paid, LocalDateTime now) {
+        return paid == null ? null : paymentLedger.approve(paid.paymentId(), paid.pgToken(), now);
+    }
+
+    /** 승인한 결제에 만든 신청 행을 연결한다. */
+    private void linkPayment(PaidApply paid, List<Long> applicationIds, LocalDateTime paidAt, LocalDateTime now) {
+        if (paid != null) {
+            paymentLedger.markPaid(paid.paymentId(), applicationIds, paidAt, now);
+        }
     }
 
     /**
@@ -226,9 +312,20 @@ public class MatchApplicationService {
      */
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public String applyIndividual(long matchId, long userId) {
+        return doApplyIndividual(matchId, userId, null);
+    }
+
+    /** 결제를 확인한 개인 신청 접수. 잠금·검증은 {@link #applyIndividual}과 같다. */
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public String applyIndividualPaid(long matchId, long userId, PaidApply paid) {
+        return doApplyIndividual(matchId, userId, Objects.requireNonNull(paid));
+    }
+
+    private String doApplyIndividual(long matchId, long userId, PaidApply paid) {
         LocalDateTime now = LocalDateTime.now(ZONE);
 
         MatchRow match = lockForApply(matchId, now);
+        requireFee(match, paid, 1);
         // 잠금 순서: 시설 → 매칭방 → 신청자 계정. 계정을 잠근 뒤 최신 값으로 탈퇴·정지를 다시 확인해야
         // 동시 탈퇴가 신청 행을 남기지 않는다(잠금 전 조회는 스냅샷일 수 있다).
         // 같은 회원의 다른 매치 신청도 이 계정 잠금에서 줄을 서므로, 아래 시간 겹침 확인은 앞 신청이 커밋된 뒤의 값을 본다.
@@ -241,9 +338,13 @@ public class MatchApplicationService {
             throw new MatchApplyException("정원이 모두 찼습니다.");
         }
         requireNoTimeConflict(matchId, List.of(userId), userId);
+        LocalDateTime paidAt = approvePayment(paid, now);
 
         MatchApplication application = MatchApplication.individual(matchId, userId, newReceiptNo(now), now);
         applicationMapper.insert(application);
+        if (paid != null) {
+            linkPayment(paid, List.of(application.getApplicationId()), paidAt, now);
+        }
 
         // 커밋 후 담당 시설 관리자에게 접수 알림 (수신자는 서버가 확정한다)
         notificationDispatcher.notifyAfterCommit(distinctIds(applicationMapper.findFacilityManagerUserIds(matchId)),
@@ -262,6 +363,16 @@ public class MatchApplicationService {
      */
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public String applyTeam(long matchId, long userId, long clubId, List<Long> clubMemberIds) {
+        return doApplyTeam(matchId, userId, clubId, clubMemberIds, null);
+    }
+
+    /** 결제를 확인한 팀 신청 접수. 대표가 인원수만큼 결제했고, 팀원 행 모두가 대표 결제를 가리킨다. */
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public String applyTeamPaid(long matchId, long userId, long clubId, List<Long> clubMemberIds, PaidApply paid) {
+        return doApplyTeam(matchId, userId, clubId, clubMemberIds, Objects.requireNonNull(paid));
+    }
+
+    private String doApplyTeam(long matchId, long userId, long clubId, List<Long> clubMemberIds, PaidApply paid) {
         List<Long> ids = distinctIds(clubMemberIds);
         if (ids.isEmpty()) {
             throw new MatchApplyException(NO_TEAM_MEMBER);
@@ -339,6 +450,7 @@ public class MatchApplicationService {
         }
 
         int seats = 1 + selected.size();
+        requireFee(match, paid, seats);
         int occupied = countOccupied(matchId);
         if (occupied + seats > match.getMaxParticipants()) {
             throw new MatchApplyException(overCapacity(Math.max(0, match.getMaxParticipants() - occupied), seats));
@@ -347,14 +459,20 @@ public class MatchApplicationService {
         applicantIds.add(userId);
         selected.forEach(m -> applicantIds.add(m.getUserId()));
         requireNoTimeConflict(matchId, applicantIds, userId);
+        LocalDateTime paidAt = approvePayment(paid, now);
 
         MatchApplication leader = MatchApplication.teamMember(matchId, userId, clubId, null, newReceiptNo(now), now);
         applicationMapper.insert(leader);
         applicationMapper.markGroupLeader(leader.getApplicationId());
+        List<Long> applicationIds = new ArrayList<>();
+        applicationIds.add(leader.getApplicationId());
         for (TeamMemberRow m : selected) {
-            applicationMapper.insert(MatchApplication.teamMember(matchId, m.getUserId(), clubId,
-                    leader.getApplicationId(), newReceiptNo(now), now));
+            MatchApplication member = MatchApplication.teamMember(matchId, m.getUserId(), clubId,
+                    leader.getApplicationId(), newReceiptNo(now), now);
+            applicationMapper.insert(member);
+            applicationIds.add(member.getApplicationId());
         }
+        linkPayment(paid, applicationIds, paidAt, now);
 
         // 묶음 전체를 한 번만 알린다(팀원 행 수만큼 중복 발송하지 않는다).
         notificationDispatcher.notifyAfterCommit(distinctIds(applicationMapper.findFacilityManagerUserIds(matchId)),
@@ -535,12 +653,70 @@ public class MatchApplicationService {
     public void reject(long applicationId, long managerUserId) {
         LocalDateTime now = LocalDateTime.now(ZONE);
         MatchApplication application = findForDecision(applicationId, managerUserId);
-        lockMatchForDecision(application, now);
+        MatchRow match = lockMatchForDecision(application, now);
         int updated = applicationMapper.markRejected(application.getApplicationId(),
                 ApplicationStatus.WAITING.dbValue(), ApplicationStatus.REJECTED.dbValue());
         if (updated == 0) {
             throw new MatchApplyException("이미 처리된 신청입니다.");
         }
+        paymentLedger.refundApplications(application.getApplicationId() == null ? List.of()
+                : List.of(application.getApplicationId()), "신청 반려", now);
+        notifyRejected(match.getMatchId(), application, "참가 신청이 반려되었습니다.");
+    }
+
+    /** 반려를 신청자에게 알린다. 결제한 신청이면 환불 안내를 붙이고, 팀원 몫은 대표가 결제했으므로 대표에게도 알린다. */
+    private void notifyRejected(long matchId, MatchApplication application, String headline) {
+        boolean paid = application.getPaymentId() != null;
+        List<Long> recipients = new ArrayList<>();
+        recipients.add(application.getApplicantUserId());
+        if (paid) {
+            Payment payment = paymentLedger.findPayment(application.getPaymentId());
+            if (payment != null && !recipients.contains(payment.getPayerUserId())) {
+                recipients.add(payment.getPayerUserId());
+            }
+        }
+        notificationDispatcher.notifyAfterCommit(recipients,
+                "MATCH_APPLICATION_REJECTED", "매칭 신청이 반려되었습니다",
+                paid ? headline + " 결제한 참가비는 결제 수단으로 환불됩니다." : headline,
+                matchId, application.getApplicationId(), null);
+    }
+
+    /** 경기 시작 시각이 지났는데 결제한 확정 대기 신청이 남은 매칭방 (취소된 매칭방 제외). 스케줄러가 부른다. */
+    public List<Long> findStartedMatchIdsWithWaiting(LocalDateTime now) {
+        return applicationMapper.findStartedMatchIdsWithWaiting(now, ApplicationStatus.WAITING.dbValue(),
+                MatchStatus.CANCELLED.dbValue());
+    }
+
+    /**
+     * 경기 시작 전까지 확정되지 않은 결제 대기 신청을 반려하고 전액 환불한다.
+     * 매칭방마다 한 트랜잭션이다. 시작 뒤에는 승인할 수 없으므로 돈을 낸 채 대기로 남겨 두지 않는다.
+     * 무료 대기 신청은 바꾸지 않는다(마이페이지에 '미확정 종료'로 보인다).
+     *
+     * @return 반려한 신청 수
+     */
+    @Transactional
+    public int rejectUnconfirmed(long matchId, LocalDateTime now) {
+        MatchRow match = applicationMapper.lockMatch(matchId);
+        if (match == null || match.getStartAt() == null || match.getStartAt().isAfter(now)
+                || MatchStatus.CANCELLED.dbValue().equals(match.getStatus())) {
+            return 0;
+        }
+        List<MatchApplication> waiting = applicationMapper.findWaitingApplications(matchId,
+                ApplicationStatus.WAITING.dbValue());
+        List<Long> rejected = new ArrayList<>();
+        for (MatchApplication application : waiting) {
+            if (applicationMapper.markRejected(application.getApplicationId(),
+                    ApplicationStatus.WAITING.dbValue(), ApplicationStatus.REJECTED.dbValue()) == 1) {
+                rejected.add(application.getApplicationId());
+            }
+        }
+        paymentLedger.refundApplications(rejected, "경기 시작 전 미확정", now);
+        for (MatchApplication application : waiting) {
+            if (rejected.contains(application.getApplicationId())) {
+                notifyRejected(matchId, application, "경기 시작 전까지 참가가 확정되지 않아 신청이 반려되었습니다.");
+            }
+        }
+        return rejected.size();
     }
 
     /** 다른 시설의 신청인지 존재하지 않는 신청인지 구분하지 않고 같은 문구로 거절한다. */
@@ -652,6 +828,7 @@ public class MatchApplicationService {
         }
         applicationMapper.cancelParticipants(applicationId, ParticipationStatus.occupyingValues(),
                 ParticipationStatus.CANCELLED.dbValue(), now);
+        paymentLedger.refundApplications(List.of(applicationId), "신청 취소", now);
         notifyCancelled(match.getMatchId(), application.getApplicationId());
     }
 
@@ -664,6 +841,11 @@ public class MatchApplicationService {
     }
 
     private void cancelGroupLocked(long groupId, long userId, LocalDateTime now) {
+        // 상태를 바꾸기 전에 취소될 활성 행을 잡아 둔다. 매칭방을 잠근 뒤라 그 사이 바뀌지 않는다.
+        List<Long> active = applicationMapper.lockGroupMembers(groupId).stream()
+                .filter(m -> ApplicationStatus.activeValues().contains(m.getStatus()))
+                .map(GroupMemberRow::getApplicationId)
+                .toList();
         int updated = applicationMapper.markGroupCancelled(groupId, ApplicationStatus.activeValues(),
                 ApplicationStatus.CANCELLED.dbValue(), userId, now);
         if (updated == 0) {
@@ -671,6 +853,7 @@ public class MatchApplicationService {
         }
         applicationMapper.cancelGroupParticipants(groupId, ParticipationStatus.occupyingValues(),
                 ParticipationStatus.CANCELLED.dbValue(), now);
+        paymentLedger.refundApplications(active, "팀 신청 취소", now);
     }
 
     /**
@@ -711,6 +894,8 @@ public class MatchApplicationService {
             applicationMapper.cancelParticipants(target, ParticipationStatus.occupyingValues(),
                     ParticipationStatus.CANCELLED.dbValue(), now);
         }
+        // 대표 결제에서 취소한 인원만큼 부분 환불한다.
+        paymentLedger.refundApplications(targets, "팀원 일부 취소", now);
         if (leaderLeaves && applicationMapper.moveGroup(remaining, groupId, newLeaderApplicationId) != remaining.size()) {
             throw new MatchApplyException("팀 신청 정보가 바뀌었습니다. 다시 시도해 주세요.");
         }
@@ -749,11 +934,26 @@ public class MatchApplicationService {
             participantText = nickname;
         }
 
+        Payment payment = paymentLedger.findPayment(application.getPaymentId());
+        String paymentGuidance;
+        String totalText;
+        if (payment == null) {
+            paymentGuidance = "무료 신청 · 별도 결제 없음";
+            totalText = FREE_TOTAL_TEXT;
+        } else {
+            paymentGuidance = "카카오페이 결제 완료"
+                    + (payment.getPaidAt() == null ? "" : " · " + payment.getPaidAt().format(PAID_AT));
+            totalText = won(payment.getTotalAmount().longValue())
+                    + (payment.getSeatCount() > 1 ? " (" + won(payment.getUnitAmount().longValue())
+                    + " × " + payment.getSeatCount() + "명)" : "");
+        }
+
         return matchService.findDetail(matchId, userId).map(detail -> JoinPage.builder()
                 .match(toJoinMatch(detail))
                 .selection(selection)
                 // 완료 화면 요약 영역이 "예약 불가"로 보이지 않게 한다. 폼은 그리지 않는다.
                 .canReserve(true)
+                .paid(payment != null)
                 .completion(Completion.builder()
                         .title("매치 참가 신청이 접수되었습니다")
                         .message(confirmed
@@ -764,8 +964,9 @@ public class MatchApplicationService {
                         .participantText(participantText)
                         .receiptNo(application.getReceiptNo())
                         .stateLabel(confirmed ? "참가 확정" : "확정 대기")
-                        .paymentGuidance("무료 신청 · 별도 결제 없음")
-                        .totalText(FREE_TOTAL_TEXT)
+                        .paymentGuidance(paymentGuidance)
+                        .totalText(totalText)
+                        .paid(payment != null)
                         .teamAssigned(false)
                         .build())
                 .build());
