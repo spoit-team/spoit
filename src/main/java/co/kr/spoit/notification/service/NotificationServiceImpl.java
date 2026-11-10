@@ -9,7 +9,6 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import co.kr.spoit.notification.domain.Notification;
-import co.kr.spoit.notification.domain.NotificationType;
 import co.kr.spoit.notification.dto.NotificationItemDto;
 import co.kr.spoit.notification.mapper.NotificationMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -32,23 +31,6 @@ public class NotificationServiceImpl implements NotificationService {
             NotificationSender notificationSender) {
         this.notificationMapper = notificationMapper;
         this.notificationSender = notificationSender;
-    }
-
-    /** 기존 경기 알림 경로. 수신자 1명에 대한 저장·전송을 한 번에 처리한다. */
-    @Override
-    @Transactional
-    public void notifyMatch(Long recipientUserId, Long matchId, NotificationType type, String title, String body) {
-        if (recipientUserId == null || recipientUserId <= 0 || type == null) {
-            return;
-        }
-        store(recipientUserId, type.name(), title, body, matchId, null, null, null, null);
-    }
-
-    @Override
-    @Transactional
-    public void notifyRecipients(List<Long> recipientUserIds, String type, String title, String body,
-            Long matchId, Long applicationId, Long joinRequestId, Long clubId) {
-        notifyRecipients(recipientUserIds, type, title, body, matchId, applicationId, joinRequestId, clubId, null);
     }
 
     @Override

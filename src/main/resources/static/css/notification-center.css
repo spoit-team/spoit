@@ -1,4 +1,3 @@
-.playon-notification-host { display: flex; align-items: center; gap: 8px; }
 /* 스크린리더 전용 텍스트: 새 알림 안내처럼 화면에는 그리지 않고 낭독만 합니다. */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .playon-notification-trigger {

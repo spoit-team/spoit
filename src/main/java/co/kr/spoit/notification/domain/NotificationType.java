@@ -31,10 +31,6 @@ public enum NotificationType {
         this.label = label;
     }
 
-    public String label() {
-        return label;
-    }
-
     /**
      * 저장된 코드 문자열에 대응하는 화면 문구를 돌려준다.
      * 정의되지 않은 코드는 원문을 그대로 사용하고, null·공백은 빈 문자열로 바꾼다.
