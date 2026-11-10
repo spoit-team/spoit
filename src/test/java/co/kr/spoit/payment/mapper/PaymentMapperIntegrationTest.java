@@ -23,6 +23,8 @@ import org.springframework.test.context.transaction.BeforeTransaction;
 
 import co.kr.spoit.payment.domain.Payment;
 import co.kr.spoit.payment.domain.RefundableApplicationRow;
+import co.kr.spoit.match.domain.MatchApplication;
+import co.kr.spoit.match.mapper.MatchApplicationMapper;
 
 /**
  * 전용 MySQL DB에서 결제·환불 SQL을 검증한다. 환경변수가 없으면 실행되지 않으며 변경은 테스트 트랜잭션 롤백으로 되돌린다.
@@ -46,6 +48,9 @@ class PaymentMapperIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private MatchApplicationMapper applicationMapper;
 
     @DynamicPropertySource
     static void configureTestDatabase(DynamicPropertyRegistry registry) {
@@ -125,6 +130,21 @@ class PaymentMapperIntegrationTest {
         payment.setTotalAmount(new BigDecimal("10000"));
 
         assertThatThrownBy(() -> paymentMapper.insert(payment)).isInstanceOf(DataAccessException.class).hasMessageContaining("ck_payment_amount");
+    }
+
+    @Test
+    @DisplayName("신청 조회 SQL이 결제 연결 컬럼(payment_id·refunded_at)과 함께 실제 DB에서 실행된다")
+    void applicationQueriesReadPaymentColumns() {
+        insertPayment("pay-1", 9000, 1);
+        paymentMapper.markPaid("pay-1", NOW, NOW);
+        paymentMapper.linkApplications("pay-1", List.of(9501L));
+        paymentMapper.markApplicationsRefunded(List.of(9501L), NOW);
+
+        MatchApplication byId = applicationMapper.findById(9501L);
+        assertThat(byId.getPaymentId()).isEqualTo("pay-1");
+        assertThat(byId.getRefundedAt()).isEqualTo(NOW);
+        assertThat(applicationMapper.findByReceiptNo("ROOM-TEST-9501").getPaymentId()).isEqualTo("pay-1");
+        assertThat(applicationMapper.findMatchSchedule(9401L).getFacilityId()).isEqualTo(9301L);
     }
 
     private void insertPayment(String id, long unit, int seats) {
