@@ -55,7 +55,7 @@ public class FacilityReportController {
         AdminShellModel.apply(model);
         Long userId = principal == null ? null : principal.getUserId();
         FacilityReportPage page = facilityReportService.loadPage(userId, matchId, targetUserId, reportId,
-                parsePage(matchPage), parsePage(reportPage));
+                ReportPageParameter.parse(matchPage), ReportPageParameter.parse(reportPage));
 
         model.addAttribute("matches", page.getMatches());
         model.addAttribute("participants", page.getParticipants());
@@ -94,8 +94,8 @@ public class FacilityReportController {
         if (principal == null) {
             return REDIRECT_LOGIN;
         }
-        int safeMatchPage = parsePage(matchPage);
-        int safeReportPage = parsePage(reportPage);
+        int safeMatchPage = ReportPageParameter.parse(matchPage);
+        int safeReportPage = ReportPageParameter.parse(reportPage);
         try {
             long reportId = facilityReportService.submit(principal.getUserId(), matchId, targetUserId,
                     category, summary);
@@ -149,25 +149,5 @@ public class FacilityReportController {
         return value.length() > FacilityReportService.SUMMARY_MAX_LENGTH
                 ? value.substring(0, FacilityReportService.SUMMARY_MAX_LENGTH)
                 : value;
-    }
-
-    /**
-     * 페이지 파라미터를 정수로 안전하게 해석한다. 누락·비정수·음수는 0으로 본다.
-     * 상한은 서비스가 정규화하므로 여기서는 정수 변환만 책임진다.
-     */
-    static int parsePage(String value) {
-        if (value == null || value.isBlank()) {
-            return 0;
-        }
-        try {
-            long parsed = Long.parseLong(value.strip());
-            if (parsed < 0) {
-                return 0;
-            }
-            // int 범위를 넘는 값은 안전 상한으로 자른다.
-            return parsed > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) parsed;
-        } catch (NumberFormatException exception) {
-            return 0;
-        }
     }
 }

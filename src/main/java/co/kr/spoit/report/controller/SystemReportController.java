@@ -51,7 +51,7 @@ public class SystemReportController {
             Model model) {
         AdminShellModel.apply(model);
         SystemReportPage reportPage = systemReportService.loadPage(status, reportId,
-                FacilityReportController.parsePage(page));
+                ReportPageParameter.parse(page));
         model.addAttribute("reports", reportPage.getReports());
         model.addAttribute("selectedReport", reportPage.getSelectedReport());
         model.addAttribute("statusFilter", reportPage.getStatusFilter());
@@ -85,7 +85,7 @@ public class SystemReportController {
         if (status != null && !status.isBlank()) {
             builder.queryParam("status", status.strip());
         }
-        int safePage = FacilityReportController.parsePage(page);
+        int safePage = ReportPageParameter.parse(page);
         if (safePage > 0) {
             builder.queryParam("page", safePage);
         }

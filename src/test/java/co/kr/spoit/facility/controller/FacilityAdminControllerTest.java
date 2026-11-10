@@ -94,7 +94,7 @@ class FacilityAdminControllerTest {
     @Test
     @DisplayName("view=stats이면 인증 주체 ID로 통계를 조회해 stats 모델을 채운다")
     void loadsStatsForStatsView() throws Exception {
-        FacilityStats stats = FacilityStats.empty(30, "최근 30일");
+        FacilityStats stats = emptyStats(30, "최근 30일");
         when(facilityStatsService.load(7L, 10L, null, null, null)).thenReturn(stats);
 
         mockMvc.perform(get("/admin/facility")
@@ -131,7 +131,7 @@ class FacilityAdminControllerTest {
     @DisplayName("period·periodFrom·periodTo를 서비스로 그대로 전달한다")
     void passesPeriodParametersToService() throws Exception {
         when(facilityStatsService.load(7L, 10L, "custom", "2026-10-01", "2026-10-31"))
-                .thenReturn(FacilityStats.empty(31, "최근 31일"));
+                .thenReturn(emptyStats(31, "최근 31일"));
 
         mockMvc.perform(get("/admin/facility")
                         .param("view", "stats")
@@ -152,7 +152,7 @@ class FacilityAdminControllerTest {
     @DisplayName("기간 파라미터가 없으면 null로 넘기고 정규화는 서비스가 맡는다")
     void passesNullPeriodWhenAbsent() throws Exception {
         when(facilityStatsService.load(eq(7L), eq(10L), isNull(), isNull(), isNull()))
-                .thenReturn(FacilityStats.empty(30, "최근 30일"));
+                .thenReturn(emptyStats(30, "최근 30일"));
 
         mockMvc.perform(get("/admin/facility")
                         .param("view", "stats")
@@ -166,7 +166,7 @@ class FacilityAdminControllerTest {
     @Test
     @DisplayName("시설 미선택이어도 통계 서비스를 호출하고 빈 통계 판정은 서비스가 한다")
     void delegatesEmptyStatsWhenFacilityNotSelected() throws Exception {
-        FacilityStats empty = FacilityStats.empty(30, "최근 30일");
+        FacilityStats empty = emptyStats(30, "최근 30일");
         when(facilityStatsService.load(eq(7L), isNull(), any(), any(), any())).thenReturn(empty);
 
         mockMvc.perform(get("/admin/facility")
@@ -194,7 +194,7 @@ class FacilityAdminControllerTest {
     @DisplayName("클라이언트가 넘긴 managerUserId는 무시하고 인증 주체 ID만 쓴다")
     void ignoresClientManagerUserId() throws Exception {
         when(facilityStatsService.load(eq(7L), eq(10L), any(), any(), any()))
-                .thenReturn(FacilityStats.empty(30, "최근 30일"));
+                .thenReturn(emptyStats(30, "최근 30일"));
 
         mockMvc.perform(get("/admin/facility")
                         .param("view", "stats")
@@ -214,7 +214,7 @@ class FacilityAdminControllerTest {
                 facility(10L, "송파 풋살파크"),
                 facility(11L, "마포 체육관")));
         when(facilityStatsService.load(eq(7L), eq(10L), any(), any(), any()))
-                .thenReturn(FacilityStats.empty(30, "최근 30일"));
+                .thenReturn(emptyStats(30, "최근 30일"));
 
         mockMvc.perform(get("/admin/facility")
                         .param("view", "stats")
@@ -232,9 +232,9 @@ class FacilityAdminControllerTest {
     void leavesSelectedFacilityNullWhenNotSelectable() throws Exception {
         when(facilityService.findManagedFacilities(7L)).thenReturn(List.of(facility(10L, "송파 풋살파크")));
         when(facilityStatsService.load(eq(7L), isNull(), any(), any(), any()))
-                .thenReturn(FacilityStats.empty(30, "최근 30일"));
+                .thenReturn(emptyStats(30, "최근 30일"));
         when(facilityStatsService.load(eq(7L), eq(99L), any(), any(), any()))
-                .thenReturn(FacilityStats.empty(30, "최근 30일"));
+                .thenReturn(emptyStats(30, "최근 30일"));
 
         mockMvc.perform(get("/admin/facility")
                         .param("view", "stats")
@@ -390,7 +390,7 @@ class FacilityAdminControllerTest {
         when(facilityService.findManagedFacilities(7L))
                 .thenReturn(List.of(facility(10L, "송파 풋살파크")));
         when(facilityStatsService.load(eq(7L), isNull(), any(), any(), any()))
-                .thenReturn(FacilityStats.empty(30, "최근 30일"));
+                .thenReturn(emptyStats(30, "최근 30일"));
 
         String html = mockMvc.perform(get("/admin/facility")
                         .param("view", "stats")
@@ -426,13 +426,21 @@ class FacilityAdminControllerTest {
     }
 
     /**
+     * 0건 통계 스텁. 0건 화면 모델(7행·24행·7×24) 조립은 서비스 책임이므로 이 픽스처는
+     * 지표만 0으로 둔 전달 모델을 만든다.
+     */
+    private static FacilityStats emptyStats(int period, String periodLabel) {
+        return new FacilityStats(period, periodLabel, 0, 0, null, null, 0, 0, 0, 0, 0);
+    }
+
+    /**
      * 월 15명(50%)·화 9명(30%)·수 6명(20%), 09시 18명(60%)·18시 8명(27%),
      * 요일×시간대는 월 09시 12명·월 14시 3명·화 09시 6명·화 18시 2명·화 20시 1명·수 18시 6명인
      * 상세 통계. 확정 참가 인원 합계는 30명이다.
      */
     private static FacilityStats detailStats() {
         List<String> days = List.of("월", "화", "수", "목", "금", "토", "일");
-        FacilityStats stats = FacilityStats.empty(30, "최근 30일");
+        FacilityStats stats = emptyStats(30, "최근 30일");
         stats.setBookingCount(10);
         stats.setParticipantCount(30);
         stats.setPopularDay("월");

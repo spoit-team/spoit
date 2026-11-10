@@ -273,7 +273,6 @@
   gap: 0;
   margin: 0;
   padding: 0;
-  counter-reset: report-guide;
   list-style: none;
 }
 
@@ -794,12 +793,6 @@
 .report-decision-note b {
   color: var(--admin-ink-2);
   font-weight: 800;
-}
-
-/* 비활성 버튼은 화면이 잠근 상태(이미 처리됨)를 뜻하므로 진행 커서를 쓰지 않습니다.
-   중복 제출 방지는 폼의 aria-busy로만 알립니다. */
-.report-decision .admin-button:disabled {
-  cursor: not-allowed;
 }
 
 @media (max-width: 1080px) {

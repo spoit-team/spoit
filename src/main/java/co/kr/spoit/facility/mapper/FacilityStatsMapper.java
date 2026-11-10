@@ -7,9 +7,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import co.kr.spoit.facility.dto.ApplicationCountSummary;
-import co.kr.spoit.facility.dto.HourParticipantCount;
 import co.kr.spoit.facility.dto.WeekdayHourParticipantCount;
-import co.kr.spoit.facility.dto.WeekdayParticipantCount;
 
 /**
  * 시설 관리자 예약 통계 조회용 읽기 전용 매퍼다.
@@ -18,8 +16,9 @@ import co.kr.spoit.facility.dto.WeekdayParticipantCount;
  * 제한하고, 기간은 매칭방 {@code start_at}의 {@code [startAt, endAt]} 구간으로 자른다.
  * 집계 대상은 상태가 {@code 종료}인 매칭방뿐이며 모집 중·매칭 완료·취소는 모두 빠진다.
  * 인원 지표는 {@code match_participant}의 {@code participation_status = '확정'} 행만 세므로,
- * 같은 사람이 두 경기에 참여하면 두 번 집계되고 노쇼는 구분하지 못한다. 백분율·승인율 같은
- * 계산은 서비스가 맡고 이 매퍼는 단일 쿼리만 수행한다.</p>
+ * 같은 사람이 두 경기에 참여하면 두 번 집계되고 노쇼는 구분하지 못한다. 요일별·시간대별 합계는
+ * 요일×시간대 집계 결과에서 서비스가 파생하고, 백분율·승인율 같은 계산도 서비스가 맡는다.
+ * 이 매퍼는 단일 쿼리만 수행한다.</p>
  */
 @Mapper
 public interface FacilityStatsMapper {
@@ -42,19 +41,10 @@ public interface FacilityStatsMapper {
             @Param("startAt") LocalDateTime startAt,
             @Param("endAt") LocalDateTime endAt);
 
-    /** 요일별 종료 매칭 확정 참가 인원 (DAYOFWEEK 기준) */
-    List<WeekdayParticipantCount> countParticipantsByWeekday(@Param("managerUserId") Long managerUserId,
-            @Param("facilityId") Long facilityId,
-            @Param("startAt") LocalDateTime startAt,
-            @Param("endAt") LocalDateTime endAt);
-
-    /** 시작 시간대별 종료 매칭 확정 참가 인원 (HOUR 기준) */
-    List<HourParticipantCount> countParticipantsByHour(@Param("managerUserId") Long managerUserId,
-            @Param("facilityId") Long facilityId,
-            @Param("startAt") LocalDateTime startAt,
-            @Param("endAt") LocalDateTime endAt);
-
-    /** 요일 × 시작 시간대별 종료 매칭 확정 참가 인원 (DAYOFWEEK·HOUR 기준) */
+    /**
+     * 요일 × 시작 시간대별 종료 매칭 확정 참가 인원 (DAYOFWEEK·HOUR 기준).
+     * 요일별 합계와 시간대별 합계는 이 결과에서 서비스가 파생한다.
+     */
     List<WeekdayHourParticipantCount> countParticipantsByWeekdayAndHour(
             @Param("managerUserId") Long managerUserId,
             @Param("facilityId") Long facilityId,

@@ -24,10 +24,6 @@ public enum ReportDecisionAction {
         this.targetStatus = targetStatus;
     }
 
-    public String requestValue() {
-        return requestValue;
-    }
-
     public ReportStatus targetStatus() {
         return targetStatus;
     }

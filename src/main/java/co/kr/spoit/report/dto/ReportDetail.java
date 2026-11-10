@@ -2,12 +2,15 @@ package co.kr.spoit.report.dto;
 
 import java.time.format.DateTimeFormatter;
 
+import lombok.Getter;
+
 /**
  * 선택한 신고 한 건의 상세 화면 모델이다.
  *
  * <p>목록과 달리 신고 원문({@code summary})을 담는다. 상세는 요청받은 한 건만 조회해 내려주며,
  * 목록 응답에는 이 타입을 싣지 않는다.</p>
  */
+@Getter
 public class ReportDetail {
 
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -38,50 +41,6 @@ public class ReportDetail {
         this.createdAt = createdAt;
         this.summary = summary;
         this.resolution = resolution;
-    }
-
-    public Long getReportId() {
-        return reportId;
-    }
-
-    public Long getMatchId() {
-        return matchId;
-    }
-
-    public String getFacilityName() {
-        return facilityName;
-    }
-
-    public String getMatchTitle() {
-        return matchTitle;
-    }
-
-    public String getTargetName() {
-        return targetName;
-    }
-
-    public String getReporterName() {
-        return reporterName;
-    }
-
-    public String getCategory() {
-        return category;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public String getCreatedAt() {
-        return createdAt;
-    }
-
-    public String getSummary() {
-        return summary;
-    }
-
-    public String getResolution() {
-        return resolution;
     }
 
     /** 화면 표시용 접수 시각. 값이 없으면 {@code "—"}. */

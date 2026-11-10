@@ -77,43 +77,10 @@
                 OR ma.group_application_id = ma.application_id)
     </select>
 
-    <!-- 종료 매칭에 확정으로 참여한 행만 요일별로 합산한다. -->
-    <select id="countParticipantsByWeekday"
-            resultType="co.kr.spoit.facility.dto.WeekdayParticipantCount">
-        SELECT DAYOFWEEK(sm.start_at)  AS weekday,
-               COUNT(mp.participant_id) AS participant_count
-          FROM match_participant mp
-          JOIN social_match sm ON sm.match_id = mp.match_id
-          JOIN facility f      ON f.facility_id = sm.facility_id
-                              AND f.deleted_at IS NULL
-          JOIN facility_manager fm ON fm.facility_id = f.facility_id
-                                  AND fm.user_id = #{managerUserId}
-         WHERE sm.facility_id = #{facilityId}
-           AND sm.start_at &gt;= #{startAt}
-           AND sm.start_at &lt;= #{endAt}
-           AND sm.status = '종료'
-           AND mp.participation_status = '확정'
-         GROUP BY DAYOFWEEK(sm.start_at)
-    </select>
-
-    <select id="countParticipantsByHour"
-            resultType="co.kr.spoit.facility.dto.HourParticipantCount">
-        SELECT HOUR(sm.start_at)      AS hour,
-               COUNT(mp.participant_id) AS participant_count
-          FROM match_participant mp
-          JOIN social_match sm ON sm.match_id = mp.match_id
-          JOIN facility f      ON f.facility_id = sm.facility_id
-                              AND f.deleted_at IS NULL
-          JOIN facility_manager fm ON fm.facility_id = f.facility_id
-                                  AND fm.user_id = #{managerUserId}
-         WHERE sm.facility_id = #{facilityId}
-           AND sm.start_at &gt;= #{startAt}
-           AND sm.start_at &lt;= #{endAt}
-           AND sm.status = '종료'
-           AND mp.participation_status = '확정'
-         GROUP BY HOUR(sm.start_at)
-    </select>
-
+    <!--
+      종료 매칭에 확정으로 참여한 행만 요일×시간대로 묶는다. 요일별 합계와 시간대별 합계는
+      이 결과에서 서비스가 파생하므로 같은 조건의 집계 쿼리를 따로 두지 않는다.
+    -->
     <select id="countParticipantsByWeekdayAndHour"
             resultType="co.kr.spoit.facility.dto.WeekdayHourParticipantCount">
         SELECT DAYOFWEEK(sm.start_at)  AS weekday,

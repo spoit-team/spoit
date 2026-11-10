@@ -26,9 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import co.kr.spoit.facility.dto.ApplicationCountSummary;
 import co.kr.spoit.facility.dto.FacilityStats;
-import co.kr.spoit.facility.dto.HourParticipantCount;
 import co.kr.spoit.facility.dto.WeekdayHourParticipantCount;
-import co.kr.spoit.facility.dto.WeekdayParticipantCount;
 import co.kr.spoit.facility.mapper.FacilityMapper;
 import co.kr.spoit.facility.mapper.FacilityStatsMapper;
 
@@ -36,7 +34,8 @@ import co.kr.spoit.facility.mapper.FacilityStatsMapper;
  * 예약 통계 서비스의 기간 정규화·권한 범위·참가 인원 기준 백분율 계산을 검증한다.
  *
  * <p>{@code bookingCount}는 종료 매칭방 수, 요일·시간대 {@code count}는 확정 참가 인원,
- * 상세 {@code share}는 전체 확정 참가 인원({@code participantCount}) 대비 반올림 백분율이다.</p>
+ * 상세 {@code share}는 전체 확정 참가 인원({@code participantCount}) 대비 반올림 백분율이다.
+ * 요일별·시간대별 집계는 요일×시간대 집계 한 번에서 파생한다.</p>
  */
 @ExtendWith(MockitoExtension.class)
 class FacilityStatsServiceTest {
@@ -182,7 +181,7 @@ class FacilityStatsServiceTest {
         FacilityStats stats = service.load(USER_ID, null, "30", null, null);
 
         assertThat(stats.getBookingCount()).isZero();
-        assertThat(stats.getWeekdays()).hasSize(7);
+        assertThat(stats.getWeekdayDetails()).hasSize(7);
         verifyNoInteractions(facilityStatsMapper, facilityMapper);
     }
 
@@ -211,7 +210,7 @@ class FacilityStatsServiceTest {
 
     @Test
     @DisplayName("요일·시간대 지표는 매칭방 수가 아니라 확정 참가 인원으로 계산한다")
-    void calculatesPercentAndHeightFromParticipantCounts() {
+    void calculatesCountsFromDerivedParticipantTotals() {
         stubOwnedFacility();
         when(facilityStatsMapper.countFinishedMatches(eq(USER_ID), eq(FACILITY_ID),
                 any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(2L);
@@ -219,16 +218,15 @@ class FacilityStatsServiceTest {
                 any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(12L);
         when(facilityStatsMapper.countApplications(eq(USER_ID), eq(FACILITY_ID),
                 any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(summary(4, 3, 1, 3));
-        when(facilityStatsMapper.countParticipantsByWeekday(eq(USER_ID), eq(FACILITY_ID),
-                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of(
-                        participantWeekday(2, 6),   // 월
-                        participantWeekday(4, 2),   // 수
-                        participantWeekday(7, 0)));  // 토
-        when(facilityStatsMapper.countParticipantsByHour(eq(USER_ID), eq(FACILITY_ID),
-                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of(
-                        participantHour(18, 4),
-                        participantHour(20, 8),
-                        participantHour(9, 2)));
+        // 요일×시간대 집계 하나에서 요일 합계(월 6·수 2·토 0)와 시간대 합계(09시 2·18시 4·20시 8)를 파생한다.
+        stubWeekdayHourCounts(
+                participantWeekdayHour(2, 9, 2),
+                participantWeekdayHour(2, 18, 1),
+                participantWeekdayHour(2, 20, 3),
+                participantWeekdayHour(4, 18, 1),
+                participantWeekdayHour(4, 20, 1),
+                participantWeekdayHour(7, 20, 4),
+                participantWeekdayHour(7, 9, 0));
 
         FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
 
@@ -236,18 +234,13 @@ class FacilityStatsServiceTest {
         assertThat(stats.getBookingCount()).isEqualTo(2L);
         assertThat(stats.getParticipantCount()).isEqualTo(12L);
 
-        assertThat(stats.getWeekdays()).extracting(FacilityStats.WeekdayShare::getLabel)
+        assertThat(stats.getWeekdayDetails()).extracting(FacilityStats.WeekdayDetail::getLabel)
                 .containsExactly("월", "화", "수", "목", "금", "토", "일");
-        assertThat(stats.getWeekdays()).extracting(FacilityStats.WeekdayShare::getPercent)
-                .containsExactly(100, 0, 33, 0, 0, 0, 0);
-        assertThat(stats.getWeekdays().get(0).getTone()).isEqualTo("good");
-
-        assertThat(stats.getPopularHours()).extracting(FacilityStats.PopularHour::getLabel)
-                .containsExactly("09시", "18시", "20시");
-        assertThat(stats.getPopularHours()).extracting(FacilityStats.PopularHour::getHeight)
-                .containsExactly(25, 50, 100);
-        assertThat(stats.getPopularHours()).extracting(FacilityStats.PopularHour::getCount)
-                .containsExactly(2L, 4L, 8L);
+        assertThat(stats.getWeekdayDetails()).extracting(FacilityStats.WeekdayDetail::getCount)
+                .containsExactly(6L, 0L, 2L, 0L, 0L, 4L, 0L);
+        assertThat(stats.getHourDetails()).filteredOn(row -> row.getCount() > 0)
+                .extracting(FacilityStats.HourDetail::getLabel, FacilityStats.HourDetail::getCount)
+                .containsExactly(tuple("09시", 2L), tuple("18시", 2L), tuple("20시", 8L));
 
         assertThat(stats.getPopularDay()).isEqualTo("월");
         assertThat(stats.getPeakTime()).isEqualTo("20시");
@@ -257,7 +250,7 @@ class FacilityStatsServiceTest {
     @DisplayName("신청 총계가 0이면 승인율은 0이고 신청 지표도 0이다")
     void approvalRateIsZeroWithoutApplications() {
         stubOwnedFacility();
-        stubCounts(0, 0, summary(0, 0, 0, 0), List.of(), List.of());
+        stubCounts(0, 0, summary(0, 0, 0, 0));
 
         FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
 
@@ -265,14 +258,15 @@ class FacilityStatsServiceTest {
         assertThat(stats.getApprovalRate()).isZero();
         assertThat(stats.getPopularDay()).isNull();
         assertThat(stats.getPeakTime()).isNull();
-        assertThat(stats.getPopularHours()).isEmpty();
+        assertThat(stats.getHourDetails()).extracting(FacilityStats.HourDetail::getCount)
+                .containsOnly(0L);
     }
 
     @Test
     @DisplayName("승인율은 확정/총계 백분율을 반올림하고 신청 구분을 그대로 담는다")
     void calculatesApprovalRateWithRounding() {
         stubOwnedFacility();
-        stubCounts(0, 0, summary(3, 2, 1, 2), List.of(), List.of());
+        stubCounts(0, 0, summary(3, 2, 1, 2));
 
         FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
 
@@ -284,18 +278,63 @@ class FacilityStatsServiceTest {
     }
 
     @Test
-    @DisplayName("시간대 집계가 비어 있으면 인기 시간대 라벨은 null이고 목록은 비어 있다")
-    void popularHourLabelsAreNullWhenNothingCollected() {
+    @DisplayName("요일·시간대 집계가 0건뿐이면 인기 요일·집중 시간 라벨은 null이고 상세도 0이다")
+    void popularLabelsAreNullWhenNothingCollected() {
         stubOwnedFacility();
-        stubCounts(1, 0, summary(0, 0, 0, 0), List.of(participantWeekday(1, 0)), List.of());
+        stubCounts(1, 0, summary(0, 0, 0, 0));
+        stubWeekdayHourCounts(participantWeekdayHour(1, 0, 0));
 
         FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
 
         assertThat(stats.getPopularDay()).isNull();
         assertThat(stats.getPeakTime()).isNull();
-        assertThat(stats.getPopularHours()).isEmpty();
-        assertThat(stats.getWeekdays()).extracting(FacilityStats.WeekdayShare::getPercent)
-                .containsExactly(0, 0, 0, 0, 0, 0, 0);
+        assertThat(stats.getWeekdayDetails()).extracting(FacilityStats.WeekdayDetail::getCount)
+                .containsOnly(0L);
+        assertThat(stats.getHourDetails()).extracting(FacilityStats.HourDetail::getCount)
+                .containsOnly(0L);
+    }
+
+    @Test
+    @DisplayName("요일·시간대 동률이면 월~일·00~23시 순서상 먼저인 라벨을 고른다")
+    void picksFirstLabelOnTie() {
+        stubOwnedFacility();
+        stubCounts(2, 4, summary(0, 0, 0, 0));
+        // 월·화가 2명으로 동률이고 09시·20시도 2명으로 동률이라, 먼저 나오는 월·09시를 고른다.
+        stubWeekdayHourCounts(
+                participantWeekdayHour(2, 20, 1),
+                participantWeekdayHour(3, 9, 1),
+                participantWeekdayHour(2, 9, 1),
+                participantWeekdayHour(3, 20, 1));
+
+        FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
+
+        assertThat(stats.getPopularDay()).isEqualTo("월");
+        assertThat(stats.getPeakTime()).isEqualTo("09시");
+        assertThat(stats.getWeekdayDetails()).extracting(FacilityStats.WeekdayDetail::getCount)
+                .containsExactly(2L, 2L, 0L, 0L, 0L, 0L, 0L);
+        assertThat(stats.getHourDetails()).filteredOn(row -> row.getCount() > 0)
+                .extracting(FacilityStats.HourDetail::getLabel, FacilityStats.HourDetail::getCount)
+                .containsExactly(tuple("09시", 2L), tuple("20시", 2L));
+    }
+
+    @Test
+    @DisplayName("한 시간대에 여러 요일이 몰려도 요일 합계와 시간대 합계를 각각 파생한다")
+    void derivesBothTotalsFromSameHourAcrossWeekdays() {
+        stubOwnedFacility();
+        stubCounts(3, 5, summary(0, 0, 0, 0));
+        // 같은 19시에 월 2명·수 3명이 시작한다.
+        stubWeekdayHourCounts(
+                participantWeekdayHour(2, 19, 2),
+                participantWeekdayHour(4, 19, 3));
+
+        FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
+
+        assertThat(stats.getWeekdayDetails()).extracting(FacilityStats.WeekdayDetail::getCount)
+                .containsExactly(2L, 0L, 3L, 0L, 0L, 0L, 0L);
+        assertThat(stats.getHourDetails()).filteredOn(row -> row.getCount() > 0)
+                .extracting(FacilityStats.HourDetail::getLabel, FacilityStats.HourDetail::getCount)
+                .containsExactly(tuple("19시", 5L));
+        assertThat(stats.getPeakTime()).isEqualTo("19시");
     }
 
     /* ---------------- 상세 집계 ---------------- */
@@ -304,7 +343,7 @@ class FacilityStatsServiceTest {
     @DisplayName("요일·시간대 상세는 집계되지 않은 구간도 0으로 채워 7행·24행을 유지한다")
     void fillsDetailRowsWithZerosWhenNothingCollected() {
         stubOwnedFacility();
-        stubCounts(0, 0, summary(0, 0, 0, 0), List.of(), List.of());
+        stubCounts(0, 0, summary(0, 0, 0, 0));
 
         FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
 
@@ -337,14 +376,11 @@ class FacilityStatsServiceTest {
     @DisplayName("요일·시간대 상세의 비율은 전체 확정 참가 인원 대비 반올림 백분율이다")
     void calculatesDetailShareAgainstParticipantTotal() {
         stubOwnedFacility();
-        stubCounts(2, 10, summary(0, 0, 0, 0),
-                List.of(participantWeekday(2, 6), participantWeekday(3, 4)),
-                List.of(participantHour(9, 3), participantHour(20, 7)));
-        when(facilityStatsMapper.countParticipantsByWeekdayAndHour(eq(USER_ID), eq(FACILITY_ID),
-                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of(
-                        participantWeekdayHour(2, 9, 4),
-                        participantWeekdayHour(2, 20, 2),
-                        participantWeekdayHour(3, 10, 4)));
+        stubCounts(2, 10, summary(0, 0, 0, 0));
+        stubWeekdayHourCounts(
+                participantWeekdayHour(2, 9, 4),
+                participantWeekdayHour(2, 20, 2),
+                participantWeekdayHour(3, 10, 4));
 
         FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
 
@@ -358,8 +394,9 @@ class FacilityStatsServiceTest {
                 .extracting(FacilityStats.HourDetail::getLabel, FacilityStats.HourDetail::getCount,
                         FacilityStats.HourDetail::getShare)
                 .containsExactly(
-                        tuple("09시", 3L, 30),
-                        tuple("20시", 7L, 70));
+                        tuple("09시", 4L, 40),
+                        tuple("10시", 4L, 40),
+                        tuple("20시", 2L, 20));
 
         assertThat(stats.getWeekdayHourDetails().get(0).getHourlyCounts().get(9)).isEqualTo(4L);
         assertThat(stats.getWeekdayHourDetails().get(0).getHourlyCounts().get(20)).isEqualTo(2L);
@@ -368,13 +405,15 @@ class FacilityStatsServiceTest {
     }
 
     @Test
-    @DisplayName("상세 비율은 전체 대비 반올림하며 전체가 0이면 0이다")
+    @DisplayName("상세 비율은 전체 대비 반올림하며 전체가 0이면 0이고, 집계 행 합과 달라도 전체를 분모로 쓴다")
     void roundsDetailShareAndKeepsZeroWhenTotalIsZero() {
         stubOwnedFacility();
-        stubCounts(3, 0, summary(0, 0, 0, 0), List.of(participantWeekday(2, 1), participantWeekday(3, 2)),
-                List.of(participantHour(9, 1), participantHour(10, 2)));
+        stubCounts(3, 0, summary(0, 0, 0, 0));
+        stubWeekdayHourCounts(
+                participantWeekdayHour(2, 9, 1),
+                participantWeekdayHour(3, 10, 2));
 
-        // 참가 인원 합계가 0이면 요일 값이 있어도 share는 0이다.
+        // 참가 인원 합계(countConfirmedParticipants)가 0이면 행 합계가 있어도 share는 0이다.
         FacilityStats zero = service.load(USER_ID, FACILITY_ID, "30", null, null);
         assertThat(zero.getWeekdayDetails()).extracting(FacilityStats.WeekdayDetail::getShare)
                 .containsOnly(0);
@@ -382,27 +421,34 @@ class FacilityStatsServiceTest {
                 .containsOnly(0);
 
         // 1/3 = 33.33 → 33, 2/3 = 66.67 → 67
-        stubCounts(3, 3, summary(0, 0, 0, 0), List.of(participantWeekday(2, 1), participantWeekday(3, 2)),
-                List.of(participantHour(9, 1), participantHour(10, 2)));
+        stubCounts(3, 3, summary(0, 0, 0, 0));
         FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
         assertThat(stats.getWeekdayDetails()).extracting(FacilityStats.WeekdayDetail::getShare)
                 .containsExactly(33, 67, 0, 0, 0, 0, 0);
         assertThat(stats.getHourDetails()).filteredOn(row -> row.getCount() > 0)
                 .extracting(FacilityStats.HourDetail::getShare)
                 .containsExactly(33, 67);
+
+        // 집계 행 합(3)과 참가 인원 쿼리 값(10)이 달라도 비율 분모는 쿼리 값이다.
+        stubCounts(3, 10, summary(0, 0, 0, 0));
+        FacilityStats mismatched = service.load(USER_ID, FACILITY_ID, "30", null, null);
+        assertThat(mismatched.getWeekdayDetails()).extracting(FacilityStats.WeekdayDetail::getShare)
+                .containsExactly(10, 20, 0, 0, 0, 0, 0);
+        assertThat(mismatched.getHourDetails()).filteredOn(row -> row.getCount() > 0)
+                .extracting(FacilityStats.HourDetail::getCount, FacilityStats.HourDetail::getShare)
+                .containsExactly(tuple(1L, 10), tuple(2L, 20));
     }
 
     @Test
     @DisplayName("요일×시간대 집계는 DAYOFWEEK를 월~일로 옮기고 시간대 24칸에 채운다")
     void mapsWeekdayHourCountsToWeekdayRows() {
         stubOwnedFacility();
-        stubCounts(4, 0, summary(0, 0, 0, 0), List.of(), List.of());
-        when(facilityStatsMapper.countParticipantsByWeekdayAndHour(eq(USER_ID), eq(FACILITY_ID),
-                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of(
-                        participantWeekdayHour(1, 23, 1),   // 일
-                        participantWeekdayHour(7, 0, 2),    // 토
-                        participantWeekdayHour(2, 6, 1),    // 월
-                        participantWeekdayHour(9, 5, 99)));  // 범위 밖 요일은 버린다
+        stubCounts(4, 0, summary(0, 0, 0, 0));
+        stubWeekdayHourCounts(
+                participantWeekdayHour(1, 23, 1),   // 일
+                participantWeekdayHour(7, 0, 2),    // 토
+                participantWeekdayHour(2, 6, 1),    // 월
+                participantWeekdayHour(9, 5, 99));  // 범위 밖 요일은 버린다
 
         FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
 
@@ -411,6 +457,12 @@ class FacilityStatsServiceTest {
         assertThat(stats.getWeekdayHourDetails().get(0).getHourlyCounts().get(6)).isEqualTo(1L);
         assertThat(stats.getWeekdayHourDetails()).allSatisfy(
                 row -> assertThat(row.getHourlyCounts()).hasSize(24));
+        // 버려진 요일 행은 파생 합계에도 들어가지 않는다.
+        assertThat(stats.getWeekdayDetails()).extracting(FacilityStats.WeekdayDetail::getCount)
+                .containsExactly(1L, 0L, 0L, 0L, 0L, 2L, 1L);
+        assertThat(stats.getHourDetails()).filteredOn(row -> row.getCount() > 0)
+                .extracting(FacilityStats.HourDetail::getLabel, FacilityStats.HourDetail::getCount)
+                .containsExactly(tuple("00시", 2L), tuple("06시", 1L), tuple("23시", 1L));
     }
 
     @Test
@@ -418,17 +470,44 @@ class FacilityStatsServiceTest {
     void emptyStatsStillProvideZeroFilledDetailLists() {
         FacilityStats stats = service.load(USER_ID, null, "30", null, null);
 
+        // 기간 표시값은 요청값 그대로이고 지표·인기 라벨·조회 날짜는 0·null이다.
+        assertThat(stats.getPeriod()).isEqualTo(30);
+        assertThat(stats.getPeriodLabel()).isEqualTo("최근 30일");
+        assertThat(stats.getRequestedPeriod()).isEqualTo("30");
+        assertThat(stats.getPeriodFrom()).isNull();
+        assertThat(stats.getPeriodTo()).isNull();
+        assertThat(stats.getBookingCount()).isZero();
+        assertThat(stats.getParticipantCount()).isZero();
+        assertThat(stats.getPopularDay()).isNull();
+        assertThat(stats.getPeakTime()).isNull();
+        assertThat(stats.getApplicationTotal()).isZero();
+        assertThat(stats.getApprovalRate()).isZero();
+
         assertThat(stats.getWeekdayDetails()).hasSize(7);
+        assertThat(stats.getWeekdayDetails()).extracting(FacilityStats.WeekdayDetail::getLabel)
+                .containsExactly("월", "화", "수", "목", "금", "토", "일");
+        assertThat(stats.getWeekdayDetails()).extracting(FacilityStats.WeekdayDetail::getCount)
+                .containsOnly(0L);
+        assertThat(stats.getWeekdayDetails()).extracting(FacilityStats.WeekdayDetail::getShare)
+                .containsOnly(0);
+
         assertThat(stats.getHourDetails()).hasSize(24);
+        assertThat(stats.getHourDetails()).extracting(FacilityStats.HourDetail::getLabel)
+                .first().isEqualTo("00시");
+        assertThat(stats.getHourDetails()).extracting(FacilityStats.HourDetail::getLabel)
+                .last().isEqualTo("23시");
+        assertThat(stats.getHourDetails()).extracting(FacilityStats.HourDetail::getCount)
+                .containsOnly(0L);
+        assertThat(stats.getHourDetails()).extracting(FacilityStats.HourDetail::getShare)
+                .containsOnly(0);
+
         assertThat(stats.getWeekdayHourDetails()).hasSize(7);
+        assertThat(stats.getWeekdayHourDetails())
+                .extracting(FacilityStats.WeekdayHourDetail::getLabel)
+                .containsExactly("월", "화", "수", "목", "금", "토", "일");
         assertThat(stats.getWeekdayHourDetails())
                 .allSatisfy(row -> assertThat(row.getHourlyCounts()).hasSize(24).containsOnly(0L));
         verifyNoInteractions(facilityStatsMapper, facilityMapper);
-
-        FacilityStats notManaged = FacilityStats.empty(30, "최근 30일");
-        assertThat(notManaged.getWeekdayDetails()).hasSize(7);
-        assertThat(notManaged.getHourDetails()).hasSize(24);
-        assertThat(notManaged.getWeekdayHourDetails()).hasSize(7);
     }
 
     /* ---------------- 도우미 ---------------- */
@@ -439,11 +518,10 @@ class FacilityStatsServiceTest {
 
     private void stubOwnedFacilityWithNoMatches() {
         stubOwnedFacility();
-        stubCounts(0, 0, summary(0, 0, 0, 0), List.of(), List.of());
+        stubCounts(0, 0, summary(0, 0, 0, 0));
     }
 
-    private void stubCounts(long matches, long participants, ApplicationCountSummary applications,
-            List<WeekdayParticipantCount> weekdays, List<HourParticipantCount> hours) {
+    private void stubCounts(long matches, long participants, ApplicationCountSummary applications) {
         // 기간 경계 자체는 별도 테스트에서 verify로 검증하므로 여기서는 구간과 무관하게 응답만 고정한다.
         when(facilityStatsMapper.countFinishedMatches(eq(USER_ID), eq(FACILITY_ID),
                 any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(matches);
@@ -451,11 +529,12 @@ class FacilityStatsServiceTest {
                 any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(participants);
         when(facilityStatsMapper.countApplications(eq(USER_ID), eq(FACILITY_ID),
                 any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(applications);
-        when(facilityStatsMapper.countParticipantsByWeekday(eq(USER_ID), eq(FACILITY_ID),
-                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(weekdays);
-        when(facilityStatsMapper.countParticipantsByHour(eq(USER_ID), eq(FACILITY_ID),
-                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(hours);
         // 요일×시간대 집계는 기본 응답(빈 목록)을 그대로 쓰고, 값이 필요한 테스트만 따로 stub한다.
+    }
+
+    private void stubWeekdayHourCounts(WeekdayHourParticipantCount... rows) {
+        when(facilityStatsMapper.countParticipantsByWeekdayAndHour(eq(USER_ID), eq(FACILITY_ID),
+                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of(rows));
     }
 
     private static ApplicationCountSummary summary(long total, long individual, long club, long approved) {
@@ -465,20 +544,6 @@ class FacilityStatsServiceTest {
         summary.setClubCount(club);
         summary.setApprovedCount(approved);
         return summary;
-    }
-
-    private static WeekdayParticipantCount participantWeekday(int dayOfWeek, long participantCount) {
-        WeekdayParticipantCount row = new WeekdayParticipantCount();
-        row.setWeekday(dayOfWeek);
-        row.setParticipantCount(participantCount);
-        return row;
-    }
-
-    private static HourParticipantCount participantHour(int hour, long participantCount) {
-        HourParticipantCount row = new HourParticipantCount();
-        row.setHour(hour);
-        row.setParticipantCount(participantCount);
-        return row;
     }
 
     private static WeekdayHourParticipantCount participantWeekdayHour(int dayOfWeek, int hour,
