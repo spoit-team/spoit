@@ -867,6 +867,21 @@ check(/<ol\b(?=[^>]*\sdata-result-steps(?=[\s>=]))(?=[^>]*\shidden(?=[\s>=]))[^>
   'match-result.html: the captain step bar must start hidden so participants never see it');
 check(/missing = missingKeys\(\)/.test(matchEvaluationScript) && /missingKeys\(\)\.size/.test(matchEvaluationScript),
   'match-evaluation.js: the progress count must use the same empty-cell check as submission review');
+// 점수는 슬라이더로 고르고, 스크린 리더가 "항목 n점"을 읽을 수 있게 값이 바뀔 때마다 aria-valuetext를 고친다.
+check(/type="range"/.test(matchEvaluationScript) && !/<select\b/.test(matchEvaluationScript),
+  'match-evaluation.js: scores must be chosen with sliders, not select boxes');
+check(/aria-valuetext="\$\{/.test(matchEvaluationScript)
+    && /setAttribute\('aria-valuetext'/.test(matchEvaluationScript),
+  'match-evaluation.js: each score slider must keep aria-valuetext in step with its value');
+// Chrome은 밝은 accent-color에 대비를 맞추려고 남은 트랙을 검게 칠하므로, 평가 슬라이더는 두 엔진의 트랙을 직접 그린다.
+const matchResultCss = await readFile(path.join(resources, 'static/css/match-result.css'), 'utf8');
+check(!/accent-color\s*:/.test(matchResultCss)
+    && ['::-webkit-slider-runnable-track', '::-webkit-slider-thumb', '::-moz-range-track', '::-moz-range-progress', '::-moz-range-thumb']
+      .every(part => matchResultCss.includes(`.match-evaluation-slider${part}`)),
+  'match-result.css: score sliders must draw their own track and thumb in Chrome and Firefox instead of using accent-color');
+check(/setProperty\('--match-evaluation-slider-ratio'/.test(matchEvaluationScript)
+    && /var\(--match-evaluation-slider-ratio\b/.test(matchResultCss),
+  'match-evaluation.js: the Chrome track fill must follow the slider position');
 
 if (failures.length) {
   console.error(failures.join('\n'));

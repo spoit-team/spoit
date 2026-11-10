@@ -19,6 +19,7 @@
 | `20261103-social-match-photo.sql` | 매칭방 시설 사진 컬럼 `social_match.photo_url` 추가 | 컬럼이 있으면 적용됨 |
 | `20261104-drop-club-hashtag.sql` | 동호회 태그 연결·태그 테이블을 순서대로 삭제 | `club_hashtag`와 `hashtag`가 모두 없으면 적용됨 |
 | `20261105-notification-club.sql` | `notification.club_id`와 `club` 참조 외래 키 추가 | 컬럼과 `fk_notification_club` 외래 키가 모두 있으면 적용됨 |
+| `20261109-evaluation-items.sql` | 평가 항목을 종목마다 공격·연결·수비 3개, 가중치 1.00으로 정리(축구+풋살 3개·족구 협동심 끔, 족구 토스·연결 추가, 농구 수비 → 수비·리바운드). 데이터만 바꾸고 여러 번 실행해도 안전하며, 시드가 없는 `spoit_mat_test`에는 필요 없음 | 파일 끝 확인 질의에서 종목마다 `active_items` 3, `weight_sum` 3.00이면 적용됨 |
 
 ## 적용할 DB
 
