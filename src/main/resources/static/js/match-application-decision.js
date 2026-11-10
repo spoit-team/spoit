@@ -50,7 +50,10 @@
     if (!label) return;
     pending = { applicationId: button.dataset.applicationId, decision };
     title.textContent = label.title;
-    message.textContent = `${targetName(button)} 님의 참가 신청을 ${label.action}할까요? ${label.result}`;
+    // 결제한 신청을 반려하면 1인 참가비가 결제 수단으로 환불된다(팀 신청은 대표 결제에서 부분 환불).
+    const refund = decision === 'reject' ? Number(button.dataset.refundAmount || 0) : 0;
+    const refundText = refund > 0 ? ` ${refund.toLocaleString('ko-KR')}원이 결제 수단으로 환불됩니다.` : '';
+    message.textContent = `${targetName(button)} 님의 참가 신청을 ${label.action}할까요? ${label.result}${refundText}`;
     submit.textContent = label.action;
     submit.classList.toggle('primary', decision === 'confirm');
     submit.classList.toggle('danger-solid', decision === 'reject');

@@ -82,8 +82,8 @@ public interface ClubService {
     // 동호회 해체
     void disbandClub(Long userId, Long clubId, String clubNameConfirmation);
 
-    // 동호회 정보 수정
-    void updateClub(Long userId, Long clubId, ClubCreateForm form) throws ClubNameExistException;
+    // 동호회 정보 수정: 정원이 차서 모집 마감으로 저장했으면 true
+    boolean updateClub(Long userId, Long clubId, ClubCreateForm form) throws ClubNameExistException;
 
     /**
      * 동호회 행을 잠그고 최신 값을 돌려준다. 없거나 해체됐으면 null.

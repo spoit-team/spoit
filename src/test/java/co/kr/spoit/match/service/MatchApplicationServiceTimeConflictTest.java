@@ -44,6 +44,7 @@ import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.mapper.MemberMapper;
 import co.kr.spoit.member.service.MemberAccountLockService;
 import co.kr.spoit.notification.service.NotificationDispatcher;
+import co.kr.spoit.payment.service.PaymentLedgerService;
 
 /**
  * 이미 참가 신청한 다른 매치와 시간이 겹치면 개인·팀 신청을 막는다.
@@ -62,6 +63,7 @@ class MatchApplicationServiceTimeConflictTest {
     private MemberAccountLockService accountLockService;
     private MatchService matchService;
     private MatchApplicationService service;
+    private FacilityReservationService facilityReservationService;
 
     @BeforeEach
     void setUp() {
@@ -70,9 +72,10 @@ class MatchApplicationServiceTimeConflictTest {
         accountLockService = mock(MemberAccountLockService.class);
         ClubService clubService = mock(ClubService.class);
         matchService = mock(MatchService.class);
+        facilityReservationService = mock(FacilityReservationService.class);
         service = new MatchApplicationService(mapper, memberMapper, mock(SportRatingMapper.class),
-                matchService, mock(FacilityReservationService.class), accountLockService, clubService,
-                mock(NotificationDispatcher.class));
+                matchService, facilityReservationService, accountLockService, clubService,
+                mock(NotificationDispatcher.class), mock(PaymentLedgerService.class));
 
         Member me = account(USER_ID);
         given(memberMapper.findById(USER_ID)).willReturn(Optional.of(me));
@@ -257,5 +260,24 @@ class MatchApplicationServiceTimeConflictTest {
                 List.of(teamMember(100L, USER_ID, "박민서"), teamMember(101L, 21L, "박도윤"),
                         teamMember(102L, 22L, "김지우")),
                 USER_ID));
+    }
+
+    @Test
+    @DisplayName("신청 화면: 시설 운영 시간 밖이면 결제 화면으로 넘어가기 전에 신청을 막는다")
+    void prepareIndividualBlocksOutsideOperatingHours() {
+        given(matchService.findDetail(MATCH_ID, USER_ID)).willReturn(Optional.of(detail()));
+        MatchRow schedule = new MatchRow();
+        schedule.setMatchId(MATCH_ID);
+        schedule.setFacilityId(26L);
+        schedule.setStartAt(LocalDateTime.of(2026, 11, 11, 21, 42));
+        schedule.setEndAt(LocalDateTime.of(2026, 11, 11, 23, 42));
+        given(mapper.findMatchSchedule(MATCH_ID)).willReturn(schedule);
+        given(facilityReservationService.findUnavailableReason(26L, schedule.getStartAt(), schedule.getEndAt()))
+                .willReturn(Optional.of("선택한 시간은 시설 운영 시간이 아니거나 휴관과 겹쳐 예약할 수 없습니다."));
+
+        JoinPage page = service.prepareIndividual(MATCH_ID, USER_ID).orElseThrow();
+
+        assertThat(page.isCanReserve()).isFalse();
+        assertThat(page.getCapacityNotice()).isEqualTo("선택한 시간은 시설 운영 시간이 아니거나 휴관과 겹쳐 예약할 수 없습니다.");
     }
 }

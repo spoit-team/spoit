@@ -10,6 +10,7 @@ import co.kr.spoit.mat.service.TeamAssignmentService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.core.env.StandardEnvironment;
+import co.kr.spoit.match.service.MatchApplicationService;
 
 /** 스케줄러 프로퍼티 하나로 경기 시작·종료·결과 마감 스케줄러 빈이 함께 켜지고 꺼지는지 검증한다. */
 class MatSchedulingConfigTest {
@@ -17,7 +18,8 @@ class MatSchedulingConfigTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(MatSchedulingConfig.class)
             .withBean(TeamAssignmentService.class, () -> mock(TeamAssignmentService.class))
-            .withBean(MatchResultService.class, () -> mock(MatchResultService.class));
+            .withBean(MatchResultService.class, () -> mock(MatchResultService.class))
+            .withBean(MatchApplicationService.class, () -> mock(MatchApplicationService.class));
 
     @Test
     void registersBothSchedulersWhenPropertyMissing() {

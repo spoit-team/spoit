@@ -22,14 +22,16 @@ import co.kr.spoit.match.service.MatchApplicationService;
 import co.kr.spoit.match.service.MatchApplyException;
 import co.kr.spoit.match.service.MatchService;
 import co.kr.spoit.member.domain.MemberPrincipal;
+import co.kr.spoit.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 
 /**
  * 매칭(=시설 예약) 화면 컨트롤러.
  *
  * <p>SystemAdminController에서 분리했다. RES-01 검색(카드형)·RES-02 상세·RES-03 개인 신청·RES-04 팀 신청.
- * 신청 흐름: 상세 다이얼로그 → 신청 내용(STEP 1) → 신청 완료(STEP 3). 결제 안내(STEP 2)는
- * 무료 결제만 지원하는 동안 건너뛴다.</p>
+ * 신청 흐름: 상세 다이얼로그 → 신청 내용(STEP 1) → 결제(STEP 2) → 신청 완료(STEP 3).
+ * 참가비가 없는 매치는 결제 단계를 건너뛰고 이 컨트롤러의 POST로 바로 접수한다. 유료 매치 결제는
+ * {@code payment.controller.MatchPaymentController}가 맡는다.</p>
  */
 @Controller
 @RequestMapping("/matches")
@@ -40,6 +42,7 @@ public class MatchController {
 
     private final MatchService matchService;
     private final MatchApplicationService applicationService;
+    private final PaymentService paymentService;
 
     /** RES-01 매칭방 검색 (카드형으로 고정, 목록형은 쓰지 않는다) */
     @GetMapping
@@ -106,7 +109,7 @@ public class MatchController {
         return "matches/join";
     }
 
-    /** RES-03 신청 접수. 무료 결제만 지원하므로 결제 동의 없이 운영 규칙 동의만 확인한다. */
+    /** RES-03 무료 매치 신청 접수. 운영 규칙 동의만 확인한다. 유료 매치는 서비스가 결제 없이 받지 않는다. */
     @PostMapping("/{matchId}/apply")
     public String submit(@PathVariable long matchId,
                          @AuthenticationPrincipal MemberPrincipal principal,
@@ -208,6 +211,11 @@ public class MatchController {
         model.addAttribute("capacityNotice", page.getCapacityNotice());
         model.addAttribute("feeTotalText", page.getFeeTotalText());
         model.addAttribute("feeSummaryNote", page.getFeeSummaryNote());
+        model.addAttribute("paid", page.isPaid());
+        model.addAttribute("unitAmount", page.getUnitAmount());
+        model.addAttribute("totalAmount", page.getTotalAmount());
+        model.addAttribute("paymentAvailable", paymentService.isAvailable());
+        model.addAttribute("paymentTestMode", paymentService.isTestMode());
         model.addAttribute("completion", page.getCompletion());
         model.addAttribute("timeConflicts", page.getTimeConflicts());
     }
@@ -220,6 +228,11 @@ public class MatchController {
         model.addAttribute("capacityNotice", "");
         model.addAttribute("feeTotalText", "");
         model.addAttribute("feeSummaryNote", "");
+        model.addAttribute("paid", false);
+        model.addAttribute("unitAmount", 0L);
+        model.addAttribute("totalAmount", 0L);
+        model.addAttribute("paymentAvailable", false);
+        model.addAttribute("paymentTestMode", false);
         model.addAttribute("completion", null);
         model.addAttribute("timeConflicts", List.of());
     }

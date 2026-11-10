@@ -42,6 +42,13 @@ public class MyApplicationRow {
     /** 같은 묶음에서 내 행과 상태가 같은 행 수 (팀 신청 인원 표시용) */
     private int groupSize;
 
+    /** 참가비 결제 (팀 신청은 대표 결제). 무료 신청이면 아래 결제 값이 모두 null */
+    private String paymentId;
+    private Long payerUserId;
+    private java.math.BigDecimal unitAmount;
+    private java.math.BigDecimal totalAmount;
+    private java.math.BigDecimal refundedAmount;
+
     public boolean isTeamGroup() {
         return groupApplicationId != null;
     }

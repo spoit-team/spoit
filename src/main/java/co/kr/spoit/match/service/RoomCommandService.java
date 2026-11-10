@@ -39,6 +39,7 @@ import co.kr.spoit.match.dto.RoomEditTarget;
 import co.kr.spoit.match.dto.RoomForm;
 import co.kr.spoit.match.mapper.RoomCommandMapper;
 import co.kr.spoit.notification.service.NotificationDispatcher;
+import co.kr.spoit.payment.service.PaymentLedgerService;
 
 /**
  * 시설 관리자의 담당 시설 매칭방 생성·수정·취소를 담당한다.
@@ -79,24 +80,27 @@ public class RoomCommandService {
     private final FacilityCapacityService capacityService;
     private final PhotoStorage photoStorage;
     private final NotificationDispatcher notificationDispatcher;
+    private final PaymentLedgerService paymentLedger;
     private final Clock clock;
 
     @Autowired
     public RoomCommandService(RoomCommandMapper roomCommandMapper,
             FacilityReservationService reservationService, FacilityCapacityService capacityService,
-            PhotoStorage photoStorage, NotificationDispatcher notificationDispatcher) {
+            PhotoStorage photoStorage, NotificationDispatcher notificationDispatcher,
+            PaymentLedgerService paymentLedger) {
         this(roomCommandMapper, reservationService, capacityService, photoStorage, notificationDispatcher,
-                Clock.system(ZONE));
+                paymentLedger, Clock.system(ZONE));
     }
 
     RoomCommandService(RoomCommandMapper roomCommandMapper, FacilityReservationService reservationService,
             FacilityCapacityService capacityService, PhotoStorage photoStorage,
-            NotificationDispatcher notificationDispatcher, Clock clock) {
+            NotificationDispatcher notificationDispatcher, PaymentLedgerService paymentLedger, Clock clock) {
         this.roomCommandMapper = roomCommandMapper;
         this.reservationService = reservationService;
         this.capacityService = capacityService;
         this.photoStorage = photoStorage;
         this.notificationDispatcher = notificationDispatcher;
+        this.paymentLedger = paymentLedger;
         this.clock = clock;
     }
 
@@ -123,8 +127,8 @@ public class RoomCommandService {
     }
 
     /**
-     * 담당 시설 매칭방을 수정한다. 신청자가 있으면 제목·정원·참가비·실력 수준·사진만 반영하고
-     * 폼의 시설·종목·일정 값은 무시한다.
+     * 담당 시설 매칭방을 수정한다. 신청자가 있으면 제목·정원·실력 수준·사진만 반영하고
+     * 폼의 시설·종목·일정 값은 무시한다. 신청자가 결제한 금액과 어긋나지 않도록 참가비도 바꿀 수 없다.
      */
     public void update(Long managerUserId, Long matchId, RoomForm form) {
         requireManager(managerUserId);
@@ -134,6 +138,9 @@ public class RoomCommandService {
         int reserved = countReserved(target.getMatchId());
 
         if (reserved > 0) {
+            if (target.getFeePerPerson() != null && target.getFeePerPerson().intValue() != details.fee()) {
+                throw new RoomCommandException("신청자가 있는 매칭방은 참가비를 바꿀 수 없습니다.");
+            }
             if (details.maxParticipants() < reserved) {
                 throw new RoomCommandException(
                         "현재 참가·신청 인원(" + reserved + "명)보다 정원을 줄일 수 없습니다.");
@@ -174,6 +181,8 @@ public class RoomCommandService {
         if (updated != 1) {
             throw new RoomCommandException("매칭방을 취소하지 못했습니다. 다시 시도해 주세요.");
         }
+        // 상태를 바꾸기 전에 활성 결제 신청을 전액 환불 요청한다(매칭방 → 결제 순으로 잠근다).
+        paymentLedger.refundActiveApplicationsOfMatch(target.getMatchId(), "매칭방 취소", now);
         roomCommandMapper.cancelParticipants(target.getMatchId(), ParticipationStatus.CANCELLED.dbValue(),
                 ParticipationStatus.occupyingValues(), now);
         roomCommandMapper.cancelApplications(target.getMatchId(), ApplicationStatus.CANCELLED.dbValue(),

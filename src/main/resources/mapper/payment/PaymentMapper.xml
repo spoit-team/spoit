@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="co.kr.spoit.payment.mapper.PaymentMapper">
+
+    <sql id="paymentColumns">
+        payment_id, match_id, payer_user_id, club_id, application_type, club_member_ids,
+        unit_amount, seat_count, total_amount, refunded_amount, status, tid,
+        fail_reason, created_at, paid_at, updated_at
+    </sql>
+
+    <insert id="insert" parameterType="co.kr.spoit.payment.domain.Payment">
+        INSERT INTO payment (payment_id, match_id, payer_user_id, club_id, application_type, club_member_ids,
+                             unit_amount, seat_count, total_amount, refunded_amount, status,
+                             created_at, updated_at)
+        VALUES (#{paymentId}, #{matchId}, #{payerUserId}, #{clubId}, #{applicationType}, #{clubMemberIds},
+                #{unitAmount}, #{seatCount}, #{totalAmount}, 0, 'READY',
+                #{createdAt}, #{createdAt})
+    </insert>
+
+    <select id="findById" resultType="co.kr.spoit.payment.domain.Payment">
+        SELECT <include refid="paymentColumns"/>
+          FROM payment
+         WHERE payment_id = #{paymentId}
+    </select>
+
+    <select id="lockById" resultType="co.kr.spoit.payment.domain.Payment">
+        SELECT <include refid="paymentColumns"/>
+          FROM payment
+         WHERE payment_id = #{paymentId}
+           FOR UPDATE
+    </select>
+
+    <update id="saveTid">
+        UPDATE payment
+           SET tid = #{tid},
+               updated_at = #{now}
+         WHERE payment_id = #{paymentId}
+           AND status = 'READY'
+    </update>
+
+    <update id="markPaid">
+        UPDATE payment
+           SET status = 'PAID',
+               paid_at = #{paidAt},
+               updated_at = #{now}
+         WHERE payment_id = #{paymentId}
+           AND status = 'READY'
+    </update>
+
+    <update id="markFailed">
+        UPDATE payment
+           SET status = 'FAILED',
+               fail_reason = #{failReason},
+               updated_at = #{now}
+         WHERE payment_id = #{paymentId}
+           AND status = 'READY'
+    </update>
+
+    <update id="markRefundedUnapplied">
+        UPDATE payment
+           SET status = 'REFUNDED',
+               refunded_amount = total_amount,
+               fail_reason = #{failReason},
+               updated_at = #{now}
+         WHERE payment_id = #{paymentId}
+           AND status = 'READY'
+    </update>
+
+    <!-- SET 절은 왼쪽부터 적용되므로 status를 refunded_amount보다 먼저 계산한다. -->
+    <update id="addRefunded">
+        UPDATE payment
+           SET status = CASE WHEN refunded_amount + #{amount} >= total_amount THEN 'REFUNDED'
+                             ELSE 'PARTIAL_REFUNDED' END,
+               refunded_amount = refunded_amount + #{amount},
+               updated_at = #{now}
+         WHERE payment_id = #{paymentId}
+           AND status IN ('PAID', 'PARTIAL_REFUNDED')
+           AND refunded_amount + #{amount} &lt;= total_amount
+    </update>
+
+    <update id="linkApplications">
+        UPDATE match_application
+           SET payment_id = #{paymentId}
+         WHERE payment_id IS NULL
+           AND application_id IN
+               <foreach collection="applicationIds" item="id" open="(" separator="," close=")">
+                   #{id}
+               </foreach>
+    </update>
+
+    <select id="findReceiptNo" resultType="java.lang.String">
+        SELECT receipt_no
+          FROM match_application
+         WHERE payment_id = #{paymentId}
+         ORDER BY application_id
+         LIMIT 1
+    </select>
+
+    <select id="findRefundableApplications" resultType="co.kr.spoit.payment.domain.RefundableApplicationRow">
+        SELECT ma.application_id, ma.payment_id, p.unit_amount
+          FROM match_application ma
+          JOIN payment p ON p.payment_id = ma.payment_id
+         WHERE ma.refunded_at IS NULL
+           AND ma.application_id IN
+               <foreach collection="applicationIds" item="id" open="(" separator="," close=")">
+                   #{id}
+               </foreach>
+         ORDER BY ma.payment_id, ma.application_id
+    </select>
+
+    <select id="findRefundableApplicationsOfMatch" resultType="co.kr.spoit.payment.domain.RefundableApplicationRow">
+        SELECT ma.application_id, ma.payment_id, p.unit_amount
+          FROM match_application ma
+          JOIN payment p ON p.payment_id = ma.payment_id
+         WHERE ma.match_id = #{matchId}
+           AND ma.refunded_at IS NULL
+           AND ma.status IN
+               <foreach collection="activeStatuses" item="st" open="(" separator="," close=")">
+                   #{st}
+               </foreach>
+         ORDER BY ma.payment_id, ma.application_id
+    </select>
+
+    <update id="markApplicationsRefunded">
+        UPDATE match_application
+           SET refunded_at = #{now}
+         WHERE refunded_at IS NULL
+           AND application_id IN
+               <foreach collection="applicationIds" item="id" open="(" separator="," close=")">
+                   #{id}
+               </foreach>
+    </update>
+</mapper>

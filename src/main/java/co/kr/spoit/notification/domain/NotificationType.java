@@ -16,6 +16,7 @@ public enum NotificationType {
     MATCH_APPLICATION_RECEIVED("매칭 신청 접수"),
     MATCH_APPLICATION_CONFIRMED("매칭 신청 확정"),
     MATCH_APPLICATION_CANCELLED("매칭 신청 취소"),
+    MATCH_APPLICATION_REJECTED("매칭 신청 반려"),
     MATCH_ROOM_CANCELLED("매칭방 취소"),
     CLUB_JOIN_REQUESTED("가입 신청 접수"),
     CLUB_JOIN_APPROVED("가입 승인"),

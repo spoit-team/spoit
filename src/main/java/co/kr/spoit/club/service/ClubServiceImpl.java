@@ -2,6 +2,7 @@ package co.kr.spoit.club.service;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -62,6 +63,7 @@ public class ClubServiceImpl implements ClubService {
     private static final int MAX_MEMBERS = 30;
     private static final int MESSAGE_MAX_LENGTH = 200;
     private static final int KICK_REASON_MAX_LENGTH = 200;
+    private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
 
     private final SportRatingService sportRatingService;
     private final ParticipantHistoryMapper historyMapper;
@@ -129,9 +131,13 @@ public class ClubServiceImpl implements ClubService {
         if (userId == null) {
             throw new IllegalArgumentException("로그인이 필요합니다.");
         }
-        // 1. 입력 정리/검사, 지역 확인
+        // 1. 입력 정리·검사
         Club club = toClub(null, form);
-        // 2. 종목 확인
+        // 2. 지역 확인
+        if (form.getRegionId() == null || !clubMapper.existsRegion(form.getRegionId())) {
+            throw new IllegalArgumentException("선택한 지역을 찾을 수 없습니다.");
+        }
+        // 3. 종목 확인
         if (form.getSportId() == null || !clubMapper.existsSport(form.getSportId())) {
             throw new IllegalArgumentException("선택한 종목을 찾을 수 없습니다.");
         }
@@ -160,7 +166,7 @@ public class ClubServiceImpl implements ClubService {
         return club.getClubId();
     }
 
-    // 만들기-수정 공통: 입력 정리-검사, 지역 확인 후 Club으로
+    // 만들기-수정 공통: 입력 정리-검사 후 Club으로
     private Club toClub(Long clubId, ClubCreateForm form) {
         if (form == null) {
             throw new IllegalArgumentException("입력 정보를 확인해 주세요.");
@@ -189,9 +195,6 @@ public class ClubServiceImpl implements ClubService {
             throw new IllegalArgumentException("활동 시작 시간과 종료시간이 같을 수 없습니다.");
         }
 
-        if (form.getRegionId() == null || !clubMapper.existsRegion(form.getRegionId())) {
-            throw new IllegalArgumentException("선택한 지역을 찾을 수 없습니다.");
-        }
         return Club.builder()
                 .clubId(clubId)
                 .sportId(form.getSportId())
@@ -208,16 +211,21 @@ public class ClubServiceImpl implements ClubService {
     // 동호회 정보 수정
     @Override
     @Transactional
-    public void updateClub(Long userId, Long clubId, ClubCreateForm form) throws ClubNameExistException {
+    public boolean updateClub(Long userId, Long clubId, ClubCreateForm form) throws ClubNameExistException {
         Club club = toClub(clubId, form);
         if (!"모집중".equals(club.getRecruitStatus()) && !"마감".equals(club.getRecruitStatus())) {
             throw new IllegalArgumentException("모집 상태 값이 올바르지 않습니다.");
         }
         getActiveClubForUpdate(clubId);
+        // 첫 SQL은 잠금이어야 해서 지역 확인은 잠근 뒤에
+        if (form.getRegionId() == null || !clubMapper.existsRegion(form.getRegionId())) {
+            throw new IllegalArgumentException("선택한 지역을 찾을 수 없습니다.");
+        }
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
             throw new IllegalArgumentException("동호회장만 동호회 정보를 수정할 수 있습니다.");
         }
-        if (club.getMaxMembers() < clubMapper.countActiveMembers(clubId)) {
+        int memberCount = clubMapper.countActiveMembers(clubId);
+        if (club.getMaxMembers() < memberCount) {
             throw new IllegalArgumentException("모집 정원은 현재 동호회원 수보다 작을 수 없습니다.");
         }
         if (clubMapper.existsOtherActiveClubName(clubId, club.getClubName())) {
@@ -229,9 +237,15 @@ public class ClubServiceImpl implements ClubService {
             log.warn("동호회 이름 동시 수정 충돌: {}", club.getClubName());
             throw new ClubNameExistException();
         }
+        // 정원이 차면 '모집중'을 골라도 마감 저장(승인 때와 같은 규칙)
+        boolean closed = memberCount >= club.getMaxMembers();
+        if (closed) {
+            clubMapper.updateClubRecruitClosed(clubId);
+        }
         clubMapper.deleteClubRegions(clubId);
         clubMapper.insertClubRegion(clubId, form.getRegionId());
         log.info("동호회 정보 수정 완료: clubId={}, userId={}", clubId, userId);
+        return closed;
     }
 
     // 요일 번호(1~7)를 "1,3" 형태로 만듬
@@ -289,7 +303,7 @@ public class ClubServiceImpl implements ClubService {
         if (clubMapper.existsActiveLeader(targetClubId, userId)) {
             joinRequests = clubMapper.selectPendingJoinRequests(targetClubId);
         }
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZONE);
         List<ClubSchedule> upcomingSchedules = clubMapper.selectUpcomingSchedules(targetClubId, now);
         List<ClubSchedule> recentSchedules = clubMapper.selectRecentSchedules(targetClubId, now);
         return ClubManageResponse.from(club, members, userId, joinRequests, upcomingSchedules, recentSchedules);
@@ -444,11 +458,16 @@ public class ClubServiceImpl implements ClubService {
         if (applicant == null || applicant.getDeletedAt() != null) {
             throw new IllegalArgumentException("탈퇴한 회원의 신청이라 승인할 수 없습니다. 거절해 주세요.");
         }
-        if (clubMapper.countActiveMembers(clubId) >= club.getMaxMembers()) {
+        int memberCount = clubMapper.countActiveMembers(clubId);
+        if (memberCount >= club.getMaxMembers()) {
             throw new IllegalArgumentException("정원이 가득 찬 동호회입니다.");
         }
         clubMapper.updateJoinRequestStatus(joinRequestId, "승인");
         clubMapper.insertJoinedMember(clubId, request.getUserId());
+        // 이번 승인으로 정원이 차면 마감 저장, 다시 여는 건 동호회장이 수정 창에서
+        if (memberCount + 1 >= club.getMaxMembers()) {
+            clubMapper.updateClubRecruitClosed(clubId);
+        }
         log.info("가입 신청 승인: clubId={}, joinRequestId={}", clubId, joinRequestId);
 
         notificationDispatcher.notifyAfterCommit(List.of(request.getUserId()),

@@ -269,7 +269,7 @@
     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
     <input type="hidden" name="clubMemberId" id="team-remove-member-id" />
     <div class="team-dialog-heading"><div><h2 id="team-remove-title">동호회원을 추방할까요?</h2><p>추방 전에 대상을 확인해 주세요.</p></div><button class="team-dialog-close" type="button" data-dialog-close aria-label="닫기">×</button></div>
-    <div class="team-dialog-body"><p class="team-dialog-summary"><strong id="team-remove-member-name">동호회원</strong> 님을 동호회에서 제외합니다. 이 작업은 서버에 기록되며 되돌릴 수 없습니다.</p>
+    <div class="team-dialog-body"><p class="team-dialog-summary"><strong id="team-remove-member-name">동호회원</strong> 님을 동호회에서 제외합니다.</p>
     <label class="team-form-field"><span>추방 사유</span><textarea id="team-remove-reason" name="kickReason" rows="3" maxlength="200" required></textarea></label></div>
     <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-danger" type="submit">추방</button></div>
   </form>

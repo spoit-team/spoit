@@ -38,4 +38,12 @@ public interface FacilityReservationService {
      * </ul>
      */
     void requireAvailable(long facilityId, LocalDateTime startAt, LocalDateTime endAt);
+
+    /**
+     * 화면 안내용 잠금 없는 판정. 신청할 수 있으면 empty, 없으면 {@link #requireAvailable}과 같은 안내 문구.
+     *
+     * <p>읽기 전용 트랜잭션에서도 쓸 수 있도록 {@code FOR UPDATE}를 쓰지 않는다. 최종 판정은 신청 접수 때
+     * 시설을 잠근 뒤 {@link #requireAvailable}이 다시 한다.</p>
+     */
+    java.util.Optional<String> findUnavailableReason(long facilityId, LocalDateTime startAt, LocalDateTime endAt);
 }

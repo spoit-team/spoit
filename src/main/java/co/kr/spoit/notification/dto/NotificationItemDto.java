@@ -110,7 +110,8 @@ public final class NotificationItemDto {
             case MATCH_APPLICATION_RECEIVED, MATCH_APPLICATION_CANCELLED ->
                     hasMatch ? ADMIN_MATCH_ROOM + matchId : MYPAGE_NOTIFICATIONS;
             // 그 밖의 매칭 알림 수신자는 참가자·신청자이므로 사용자용 매칭 상세로 보낸다.
-            case MATCH_APPLICATION_CONFIRMED, MATCH_AUTO_ASSIGNED, MATCH_AUTO_CANCELLED, MATCH_ROOM_CANCELLED ->
+            case MATCH_APPLICATION_CONFIRMED, MATCH_APPLICATION_REJECTED, MATCH_AUTO_ASSIGNED, MATCH_AUTO_CANCELLED,
+                 MATCH_ROOM_CANCELLED ->
                     hasMatch ? MATCH_DETAIL + matchId : MYPAGE_NOTIFICATIONS;
             // 가입 신청 접수는 동호회장만 받는다. 동호회장이 여러 팀이면 관리 화면이 첫 팀만 열므로,
             // 신청이 접수된 팀을 clubId로 지정해야 잘못된 팀의 신청 목록을 보여 주지 않는다.
