@@ -433,18 +433,6 @@
             AND role = '동호회원' AND left_at IS NULL
     </select>
 
-    <select id="selectActiveMemberUserId" resultType="java.lang.Long">
-        SELECT user_id FROM club_member
-        WHERE club_id = #{clubId} AND club_member_id = #{clubMemberId} AND left_at IS NULL
-    </select>
-
-    <update id="updateMemberKick">
-        UPDATE club_member
-        SET left_at = NOW(), leave_type = '내보내기', kick_reason = #{kickReason}
-        WHERE club_id = #{clubId} AND club_member_id = #{clubMemberId} 
-            AND left_at IS NULL
-    </update>
-        
     <update id="cancelPendingJoinRequests">
         UPDATE club_join_request
         SET status = '취소', processed_at = NOW()
@@ -461,6 +449,12 @@
     <update id="updateClubDisband">
         UPDATE club
         SET deleted_at = NOW()
+        WHERE club_id = #{clubId} AND deleted_at IS NULL
+    </update>
+
+    <update id="updateClubRecruitClosed">
+        UPDATE club
+        SET recruit_status = '마감'
         WHERE club_id = #{clubId} AND deleted_at IS NULL
     </update>
 

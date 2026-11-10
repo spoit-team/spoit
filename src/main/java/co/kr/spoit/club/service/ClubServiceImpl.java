@@ -129,9 +129,13 @@ public class ClubServiceImpl implements ClubService {
         if (userId == null) {
             throw new IllegalArgumentException("로그인이 필요합니다.");
         }
-        // 1. 입력 정리/검사, 지역 확인
+        // 1. 입력 정리·검사
         Club club = toClub(null, form);
-        // 2. 종목 확인
+        // 2. 지역 확인
+        if (form.getRegionId() == null || !clubMapper.existsRegion(form.getRegionId())) {
+            throw new IllegalArgumentException("선택한 지역을 찾을 수 없습니다.");
+        }
+        // 3. 종목 확인
         if (form.getSportId() == null || !clubMapper.existsSport(form.getSportId())) {
             throw new IllegalArgumentException("선택한 종목을 찾을 수 없습니다.");
         }
@@ -160,7 +164,7 @@ public class ClubServiceImpl implements ClubService {
         return club.getClubId();
     }
 
-    // 만들기-수정 공통: 입력 정리-검사, 지역 확인 후 Club으로
+    // 만들기-수정 공통: 입력 정리-검사 후 Club으로
     private Club toClub(Long clubId, ClubCreateForm form) {
         if (form == null) {
             throw new IllegalArgumentException("입력 정보를 확인해 주세요.");
@@ -189,9 +193,6 @@ public class ClubServiceImpl implements ClubService {
             throw new IllegalArgumentException("활동 시작 시간과 종료시간이 같을 수 없습니다.");
         }
 
-        if (form.getRegionId() == null || !clubMapper.existsRegion(form.getRegionId())) {
-            throw new IllegalArgumentException("선택한 지역을 찾을 수 없습니다.");
-        }
         return Club.builder()
                 .clubId(clubId)
                 .sportId(form.getSportId())
@@ -214,6 +215,10 @@ public class ClubServiceImpl implements ClubService {
             throw new IllegalArgumentException("모집 상태 값이 올바르지 않습니다.");
         }
         getActiveClubForUpdate(clubId);
+        // 첫 SQL은 잠금이어야 해서 지역 확인은 잠근 뒤에
+        if (form.getRegionId() == null || !clubMapper.existsRegion(form.getRegionId())) {
+            throw new IllegalArgumentException("선택한 지역을 찾을 수 없습니다.");
+        }
         if (!clubMapper.existsActiveLeader(clubId, userId)) {
             throw new IllegalArgumentException("동호회장만 동호회 정보를 수정할 수 있습니다.");
         }
@@ -444,11 +449,16 @@ public class ClubServiceImpl implements ClubService {
         if (applicant == null || applicant.getDeletedAt() != null) {
             throw new IllegalArgumentException("탈퇴한 회원의 신청이라 승인할 수 없습니다. 거절해 주세요.");
         }
-        if (clubMapper.countActiveMembers(clubId) >= club.getMaxMembers()) {
+        int memberCount = clubMapper.countActiveMembers(clubId);
+        if (memberCount >= club.getMaxMembers()) {
             throw new IllegalArgumentException("정원이 가득 찬 동호회입니다.");
         }
         clubMapper.updateJoinRequestStatus(joinRequestId, "승인");
         clubMapper.insertJoinedMember(clubId, request.getUserId());
+        // 이번 승인으로 정원이 차면 마감 저장, 다시 여는 건 동호회장이 수정 창에서
+        if (memberCount + 1 >= club.getMaxMembers()) {
+            clubMapper.updateClubRecruitClosed(clubId);
+        }
         log.info("가입 신청 승인: clubId={}, joinRequestId={}", clubId, joinRequestId);
 
         notificationDispatcher.notifyAfterCommit(List.of(request.getUserId()),
