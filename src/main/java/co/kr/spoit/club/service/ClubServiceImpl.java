@@ -2,6 +2,7 @@ package co.kr.spoit.club.service;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -62,6 +63,7 @@ public class ClubServiceImpl implements ClubService {
     private static final int MAX_MEMBERS = 30;
     private static final int MESSAGE_MAX_LENGTH = 200;
     private static final int KICK_REASON_MAX_LENGTH = 200;
+    private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
 
     private final SportRatingService sportRatingService;
     private final ParticipantHistoryMapper historyMapper;
@@ -294,7 +296,7 @@ public class ClubServiceImpl implements ClubService {
         if (clubMapper.existsActiveLeader(targetClubId, userId)) {
             joinRequests = clubMapper.selectPendingJoinRequests(targetClubId);
         }
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZONE);
         List<ClubSchedule> upcomingSchedules = clubMapper.selectUpcomingSchedules(targetClubId, now);
         List<ClubSchedule> recentSchedules = clubMapper.selectRecentSchedules(targetClubId, now);
         return ClubManageResponse.from(club, members, userId, joinRequests, upcomingSchedules, recentSchedules);

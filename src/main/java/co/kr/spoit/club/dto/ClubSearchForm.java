@@ -1,5 +1,8 @@
 package co.kr.spoit.club.dto;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+
 import co.kr.spoit.mat.domain.RatingPolicy;
 import lombok.Data;
 
@@ -8,6 +11,8 @@ public class ClubSearchForm {
 
     // 티어 하나의 MMR 폭
     private static final int TIER_SIZE = RatingPolicy.TIER_DIVISION_SIZE * 4;
+
+    private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
 
     private String q;
     private Long sportId;
@@ -61,6 +66,11 @@ public class ClubSearchForm {
     // 단계가 시작하는 MMR: 2=실버 1000, 3=골드 1200, 4=플래티넘 1400, 5=다이아 1600
     private static int tierStartMmr(int level) {
         return RatingPolicy.TIER_START_MMR + TIER_SIZE * (level - 1);
+    }
+
+    // 최근 활동순 기준 시각(서울), 주소창 값으로 못 바꾸게 필드 없이 메서드만
+    public LocalDateTime getNow() {
+        return LocalDateTime.now(ZONE);
     }
 
     private boolean validLevel() {
