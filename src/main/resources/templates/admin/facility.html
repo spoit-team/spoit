@@ -244,7 +244,7 @@
     <form id="room-editor-form" method="post" enctype="multipart/form-data" novalidate th:action="@{/admin/rooms}" th:attr="data-room-base=@{/admin/rooms}">
       <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
       <div class="modal-body">
-        <p class="room-editor-locked-note" id="room-editor-locked-note" hidden>신청자가 있어 시설·종목·날짜·시간은 바꿀 수 없습니다. 정원은 현재 참가·신청 인원보다 줄일 수 없습니다.</p>
+        <p class="room-editor-locked-note" id="room-editor-locked-note" hidden>신청자가 있어 시설·종목·날짜·시간과 참가비는 바꿀 수 없습니다. 정원은 현재 참가·신청 인원보다 줄일 수 없습니다.</p>
         <div class="form-grid">
           <div class="form-field"><label for="room-editor-facility">담당 시설</label><select id="room-editor-facility" name="facilityId" required><option th:each="facility : ${facilities}" th:value="${facility.facilityId}" th:text="${facility.name}" th:selected="${selectedFacility?.facilityId == facility.facilityId}">시설</option></select></div>
           <div class="form-field"><label for="room-editor-sport">종목</label><select id="room-editor-sport" name="sportId" required><option th:each="sport : ${roomEditorSports}" th:value="${sport.sportId}" th:text="${sport.name}" th:attr="data-facility-id=${sport.facilityId}">종목</option></select></div>
