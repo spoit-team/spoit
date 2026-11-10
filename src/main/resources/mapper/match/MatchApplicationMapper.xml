@@ -66,12 +66,35 @@
                sm.start_at,
                sm.end_at,
                sm.max_participants,
+               sm.fee_per_person,
                sm.status
           FROM social_match sm
           JOIN facility f ON f.facility_id = sm.facility_id
                          AND f.deleted_at IS NULL
          WHERE sm.match_id = #{matchId}
            FOR UPDATE OF sm
+    </select>
+
+    <!-- 시작 시각이 지났는데 결제한 대기 신청이 남은 매칭방. 취소된 매칭방은 취소 때 이미 환불하므로 뺀다.
+         무료 대기 신청은 기존처럼 '미확정 종료'로 남긴다(지난 경기의 옛 신청을 한꺼번에 반려·알림하지 않는다). -->
+    <select id="findStartedMatchIdsWithWaiting" resultType="java.lang.Long">
+        SELECT DISTINCT sm.match_id
+          FROM social_match sm
+          JOIN match_application ma ON ma.match_id = sm.match_id
+                                   AND ma.status = #{waitingStatus}
+                                   AND ma.payment_id IS NOT NULL
+         WHERE sm.start_at &lt;= #{now}
+           AND sm.status &lt;&gt; #{cancelledMatchStatus}
+         ORDER BY sm.match_id
+    </select>
+
+    <select id="findWaitingApplications" resultType="co.kr.spoit.match.domain.MatchApplication">
+        SELECT <include refid="applicationColumns"/>
+          FROM match_application
+         WHERE match_id = #{matchId}
+           AND status = #{waitingStatus}
+           AND payment_id IS NOT NULL
+         ORDER BY application_id
     </select>
 
     <!-- 참가자 쪽은 uk_match_participant_active (match_id, active_match_user) 인덱스 사용 -->
@@ -121,7 +144,7 @@
 
     <sql id="applicationColumns">
         application_id, match_id, applicant_user_id, club_id, application_type,
-        status, receipt_no, created_at, confirmed_at, group_application_id
+        status, receipt_no, created_at, confirmed_at, group_application_id, payment_id, refund_id
     </sql>
 
     <select id="findById" resultType="co.kr.spoit.match.domain.MatchApplication">
@@ -278,7 +301,12 @@
                    AND p.participation_status IN
                        <foreach collection="participantStatuses" item="st" open="(" separator="," close=")">
                            #{st}
-                       </foreach>) AS participant_count
+                       </foreach>) AS participant_count,
+               ma.payment_id,
+               pay.payer_user_id,
+               pay.unit_amount,
+               pay.total_amount,
+               pay.refunded_amount
           FROM match_application ma
           JOIN social_match sm ON sm.match_id = ma.match_id
           JOIN facility f      ON f.facility_id = sm.facility_id
@@ -288,6 +316,7 @@
                 AND mine.user_id = #{userId}
           LEFT JOIN match_application leader ON leader.application_id = ma.group_application_id
           LEFT JOIN app_user lu              ON lu.user_id = leader.applicant_user_id
+          LEFT JOIN payment pay              ON pay.payment_id = ma.payment_id
          WHERE ma.applicant_user_id = #{userId}
             OR mine.participant_id IS NOT NULL
          ORDER BY sm.start_at, ma.application_id

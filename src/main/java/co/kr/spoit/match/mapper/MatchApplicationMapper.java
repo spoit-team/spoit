@@ -37,6 +37,15 @@ public interface MatchApplicationMapper {
     /** 매칭방 행 잠금 (없거나 시설이 삭제됐으면 null). 같은 방 신청·확정을 직렬화한다. */
     MatchRow lockMatch(@Param("matchId") long matchId);
 
+    /** 시작 시각이 지났는데 결제한 대기 신청이 남은 매칭방 (취소된 매칭방 제외) */
+    List<Long> findStartedMatchIdsWithWaiting(@Param("now") LocalDateTime now,
+                                              @Param("waitingStatus") String waitingStatus,
+                                              @Param("cancelledMatchStatus") String cancelledMatchStatus);
+
+    /** 결제한 대기 신청 */
+    List<MatchApplication> findWaitingApplications(@Param("matchId") long matchId,
+                                                   @Param("waitingStatus") String waitingStatus);
+
     /** 이 회원이 이미 활성 신청 또는 활성 참가자인지 */
     boolean existsActiveEntry(@Param("matchId") long matchId,
                               @Param("userId") long userId,
