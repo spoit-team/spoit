@@ -20,14 +20,11 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 알림 웹소켓 핸드셰이크를 로그인 사용자로 제한하고, CONNECT 프레임 검사에 필요한 값을 넘긴다.
  *
- * <p>다음 중 하나라도 만족하지 않으면 핸드셰이크를 403으로 끝낸다.</p>
- * <ul>
- *   <li>인증 주체가 {@link MemberPrincipal}인 로그인 사용자일 것</li>
- *   <li>요청이 같은 출처일 것(Origin 헤더가 있으면 Host와 일치해야 한다)</li>
- * </ul>
+ * <p>인증 주체가 {@link MemberPrincipal}인 로그인 사용자가 아니면 핸드셰이크를 403으로 끝낸다.
+ * 이 클래스가 직접 검사하는 것은 로그인 여부 하나뿐이다.</p>
  *
- * <p>같은 출처 검사는 {@code WebSocketConfig}가 등록하는 {@code OriginHandshakeInterceptor}가
- * 한 번 더 수행한다.</p>
+ * <p>같은 출처 검사는 이 클래스가 아니라, {@code WebSocketConfig}가 등록할 때 Spring이 기본으로
+ * 추가하는 {@code OriginHandshakeInterceptor}가 전담한다.</p>
  */
 @Slf4j
 @Component
