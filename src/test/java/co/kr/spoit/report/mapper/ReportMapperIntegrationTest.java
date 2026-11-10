@@ -456,37 +456,33 @@ class ReportMapperIntegrationTest {
 
     private long insertReportMinutesAgo(long reporterId, long targetId, long matchId, String category,
             String summary, String status, int minutesAgo) {
-        return insertReportAt(reporterId, targetId, matchId, category, summary, status,
-                dbNow().minusMinutes(minutesAgo));
+        return insertReportAgo(reporterId, targetId, matchId, category, summary, status,
+                "MINUTE", minutesAgo);
     }
 
     private long insertReportSecondsAgo(long reporterId, long targetId, long matchId, String category,
             String summary, String status, int secondsAgo) {
-        return insertReportAt(reporterId, targetId, matchId, category, summary, status,
-                dbNow().minusSeconds(secondsAgo));
+        return insertReportAgo(reporterId, targetId, matchId, category, summary, status,
+                "SECOND", secondsAgo);
     }
 
     /**
-     * 신고 한 건을 지정 시각으로 저장한다. 중복 창 판정은 SQL이 DB CURRENT_TIMESTAMP로 하므로,
-     * 테스트도 DB 기준 현재 시각으로 상대 시각을 만든다.
+     * 신고 한 건을 DB 현재 시각에서 지정 단위만큼 과거인 시각으로 저장한다. 중복 창 판정은 SQL이 DB
+     * CURRENT_TIMESTAMP로 하므로, fixture 시각도 SQL에서 같은 DB 시계로 만들어 JVM/JDBC 시간대
+     * 변환에 의존하지 않는다.
      */
-    private long insertReportAt(long reporterId, long targetId, long matchId, String category,
-            String summary, String status, LocalDateTime createdAt) {
+    private long insertReportAgo(long reporterId, long targetId, long matchId, String category,
+            String summary, String status, String timeUnit, int amount) {
         jdbcTemplate.update("""
                 INSERT INTO report (
                     reporter_user_id, target_user_id, match_id, reviewed_by,
                     category, summary, status, resolution, created_at, reviewed_at
-                ) VALUES (?, ?, ?, NULL, ?, ?, ?, NULL, ?, NULL)
-                """, reporterId, targetId, matchId, category, summary, status, createdAt);
+                ) VALUES (?, ?, ?, NULL, ?, ?, ?, NULL,
+                    TIMESTAMPADD(%s, ?, CURRENT_TIMESTAMP), NULL)
+                """.formatted(timeUnit),
+                reporterId, targetId, matchId, category, summary, status, -amount);
         Long reportId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
         return reportId == null ? 0L : reportId;
-    }
-
-    /** DB의 현재 시각을 자바 시각으로 읽는다. fixture 시각이 DB 시계와 어긋나지 않게 한다. */
-    private LocalDateTime dbNow() {
-        java.sql.Timestamp timestamp =
-                jdbcTemplate.queryForObject("SELECT CURRENT_TIMESTAMP", java.sql.Timestamp.class);
-        return timestamp == null ? LocalDateTime.now() : timestamp.toLocalDateTime();
     }
 
     static String validateUrl(String url) {
