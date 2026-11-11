@@ -181,6 +181,7 @@
 
   function loadSportPage(url, push) {
     if (sportRequest) sportRequest.abort();
+    resetMoreCards(); /* 이전 목록의 다음 페이지 요청이 새 목록에 붙지 않게 한다. */
     const controller = new AbortController();
     sportRequest = controller;
     const results = document.getElementById('match-results');
@@ -195,6 +196,7 @@
         const doc = new DOMParser().parseFromString(html, 'text/html');
         if (!doc.getElementById('match-results')) throw new Error('unexpected page');
         const image = applySportPage(doc);
+        observeMoreCards();
         if (push) {
           history.pushState({ sportTab: true }, '', url);
           currentListUrl = window.location.pathname + window.location.search;
@@ -232,6 +234,88 @@
     currentListUrl = next;
     loadSportPage(window.location.href, false);
   });
+
+  /*
+   * 무한 스크롤: 목록 끝의 #match-more가 화면 가까이 오면 그 data-next-url(커서 포함)로 다음 카드 조각을 받아
+   * sentinel 앞에 붙인다. 조각 끝에 새 #match-more가 있으면 그것으로 바꾸고, 없으면 마지막 페이지다.
+   * 실패하면 잠시 뒤 다시 시도하고, 계속 실패하면 안내 문구만 남긴다.
+   */
+  const MORE_RETRY_LIMIT = 3;
+  let moreRequest = null;
+  let moreFailures = 0;
+  let moreRetryTimer = null;
+  const moreObserver = 'IntersectionObserver' in window
+    ? new IntersectionObserver(function (entries) {
+      if (entries.some(function (entry) { return entry.isIntersecting; })) loadMoreCards();
+    }, { rootMargin: '400px 0px' })
+    : null;
+
+  function observeMoreCards() {
+    if (!moreObserver) return;
+    moreObserver.disconnect();
+    const sentinel = document.getElementById('match-more');
+    if (sentinel) moreObserver.observe(sentinel);
+  }
+
+  function resetMoreCards() {
+    if (moreRequest) moreRequest.abort();
+    moreRequest = null;
+    moreFailures = 0;
+    window.clearTimeout(moreRetryTimer);
+    moreObserver?.disconnect();
+  }
+
+  function loadMoreCards() {
+    const sentinel = document.getElementById('match-more');
+    const url = sentinel?.dataset.nextUrl;
+    if (!sentinel || !url || moreRequest) return;
+
+    const controller = new AbortController();
+    moreRequest = controller;
+    const results = document.getElementById('match-results');
+    results?.setAttribute('aria-busy', 'true');
+
+    fetch(url, { signal: controller.signal, headers: { Accept: 'text/html' }, credentials: 'same-origin' })
+      .then(function (response) {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.text();
+      })
+      .then(function (html) {
+        if (moreRequest !== controller) return;
+        const template = document.createElement('template');
+        template.innerHTML = html;
+        const nextSentinel = template.content.getElementById('match-more');
+        sentinel.before(template.content);
+        if (nextSentinel) {
+          sentinel.replaceWith(nextSentinel);
+        } else {
+          sentinel.remove();
+        }
+        moreFailures = 0;
+      })
+      .catch(function (error) {
+        if (error.name === 'AbortError' || moreRequest !== controller) return;
+        moreFailures += 1;
+        if (moreFailures >= MORE_RETRY_LIMIT) {
+          moreObserver?.disconnect();
+          sentinel.classList.add('is-failed');
+          const message = sentinel.querySelector('[data-more-message]');
+          if (message) message.textContent = '매칭방을 더 불러오지 못했습니다. 새로고침해 주세요.';
+          return;
+        }
+        moreObserver?.disconnect();
+        moreRetryTimer = window.setTimeout(observeMoreCards, 1500 * moreFailures);
+      })
+      .finally(function () {
+        if (moreRequest !== controller) return;
+        moreRequest = null;
+        results?.removeAttribute('aria-busy');
+        /* 붙인 카드가 적어 새 sentinel이 이미 보이는 경우에도 다시 감지되도록 새로 관찰한다. */
+        if (moreFailures === 0) observeMoreCards();
+      });
+  }
+
+  observeMoreCards();
 
   /* 매칭방 상세 모달 */
   const dialog = document.getElementById('app-dialog');

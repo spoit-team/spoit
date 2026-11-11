@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import co.kr.spoit.match.dto.JoinPage;
+import co.kr.spoit.match.dto.MatchCardPage;
 import co.kr.spoit.match.dto.MatchListView;
 import co.kr.spoit.match.dto.MatchSearchCondition;
 import co.kr.spoit.match.service.MatchApplicationService;
@@ -51,6 +52,21 @@ public class MatchController {
                        Model model) {
         addListModel(search, LIST_PATH, model);
         return "matches/cards";
+    }
+
+    /**
+     * RES-01 무한 스크롤: 커서 다음 카드 조각. 첫 화면과 같은 검색 조건을 받는다.
+     * 조각 끝의 #match-more에 다음 페이지 주소가 들어 있고, 마지막 페이지면 #match-more가 없다.
+     */
+    @GetMapping("/cards")
+    public String more(@ModelAttribute("search") MatchSearchCondition search,
+                       BindingResult bindingResult,
+                       @RequestParam(required = false) String cursor,
+                       Model model) {
+        MatchCardPage page = matchService.searchMore(search, cursor);
+        model.addAttribute("matches", page.matches());
+        model.addAttribute("nextCursor", page.nextCursor());
+        return "matches/cards :: moreCards";
     }
 
     /** RES-02 상세 (매치 참가하기 → 이 화면에서 참가 방식 선택) */
@@ -258,5 +274,6 @@ public class MatchController {
         model.addAttribute("matchedCount", view.getMatchedCount());
         model.addAttribute("activeFilters", view.getActiveFilters());
         model.addAttribute("matches", view.getMatches());
+        model.addAttribute("nextCursor", view.getNextCursor());
     }
 }

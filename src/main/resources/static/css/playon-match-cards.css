@@ -77,6 +77,36 @@
   grid-column: 1 / -1;
 }
 
+/* 무한 스크롤 sentinel: 카드 그리드 아래 한 줄 전체를 차지한다. */
+.match-cards-page #match-results .match-list-more {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 0 8px;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.match-cards-page #match-results .match-list-more-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-line);
+  border-top-color: var(--color-book);
+  border-radius: 50%;
+  animation: match-list-more-spin .8s linear infinite;
+}
+
+.match-cards-page #match-results .match-list-more.is-failed .match-list-more-spinner {
+  display: none;
+}
+
+@keyframes match-list-more-spin {
+  to { transform: rotate(360deg); }
+}
+
 @media (min-width: 640px) {
   .match-cards-page #match-results {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -96,5 +126,9 @@
 
   .match-cards-page #match-results .match-list-row:hover {
     transform: none;
+  }
+
+  .match-cards-page #match-results .match-list-more-spinner {
+    animation-duration: 2.4s;
   }
 }
