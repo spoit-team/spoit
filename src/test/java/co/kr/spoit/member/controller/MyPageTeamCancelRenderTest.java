@@ -73,9 +73,9 @@ class MyPageTeamCancelRenderTest {
         Entry team = new Entry(10L, 3L, "배드민턴", "팀 신청", "확정 대기", "text-book-ink", "토요일 저녁 복식 매치",
                 "내일 19:00~21:00 · 강남 스포츠센터", "참가 3명", null, true, "신청 취소", false, null,
                 true, List.of(new TeamMemberOption(10L, "김채원", "확정", true),
-                        new TeamMemberOption(11L, "박민수", "대기", false)));
+                        new TeamMemberOption(11L, "박민수", "대기", false)), null, 0L);
         Entry individual = new Entry(20L, 4L, "풋살", "개인 신청", "확정 대기", "text-book-ink", "풋살 매치",
-                "내일 20:00~22:00 · 시설", "참가 1명", null, true, "신청 취소", false, null, false, List.of());
+                "내일 20:00~22:00 · 시설", "참가 1명", null, true, "신청 취소", false, null, false, List.of(), null, 0L);
         given(reservationService.find(7L)).willReturn(new MyReservations(List.of(team, individual), List.of(), 0, 0, 2));
 
         mockMvc.perform(get("/mypage").with(user(member())))

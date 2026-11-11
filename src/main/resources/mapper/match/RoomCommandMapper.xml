@@ -11,6 +11,7 @@
                sm.start_at,
                sm.end_at,
                sm.status,
+               sm.fee_per_person,
                sm.photo_url
           FROM social_match sm
           JOIN facility f ON f.facility_id = sm.facility_id

@@ -12,6 +12,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS audit_log, penalty, report_evidence, admin_request, notification, report,
     sport_rating_history, sport_rating, match_evaluation_score, match_evaluation,
     sport_evaluation_item, match_result_submission, match_participant, match_application,
+    payment,
     social_match, club_join_request, club_member, club_region, club,
     schedule_change, facility_date_override_slot, facility_date_override,
     operating_rule, facility_sport, facility_manager, facility,
@@ -283,6 +284,34 @@ CREATE TABLE social_match (
                                                OR captain_a_participant_id <> captain_b_participant_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='소셜 매칭방·경기';
 
+-- 유료 결제 (카카오페이 단건 결제). 결제를 승인한 뒤 신청 행을 만들므로 match_application보다 먼저 만든다.
+CREATE TABLE payment (
+    payment_id        VARCHAR(64)   NOT NULL COMMENT '결제 건 ID (서버가 생성, 카카오페이 partner_order_id)',
+    match_id          BIGINT        NOT NULL COMMENT '결제 대상 매칭방',
+    payer_user_id     BIGINT        NOT NULL COMMENT '결제한 회원 (팀 신청이면 대표)',
+    club_id           BIGINT        NULL COMMENT '팀 신청이면 동호회, 개인 신청이면 NULL',
+    application_type  VARCHAR(10)   NOT NULL COMMENT '개인 또는 동호회 (match_application.application_type 값)',
+    club_member_ids   VARCHAR(1000) NULL COMMENT '팀 신청 때 고른 동호회원 ID (쉼표 구분, 대표 제외)',
+    unit_amount       DECIMAL(10,2) NOT NULL COMMENT '결제 시점 1인 참가비',
+    seat_count        INT           NOT NULL COMMENT '결제 인원',
+    total_amount      DECIMAL(10,2) NOT NULL COMMENT '결제 금액 (1인 참가비 × 인원)',
+    refunded_amount   DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '환불한 누적 금액',
+    status            VARCHAR(20)   NOT NULL COMMENT 'READY, PAID, PARTIAL_REFUNDED, REFUNDED, FAILED',
+    tid               VARCHAR(50)   NULL COMMENT '카카오페이 결제 고유번호 (결제 준비 응답)',
+    fail_reason       VARCHAR(300)  NULL COMMENT '결제를 승인하지 않았거나 승인 직후 취소한 사유',
+    created_at        DATETIME      NOT NULL COMMENT '결제 준비 시각',
+    paid_at           DATETIME      NULL COMMENT '결제 승인 시각',
+    updated_at        DATETIME      NOT NULL COMMENT '마지막 상태 변경 시각',
+    PRIMARY KEY (payment_id),
+    KEY idx_payment_payer (payer_user_id),
+    CONSTRAINT fk_payment_match FOREIGN KEY (match_id)      REFERENCES social_match (match_id),
+    CONSTRAINT fk_payment_payer FOREIGN KEY (payer_user_id) REFERENCES app_user (user_id),
+    CONSTRAINT fk_payment_club  FOREIGN KEY (club_id)       REFERENCES club (club_id),
+    CONSTRAINT ck_payment_amount   CHECK (unit_amount > 0 AND seat_count > 0 AND total_amount = unit_amount * seat_count),
+    CONSTRAINT ck_payment_refunded CHECK (refunded_amount >= 0 AND refunded_amount <= total_amount),
+    CONSTRAINT ck_payment_status   CHECK (status IN ('READY', 'PAID', 'PARTIAL_REFUNDED', 'REFUNDED', 'FAILED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='참가비 결제';
+
 CREATE TABLE match_application (
     application_id     BIGINT      NOT NULL AUTO_INCREMENT COMMENT '신청 건 ID',
     match_id           BIGINT      NOT NULL COMMENT '신청 대상 매칭방',
@@ -296,15 +325,19 @@ CREATE TABLE match_application (
     cancelled_at       DATETIME    NULL COMMENT '신청 취소 시각',
     cancelled_by       BIGINT      NULL COMMENT '취소를 처리한 회원',
     group_application_id BIGINT    NULL COMMENT 'RES-04 팀 신청 묶음: 대표 행의 application_id (대표 행은 자기 자신), 개인 신청이면 NULL',
+    payment_id         VARCHAR(64) NULL COMMENT '참가비 결제 (팀 신청은 팀원 행이 대표 결제를 함께 가리킴), 무료면 NULL',
+    refunded_at        DATETIME    NULL COMMENT '이 행 몫(1인 참가비)을 환불한 시각, 환불 전이면 NULL',
     PRIMARY KEY (application_id),
     UNIQUE KEY uk_match_application_receipt (receipt_no),
     UNIQUE KEY uk_match_application_match (application_id, match_id),
     KEY idx_match_application_group (group_application_id),
+    KEY idx_match_application_payment (payment_id),
     CONSTRAINT fk_match_application_match     FOREIGN KEY (match_id)          REFERENCES social_match (match_id),
     CONSTRAINT fk_match_application_applicant FOREIGN KEY (applicant_user_id) REFERENCES app_user (user_id),
     CONSTRAINT fk_match_application_club      FOREIGN KEY (club_id)           REFERENCES club (club_id),
     CONSTRAINT fk_match_application_canceller FOREIGN KEY (cancelled_by)      REFERENCES app_user (user_id),
-    CONSTRAINT fk_match_application_group     FOREIGN KEY (group_application_id) REFERENCES match_application (application_id)
+    CONSTRAINT fk_match_application_group     FOREIGN KEY (group_application_id) REFERENCES match_application (application_id),
+    CONSTRAINT fk_match_application_payment   FOREIGN KEY (payment_id)        REFERENCES payment (payment_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='개인·동호회 참가 신청';
 
 CREATE TABLE match_participant (

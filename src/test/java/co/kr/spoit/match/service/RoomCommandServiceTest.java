@@ -37,6 +37,7 @@ import co.kr.spoit.match.dto.RoomEditTarget;
 import co.kr.spoit.match.dto.RoomForm;
 import co.kr.spoit.match.mapper.RoomCommandMapper;
 import co.kr.spoit.notification.service.NotificationDispatcher;
+import co.kr.spoit.payment.service.PaymentLedgerService;
 
 /** 매칭방 생성·수정·취소의 입력 검증, 잠금·검사 순서, 신청자 유무별 수정 범위를 검증한다. */
 class RoomCommandServiceTest {
@@ -54,6 +55,7 @@ class RoomCommandServiceTest {
     private FacilityCapacityService capacityService;
     private PhotoStorage photoStorage;
     private NotificationDispatcher notificationDispatcher;
+    private PaymentLedgerService paymentLedger;
     private RoomCommandService service;
 
     /** JPG 시그니처로 시작하는 최소 바이트 */
@@ -67,8 +69,9 @@ class RoomCommandServiceTest {
         photoStorage = mock(PhotoStorage.class);
         notificationDispatcher = mock(NotificationDispatcher.class);
         Clock clock = Clock.fixed(NOW.atZone(ZONE).toInstant(), ZONE);
+        paymentLedger = mock(PaymentLedgerService.class);
         service = new RoomCommandService(mapper, reservationService, capacityService, photoStorage,
-                notificationDispatcher, clock);
+                notificationDispatcher, paymentLedger, clock);
     }
 
     /* ---------------- 생성 ---------------- */
@@ -443,5 +446,46 @@ class RoomCommandServiceTest {
         form.setFeePerPerson(9000);
         form.setRequiredSkill("중급");
         return form;
+    }
+
+    /* ---------------- 참가비 결제 ---------------- */
+
+    @Test
+    @DisplayName("신청자가 있으면 결제한 금액과 어긋나지 않도록 참가비를 바꿀 수 없다")
+    void rejectsFeeChangeWhenReserved() {
+        givenEditable("모집 중", LocalDateTime.of(2026, 11, 8, 10, 0));
+        mapper.findRoomForUpdate(MANAGER_ID, MATCH_ID).setFeePerPerson(new java.math.BigDecimal("5000.00"));
+        given(mapper.countReserved(eq(MATCH_ID), any(), anyString())).willReturn(3);
+
+        assertThatThrownBy(() -> service.update(MANAGER_ID, MATCH_ID, form(null)))
+                .isInstanceOf(RoomCommandException.class)
+                .hasMessage("신청자가 있는 매칭방은 참가비를 바꿀 수 없습니다.");
+        verify(mapper, never()).updateRoomDetails(any());
+    }
+
+    @Test
+    @DisplayName("신청자가 있어도 참가비가 그대로면 다른 값은 수정할 수 있다")
+    void keepsSameFeeWhenReserved() {
+        givenEditable("모집 중", LocalDateTime.of(2026, 11, 8, 10, 0));
+        mapper.findRoomForUpdate(MANAGER_ID, MATCH_ID).setFeePerPerson(new java.math.BigDecimal("9000.00"));
+        given(mapper.countReserved(eq(MATCH_ID), any(), anyString())).willReturn(3);
+
+        service.update(MANAGER_ID, MATCH_ID, form(null));
+
+        verify(mapper).updateRoomDetails(any());
+    }
+
+    @Test
+    @DisplayName("매칭방 취소는 신청 상태를 바꾸기 전에 활성 결제 신청을 전액 환불 요청한다")
+    void cancelRefundsBeforeStatusChange() {
+        givenEditable("모집 중", LocalDateTime.of(2026, 11, 8, 10, 0));
+        given(mapper.cancelRoom(eq(MATCH_ID), eq("취소"), any(), eq(NOW))).willReturn(1);
+        given(mapper.findCancelRecipientUserIds(eq(MATCH_ID), any(), any())).willReturn(List.of());
+
+        service.cancel(MANAGER_ID, MATCH_ID);
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(paymentLedger, mapper);
+        order.verify(paymentLedger).refundActiveApplicationsOfMatch(MATCH_ID, "매칭방 취소", NOW);
+        order.verify(mapper).cancelApplications(MATCH_ID, "취소", List.of("대기", "확정"), MANAGER_ID, NOW);
     }
 }

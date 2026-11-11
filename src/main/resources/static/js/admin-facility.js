@@ -345,7 +345,8 @@
 
   /**
    * 생성·수정 모드에 맞춰 폼 주소와 문구를 바꾼다. 신청자가 있는 방(locked)은 시설·종목·날짜·시간을
-   * 잠그고 안내를 보여 준다.
+   * 잠그고 안내를 보여 준다. 참가비는 신청자가 결제한 금액과 어긋나지 않도록 읽기 전용으로 둔다
+   * (disabled면 값이 전송되지 않아 서버 검증이 실패하므로 readOnly를 쓴다).
    */
   function setRoomEditorMode(mode, room) {
     if (!roomEditorForm) return;
@@ -377,6 +378,8 @@
     roomEditorHourInputs.forEach(function (input) {
       input.disabled = locked || input.dataset.slotUnavailable === 'true';
     });
+    const fee = document.getElementById('room-editor-fee');
+    if (fee) fee.readOnly = locked;
   }
 
   /* 선택한 날짜와 가장 이른 시간 블록으로 만든 시작 시각. 값이 비어 있으면 null */

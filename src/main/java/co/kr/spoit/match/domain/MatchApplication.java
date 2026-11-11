@@ -27,6 +27,10 @@ public class MatchApplication {
      * 개인 신청과 이전 방식의 동호회 신청(신청 1건 : 참가자 N명)은 null.
      */
     private Long groupApplicationId;
+    /** 참가비 결제 (팀 신청은 팀원 행이 대표 결제를 함께 가리킨다). 무료 신청이면 null */
+    private String paymentId;
+    /** 이 행 몫(1인 참가비)을 환불한 시각. 환불 전이면 null */
+    private LocalDateTime refundedAt;
 
     public static MatchApplication individual(long matchId, long userId, String receiptNo, LocalDateTime now) {
         MatchApplication a = new MatchApplication();

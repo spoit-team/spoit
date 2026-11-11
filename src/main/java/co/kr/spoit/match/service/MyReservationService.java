@@ -29,6 +29,8 @@ import lombok.RequiredArgsConstructor;
  * (이용 완료, 신청 취소·반려, 매칭방 취소, 확정되지 않고 지난 신청).</p>
  *
  * <p>RES-04 팀 신청은 팀원마다 자기 신청 행으로 보인다. 취소는 대표만 할 수 있고, 팀 전체 또는 고른 팀원만 취소한다.</p>
+ *
+ * <p>결제한 신청은 결제한 회원에게만 결제·환불 금액을 보여 주고, 취소 확인창에 한 명당 환불 금액을 넘긴다.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -147,7 +149,27 @@ public class MyReservationService {
                 false,
                 null,
                 teamCancel,
-                teamCancel ? teamMembers(row.getGroupApplicationId()) : List.of());
+                teamCancel ? teamMembers(row.getGroupApplicationId()) : List.of(),
+                paymentLine(row, userId),
+                canCancel && row.getUnitAmount() != null ? row.getUnitAmount().longValue() : 0L);
+    }
+
+    /** 결제한 회원에게만 결제 수단·금액과 누적 환불 금액을 보여 준다. */
+    private static String paymentLine(MyApplicationRow row, long userId) {
+        if (row.getPaymentId() == null || row.getTotalAmount() == null
+                || !Long.valueOf(userId).equals(row.getPayerUserId())) {
+            return null;
+        }
+        StringBuilder line = new StringBuilder("카카오페이 ").append(won(row.getTotalAmount().longValue())).append(" 결제");
+        long refunded = row.getRefundedAmount() == null ? 0 : row.getRefundedAmount().longValue();
+        if (refunded > 0) {
+            line.append(" · ").append(won(refunded)).append(" 환불");
+        }
+        return line.toString();
+    }
+
+    private static String won(long amount) {
+        return MatchCardAssembler.formatFee(java.math.BigDecimal.valueOf(amount)) + "원";
     }
 
     /** 취소 확인창에 보일 팀원: 아직 취소되지 않은 묶음 행 (대표가 먼저) */

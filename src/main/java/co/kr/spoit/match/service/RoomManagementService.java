@@ -457,6 +457,8 @@ public class RoomManagementService {
 
     private RoomManagementDetail.Application toApplication(RoomManagementApplicationRow row, boolean decisionOpen) {
         boolean club = ApplicationType.CLUB.dbValue().equals(row.getApplicationType());
+        boolean paid = row.getPaymentId() != null && row.getUnitAmount() != null;
+        long unit = paid ? row.getUnitAmount().longValue() : 0L;
         return new RoomManagementDetail.Application(
                 row.getApplicationId(),
                 label(row.getApplicantName(), "신청자 미상"),
@@ -466,7 +468,18 @@ public class RoomManagementService {
                 createdAtLabel(row.getCreatedAt()),
                 row.getApplicantUserId(),
                 decisionOpen && row.getApplicationId() != null
-                        && ApplicationStatus.WAITING.dbValue().equals(row.getStatus()));
+                        && ApplicationStatus.WAITING.dbValue().equals(row.getStatus()),
+                paymentLabel(paid, unit, row.getRefundedAt() != null),
+                paid && row.getRefundedAt() == null ? unit : 0L);
+    }
+
+    /** 신청 행 한 명 몫의 결제·환불 상태. 팀 신청은 대표가 인원만큼 결제했으므로 1인 참가비로 보여 준다. */
+    static String paymentLabel(boolean paid, long unitAmount, boolean refunded) {
+        if (!paid) {
+            return "무료";
+        }
+        String amount = new java.text.DecimalFormat("#,##0").format(unitAmount) + "원";
+        return (refunded ? "환불 완료 " : "결제 완료 ") + amount;
     }
 
     private RoomManagementDetail.Participant toParticipant(RoomManagementParticipantRow row) {
