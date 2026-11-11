@@ -444,6 +444,15 @@
   line-height: 1.55;
 }
 
+/* 참가자 표의 신고 열: 이용 완료 경기의 확정 참가자만 신고 접수 화면으로 이어집니다.
+   그 전에는 이동할 수 없다는 사실을 짧게 표시해, 눌러도 아무 일이 없는 링크를 만들지 않습니다. */
+.ops-report-unavailable {
+  color: var(--admin-muted);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 @media (max-width: 1000px) {
   .ops-room-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));

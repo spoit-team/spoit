@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import co.kr.spoit.admin.dto.SystemDashboard;
+import co.kr.spoit.admin.dto.SystemErrorRecord;
 
 /** 모니터링 dashboard가 실제 측정 범위를 지키고 DB 장애를 상태로만 표현하는지 검증한다. */
 @ExtendWith(MockitoExtension.class)
@@ -25,6 +26,7 @@ class SystemMonitoringServiceTest {
     private DatabaseAvailabilityProbe databaseProbe;
 
     private final SystemResourceHistory history = new SystemResourceHistory();
+    private final SystemErrorLogBuffer errorLogBuffer = new SystemErrorLogBuffer();
 
     @Test
     void reportsMeasuredValuesAndHealthyProbes() {
@@ -42,9 +44,9 @@ class SystemMonitoringServiceTest {
         assertThat(dashboard.getServices())
                 .extracting(SystemDashboard.ServiceStatus::getName)
                 .containsExactly("API 서버", "데이터베이스");
-        // 오류 수집은 이번 범위가 아니다.
-        assertThat(dashboard.getRecentErrorCount()).isNull();
-        assertThat(dashboard.getRecentErrorAttention()).isNull();
+        // 오류 버퍼가 비어 있으면 0건이고 목록도 비어 있다(0으로 위장한 값이 아니라 실제 수집 결과).
+        assertThat(dashboard.getRecentErrorCount()).isZero();
+        assertThat(dashboard.getRecentErrorAttention()).isZero();
         assertThat(dashboard.getRecentErrors()).isEmpty();
         assertThat(dashboard.getRecentReports()).isEmpty();
     }
@@ -221,13 +223,66 @@ class SystemMonitoringServiceTest {
         assertThat(dashboard.getBars().get(143).getLabel()).isEqualTo("10:00");
     }
 
+    @Test
+    void aggregatesOnlyRecentErrorRecordsAndCapsDisplayedGroupsAtTenNewestFirst() {
+        when(databaseProbe.isReachable()).thenReturn(true);
+        // 버퍼는 나중에 들어온 기록을 최신으로 돌려주므로 오래된 것부터 넣는다.
+        // 정확히 1시간 전(경계)은 포함되고, 그보다 1초 이전·2시간 전·WARN은 제외된다.
+        errorLogBuffer.recordForTest(error(NOW.minusHours(2), "ERROR", "club", "두 시간 전 오류"));
+        errorLogBuffer.recordForTest(error(NOW.minusHours(1).minusSeconds(1), "ERROR", "club", "경계 밖 오류"));
+        errorLogBuffer.recordForTest(error(NOW.minusSeconds(30), "WARN", "facility", "경고는 제외"));
+        errorLogBuffer.recordForTest(error(NOW.minusHours(1), "ERROR", "club", "경계 오류"));
+        // 화면 표는 10행까지만 보여 주므로, 서로 다른 12개 그룹을 더해 상한을 넘긴다.
+        for (int index = 12; index >= 1; index--) {
+            errorLogBuffer.recordForTest(
+                    error(NOW.minusMinutes(3L + index), "ERROR", "service" + index, "오류 " + index));
+        }
+        // 같은 서비스·코드·요약 3건은 한 행으로 묶이고 횟수는 3이 된다.
+        errorLogBuffer.recordForTest(error(NOW.minusMinutes(3), "ERROR", "match", "중복 오류"));
+        errorLogBuffer.recordForTest(error(NOW.minusMinutes(2), "ERROR", "match", "중복 오류"));
+        errorLogBuffer.recordForTest(error(NOW.minusMinutes(1), "ERROR", "match", "중복 오류"));
+
+        SystemDashboard dashboard = service(describeProbe(10, 20, 30)).currentDashboard();
+
+        // 표에 보이지 않는 그룹까지 포함한 실제 오류 기록 수(3 + 12 + 경계 1)다.
+        assertThat(dashboard.getRecentErrorCount()).isEqualTo(16);
+        assertThat(dashboard.getRecentErrorAttention()).isEqualTo(16);
+
+        assertThat(dashboard.getRecentErrors()).hasSize(SystemMonitoringService.RECENT_ERROR_ROWS);
+        assertThat(dashboard.getRecentErrors())
+                .extracting(row -> ((SystemDashboard.RecentError) row).getSummary())
+                .containsExactly("중복 오류", "오류 1", "오류 2", "오류 3", "오류 4", "오류 5", "오류 6",
+                        "오류 7", "오류 8", "오류 9");
+        // 최신 기록이 속한 그룹부터 놓고, 묶인 횟수를 그대로 보여 준다.
+        SystemDashboard.RecentError aggregated = (SystemDashboard.RecentError) dashboard.getRecentErrors().get(0);
+        assertThat(aggregated.getCount()).isEqualTo(3);
+        assertThat(aggregated.getService()).isEqualTo("match");
+        assertThat(aggregated.getCode()).isEqualTo("IllegalStateException");
+        assertThat(aggregated.getSeverityLabel()).isEqualTo("오류");
+        assertThat(aggregated.getSeverityTone()).isEqualTo("bad");
+        assertThat(aggregated.getTime()).isEqualTo("2026-11-02 10:02:00");
+        // WARN과 1시간을 넘긴 기록은 목록에도 횟수에도 들어가지 않는다.
+        assertThat(dashboard.getRecentErrors())
+                .extracting(row -> ((SystemDashboard.RecentError) row).getSummary())
+                .doesNotContain("경고는 제외", "경계 밖 오류", "두 시간 전 오류");
+        // 경계 기록은 집계에는 들어가지만 10행 상한 밖이라 표시되지는 않는다.
+        assertThat(dashboard.getRecentErrors())
+                .extracting(row -> ((SystemDashboard.RecentError) row).getSummary())
+                .doesNotContain("경계 오류", "오류 10", "오류 11", "오류 12");
+    }
+
+    private static SystemErrorRecord error(LocalDateTime time, String level, String service, String summary) {
+        return new SystemErrorRecord(time, level, "co.kr.spoit." + service + ".Test", service,
+                "IllegalStateException", summary, summary);
+    }
+
     private SystemMonitoringService service(SystemResourceProbe probe) {
         return service(probe, NOW);
     }
 
     private SystemMonitoringService service(SystemResourceProbe probe, LocalDateTime now) {
         Clock clock = Clock.fixed(now.atZone(ZONE).toInstant(), ZONE);
-        return new SystemMonitoringService(probe, history, databaseProbe, clock);
+        return new SystemMonitoringService(probe, history, databaseProbe, errorLogBuffer, clock);
     }
 
     private static SystemResourceProbe describeProbe(Integer cpu, Integer heap, Integer disk) {

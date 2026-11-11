@@ -44,10 +44,6 @@ public interface FacilityMapper {
      */
     Long selectActiveFacilityIdForUpdate(@Param("facilityId") long facilityId);
 
-    /** 지정한 상태의 매칭방 하나를 잠그고 ID를 반환한다. 없으면 {@code null}이다. */
-    Long selectMatchIdInStatusesForUpdate(@Param("facilityId") long facilityId,
-            @Param("statuses") List<String> statuses);
-
     /**
      * 지정한 시설·종목 조합을 상태와 무관하게 참조하는 매칭방 하나를 잠그고 ID를 반환한다.
      * 없으면 {@code null}이다.

@@ -54,6 +54,9 @@ class AdminFacilityPageTest {
     private RoomManagementService roomManagementService;
 
     @MockitoBean
+    private co.kr.spoit.facility.service.FacilityStatsService facilityStatsService;
+
+    @MockitoBean
     private MemberLoginSuccessHandler loginSuccessHandler;
 
     @MockitoBean

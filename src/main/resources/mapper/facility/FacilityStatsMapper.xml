@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="co.kr.spoit.facility.mapper.FacilityStatsMapper">
+
+    <!--
+      시설 관리자 조회 공통 FROM (RoomManagementMapper.managedRoomFrom과 같은 기준).
+      담당자(facility_manager)로 범위를 제한하고 삭제된 시설은 제외한다.
+      facility_manager PK가 (facility_id, user_id)이므로 조인으로 행이 늘지 않는다.
+    -->
+    <sql id="managedMatchFrom">
+        FROM social_match sm
+        JOIN facility f  ON f.facility_id = sm.facility_id
+                        AND f.deleted_at IS NULL
+        JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                AND fm.user_id = #{managerUserId}
+        JOIN sport s     ON s.sport_id = sm.sport_id
+    </sql>
+
+    <!--
+      통계 대상 매칭방 조건: 선택 시설, start_at 구간, 종료 상태.
+      범위는 [startAt, endAt] 양끝 포함이며 경계 변환은 서비스가 맡는다.
+      모집 중·매칭 완료·취소는 모두 빠지고 종료된 경기만 남는다.
+    -->
+    <sql id="finishedMatchWhere">
+        WHERE sm.facility_id = #{facilityId}
+          AND sm.start_at &gt;= #{startAt}
+          AND sm.start_at &lt;= #{endAt}
+          AND sm.status = '종료'
+    </sql>
+
+    <select id="countFinishedMatches" resultType="long">
+        SELECT COUNT(*)
+        <include refid="managedMatchFrom"/>
+        <include refid="finishedMatchWhere"/>
+    </select>
+
+    <!--
+      종료 매칭의 확정 참가자 행만 센다. 같은 사람이 두 경기에 참여하면 두 번 집계되고
+      노쇼(경기 미참여)는 판별하지 못한다. 대기·취소·반려 참가자는 제외한다.
+    -->
+    <select id="countConfirmedParticipants" resultType="long">
+        SELECT COUNT(*)
+          FROM match_participant mp
+          JOIN social_match sm ON sm.match_id = mp.match_id
+          JOIN facility f      ON f.facility_id = sm.facility_id
+                              AND f.deleted_at IS NULL
+          JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                  AND fm.user_id = #{managerUserId}
+         WHERE sm.facility_id = #{facilityId}
+           AND sm.start_at &gt;= #{startAt}
+           AND sm.start_at &lt;= #{endAt}
+           AND sm.status = '종료'
+           AND mp.participation_status = '확정'
+    </select>
+
+    <!--
+      최신 신청 한 건만 남긴 신청 원천.
+      같은 매칭방에 같은 사람이 여러 번 신청할 수 있으므로(취소·반려 후 재신청)
+      (match_id, applicant_user_id)별로 created_at DESC, application_id DESC 첫 행만 쓴다.
+      created_at이 같으면 application_id가 큰 행이 최신이다. 담당 시설·기간·종료 상태는
+      같은 match_id 안에서는 모두 같은 값이므로 ROW_NUMBER 이전에 걸러도 결과가 같다.
+    -->
+    <sql id="latestApplicationFrom">
+        FROM (
+              SELECT ma.application_type,
+                     ma.status,
+                     sm.start_at,
+                     ROW_NUMBER() OVER (
+                         PARTITION BY ma.match_id, ma.applicant_user_id
+                         ORDER BY ma.created_at DESC, ma.application_id DESC
+                     ) AS latest_rank
+                FROM match_application ma
+                JOIN social_match sm ON sm.match_id = ma.match_id
+                JOIN facility f      ON f.facility_id = sm.facility_id
+                                    AND f.deleted_at IS NULL
+                JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                        AND fm.user_id = #{managerUserId}
+               WHERE sm.facility_id = #{facilityId}
+                 AND sm.start_at &gt;= #{startAt}
+                 AND sm.start_at &lt;= #{endAt}
+                 AND sm.status = '종료'
+             ) latest
+    </sql>
+
+    <!-- 최신 신청 원천에서 사람별·매칭방별 첫 행만 남긴다. -->
+    <sql id="latestApplicationWhere">
+        WHERE latest.latest_rank = 1
+    </sql>
+
+    <!--
+      최신 신청 상태를 상태별로 센다. 대기 건수는 total - approved - cancelled이며
+      승인율·취소율 분모(처리 수)에서는 빠진다. 팀 신청은 팀원이 각자 한 건이고,
+      같은 사람이 다른 매칭방에 신청하면 각각 센다.
+    -->
+    <select id="countApplications" resultType="co.kr.spoit.facility.dto.ApplicationCountSummary">
+        SELECT COUNT(*) AS total,
+               COALESCE(SUM(CASE WHEN latest.application_type = '개인' THEN 1 ELSE 0 END), 0) AS individual_count,
+               COALESCE(SUM(CASE WHEN latest.application_type = '동호회' THEN 1 ELSE 0 END), 0) AS club_count,
+               COALESCE(SUM(CASE WHEN latest.status = '확정' THEN 1 ELSE 0 END), 0) AS approved_count,
+               COALESCE(SUM(CASE WHEN latest.status IN ('반려', '취소') THEN 1 ELSE 0 END), 0) AS cancelled_count
+        <include refid="latestApplicationFrom"/>
+        <include refid="latestApplicationWhere"/>
+    </select>
+
+    <!--
+      종료 매칭에 확정으로 참여한 행만 요일×시간대로 묶는다. 요일별 합계와 시간대별 합계는
+      이 결과에서 서비스가 파생하므로 같은 조건의 집계 쿼리를 따로 두지 않는다.
+    -->
+    <select id="countParticipantsByWeekdayAndHour"
+            resultType="co.kr.spoit.facility.dto.WeekdayHourParticipantCount">
+        SELECT DAYOFWEEK(sm.start_at)  AS weekday,
+               HOUR(sm.start_at)       AS hour,
+               COUNT(mp.participant_id) AS participant_count
+          FROM match_participant mp
+          JOIN social_match sm ON sm.match_id = mp.match_id
+          JOIN facility f      ON f.facility_id = sm.facility_id
+                              AND f.deleted_at IS NULL
+          JOIN facility_manager fm ON fm.facility_id = f.facility_id
+                                  AND fm.user_id = #{managerUserId}
+         WHERE sm.facility_id = #{facilityId}
+           AND sm.start_at &gt;= #{startAt}
+           AND sm.start_at &lt;= #{endAt}
+           AND sm.status = '종료'
+           AND mp.participation_status = '확정'
+         GROUP BY DAYOFWEEK(sm.start_at), HOUR(sm.start_at)
+    </select>
+
+    <!--
+      최신 신청(사람별·매칭방별 마지막 한 건)을 요일×시작 시간대별로 묶어
+      확정 수·반려+취소 수·전체 수를 함께 센다. 대기 건수는 total - approved - cancelled로
+      서비스가 구하고, 승인율·취소율 분모에서는 뺀다. 서비스는 이 한 번의 결과에서
+      요일별·시간대별·요일×시간대별 분포를 모두 파생한다.
+    -->
+    <select id="countApplicationStatusesByWeekdayAndHour"
+            resultType="co.kr.spoit.facility.dto.WeekdayHourApplicationStatusCount">
+        SELECT DAYOFWEEK(latest.start_at) AS weekday,
+               HOUR(latest.start_at)      AS hour,
+               COALESCE(SUM(CASE WHEN latest.status = '확정' THEN 1 ELSE 0 END), 0) AS approved_count,
+               COALESCE(SUM(CASE WHEN latest.status IN ('반려', '취소') THEN 1 ELSE 0 END), 0) AS cancelled_count,
+               COUNT(*) AS total_count
+        <include refid="latestApplicationFrom"/>
+        <include refid="latestApplicationWhere"/>
+         GROUP BY DAYOFWEEK(latest.start_at), HOUR(latest.start_at)
+    </select>
+
+</mapper>

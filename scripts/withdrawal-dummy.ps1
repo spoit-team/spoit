@@ -22,9 +22,8 @@ Isolation guarantees
   BCryptPasswordEncoder) before applying the fixture.
 
 Compatibility
-The source is deliberately pure ASCII so that Windows PowerShell 5.1 (whose default file
-decoding follows the system ANSI code page, e.g. cp949) and PowerShell 7 parse it identically
-with or without a UTF-8 BOM.
+The source is deliberately pure ASCII because Windows PowerShell 5.1 decodes script files
+without a UTF-8 BOM using the system ANSI code page (for example, cp949).
 
 .PARAMETER Mode
 Start (default): create and start the isolated server.
@@ -274,7 +273,8 @@ function Assert-DedicatedNetwork {
     }
 }
 
-# Token generation from a cryptographic RNG. GetInt32/Fill are PowerShell 7 only, so bytes
+# Token generation from a cryptographic RNG. GetInt32/Fill are unavailable in the
+# Windows PowerShell 5.1/.NET Framework runtime, so bytes
 # are drawn with GetBytes and reduced by rejection sampling: a byte is kept only when it is
 # below the largest multiple of the alphabet size, which avoids modulo bias.
 function New-RandomToken {

@@ -116,4 +116,126 @@
         DELETE FROM user_region WHERE user_id = #{userId}
     </delete>
 
+    <!-- 사용자 관리 목록과 건수가 같은 필터를 사용한다. -->
+    <sql id="adminUserFilters">
+        <where>
+            u.deleted_at IS NULL
+            <if test="keyword != null and keyword != ''">
+                AND (u.nickname LIKE CONCAT('%', #{keyword}, '%')
+                     OR u.email LIKE CONCAT('%', #{keyword}, '%')
+                     OR CAST(u.user_id AS CHAR) = #{keyword})
+            </if>
+            <if test="roleCode != null and roleCode != ''">
+                AND u.role IN (#{roleCode}, #{roleLabel})
+            </if>
+            <if test="status == 'pending'">
+                AND EXISTS (SELECT 1 FROM admin_request ar
+                             WHERE ar.user_id = u.user_id
+                               AND ar.status = '대기')
+            </if>
+            <if test="status == 'active'">
+                AND (u.penalty_time IS NULL OR u.penalty_time &lt;= #{now})
+                AND NOT EXISTS (SELECT 1 FROM admin_request ar
+                                 WHERE ar.user_id = u.user_id
+                                   AND ar.status = '대기')
+            </if>
+            <if test="status == 'suspended'">
+                AND u.penalty_time &gt; #{now}
+            </if>
+        </where>
+    </sql>
+
+    <!--
+      시스템 관리자 사용자 관리 목록.
+      탈퇴 계정은 관리 대상에서 제외하고, 대기 중인 관리자 권한 요청이 있으면 pendingRequest=true로 내린다.
+      역할은 코드(MEMBER/FACILITY_MANAGER/ADMIN)와 한글 표기를 모두 수용해 기존 데이터와 fixture를 함께 다룬다.
+    -->
+    <select id="findAdminUsers" resultType="co.kr.spoit.member.domain.AdminUserRow">
+        SELECT u.user_id AS userId
+              ,u.nickname AS nickname
+              ,u.email AS email
+              ,u.role AS role
+              ,u.created_at AS createdAt
+              ,u.penalty_time AS penaltyTime
+              ,(SELECT COUNT(*) &gt; 0
+                  FROM admin_request ar
+                 WHERE ar.user_id = u.user_id
+                   AND ar.status = '대기') AS pendingRequest
+          FROM app_user u
+        <include refid="adminUserFilters"/>
+         ORDER BY u.created_at DESC, u.user_id DESC
+         LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countAdminUsers" resultType="int">
+        SELECT COUNT(*)
+          FROM app_user u
+        <include refid="adminUserFilters"/>
+    </select>
+
+    <select id="countActiveUsers" resultType="int">
+        SELECT COUNT(*) FROM app_user u WHERE u.deleted_at IS NULL
+    </select>
+
+    <select id="countPendingAdminRequests" resultType="int">
+        SELECT COUNT(*)
+          FROM admin_request ar
+          JOIN app_user u ON u.user_id = ar.user_id
+         WHERE ar.status = '대기'
+           AND u.deleted_at IS NULL
+    </select>
+
+    <!-- 역할 비교는 코드와 한글 표기를 함께 허용한다(기존 데이터·fixture 호환). -->
+    <select id="countActiveUsersByRole" resultType="int">
+        SELECT COUNT(*)
+          FROM app_user u
+         WHERE u.deleted_at IS NULL
+           AND (u.role = #{roleCode} OR u.role = #{roleLabel})
+    </select>
+
+    <select id="countSuspendedUsers" resultType="int">
+        SELECT COUNT(*)
+          FROM app_user u
+         WHERE u.deleted_at IS NULL
+           AND u.penalty_time &gt; #{now}
+    </select>
+
+    <!-- 역할 변경은 대상 회원 행을 서비스가 먼저 잠근 뒤에만 호출한다. -->
+    <update id="updateRole">
+        UPDATE app_user
+           SET role = #{role}
+         WHERE user_id = #{userId}
+           AND deleted_at IS NULL
+    </update>
+
+    <update id="updatePenaltyTime">
+        UPDATE app_user
+           SET penalty_time = #{penaltyTime}
+         WHERE user_id = #{userId}
+           AND deleted_at IS NULL
+    </update>
+
+    <!-- 승인·거절 대상 요청을 PK로 잠근다. -->
+    <select id="findPendingAdminRequestForUpdate" resultType="co.kr.spoit.member.domain.AdminRequestRow">
+        SELECT ar.request_id AS requestId
+              ,ar.user_id AS userId
+              ,ar.requested_role AS requestedRole
+              ,ar.status AS status
+          FROM admin_request ar
+         WHERE ar.user_id = #{userId}
+           AND ar.status = '대기'
+         ORDER BY ar.request_id ASC
+         LIMIT 1
+           FOR UPDATE
+    </select>
+
+    <update id="reviewAdminRequest">
+        UPDATE admin_request
+           SET status = #{status},
+               reviewed_by = #{reviewedBy},
+               reviewed_at = CURRENT_TIMESTAMP
+         WHERE request_id = #{requestId}
+           AND status = '대기'
+    </update>
+
 </mapper>

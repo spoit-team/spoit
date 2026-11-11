@@ -22,16 +22,14 @@ public enum NotificationType {
     CLUB_JOIN_APPROVED("가입 승인"),
     CLUB_JOIN_REJECTED("가입 거절"),
     CLUB_MEMBER_KICKED("팀원 추방"),
-    CLUB_LEADER_TRANSFERRED("회장 위임");
+    CLUB_LEADER_TRANSFERRED("회장 위임"),
+    REPORT_SUBMITTED("신고 접수"),
+    REPORT_RESOLVED("신고 처리 결과");
 
     private final String label;
 
     NotificationType(String label) {
         this.label = label;
-    }
-
-    public String label() {
-        return label;
     }
 
     /**

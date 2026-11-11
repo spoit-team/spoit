@@ -26,6 +26,9 @@ public class Notification {
     /** 대상 동호회 번호. 가입 신청 알림은 신청 행에서도 읽을 수 있다. */
     private Long clubId;
 
+    /** 신고 접수·처리 결과 알림이면 연결할 신고 번호. 그 밖의 알림은 {@code null}이다. */
+    private Long reportId;
+
     /** {@link NotificationType} 이름 또는 도메인별 코드 문자열이다. */
     private String type;
     private String title;

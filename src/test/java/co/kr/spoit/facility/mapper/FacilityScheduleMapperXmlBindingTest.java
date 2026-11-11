@@ -51,6 +51,7 @@ class FacilityScheduleMapperXmlBindingTest {
                     .isTrue();
         }
         assertThat(configuration.hasStatement(NAMESPACE + "selectWeeklyRules")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectDateOverrideSlots")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "selectSportConditions")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "insertWeeklyRules")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "insertDateOverrideHours")).isTrue();

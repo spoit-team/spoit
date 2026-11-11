@@ -6,9 +6,9 @@
     <insert id="insert" parameterType="co.kr.spoit.notification.domain.Notification"
             useGeneratedKeys="true" keyProperty="notificationId">
         INSERT INTO notification (recipient_user_id, application_id, match_id, join_request_id, club_id,
-                                  notification_type, title, body, created_at)
+                                  report_id, notification_type, title, body, created_at)
         VALUES (#{recipientUserId}, #{applicationId}, #{matchId}, #{joinRequestId}, #{clubId},
-                #{type}, #{title}, #{body}, #{createdAt})
+                #{reportId}, #{type}, #{title}, #{body}, #{createdAt})
     </insert>
 
     <!-- 마이페이지·관리자 알림 모달용 목록. 최근 limit건과 모든 미확인 알림을 최신순으로 읽는다.
@@ -22,6 +22,7 @@
               ,n.match_id AS matchId
               ,n.join_request_id AS joinRequestId
               ,COALESCE(n.club_id, cj.club_id) AS clubId
+              ,n.report_id AS reportId
               ,n.notification_type AS type
               ,n.title
               ,n.body
@@ -69,4 +70,18 @@
          WHERE notification_id = #{notificationId}
            AND recipient_user_id = #{recipientUserId}
     </delete>
+
+    <!--
+      신고 접수 알림의 시스템 관리자 후보. 탈퇴하지 않은 회원만 읽고, 역할 후보는 SQL에서 좁힌다.
+      여기서는 후보만 추리며 실제 판정은 서비스가 MemberRole.from의 정확 일치 규칙으로 다시 한다
+      (NOT_ADMIN 같은 부분 일치 값은 Java에서 MEMBER로 해석되어 제외된다).
+    -->
+    <select id="findActiveAdminCandidates" resultType="co.kr.spoit.notification.dto.SystemAdminCandidate">
+        SELECT user_id AS userId
+              ,role
+          FROM app_user
+         WHERE deleted_at IS NULL
+           AND (UPPER(role) LIKE '%ADMIN%' OR role LIKE '%시스템 관리자%')
+         ORDER BY user_id
+    </select>
 </mapper>

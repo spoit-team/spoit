@@ -65,5 +65,13 @@ class MemberMapperXmlBindingTest {
         assertThat(configuration
                 .hasStatement("co.kr.spoit.member.mapper.MemberMapper.deleteUserRegions"))
                 .isTrue();
+        // 시스템 관리자 사용자 관리가 쓰는 app_user / admin_request 문장도 바인딩되어야 한다.
+        for (String id : java.util.Set.of(
+                "findAdminUsers", "countAdminUsers", "countActiveUsers", "countPendingAdminRequests",
+                "countActiveUsersByRole", "countSuspendedUsers", "updateRole", "updatePenaltyTime",
+                "findPendingAdminRequestForUpdate", "reviewAdminRequest")) {
+            assertThat(configuration.hasStatement("co.kr.spoit.member.mapper.MemberMapper." + id))
+                    .as(id).isTrue();
+        }
     }
 }

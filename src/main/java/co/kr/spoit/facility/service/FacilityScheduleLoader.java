@@ -2,11 +2,14 @@ package co.kr.spoit.facility.service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
 import co.kr.spoit.facility.domain.DateOverride;
+import co.kr.spoit.facility.domain.DateOverrideSlot;
 import co.kr.spoit.facility.domain.FacilityClosure;
 import co.kr.spoit.facility.domain.OperatingRule;
 import co.kr.spoit.facility.mapper.FacilityScheduleMapper;
@@ -30,8 +33,8 @@ class FacilityScheduleLoader {
     /** 변경 검증용: 주간·날짜별·적용 중 휴관을 잠금 current read로 읽는다. */
     ScheduleSnapshot snapshotForUpdate(long facilityId) {
         List<OperatingRule> rules = nullSafe(scheduleMapper.selectWeeklyRulesForUpdate(facilityId));
-        List<DateOverride> overrides = withHours(
-                nullSafe(scheduleMapper.selectDateOverridesForUpdate(facilityId)), true);
+        List<DateOverride> overrides = withLockedHours(
+                nullSafe(scheduleMapper.selectDateOverridesForUpdate(facilityId)));
         List<FacilityClosure> closures = nullSafe(scheduleMapper.selectActiveClosuresForUpdate(facilityId));
         return new ScheduleSnapshot(rules, overrides, closures);
     }
@@ -39,20 +42,37 @@ class FacilityScheduleLoader {
     /** 화면 조회용: 잠금 없는 읽기다. */
     ScheduleSnapshot snapshot(long facilityId) {
         List<OperatingRule> rules = nullSafe(scheduleMapper.selectWeeklyRules(facilityId));
-        List<DateOverride> overrides = withHours(nullSafe(scheduleMapper.selectDateOverrides(facilityId)), false);
+        List<DateOverride> overrides = withHours(facilityId, nullSafe(scheduleMapper.selectDateOverrides(facilityId)));
         List<FacilityClosure> closures = nullSafe(scheduleMapper.selectActiveClosures(facilityId));
         return new ScheduleSnapshot(rules, overrides, closures);
     }
 
-    private List<DateOverride> withHours(List<DateOverride> headers, boolean forUpdate) {
+    private List<DateOverride> withHours(long facilityId, List<DateOverride> headers) {
+        if (headers.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, List<Integer>> hoursByOverride = new HashMap<>();
+        for (DateOverrideSlot slot : nullSafe(scheduleMapper.selectDateOverrideSlots(facilityId))) {
+            hoursByOverride.computeIfAbsent(slot.getOverrideId(), ignored -> new ArrayList<>()).add(slot.getSlotHour());
+        }
         List<DateOverride> overrides = new ArrayList<>();
         for (DateOverride header : headers) {
             if (header == null || header.getOverrideId() == null) {
                 continue;
             }
-            List<Integer> hours = forUpdate
-                    ? nullSafe(scheduleMapper.selectDateOverrideHoursForUpdate(header.getOverrideId()))
-                    : nullSafe(scheduleMapper.selectDateOverrideHours(header.getOverrideId()));
+            header.setHours(new ArrayList<>(hoursByOverride.getOrDefault(header.getOverrideId(), List.of())));
+            overrides.add(header);
+        }
+        return overrides;
+    }
+
+    private List<DateOverride> withLockedHours(List<DateOverride> headers) {
+        List<DateOverride> overrides = new ArrayList<>();
+        for (DateOverride header : headers) {
+            if (header == null || header.getOverrideId() == null) {
+                continue;
+            }
+            List<Integer> hours = nullSafe(scheduleMapper.selectDateOverrideHoursForUpdate(header.getOverrideId()));
             header.setHours(new ArrayList<>(hours));
             overrides.add(header);
         }

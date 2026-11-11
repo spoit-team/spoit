@@ -13,6 +13,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import co.kr.spoit.admin.dto.SystemDashboard;
+import co.kr.spoit.admin.dto.SystemErrorRecord;
 import co.kr.spoit.admin.service.SystemResourceHistory.Sample;
 
 /**
@@ -43,23 +44,31 @@ public class SystemMonitoringService {
     private static final String TONE_GOOD = "good";
     private static final String TONE_BAD = "bad";
 
+    /** dashboard의 최근 오류 카드가 보여 주는 범위(시간)다. */
+    static final int RECENT_ERROR_HOURS = 1;
+
+    /** dashboard 최근 오류 표에 올리는 최대 행 수. */
+    static final int RECENT_ERROR_ROWS = 10;
+
     private final SystemResourceProbe resourceProbe;
     private final SystemResourceHistory history;
     private final DatabaseAvailabilityProbe databaseProbe;
+    private final SystemErrorLogBuffer errorLogBuffer;
     private final Clock clock;
 
     @Autowired
     public SystemMonitoringService(SystemResourceProbe resourceProbe, SystemResourceHistory history,
-            DatabaseAvailabilityProbe databaseProbe) {
-        this(resourceProbe, history, databaseProbe, Clock.system(ZONE));
+            DatabaseAvailabilityProbe databaseProbe, SystemErrorLogBuffer errorLogBuffer) {
+        this(resourceProbe, history, databaseProbe, errorLogBuffer, Clock.system(ZONE));
     }
 
     /** 테스트에서 시각을 고정하기 위한 생성자다. */
     SystemMonitoringService(SystemResourceProbe resourceProbe, SystemResourceHistory history,
-            DatabaseAvailabilityProbe databaseProbe, Clock clock) {
+            DatabaseAvailabilityProbe databaseProbe, SystemErrorLogBuffer errorLogBuffer, Clock clock) {
         this.resourceProbe = resourceProbe;
         this.history = history;
         this.databaseProbe = databaseProbe;
+        this.errorLogBuffer = errorLogBuffer;
         this.clock = clock;
     }
 
@@ -88,6 +97,8 @@ public class SystemMonitoringService {
         // 조회 시점 기준 12시간 유효기간을 적용한 원본 15초 표본만 쓴다.
         List<Sample> samples = history.samples(now);
         List<SystemDashboard.ServiceStatus> services = services(databaseReachable);
+        // 최근 오류 수/목록은 메모리 버퍼(재시작 시 초기화)에서 계산한다. JVM·DB 모니터링은 그대로 둔다.
+        var recentErrors = recentErrors(now);
 
         return new SystemDashboard(
                 now.format(COLLECTED_AT_FORMAT),
@@ -98,15 +109,57 @@ public class SystemMonitoringService {
                 memoryPercent,
                 resourceProbe.heapCapacityLabel(),
                 diskPercent,
-                // 오류 수집은 이번 범위가 아니므로 수치를 만들지 않는다.
-                null,
-                null,
+                recentErrors.count(),
+                recentErrors.attention(),
                 // 모든 서비스 probe가 정상일 때만 true다. 수집하지 않은 상태에서 정상으로 표시하지 않는다.
                 services.stream().allMatch(service -> TONE_GOOD.equals(service.getTone())),
                 bars(samples),
                 services,
-                List.of(),
+                recentErrors.rows(),
                 List.of());
+    }
+
+    /**
+     * 최근 1시간 오류를 dashboard 표 행으로 만든다.
+     *
+     * <p>{@code ERROR}만 세고 {@code WARN}은 제외한다. 같은 서비스·코드·요약은 하나로 묶는데,
+     * 데이터는 메모리 버퍼에서 오므로 화면 요약은 마스킹된 값이다.</p>
+     */
+    private RecentErrors recentErrors(LocalDateTime now) {
+        List<SystemErrorRecord> collected = errorLogBuffer.recentSince(now.minusHours(RECENT_ERROR_HOURS));
+        java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        java.util.Map<String, SystemErrorRecord> first = new java.util.LinkedHashMap<>();
+        for (SystemErrorRecord record : collected) {
+            if (!"ERROR".equalsIgnoreCase(record.level())) {
+                continue;
+            }
+            String key = record.service() + '\u0000' + record.code() + '\u0000' + record.summary();
+            counts.merge(key, 1, Integer::sum);
+            first.putIfAbsent(key, record);
+        }
+        List<Object> rows = new java.util.ArrayList<>();
+        int attention = 0;
+        for (java.util.Map.Entry<String, SystemErrorRecord> entry : first.entrySet()) {
+            SystemErrorRecord record = entry.getValue();
+            int count = counts.get(entry.getKey());
+            attention += count;
+            if (rows.size() >= RECENT_ERROR_ROWS) {
+                continue;
+            }
+            rows.add(new SystemDashboard.RecentError(
+                    SystemErrorLogBuffer.timeText(record.time()),
+                    "오류",
+                    TONE_BAD,
+                    record.service(),
+                    record.summary(),
+                    record.code(),
+                    count));
+        }
+        return new RecentErrors(attention, attention, rows);
+    }
+
+    /** dashboard 최근 오류 카드에 필요한 값 묶음이다. */
+    private record RecentErrors(int count, int attention, List<Object> rows) {
     }
 
     /**
