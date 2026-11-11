@@ -363,6 +363,18 @@ class ClubServiceTest {
     }
 
     @Test
+    @DisplayName("지난 일정은 최근 20경기까지만 가져온다")
+    void 지난_일정은_20경기까지만_가져온다() {
+        when(clubMapper.existsActiveMember(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectClubDetail(1L)).thenReturn(detailClub());
+        when(clubMapper.selectClubMembers(1L)).thenReturn(List.of(member("이슛터", "동호회장")));
+
+        service.findManagedClub(7L, 1L);
+
+        verify(clubMapper).selectRecentSchedules(eq(1L), any(), eq(20));
+    }
+
+    @Test
     @DisplayName("내 동호회 목록에서 선택된 동호회만 강조한다")
     void 선택된_동호회만_강조한다() {
         ClubSummary second = club("모집중", "2,4", 19, 21);

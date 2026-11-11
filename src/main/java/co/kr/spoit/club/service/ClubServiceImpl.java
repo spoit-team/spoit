@@ -75,6 +75,7 @@ public class ClubServiceImpl implements ClubService {
     private static final String PENALTY_ACTIVE = "적용 중";
     private static final String NO_RATING_LABEL = "기록 없음";
     private static final int RECENT_CHANGE_LIMIT = 5;
+    private static final int RECENT_SCHEDULE_LIMIT = 20;
 
     // 목록: 검색,필터,정렬 조건으로 조회
     @Override
@@ -89,8 +90,8 @@ public class ClubServiceImpl implements ClubService {
     }
 
     // 목록 첫 화면: 카드와 같은 조건의 전체 개수를 같이
-    @Override 
-    public ClubPageResponse findClubPage(ClubSearchForm filters){
+    @Override
+    public ClubPageResponse findClubPage(ClubSearchForm filters) {
         List<ClubCardResponse> cards = findClubCards(filters);
         int totalCount = clubMapper.countClubs(filters);
         return new ClubPageResponse(filters, cards, totalCount);
@@ -315,7 +316,7 @@ public class ClubServiceImpl implements ClubService {
         }
         LocalDateTime now = LocalDateTime.now(ZONE);
         List<ClubSchedule> upcomingSchedules = clubMapper.selectUpcomingSchedules(targetClubId, now);
-        List<ClubSchedule> recentSchedules = clubMapper.selectRecentSchedules(targetClubId, now);
+        List<ClubSchedule> recentSchedules = clubMapper.selectRecentSchedules(targetClubId, now, RECENT_SCHEDULE_LIMIT);
         return ClubManageResponse.from(club, members, userId, joinRequests, upcomingSchedules, recentSchedules);
     }
 

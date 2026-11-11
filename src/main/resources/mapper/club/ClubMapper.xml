@@ -347,6 +347,7 @@
             ORDER BY sm.start_at, sm.match_id
     </select>
     
+    <!-- 지난 일정: 끝난 경기 중 최근 limit-->
     <select id="selectRecentSchedules" resultType="co.kr.spoit.club.domain.ClubSchedule">
         SELECT sm.match_id AS matchId
                 ,sm.title AS title
@@ -362,6 +363,7 @@
             AND sm.status IN ('매칭 완료', '종료')
             AND sm.end_at &lt; #{now}
             ORDER BY sm.start_at DESC, sm.match_id DESC
+            LIMIT #{limit}
     </select>
 
     <!-- 이력 대상 동호회원 조회: 동호회장도 포함 (selectActiveMemberById는 동호회원만) -->
