@@ -35,6 +35,11 @@
                      AND sm.end_at &gt; TIMESTAMP(DATE(sm.start_at)) + INTERVAL #{h} HOUR)
                 </foreach>
             </if>
+            <!-- 무한 스크롤 커서: 정렬(start_at, match_id)상 마지막으로 받은 행 다음부터 -->
+            <if test="cursorStartAt != null">
+                AND (sm.start_at &gt; #{cursorStartAt}
+                     OR (sm.start_at = #{cursorStartAt} AND sm.match_id &gt; #{cursorMatchId}))
+            </if>
         </where>
     </sql>
 
@@ -61,6 +66,22 @@
         <include refid="searchFrom"/>
         <include refid="searchWhere"/>
         ORDER BY sm.start_at, sm.match_id
+        <if test="limit != null">
+            LIMIT #{limit}
+        </if>
+    </select>
+
+    <!-- 상단 배경: 목록 순서상 사진이 있는 첫 매칭방의 사진 (첫 페이지에 사진이 없을 때만 쓴다) -->
+    <select id="findFirstPhotoUrl"
+            parameterType="co.kr.spoit.match.dto.MatchSearchQuery"
+            resultType="string">
+        SELECT sm.photo_url
+        <include refid="searchFrom"/>
+        <include refid="searchWhere"/>
+          AND sm.photo_url IS NOT NULL
+          AND TRIM(sm.photo_url) &lt;&gt; ''
+        ORDER BY sm.start_at, sm.match_id
+        LIMIT 1
     </select>
 
     <select id="countMatches"

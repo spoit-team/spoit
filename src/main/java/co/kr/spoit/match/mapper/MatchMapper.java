@@ -20,6 +20,9 @@ public interface MatchMapper {
     /** 조건에 맞는 매칭방 목록 (시작 시각 순) */
     List<MatchRow> findMatches(MatchSearchQuery query);
 
+    /** 조건에 맞는 매칭방 중 목록 순서상 사진이 있는 첫 방의 사진 (없으면 null) */
+    String findFirstPhotoUrl(MatchSearchQuery query);
+
     /** 조건에 맞는 매칭방 집계 */
     MatchCountSummary countMatches(MatchSearchQuery query);
 

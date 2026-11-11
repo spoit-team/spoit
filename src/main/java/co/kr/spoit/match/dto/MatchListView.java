@@ -23,5 +23,8 @@ public class MatchListView {
     private final long recruitingCount;
     private final long matchedCount;
     private final List<ActiveFilter> activeFilters;
+    /** 첫 페이지 카드 (나머지는 무한 스크롤로 이어 붙인다) */
     private final List<MatchCardView> matches;
+    /** 다음 페이지 커서, 마지막 페이지면 null */
+    private final String nextCursor;
 }

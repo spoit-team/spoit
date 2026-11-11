@@ -22,8 +22,10 @@ import co.kr.spoit.match.domain.ParticipationStatus;
 import co.kr.spoit.match.dto.ActiveFilter;
 import co.kr.spoit.match.dto.DateOption;
 import co.kr.spoit.match.dto.DistrictOption;
+import co.kr.spoit.match.dto.MatchCardPage;
 import co.kr.spoit.match.dto.MatchCardView;
 import co.kr.spoit.match.dto.MatchCountSummary;
+import co.kr.spoit.match.dto.MatchCursor;
 import co.kr.spoit.match.dto.MatchDetailPage;
 import co.kr.spoit.match.dto.MatchDetailPage.TeamOption;
 import co.kr.spoit.match.dto.MatchDetailRow;
@@ -53,6 +55,9 @@ public class MatchService {
     /** 시간대 선택지 범위 */
     static final int FIRST_HOUR = 6;
     static final int LAST_HOUR = 23;
+
+    /** 무한 스크롤 한 페이지 카드 수 */
+    static final int PAGE_SIZE = 12;
 
     /** 서버가 UTC여도 한국 시간 기준. DB에는 NOW() 대신 이 값을 넘긴다. */
     private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
@@ -87,8 +92,8 @@ public class MatchService {
         long totalRoomCount = matchMapper.countMatches(unfiltered).getRoomCount();
         List<SportTab> sportTabs = buildSportTabs(sports, matchMapper.countBySport(withoutSport));
 
-        List<MatchRow> rows = matchMapper.findMatches(query);
-        List<MatchCardView> cards = toCards(rows, now, today);
+        MatchCardPage page = findPage(query, null, now, today);
+        List<MatchCardView> cards = page.matches();
 
         List<DistrictOption> districtOptions = new ArrayList<>();
         districtOptions.add(new DistrictOption(null, "전체 지역"));
@@ -110,17 +115,58 @@ public class MatchService {
                 .selectedHours(condition.getHours())
                 .selectedHoursLabel(hoursLabel(condition.getHours()))
                 .selectedSportName(sportName == null ? "전체 종목" : sportName)
-                .sportImageUrl(heroImageUrl(cards))
+                .sportImageUrl(heroImageUrl(cards, page.nextCursor() != null, query))
                 .totalRoomCount(totalRoomCount)
                 .roomCount(counts.getRoomCount())
                 .recruitingCount(counts.getRecruitingCount())
                 .matchedCount(counts.getMatchedCount())
                 .activeFilters(buildActiveFilters(condition, basePath, sportName, regionName, dates))
                 .matches(cards)
+                .nextCursor(page.nextCursor())
                 .build();
     }
 
-    /** 상단 배경 사진: 목록 위에서부터 사진이 있는 첫 매칭방의 사진. 없으면 null(기본 배경). */
+    /**
+     * 무한 스크롤 다음 페이지. 검색 조건은 첫 화면과 같은 규칙으로 정규화한다.
+     *
+     * @param cursor 앞 페이지가 준 커서. 없거나 형식이 틀리면 첫 페이지를 준다.
+     */
+    public MatchCardPage searchMore(MatchSearchCondition condition, String cursor) {
+        LocalDateTime now = LocalDateTime.now(ZONE);
+        LocalDate today = now.toLocalDate();
+        normalize(condition, matchMapper.findSports(), matchMapper.findDistricts());
+        MatchSearchQuery query = toQuery(condition, condition.getSportId(), now, today);
+        return findPage(query, MatchCursor.decode(cursor).orElse(null), now, today);
+    }
+
+    /** 커서 다음 PAGE_SIZE개. 한 개 더 가져와 다음 페이지가 있는지 판단한다. */
+    private MatchCardPage findPage(MatchSearchQuery base, MatchCursor cursor, LocalDateTime now, LocalDate today) {
+        MatchSearchQuery query = base.toBuilder()
+                .cursorStartAt(cursor == null ? null : cursor.startAt())
+                .cursorMatchId(cursor == null ? null : cursor.matchId())
+                .limit(PAGE_SIZE + 1)
+                .build();
+        List<MatchRow> rows = matchMapper.findMatches(query);
+        boolean hasNext = rows.size() > PAGE_SIZE;
+        List<MatchRow> pageRows = hasNext ? rows.subList(0, PAGE_SIZE) : rows;
+        String nextCursor = hasNext ? MatchCursor.of(pageRows.get(PAGE_SIZE - 1)).encode() : null;
+        return new MatchCardPage(toCards(pageRows, now, today), nextCursor);
+    }
+
+    /**
+     * 상단 배경 사진: 전체 목록 위에서부터 사진이 있는 첫 매칭방의 사진.
+     * 첫 페이지에 있으면 그대로 쓰고(정렬이 같으므로 전체 기준과 같다), 없고 다음 페이지가 있을 때만 DB에서 찾는다.
+     */
+    private String heroImageUrl(List<MatchCardView> firstPage, boolean hasNext, MatchSearchQuery query) {
+        String url = heroImageUrl(firstPage);
+        if (url != null || !hasNext) {
+            return url;
+        }
+        String found = matchMapper.findFirstPhotoUrl(query);
+        return found == null || found.isBlank() ? null : found;
+    }
+
+    /** 카드 목록 위에서부터 사진이 있는 첫 매칭방의 사진. 없으면 null(기본 배경). */
     static String heroImageUrl(List<MatchCardView> cards) {
         return cards.stream()
                 .map(MatchCardView::getPhotoUrl)
