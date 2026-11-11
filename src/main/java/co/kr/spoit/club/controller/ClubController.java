@@ -1,7 +1,5 @@
 package co.kr.spoit.club.controller;
 
-import java.util.List;
-
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -9,13 +7,14 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import co.kr.spoit.club.dto.ClubCardResponse;
 import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubManageResponse;
+import co.kr.spoit.club.dto.ClubPageResponse;
 import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.service.ClubService;
 import co.kr.spoit.member.domain.MemberPrincipal;
@@ -30,17 +29,28 @@ public class ClubController {
 
     private final ClubService clubService;
 
-    // 동호회 목록 화면(검색,필터)
+    // 동호회 목록 화면(검색,필터), 무한 스크롤 다음 장은 카드 조각만
     @GetMapping
-    public String list(ClubSearchForm filters, BindingResult bindingResult, Model model) {
+    public String list(ClubSearchForm filters, BindingResult bindingResult,
+            @RequestHeader(name = "X-Requested-With", required = false) String requestedWith, Model model) {
         // 숫자 칸에 글자가 오면 예외처리
         if (bindingResult.hasErrors()) {
             log.info("동호회 목록 검색 형식 오류: {}", bindingResult.getAllErrors());
             return "redirect:/teams";
         }
-        List<ClubCardResponse> clubs = clubService.findClubCards(filters);
-        model.addAttribute("clubs", clubs);
-        model.addAttribute("resultCount", clubs.size());
+        // 다음 장 요청이면 그 장 카드만(개수·탭·지역은 필요 없음)
+        boolean cardsOnly = "fetch".equals(requestedWith);
+        filters.setCardsOnly(cardsOnly);
+        if (cardsOnly) {
+            model.addAttribute("clubs", clubService.findClubCards(filters));
+            return "teams/list :: clubCards";
+        }
+        // 첫 화면 시각을 정해 두고, 다음 장 요청은 이 시각을 받아 같은 순서로
+        filters.useNowAsBaseTime();
+        ClubPageResponse clubPage = clubService.findClubPage(filters);
+        model.addAttribute("clubs", clubPage.getClubs());
+        model.addAttribute("resultCount", clubPage.getTotalCount());
+        model.addAttribute("clubPage", clubPage);
         model.addAttribute("sportTabs", clubService.findSportTabs(filters.getSportId()));
         model.addAttribute("districts", clubService.findRegionOptions());
         model.addAttribute("filters", filters);

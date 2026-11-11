@@ -25,6 +25,7 @@ import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
 import co.kr.spoit.club.dto.ClubMemberHistoryView;
+import co.kr.spoit.club.dto.ClubPageResponse;
 import co.kr.spoit.club.dto.ClubWithdrawalBlocks;
 import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.dto.ClubSportTabResponse;
@@ -90,6 +91,40 @@ class ClubServiceTest {
         assertThat(card.getStatusLabel()).isEqualTo("모집 중");
         assertThat(card.getTime()).isEqualTo("화, 목 19:00 - 21:00");
 
+    }
+
+    @Test
+    @DisplayName("목록 첫 화면은 전체 개수로 마지막 장을 정하고, 그린 장은 마지막 장을 넘지 않는다")
+    void 목록_첫_화면_마지막_장() {
+        ClubSummary club = club("모집중", "2,4", 19, 21);
+        when(clubMapper.selectClubs(any(ClubSearchForm.class))).thenReturn(List.of(club));
+        when(clubMapper.countClubs(any(ClubSearchForm.class))).thenReturn(25);
+        ClubSearchForm filters = new ClubSearchForm();
+        filters.setPage(9);
+        // 컨트롤러처럼 첫 화면 시각을 정함
+        filters.useNowAsBaseTime();
+
+        ClubPageResponse page = service.findClubPage(filters);
+
+        assertThat(page.getClubs()).hasSize(1);
+        assertThat(page.getTotalCount()).isEqualTo(25);
+        assertThat(page.getLastPage()).isEqualTo(3);
+        assertThat(page.getPage()).isEqualTo(3);
+        // 첫 화면 시각이 그대로 상자로 감
+        assertThat(page.getAt()).isEqualTo(filters.getAt());
+    }
+
+    @Test
+    @DisplayName("동호회가 0개여도 마지막 장은 1장이다")
+    void 목록_0개면_1장() {
+        when(clubMapper.selectClubs(any(ClubSearchForm.class))).thenReturn(List.of());
+        when(clubMapper.countClubs(any(ClubSearchForm.class))).thenReturn(0);
+
+        ClubPageResponse page = service.findClubPage(new ClubSearchForm());
+
+        assertThat(page.getClubs()).isEmpty();
+        assertThat(page.getLastPage()).isEqualTo(1);
+        assertThat(page.getPage()).isEqualTo(1);
     }
 
     @Test

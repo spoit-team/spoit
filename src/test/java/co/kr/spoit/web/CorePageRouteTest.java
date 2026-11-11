@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
@@ -32,89 +34,113 @@ import co.kr.spoit.member.domain.MemberPrincipalFixture;
 @ExtendWith(SpringExtension.class)
 class CorePageRouteTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+        @Autowired
+        private MockMvc mockMvc;
 
-    @ParameterizedTest(name = "{0} renders {1}")
-    @MethodSource("pageRoutes")
-    void existingPageTemplateRenders(String path, String viewName, String visibleContent) throws Exception {
-        assertPageTemplateRenders(path, viewName, visibleContent);
-    }
+        @ParameterizedTest(name = "{0} renders {1}")
+        @MethodSource("pageRoutes")
+        void existingPageTemplateRenders(String path, String viewName, String visibleContent) throws Exception {
+                assertPageTemplateRenders(path, viewName, visibleContent);
+        }
 
-    @Test
-    void loginPageTemplateRenders() throws Exception {
-        assertPageTemplateRenders("/login", "auth/login", "로그인");
-    }
+        @Test
+        void loginPageTemplateRenders() throws Exception {
+                assertPageTemplateRenders("/login", "auth/login", "로그인");
+        }
 
-    private void assertPageTemplateRenders(String path, String viewName, String visibleContent) throws Exception {
-        mockMvc.perform(get(path))
-                .andExpect(status().isOk())
-                .andExpect(view().name(viewName))
-                .andExpect(content().string(containsString(visibleContent)));
-    }
+        private void assertPageTemplateRenders(String path, String viewName, String visibleContent) throws Exception {
+                mockMvc.perform(get(path))
+                                .andExpect(status().isOk())
+                                .andExpect(view().name(viewName))
+                                .andExpect(content().string(containsString(visibleContent)));
+        }
 
-    @ParameterizedTest(name = "{0} renders {1} for {3}")
-    @MethodSource("adminPageRoutes")
-    void adminPageTemplateRendersForAllowedRole(String path, String viewName, String visibleContent,
-            MemberPrincipal principal, String hiddenContent) throws Exception {
-        mockMvc.perform(get(path).with(user(principal)))
-                .andExpect(status().isOk())
-                .andExpect(view().name(viewName))
-                .andExpect(content().string(containsString(visibleContent)))
-                .andExpect(content().string(not(containsString(hiddenContent))));
-    }
+        @ParameterizedTest(name = "{0} renders {1} for {3}")
+        @MethodSource("adminPageRoutes")
+        void adminPageTemplateRendersForAllowedRole(String path, String viewName, String visibleContent,
+                        MemberPrincipal principal, String hiddenContent) throws Exception {
+                mockMvc.perform(get(path).with(user(principal)))
+                                .andExpect(status().isOk())
+                                .andExpect(view().name(viewName))
+                                .andExpect(content().string(containsString(visibleContent)))
+                                .andExpect(content().string(not(containsString(hiddenContent))));
+        }
 
-    @Test
-    void matchApplyRequiresLogin() throws Exception {
-        mockMvc.perform(get("/matches/1/apply"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrlPattern("**/login"));
-    }
+        @Test
+        void matchApplyRequiresLogin() throws Exception {
+                mockMvc.perform(get("/matches/1/apply"))
+                                .andExpect(status().is3xxRedirection())
+                                .andExpect(redirectedUrlPattern("**/login"));
+        }
 
-    @Test
-    void matchApplyRendersForMember() throws Exception {
-        mockMvc.perform(get("/matches/1/apply").with(user(MemberPrincipalFixture.member())))
-                .andExpect(status().isOk())
-                .andExpect(view().name("matches/join"))
-                .andExpect(content().string(containsString("매치 참가 신청")));
-    }
+        @Test
+        void matchApplyRendersForMember() throws Exception {
+                mockMvc.perform(get("/matches/1/apply").with(user(MemberPrincipalFixture.member())))
+                                .andExpect(status().isOk())
+                                .andExpect(view().name("matches/join"))
+                                .andExpect(content().string(containsString("매치 참가 신청")));
+        }
 
-    @Test
-    void clubPagesRequireLogin() throws Exception {
-        mockMvc.perform(get("/teams/1"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrlPattern("**/login"));
-        mockMvc.perform(get("/teams/manage"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrlPattern("**/login"));
-    }
+        @Test
+        void clubPagesRequireLogin() throws Exception {
+                mockMvc.perform(get("/teams/1"))
+                                .andExpect(status().is3xxRedirection())
+                                .andExpect(redirectedUrlPattern("**/login"));
+                mockMvc.perform(get("/teams/manage"))
+                                .andExpect(status().is3xxRedirection())
+                                .andExpect(redirectedUrlPattern("**/login"));
+        }
 
-    @Test
-    void clubPagesRenderForMember() throws Exception {
-        mockMvc.perform(get("/teams/1").with(user(MemberPrincipalFixture.member())))
-                .andExpect(status().isOk())
-                .andExpect(view().name("teams/detail"))
-                .andExpect(content().string(containsString("동호회 목록으로 돌아가기")));
-        mockMvc.perform(get("/teams/manage").with(user(MemberPrincipalFixture.member())))
-                .andExpect(status().isOk())
-                .andExpect(view().name("teams/manage"))
-                .andExpect(content().string(containsString("동호회 관리")));
-    }
+        @Test
+        void clubPagesRenderForMember() throws Exception {
+                mockMvc.perform(get("/teams/1").with(user(MemberPrincipalFixture.member())))
+                                .andExpect(status().isOk())
+                                .andExpect(view().name("teams/detail"))
+                                .andExpect(content().string(containsString("동호회 목록으로 돌아가기")));
+                mockMvc.perform(get("/teams/manage").with(user(MemberPrincipalFixture.member())))
+                                .andExpect(status().isOk())
+                                .andExpect(view().name("teams/manage"))
+                                .andExpect(content().string(containsString("동호회 관리")));
+        }
 
-    private static Stream<Arguments> pageRoutes() {
-        return Stream.of(
-                Arguments.of("/signup", "auth/signup", "회원가입"),
-                Arguments.of("/matches", "matches/cards", "참여 가능한 매칭방"),
-                Arguments.of("/matches/1", "matches/detail", "매칭방 목록"),
-                Arguments.of("/teams", "teams/list", "SPO:IT 동호회"));
-    }
+        @Test
+        void clubListSendsOnlyCardsForFetch() throws Exception {
+                // 무한 스크롤 다음 장: 헤더가 fetch면 카드 조각만(head 없음)
+                mockMvc.perform(get("/teams").param("page", "2").header("X-Requested-With", "fetch"))
+                                .andExpect(status().isOk())
+                                .andExpect(view().name("teams/list :: clubCards"))
+                                .andExpect(content().string(not(containsString("<html"))))
+                                .andExpect(content().string(not(containsString("SPO:IT 동호회"))));
+        }
 
-    private static Stream<Arguments> adminPageRoutes() {
-        return Stream.of(
-                // /admin/facility 렌더링은 AdminFacilityPageTest가 담당한다.
-                Arguments.of("/admin/operations", "admin/operations", "매치 운영", facilityManager(),
-                        "/admin/system"),
-                Arguments.of("/admin/system", "admin/system", "시스템 모니터링", admin(),
-                        "/admin/facility"));
-    }
+        @Test
+        void clubListNextPageUsesBaseTime() throws Exception {
+                // 다음 장은 기준 시각(at)을 받아도 카드 조각, 형식이 틀리면 /teams로(CI는 빈 DB라 동호회 수와 상관없게)
+                String at = LocalDateTime.now(ZoneId.of("Asia/Seoul")).minusMinutes(1).withNano(0).toString();
+                mockMvc.perform(get("/teams").param("page", "2").param("sort", "recent").param("at", at)
+                                .header("X-Requested-With", "fetch"))
+                                .andExpect(status().isOk())
+                                .andExpect(view().name("teams/list :: clubCards"));
+
+                mockMvc.perform(get("/teams").param("page", "2").param("at", "abc")
+                                .header("X-Requested-With", "fetch"))
+                                .andExpect(status().is3xxRedirection());
+        }
+
+        private static Stream<Arguments> pageRoutes() {
+                return Stream.of(
+                                Arguments.of("/signup", "auth/signup", "회원가입"),
+                                Arguments.of("/matches", "matches/cards", "참여 가능한 매칭방"),
+                                Arguments.of("/matches/1", "matches/detail", "매칭방 목록"),
+                                Arguments.of("/teams", "teams/list", "SPO:IT 동호회"));
+        }
+
+        private static Stream<Arguments> adminPageRoutes() {
+                return Stream.of(
+                                // /admin/facility 렌더링은 AdminFacilityPageTest가 담당한다.
+                                Arguments.of("/admin/operations", "admin/operations", "매치 운영", facilityManager(),
+                                                "/admin/system"),
+                                Arguments.of("/admin/system", "admin/system", "시스템 모니터링", admin(),
+                                                "/admin/facility"));
+        }
 }

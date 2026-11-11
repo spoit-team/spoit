@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- 무한 스크롤 상자: 2장 이상일 때만 그림. page = 지금 그린 장, lastPage = 마지막 장, size = 다음 장 한 번에 받는 수, at = 첫 화면 시각(없으면 안 붙임)-->
+<div th:fragment="box(page, lastPage, size, at, moreLabel, endLabel)" th:if="${lastPage >= 2}"
+     class="infinite-box" data-infinite-box
+     th:attr="data-page=${page},data-last-page=${lastPage},data-size=${size},data-at=${at}">
+  <div class="infinite-sentinel" data-infinite-sentinel aria-hidden="true"></div>
+  <button class="infinite-more" type="button" data-infinite-more hidden th:text="${moreLabel}">더 보기</button>
+  <p class="infinite-end" data-infinite-end hidden th:text="${endLabel}">마지막입니다</p>
+</div>
+
+</body>
+</html>

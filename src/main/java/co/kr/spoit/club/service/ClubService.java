@@ -11,6 +11,7 @@ import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
 import co.kr.spoit.club.dto.ClubMemberHistoryView;
+import co.kr.spoit.club.dto.ClubPageResponse;
 import co.kr.spoit.club.dto.ClubWithdrawalBlocks;
 import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.dto.ClubSportTabResponse;
@@ -26,6 +27,9 @@ public interface ClubService {
 
     // 동호회 목록 카드 조회
     List<ClubCardResponse> findClubCards(ClubSearchForm filters);
+
+    // 동호회 목록 첫 화면: 카드 + 전체 개수 + 마지막 장
+    ClubPageResponse findClubPage(ClubSearchForm filters);
 
     // 종목 상단 탭
     List<ClubSportTabResponse> findSportTabs(Long selectedSportId);
