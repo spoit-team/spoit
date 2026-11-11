@@ -254,7 +254,8 @@ public class ClubServiceImpl implements ClubService {
         clubMapper.deleteClubRegions(clubId);
         clubMapper.insertClubRegion(clubId, form.getRegionId());
         log.info("동호회 정보 수정 완료: clubId={}, userId={}", clubId, userId);
-        return closed;
+        // '모집중'을 골랐는데 정원이 차서 못 연 경우만 알림('마감'을 골랐으면 바뀐 게 없음)
+        return closed && "모집중".equals(club.getRecruitStatus());
     }
 
     // 요일 번호(1~7)를 "1,3" 형태로 만듬
