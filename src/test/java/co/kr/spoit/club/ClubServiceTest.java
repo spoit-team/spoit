@@ -101,6 +101,8 @@ class ClubServiceTest {
         when(clubMapper.countClubs(any(ClubSearchForm.class))).thenReturn(25);
         ClubSearchForm filters = new ClubSearchForm();
         filters.setPage(9);
+        // 컨트롤러처럼 첫 화면 시각을 정함
+        filters.useNowAsBaseTime();
 
         ClubPageResponse page = service.findClubPage(filters);
 
@@ -108,6 +110,8 @@ class ClubServiceTest {
         assertThat(page.getTotalCount()).isEqualTo(25);
         assertThat(page.getLastPage()).isEqualTo(3);
         assertThat(page.getPage()).isEqualTo(3);
+        // 첫 화면 시각이 그대로 상자로 감
+        assertThat(page.getAt()).isEqualTo(filters.getAt());
     }
 
     @Test
