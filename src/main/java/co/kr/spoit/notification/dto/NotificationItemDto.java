@@ -40,6 +40,11 @@ public final class NotificationItemDto {
     /** 동호회 상세. 승인·거절된 신청자도 열 수 있는 공개 화면이다. */
     private static final String CLUB_DETAIL = "/teams/";
 
+    /** 시스템 관리자의 신고 처리 화면. 접수 알림의 이동 경로다. */
+    private static final String ADMIN_SYSTEM_REPORTS = "/admin/system/reports?reportId=";
+    /** 시설 관리자 셸의 신고 화면. 처리 결과 알림의 이동 경로다. */
+    private static final String ADMIN_FACILITY_REPORTS = "/admin/facility/reports?reportId=";
+
     private final Long notificationId;
     private final boolean read;
     private final String type;
@@ -53,8 +58,13 @@ public final class NotificationItemDto {
      */
     private final Long clubId;
 
+    /**
+     * 알림이 가리키는 신고 번호. 양수가 아니면 {@code null}이다.
+     */
+    private final Long reportId;
+
     private NotificationItemDto(Long notificationId, boolean read, String type, String title,
-            String body, String time, String href, Long clubId) {
+            String body, String time, String href, Long clubId, Long reportId) {
         this.notificationId = notificationId;
         this.read = read;
         this.type = type;
@@ -63,6 +73,7 @@ public final class NotificationItemDto {
         this.time = time;
         this.href = href;
         this.clubId = clubId;
+        this.reportId = reportId;
     }
 
     /** 저장된 알림 목록을 표시 모델 목록으로 바꾼다. null 목록은 빈 목록이 된다. */
@@ -83,7 +94,8 @@ public final class NotificationItemDto {
                 nullToEmpty(notification.getBody()),
                 formatTime(notification.getCreatedAt()),
                 hrefOf(notification),
-                validId(notification.getClubId()));
+                validId(notification.getClubId()),
+                validId(notification.getReportId()));
     }
 
     /**
@@ -98,6 +110,8 @@ public final class NotificationItemDto {
         boolean hasMatch = matchId != null && matchId > 0;
         Long clubId = validId(notification.getClubId());
         boolean hasClub = clubId != null;
+        Long reportId = validId(notification.getReportId());
+        boolean hasReport = reportId != null;
 
         if (kind == null) {
             return fallbackHref(notification, hasMatch);
@@ -122,6 +136,14 @@ public final class NotificationItemDto {
             case CLUB_LEADER_TRANSFERRED -> hasClub ? CLUB_MANAGE + "?clubId=" + clubId + "&tab=members" : CLUB_LIST;
             // 거절된 신청자·추방된 팀원은 더 이상 팀 관리 권한이 없으므로 상세(없으면 목록)로 보낸다.
             case CLUB_JOIN_REJECTED, CLUB_MEMBER_KICKED -> hasClub ? CLUB_DETAIL + clubId : CLUB_LIST;
+            // 신고 접수는 시스템 관리자가, 처리 결과는 신고자가 받는다. 권한별 접근은 이동한 화면이
+            // 서버에서 다시 검사하므로, 여기서는 유형에 맞는 신고 화면 경로만 만든다.
+            case REPORT_SUBMITTED -> hasReport
+                    ? ADMIN_SYSTEM_REPORTS + reportId
+                    : MYPAGE_NOTIFICATIONS;
+            case REPORT_RESOLVED -> hasReport
+                    ? ADMIN_FACILITY_REPORTS + reportId
+                    : MYPAGE_NOTIFICATIONS;
         };
     }
 

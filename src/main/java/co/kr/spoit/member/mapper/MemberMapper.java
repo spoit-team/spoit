@@ -7,6 +7,8 @@ import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import co.kr.spoit.member.domain.AdminRequestRow;
+import co.kr.spoit.member.domain.AdminUserRow;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.dto.SportOption;
 import co.kr.spoit.member.dto.SignupRegion;
@@ -73,4 +75,44 @@ public interface MemberMapper {
 
     /** 회원의 선호 지역을 전부 삭제한다. 지역 저장은 삭제 후 재등록으로 대체한다. */
     int deleteUserRegions(@Param("userId") Long userId);
+
+    /* ------------------------------------------------------------------
+     * 시스템 관리자 사용자 관리. 목록·필터·페이지네이션과 상태 변경에 필요한 app_user 쿼리다.
+     * ------------------------------------------------------------------ */
+
+    /** 탈퇴하지 않은 계정을 검색어·역할·상태로 걸러 offset 페이지로 조회한다. */
+    List<AdminUserRow> findAdminUsers(@Param("keyword") String keyword,
+            @Param("roleCode") String roleCode, @Param("roleLabel") String roleLabel,
+            @Param("status") String status, @Param("now") LocalDateTime now, @Param("limit") int limit,
+            @Param("offset") int offset);
+
+    /** 검색 조건에 맞는 계정 수. 페이지 계산에 쓴다. */
+    int countAdminUsers(@Param("keyword") String keyword, @Param("roleCode") String roleCode,
+            @Param("roleLabel") String roleLabel, @Param("status") String status,
+            @Param("now") LocalDateTime now);
+
+    /** 탈퇴하지 않은 전체 계정 수. */
+    int countActiveUsers();
+
+    /** 대기 중인 관리자 권한 요청 수. */
+    int countPendingAdminRequests();
+
+    /** 지정 역할(코드·한글 표기 허용)의 탈퇴하지 않은 계정 수. */
+    int countActiveUsersByRole(@Param("roleCode") String roleCode, @Param("roleLabel") String roleLabel);
+
+    /** 현재 이용이 제한된 탈퇴하지 않은 계정 수. */
+    int countSuspendedUsers(@Param("now") LocalDateTime now);
+
+    /** 회원 역할을 저장한다. */
+    int updateRole(@Param("userId") Long userId, @Param("role") String role);
+
+    /** 회원 행의 이용정지 종료 시각을 덮어쓴다. {@code null}이면 해제다. */
+    int updatePenaltyTime(@Param("userId") Long userId, @Param("penaltyTime") LocalDateTime penaltyTime);
+
+    /** 해당 회원의 대기 중 관리자 권한 요청을 잠그고 읽는다. 없으면 {@code null}. */
+    AdminRequestRow findPendingAdminRequestForUpdate(@Param("userId") Long userId);
+
+    /** 관리자 권한 요청 상태를 바꾸고 검토자·검토 시각을 남긴다. */
+    int reviewAdminRequest(@Param("requestId") Long requestId, @Param("status") String status,
+            @Param("reviewedBy") Long reviewedBy);
 }

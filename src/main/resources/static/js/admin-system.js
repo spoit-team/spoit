@@ -1,14 +1,11 @@
-/* 시스템 관리자 UI: 역할 변경 모달과 서버가 렌더링한 신고 상세 모달만 담당합니다.
-   역할 변경·신고 조치·계정 상태 변경은 모두 서버 폼으로 전송됩니다. */
+/* 시스템 관리자 UI: 역할 변경 모달과 설정 변경 표시, 모니터링 자동 갱신을 담당합니다.
+   역할 변경·계정 상태 변경은 모두 서버 폼으로 전송됩니다. */
 (function (global) {
   'use strict';
 
   const admin = global.PlayOnAdmin;
   const roleModal = document.getElementById('role-modal');
-  const reportModal = document.getElementById('report-modal');
-  const reportBody = document.getElementById('report-modal-body');
-  const reportTitle = document.getElementById('report-modal-title');
-  const reportSubtitle = document.getElementById('report-modal-subtitle');
+  const suspendModal = document.getElementById('suspend-modal');
 
   function openModal(modal, focusSelector) {
     admin?.openModal(modal, focusSelector);
@@ -16,13 +13,6 @@
 
   function closeModal(modal) {
     admin?.closeModal(modal);
-  }
-
-  function closeReport() {
-    closeModal(reportModal);
-    if (reportBody) reportBody.replaceChildren();
-    if (reportTitle) reportTitle.textContent = '신고 상세';
-    if (reportSubtitle) reportSubtitle.textContent = '관련 활동 내역을 검토해 주세요.';
   }
 
   document.addEventListener('click', function (event) {
@@ -44,45 +34,42 @@
       return;
     }
 
-    if (target.closest('[data-close-report]')) {
-      closeReport();
+    const suspendButton = target.closest('[data-user-suspend]');
+    if (suspendButton) {
+      const userId = suspendButton.dataset.userId || '';
+      const form = document.getElementById('suspend-form');
+      if (form) {
+        // 저장 경로는 계정 번호를 경로 변수로 받습니다. 목록 화면의 실제 검색 조건도 함께 보냅니다.
+        form.setAttribute('action', '/admin/system/users/' + encodeURIComponent(userId) + '/suspend');
+      }
+      const idInput = document.getElementById('suspend-user-id');
+      if (idInput) idInput.value = userId;
+      document.getElementById('suspend-user-label').value = suspendButton.dataset.userLabel || '';
+      document.getElementById('suspend-days').value = '7';
+      document.getElementById('suspend-reason').value = '';
+      openModal(suspendModal, '#suspend-days');
       return;
     }
 
-    const reportButton = target.closest('[data-open-report]');
-    if (reportButton) {
-      const id = reportButton.dataset.reportId || '';
-      const source = document.getElementById('report-detail-' + id);
-      if (!source || !reportBody) {
-        admin?.toast('신고 상세 정보를 찾을 수 없습니다.', true);
-        return;
-      }
-      reportBody.replaceChildren(source.content.cloneNode(true));
-      if (reportTitle) reportTitle.textContent = source.dataset.reportTitle || '신고 상세';
-      if (reportSubtitle) reportSubtitle.textContent = source.dataset.reportSubtitle || '관련 활동 내역을 검토해 주세요.';
-      openModal(reportModal, '.report-decision-card select');
+    if (target.closest('[data-close-suspend]')) {
+      closeModal(suspendModal);
     }
   });
 
-  [roleModal, reportModal].forEach(function (modal) {
+  [roleModal, suspendModal].forEach(function (modal) {
     modal?.addEventListener('click', function (event) {
-      if (event.target !== modal) return;
-      if (modal === reportModal) closeReport();
-      else closeModal(modal);
+      if (event.target === modal) closeModal(modal);
     });
   });
 
   document.addEventListener('keydown', function (event) {
     if (event.key !== 'Escape') return;
-    if (reportModal && !reportModal.hidden) {
-      closeReport();
-      return;
-    }
-    if (roleModal && !roleModal.hidden) closeModal(roleModal);
+    if (suspendModal && !suspendModal.hidden) closeModal(suspendModal);
+    else if (roleModal && !roleModal.hidden) closeModal(roleModal);
   });
 
   document.addEventListener('keydown', function (event) {
-    [roleModal, reportModal].forEach(function (modal) {
+    [roleModal, suspendModal].forEach(function (modal) {
       if (modal && !modal.hidden) admin?.trapFocus(modal, event);
     });
   });

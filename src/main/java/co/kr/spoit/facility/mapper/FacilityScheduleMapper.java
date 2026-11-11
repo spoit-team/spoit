@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import co.kr.spoit.facility.domain.DateOverride;
+import co.kr.spoit.facility.domain.DateOverrideSlot;
 import co.kr.spoit.facility.domain.FacilityClosure;
 import co.kr.spoit.facility.domain.FacilitySportCondition;
 import co.kr.spoit.facility.domain.MatchPeriod;
@@ -35,8 +36,8 @@ public interface FacilityScheduleMapper {
     /** 시설의 날짜별 예외 헤더를 조회한다(읽기 전용 화면용). */
     List<DateOverride> selectDateOverrides(@Param("facilityId") long facilityId);
 
-    /** 예외 헤더에 속한 1시간 슬롯 시각(0~23) 전체를 조회한다. */
-    List<Integer> selectDateOverrideHours(@Param("overrideId") long overrideId);
+    /** 시설의 날짜별 예외 슬롯을 한 번에 조회한다(헤더 ID·시간 순). */
+    List<DateOverrideSlot> selectDateOverrideSlots(@Param("facilityId") long facilityId);
 
     /**
      * 예외 헤더에 속한 슬롯을 잠금 current read로 조회한다.
@@ -61,10 +62,6 @@ public interface FacilityScheduleMapper {
 
     /** 휴관 한 건을 ID로 조회한다(담당 시설 확인 전 대상 탐색용). 없으면 {@code null}이다. */
     FacilityClosure selectClosureById(@Param("scheduleChangeId") long scheduleChangeId);
-
-    /** 대상 구간과 겹치는 적용 중 휴관을 잠그고 전체 조회한다. */
-    List<FacilityClosure> selectActiveClosuresOverlappingForUpdate(@Param("facilityId") long facilityId,
-            @Param("startAt") LocalDateTime startAt, @Param("endAt") LocalDateTime endAt);
 
     /** 지정 상태의 매칭방 시간 구간을 잠그고 조회한다. 점유·충돌 계산의 단일 원천이다. */
     List<MatchPeriod> selectMatchPeriodsForUpdate(@Param("facilityId") long facilityId,

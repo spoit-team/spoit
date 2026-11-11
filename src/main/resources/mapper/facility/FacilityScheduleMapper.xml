@@ -54,11 +54,13 @@
          ORDER BY override_date ASC
     </select>
 
-    <select id="selectDateOverrideHours" resultType="int">
-        SELECT slot_hour
-          FROM facility_date_override_slot
-         WHERE facility_date_override_id = #{overrideId}
-         ORDER BY slot_hour ASC
+    <select id="selectDateOverrideSlots" resultType="co.kr.spoit.facility.domain.DateOverrideSlot">
+        SELECT s.facility_date_override_id AS overrideId,
+               s.slot_hour AS slotHour
+          FROM facility_date_override_slot s
+          JOIN facility_date_override d ON d.facility_date_override_id = s.facility_date_override_id
+         WHERE d.facility_id = #{facilityId}
+         ORDER BY s.facility_date_override_id ASC, s.slot_hour ASC
     </select>
 
     <select id="selectDateOverrideHoursForUpdate" resultType="int" flushCache="true">
@@ -129,25 +131,6 @@
          WHERE facility_id = #{facilityId}
            AND change_type = 'FACILITY_CLOSURE'
          ORDER BY start_at DESC, schedule_change_id DESC
-    </select>
-
-    <select id="selectActiveClosuresOverlappingForUpdate"
-            resultType="co.kr.spoit.facility.domain.FacilityClosure" flushCache="true">
-        SELECT schedule_change_id AS scheduleChangeId
-              ,facility_id        AS facilityId
-              ,created_by         AS createdBy
-              ,start_at           AS startAt
-              ,end_at             AS endAt
-              ,reason             AS reason
-              ,status             AS status
-          FROM schedule_change
-         WHERE facility_id = #{facilityId}
-           AND change_type = 'FACILITY_CLOSURE'
-           AND status = 'ACTIVE'
-           AND start_at &lt; #{endAt}
-           AND end_at &gt; #{startAt}
-         ORDER BY start_at ASC, schedule_change_id ASC
-           FOR UPDATE
     </select>
 
     <select id="selectClosureById" resultType="co.kr.spoit.facility.domain.FacilityClosure">

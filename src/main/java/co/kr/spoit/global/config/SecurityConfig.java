@@ -2,7 +2,9 @@ package co.kr.spoit.global.config;
 
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.List;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,11 +13,20 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.CompositeSessionAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
+import org.springframework.security.web.session.HttpSessionEventPublisher;
 
 import co.kr.spoit.member.security.MemberLoginFailureHandler;
 import co.kr.spoit.member.security.MemberLoginSuccessHandler;
+import co.kr.spoit.member.security.MemberSessionAuthenticationStrategy;
+import co.kr.spoit.member.security.MemberSessionRegistry;
+import co.kr.spoit.member.security.MemberSessionRevocationFilter;
+import co.kr.spoit.member.service.MemberUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,6 +47,15 @@ public class SecurityConfig {
 
     private final MemberLoginSuccessHandler loginSuccessHandler;
     private final MemberLoginFailureHandler loginFailureHandler;
+
+    /**
+     * 인증 완료·알림 핸드셰이크 때 계정 상태를 다시 확인할 때 쓴다.
+     *
+     * <p>{@link ObjectProvider}로 받는 이유: 회원 서비스는 비밀번호 인코더를 이 설정에서 받으므로,
+     * 생성 시점에 직접 주입하면 이 설정과 회원 서비스 사이에 순환 참조가 생긴다. 실제 조회는 인증이
+     * 일어날 때까지 미룬다.</p>
+     */
+    private final ObjectProvider<MemberUserDetailsService> memberUserDetailsService;
 
     /** remember-me 서명 키. 소스에 기본값을 두지 않고 외부 주입만 받는다. */
     @Value("${spoit.security.remember-me-key:}")
@@ -76,6 +96,40 @@ public class SecurityConfig {
     @Bean
     CsrfTokenRepository csrfTokenRepository() {
         return new HttpSessionCsrfTokenRepository();
+    }
+
+    /**
+     * 세션이 파괴될 때 {@code SessionDestroyedEvent}를 발행하는 리스너를 등록한다.
+     * 이 사건을 받아 {@link MemberSessionRegistry}가 등록을 지운다(등록이 남으면 다음 요청이
+     * 만료로 오판된다).
+     */
+    @Bean
+    HttpSessionEventPublisher httpSessionEventPublisher() {
+        return new HttpSessionEventPublisher();
+    }
+
+    /**
+     * 회원 번호 기준 활성 세션 추적기. 폼 로그인·remember-me·웹소켓 폐기가 모두 이 빈을 공유한다.
+     * {@code @WebMvcTest} 슬라이스가 {@code SecurityConfig}만 가져와도 존재하도록 여기서 만든다.
+     */
+    @Bean
+    MemberSessionRegistry memberSessionRegistry() {
+        return new MemberSessionRegistry();
+    }
+
+    /**
+     * 인증 완료 시 세션 ID 회전 → 세션 등록 → 계정 상태 1회 재확인을 한 줄로 수행하는 전략.
+     *
+     * <p>{@code sessionManagement().sessionAuthenticationStrategy(...)}로 넘기면 스프링이 만드는
+     * 합성 전략의 첫 번째 요소가 된다. {@code CsrfAuthenticationStrategy}는 CSRF 설정이 같은 목록에
+     * 뒤이어 추가하므로 CSRF 토큰 교체도 그대로 유지된다. 폼 로그인과 remember-me는 모두 이 공유
+     * 객체를 사용한다.</p>
+     */
+    private SessionAuthenticationStrategy memberSessionAuthenticationStrategy() {
+        return new CompositeSessionAuthenticationStrategy(List.of(
+                new ChangeSessionIdAuthenticationStrategy(),
+                new MemberSessionAuthenticationStrategy(memberSessionRegistry(),
+                        () -> memberUserDetailsService.getObject())));
     }
 
     /** 보안 필터 체인을 구성한다. */
@@ -120,6 +174,13 @@ public class SecurityConfig {
                         .rememberMeParameter("remember")
                         .key(rememberMeKey())
                         .tokenValiditySeconds(60 * 60 * 24 * 14))
+                // 인증 완료 사슬: 세션 ID 회전 → 세션 등록 → 계정 상태 1회 재확인.
+                // CSRF 설정이 같은 합성 전략에 CsrfAuthenticationStrategy를 덧붙인다.
+                .sessionManagement(session -> session
+                        .sessionAuthenticationStrategy(memberSessionAuthenticationStrategy()))
+                // 폐기된 세션의 다음 요청을 CSRF 처리 이전에 거부한다(기본 ConcurrentSessionFilter는
+                // 최대 세션 수 제한을 켜야 등록되고 CsrfFilter 뒤에 있어 fail-closed가 아니다).
+                .addFilterBefore(new MemberSessionRevocationFilter(memberSessionRegistry()), CsrfFilter.class)
                 .logout(logout -> logout
                         .logoutUrl("/logout")
                         .logoutSuccessUrl("/login?message="

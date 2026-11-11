@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -24,12 +25,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import co.kr.spoit.facility.domain.FacilityClosure;
+import co.kr.spoit.facility.domain.FacilitySportCondition;
 import co.kr.spoit.facility.domain.MatchPeriod;
 import co.kr.spoit.facility.domain.OperatingRule;
 import co.kr.spoit.facility.dto.ClosureForm;
 import co.kr.spoit.facility.dto.ConditionsForm;
 import co.kr.spoit.facility.dto.DateScheduleForm;
 import co.kr.spoit.facility.dto.FacilityListItem;
+import co.kr.spoit.facility.dto.SchedulePage;
 import co.kr.spoit.facility.dto.WeeklyHourRow;
 import co.kr.spoit.facility.dto.WeeklyScheduleForm;
 import co.kr.spoit.facility.mapper.FacilityMapper;
@@ -367,6 +370,40 @@ class FacilityScheduleServiceImplTest {
                 .isInstanceOf(IllegalArgumentException.class);
 
         verify(scheduleMapper, never()).cancelClosure(anyLong(), anyLong(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("같은 종목 조건으로 선택지와 모집 조건을 만들고 미등록 선택은 첫 종목으로 대체한다")
+    void schedulePageSharesSportConditions() {
+        FacilitySportCondition first = new FacilitySportCondition();
+        first.setSportId(3L);
+        first.setSportName("테니스");
+        first.setCapacity(4);
+        first.setNote("첫 번째 종목");
+        FacilitySportCondition second = new FacilitySportCondition();
+        second.setSportId(4L);
+        second.setSportName("농구");
+        second.setCapacity(10);
+        second.setNote("두 번째 종목");
+        when(facilityService.findManagedFacilities(USER_ID)).thenReturn(List.of(managedFacility()));
+        when(scheduleLoader.snapshot(FACILITY_ID))
+                .thenReturn(new FacilityScheduleLoader.ScheduleSnapshot(List.of(), List.of(), List.of()));
+        when(scheduleMapper.selectSportConditions(FACILITY_ID)).thenReturn(List.of(first, second));
+        when(scheduleMapper.selectClosures(FACILITY_ID)).thenReturn(List.of());
+        when(scheduleMapper.selectFacilityName(FACILITY_ID)).thenReturn("테스트 체육관");
+
+        SchedulePage selected = service.findSchedulePage(USER_ID, FACILITY_ID, null, 4L, null, null);
+        SchedulePage fallback = service.findSchedulePage(USER_ID, FACILITY_ID, null, 99L, null, null);
+
+        assertThat(selected.getSports()).extracting(option -> option.getSportId())
+                .containsExactly(3L, 4L);
+        assertThat(selected.getConditions().getSportId()).isEqualTo(4L);
+        assertThat(selected.getConditions().getCapacity()).isEqualTo(10);
+        assertThat(selected.getConditions().getNote()).isEqualTo("두 번째 종목");
+        assertThat(fallback.getConditions().getSportId()).isEqualTo(3L);
+        assertThat(fallback.getConditions().getCapacity()).isEqualTo(4);
+        assertThat(fallback.getConditions().getNote()).isEqualTo("첫 번째 종목");
+        verify(scheduleMapper, times(2)).selectSportConditions(FACILITY_ID);
     }
 
     @Test

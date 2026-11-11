@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import co.kr.spoit.notification.domain.Notification;
+import co.kr.spoit.notification.dto.SystemAdminCandidate;
 
 /**
  * {@code notification} 저장·조회 매퍼. SQL은 {@code resources/mapper/notification/NotificationMapper.xml}에 있다.
@@ -39,4 +40,10 @@ public interface NotificationMapper {
     /** 수신자 소유 알림 1건을 물리 삭제한다. */
     int delete(@Param("notificationId") Long notificationId,
             @Param("recipientUserId") Long recipientUserId);
+
+    /**
+     * 탈퇴하지 않은 회원 중 시스템 관리자 후보의 번호·역할 원문을 읽는다.
+     * 역할 해석은 서비스가 {@code MemberRole.from}으로 다시 판정한다.
+     */
+    List<SystemAdminCandidate> findActiveAdminCandidates();
 }
