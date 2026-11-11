@@ -23,6 +23,7 @@
 | `20261109-evaluation-items.sql` | 평가 항목을 종목마다 공격·연결·수비 3개, 가중치 1.00으로 정리(축구+풋살 3개·족구 협동심 끔, 족구 토스·연결 추가, 농구 수비 → 수비·리바운드). 데이터만 바꾸고 여러 번 실행해도 안전하며, 시드가 없는 `spoit_mat_test`에는 필요 없음 | 파일 끝 확인 질의에서 종목마다 `active_items` 3, `weight_sum` 3.00이면 적용됨 |
 | `20261110-seoul-public-facilities.sql` | 서울시 공공서비스예약 체육시설 113곳, 서울 구 14개, 시설 관리자 계정 10개 등록. `scripts/public-facility-import.ps1`이 만든 파일이며 데이터만 넣고 여러 번 실행해도 안전함. 새 DB도 `seed.sql` 다음에 적용하고 `spoit_mat_test`에는 적용하지 않음. [공공 체육시설 등록](#공공-체육시설-등록-20261110) 참고 | 파일 끝 확인 질의에서 `facilities` 113, `skipped`가 NULL이면 적용됨 |
 | `20261111-demo-match-data.sql` | 발표 시연 데이터: 데모 회원 101명·동호회 8개, 공공 체육시설 매칭방 189개(11/12~11/30 매일 9개, 11/1~11/9 지난 경기 18개), 매칭방 사진을 종목별 기본 사진으로 채움. `scripts/demo-match-data.py`가 만든 파일이며 여러 번 실행해도 안전함. `20261109`·`20261110` 다음에 적용. [발표 시연 데이터](#발표-시연-데이터-20261111) 참고 | 파일 끝 확인 질의에서 `demo_matches` 189, `rooms_without_photo` 0이면 적용됨 |
+| `20261111-rating-demo-data.sql` | 레이팅 시연 데이터: 회원 24명(`rating-01~24@spoit.test`)과 10월 경기 34개의 결과·평가·레이팅 이력 226행. 마이페이지에서 배치 중·배치 완료(브론즈·실버·골드)가 모두 보인다. `scripts/rating-demo-data.ps1`이 만든 파일이며 여러 번 실행해도 안전함. `20261111-demo-match-data.sql` 다음에 적용. [레이팅 시연 데이터](#레이팅-시연-데이터-20261111) 참고 | 파일 끝 확인 질의에서 `rating_users` 24, `history_rows` 226이면 적용됨 |
 
 ## 적용할 DB
 
@@ -192,6 +193,25 @@ SELECT
 - **`Subquery returns more than 1 row`로 멈추면**: 사전 확인에서 `0`인 값을 보세요. 한 트랜잭션이라 넣은 행은 없습니다. `facilities`가 `0`이면 `20261110` 공공 체육시설이 없거나 담당자가 없는 것이고, `evaluation_items`가 `0`이면 `20261109` 평가 항목 정리가 적용되지 않은 것입니다. `club_names_free`가 `0`이면 같은 이름의 동호회가 이미 있습니다.
 - **로컬에서 확인할 때**: 스케줄러는 앱이 켜져 있을 때만 돕니다. 정원이 찬 방은 시작 시각에 앱이 떠 있어야 자동 배정되고, 경기 종료 뒤에 앱을 켜면 `종료 시각 경과`로 자동 취소됩니다.
 - **파일을 다시 만들 때**: 저장소 루트에서 `python scripts/demo-match-data.py > db/migrations/20261111-demo-match-data.sql`을 실행합니다(Python 3.8 이상). 같은 시드로 만들어서 다시 실행해도 같은 파일이 나옵니다.
+
+## 레이팅 시연 데이터 (`20261111`)
+
+마이페이지의 레이팅 화면을 시연하기 위해, 배치 중인 회원과 배치를 마친 회원이 모두 있는 레이팅 전용 회원 24명과 2026년 10월 경기 이력을 넣는 데이터 마이그레이션입니다. `20261111-demo-match-data.sql` 다음에 적용합니다(데모 회원 `demo-001@spoit.test`의 비밀번호 해시와 역할을 복사합니다).
+
+- **넣는 것**
+  - 회원 24명: `rating-01@spoit.test`~`rating-24@spoit.test`(비밀번호는 데모 회원과 같은 `spoit1234!`). 종목은 축구+풋살(5:5)과 테니스(2:2)이고, 4명은 두 종목 모두 이력이 있습니다.
+  - 10/1~10/31 공공 체육시설 경기 34개(축구+풋살 15, 테니스 19): 수동 배정(담당 시설 관리자)·결과 확정·레이팅 반영까지 끝난 `종료` 상태입니다. 27개는 두 팀장의 평가가 들어온 시점에, 7개는 평가 없이 결과 마감(종료 24시간 뒤)에 반영된 모양입니다.
+  - 레이팅 이력 226행과 종목별 레이팅 28장: 실제 계산식(`RatingCalculator`: 팀 평균 → 기대 승률 → K 64/32 → Elo 증감 → 평가 보정)으로 1000부터 시간순으로 계산한 값입니다. 알림 행은 넣지 않습니다.
+- **적용할 DB**: `spoit`(로컬·운영). `spoit_mat_test`에는 적용하지 않습니다. 통합 테스트(`RatingDemoMigrationIntegrationTest`)가 이 파일을 직접 실행해 모든 이력을 `RatingCalculator`로 다시 계산해 확인합니다.
+- **적용**: 백업한 뒤 실행합니다. `rating-01@spoit.test`가 이미 있으면 아무것도 넣지 않으므로 여러 번 실행해도 안전합니다.
+
+  ```powershell
+  & "$mysqlBin\mysql.exe" -u 개발용계정 -p --default-character-set=utf8mb4 $db -e "source db/migrations/20261111-rating-demo-data.sql"
+  ```
+
+- **확인**: 첫 출력의 `sports`·`facilities`·`districts`·`evaluation_items`·`demo_account`·`receipts_free`가 모두 `1`이고(처음 적용이면 `already_applied`는 `0`), 마지막 출력이 `rating_users` 24, `history_rows` 226, `rated_matches` 34, `placed_cards` 18, `placing_cards` 10이면 적용된 것입니다.
+- **`Subquery returns more than 1 row`로 멈추면**: 사전 확인에서 `0`인 값을 보세요. 한 트랜잭션이라 넣은 행은 없습니다. `facilities`가 `0`이면 `20261110` 공공 체육시설이 없거나 담당자가 없는 것이고, `evaluation_items`가 `0`이면 `20261109` 평가 항목 정리가, `demo_account`가 `0`이면 `20261111-demo-match-data`가 적용되지 않은 것입니다.
+- **파일을 다시 만들 때**: 저장소 루트에서 `pwsh -File scripts/rating-demo-data.ps1`을 실행합니다(PowerShell 7). 같은 시드로 만들어서 다시 실행해도 같은 파일이 나오며, 검수용 `out/rating-demo-review.csv`(회원·종목·경기 수·최종 MMR·티어·배치 상태)도 함께 만들어집니다. `out/`은 git 무시 대상입니다.
 
 ## 문제가 생기면
 
