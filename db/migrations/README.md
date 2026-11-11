@@ -22,6 +22,7 @@
 | `20261108-payment.sql` | 유료 결제(카카오페이): `payment` 테이블, `match_application.payment_id`·`refunded_at` 추가 | `payment` 테이블이 있으면 적용됨 |
 | `20261109-evaluation-items.sql` | 평가 항목을 종목마다 공격·연결·수비 3개, 가중치 1.00으로 정리(축구+풋살 3개·족구 협동심 끔, 족구 토스·연결 추가, 농구 수비 → 수비·리바운드). 데이터만 바꾸고 여러 번 실행해도 안전하며, 시드가 없는 `spoit_mat_test`에는 필요 없음 | 파일 끝 확인 질의에서 종목마다 `active_items` 3, `weight_sum` 3.00이면 적용됨 |
 | `20261110-seoul-public-facilities.sql` | 서울시 공공서비스예약 체육시설 113곳, 서울 구 14개, 시설 관리자 계정 10개 등록. `scripts/public-facility-import.ps1`이 만든 파일이며 데이터만 넣고 여러 번 실행해도 안전함. 새 DB도 `seed.sql` 다음에 적용하고 `spoit_mat_test`에는 적용하지 않음. [공공 체육시설 등록](#공공-체육시설-등록-20261110) 참고 | 파일 끝 확인 질의에서 `facilities` 113, `skipped`가 NULL이면 적용됨 |
+| `20261111-demo-match-data.sql` | 발표 시연 데이터: 데모 회원 101명·동호회 8개, 공공 체육시설 매칭방 189개(11/12~11/30 매일 9개, 11/1~11/9 지난 경기 18개), 매칭방 사진을 종목별 기본 사진으로 채움. `scripts/demo-match-data.py`가 만든 파일이며 여러 번 실행해도 안전함. `20261109`·`20261110` 다음에 적용. [발표 시연 데이터](#발표-시연-데이터-20261111) 참고 | 파일 끝 확인 질의에서 `demo_matches` 189, `rooms_without_photo` 0이면 적용됨 |
 
 ## 적용할 DB
 
@@ -169,6 +170,28 @@ SELECT
       ```
 - **`skipped`에 장소가 나오면**: 이름과 구가 같은 다른 시설이 이미 있어 그 장소만 건너뛴 것입니다. 기존 시설은 바꾸지 않았으니 같은 시설인지 확인해 팀과 처리하세요.
 - **파일을 다시 만들 때**: 원본 JSON을 `out/public-facilities.json`에 두고 저장소 루트에서 `pwsh -File scripts/public-facility-import.ps1`을 실행합니다. 이름·운영 시간 수정 목록은 스크립트 안에 있습니다. 검수용 `out/public-facilities-review.csv`도 함께 만들어지며, 원본과 CSV는 커밋하지 않습니다(`out/`은 git 무시 대상).
+
+## 발표 시연 데이터 (`20261111`)
+
+11/23 발표 시연용으로 공공 체육시설에 매칭방과 데모 회원을 넣고, 매칭방 사진을 종목별 기본 사진으로 채우는 데이터 마이그레이션입니다. `20261109-evaluation-items.sql`과 `20261110-seoul-public-facilities.sql` 다음에 적용합니다.
+
+- **넣는 것**
+  - 데모 회원 101명: `demo-001@spoit.test`~`demo-100@spoit.test`, 발표자 `demo-presenter@spoit.test`(신청 내역 없음). 비밀번호는 모두 `spoit1234!`입니다. 종목별 레이팅과 선호 지역이 들어 있습니다.
+  - 동호회 8개: 뚝섬 FC, 망원 풋살 크루, 잠실 풋살 클럽, 반포 농구단, 광나루 바스켓, 한강 족구회, 뚝섬 셔틀콕, 마포 랠리 테니스(대표는 각 동호회의 첫 데모 회원)
+  - 11/12~11/30 매칭방 171개(하루 9개): 정원이 찬 무료 방 3개(시작 시각에 자동 배정, 경기 후 결과·평가 입력), 일부만 찬 방 3개(대기 신청 포함, 주말은 동호회 팀 신청), 빈 유료 방 3개(결제 테스트). 방을 만든 사람은 그 시설의 담당 관리자 계정입니다.
+  - 11/1~11/9 지난 경기 18개: 결과·평가까지 넣고 레이팅은 반영하지 않은 상태로 넣습니다. 앱이 켜지면 1분 안에 결과 마감 스케줄러가 레이팅을 반영하고 `종료`로 바꿉니다.
+  - 매칭방 사진: 사진이 없는 모든 매칭방과 seed의 `/uploads/matches/seed/` 사진(파일이 git에 없어 운영에서 열리지 않음)을 `/images/matches/종목.jpg`(저장소의 정적 파일)로 바꿉니다. 직접 올린 사진은 바꾸지 않습니다.
+- **적용할 DB**: `spoit`(로컬·운영). `spoit_mat_test`에는 적용하지 않습니다.
+- **적용**: 백업한 뒤 실행합니다. `demo-001@spoit.test`가 이미 있으면 데모 행은 건너뛰고 사진만 다시 맞추므로 여러 번 실행해도 안전합니다.
+
+  ```powershell
+  & "$mysqlBin\mysql.exe" -u 개발용계정 -p --default-character-set=utf8mb4 $db -e "source db/migrations/20261111-demo-match-data.sql"
+  ```
+
+- **확인**: 첫 출력의 `sports`·`facilities`·`districts`·`evaluation_items`가 모두 `1`이고(처음 적용이면 `club_names_free`도 `1`, `already_applied`는 `0`), 마지막 출력이 `demo_users` 101, `demo_clubs` 8, `demo_matches` 189, `demo_applications` 753 이상, `rooms_without_photo` 0이면 적용된 것입니다.
+- **`Subquery returns more than 1 row`로 멈추면**: 사전 확인에서 `0`인 값을 보세요. 한 트랜잭션이라 넣은 행은 없습니다. `facilities`가 `0`이면 `20261110` 공공 체육시설이 없거나 담당자가 없는 것이고, `evaluation_items`가 `0`이면 `20261109` 평가 항목 정리가 적용되지 않은 것입니다. `club_names_free`가 `0`이면 같은 이름의 동호회가 이미 있습니다.
+- **로컬에서 확인할 때**: 스케줄러는 앱이 켜져 있을 때만 돕니다. 정원이 찬 방은 시작 시각에 앱이 떠 있어야 자동 배정되고, 경기 종료 뒤에 앱을 켜면 `종료 시각 경과`로 자동 취소됩니다.
+- **파일을 다시 만들 때**: 저장소 루트에서 `python scripts/demo-match-data.py > db/migrations/20261111-demo-match-data.sql`을 실행합니다(Python 3.8 이상). 같은 시드로 만들어서 다시 실행해도 같은 파일이 나옵니다.
 
 ## 문제가 생기면
 
