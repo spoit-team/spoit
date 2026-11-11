@@ -145,18 +145,18 @@ Fixture는 `src/test/resources/mat/mapper-fixture.sql`에 있다. FK를 만족�
 
 ### 실행 방법
 
-로컬 준비물은 Windows의 PowerShell 7, JDK 17, MySQL Server 8.4 실행 파일이다. 이번 검증 환경의 MySQL은 8.4.13이며 CI는 기존 8.4.11 이미지를 사용한다. 스크립트가 새 서버를 시작하므로 개발 MySQL 서비스에 스키마를 적용할 필요가 없다.
+로컬 준비물은 Windows PowerShell 5.1, JDK 17, MySQL Server 8.4 실행 파일이다. 이번 검증 환경의 MySQL은 8.4.13이며 CI는 기존 8.4.11 이미지를 사용한다. 스크립트가 새 서버를 시작하므로 개발 MySQL 서비스에 스키마를 적용할 필요가 없다.
 
 기본 실행은 저장소 루트에서 전체 `clean build`를 수행한다.
 
 ```powershell
-pwsh -File scripts/test-mat-mysql.ps1 -JavaHome '<JDK17 경로>'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-mat-mysql.ps1 -JavaHome '<JDK17 경로>'
 ```
 
-MySQL이 기본 설치 경로와 다른 곳에 있다면 `-MySqlBin '<MySQL bin 경로>'`를 추가한다. PowerShell 7 세션에서 Mapper 및 연결 검증 테스트만 선택할 수도 있다.
+MySQL이 기본 설치 경로와 다른 곳에 있다면 `-MySqlBin '<MySQL bin 경로>'`를 추가한다. Windows PowerShell 5.1 세션에서 Mapper 및 연결 검증 테스트만 선택할 수도 있다.
 
 ```powershell
-& ./scripts/test-mat-mysql.ps1 -JavaHome '<JDK17 경로>' -GradleArgs @('test', '--tests', 'co.kr.spoit.mat.mapper.*', '--no-daemon', '--console=plain')
+& .\scripts\test-mat-mysql.ps1 -JavaHome '<JDK17 경로>' -GradleArgs @('test', '--tests', 'co.kr.spoit.mat.mapper.*', '--no-daemon', '--console=plain')
 ```
 
 당시 기록으로는 일반 `gradlew test`만 실행하면 새 통합 테스트에 필요한 전용 환경변수가 없으므로 실패했다. 로컬에서는 위 스크립트로 준비와 실행을 함께 수행했다.

@@ -248,6 +248,8 @@ class FacilityStatsMapperIntegrationTest {
                 """);
         // 9921이 확정이므로 9801은 참가 인원 1명, 9803은 확정 2명(9931·9933)이다.
         // 회원 9502는 9801과 9803에 모두 참여해 2인으로 집계된다(반복 참가자).
+        // 9993은 삭제된 시설(9603)의 종료 매칭 9811에 확정으로 참여한 행이다. 삭제 시설 제외를
+        // 확정 참가 인원·요일×시간대 집계까지 확인하기 위한 최소 행이다.
         jdbcTemplate.update("""
                 INSERT INTO match_participant (
                     participant_id, application_id, match_id, user_id, participation_status,
@@ -265,7 +267,8 @@ class FacilityStatsMapperIntegrationTest {
                     (9971, 9908, 9808, 9502, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
                     (9981, 9909, 9802, 9502, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
                     (9991, 9910, 9807, 9504, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
-                    (9992, 9911, 9809, 9503, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL)
+                    (9992, 9911, 9809, 9503, '확정', 'A', 1000.00, '2026-10-01 09:00:00', NULL),
+                    (9993, 9930, 9811, 9502, '확정', 'A', 1000.00, '2026-10-20 15:00:00', NULL)
                 """);
     }
 
@@ -359,6 +362,26 @@ class FacilityStatsMapperIntegrationTest {
         assertThat(deletedFacility.getTotal()).isZero();
         assertThat(deletedFacility.getApprovedCount()).isZero();
         assertThat(deletedFacility.getCancelledCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("삭제된 시설은 종료 매칭·확정 참가 인원·요일×시간대 집계에서도 모두 빠진다")
+    void excludesDeletedFacilityFromFinishedMatchAndParticipantAggregates() {
+        // fixture 전체 구간(2026-10-01 ~ 2026-10-31)은 삭제 시설의 종료 매칭 9811(10-20)과
+        // 확정 참가 행 9993을 반드시 포함한다. 삭제 시설 제외가 없으면 이 값들은 1건으로 잡힌다.
+        LocalDateTime windowStart = LocalDateTime.of(2026, 10, 1, 0, 0);
+        LocalDateTime windowEnd = LocalDateTime.of(2026, 10, 31, 23, 59, 59);
+
+        assertThat(statsMapper.countFinishedMatches(MANAGER_USER_ID, DELETED_FACILITY_ID, windowStart,
+                windowEnd)).isZero();
+        assertThat(statsMapper.countConfirmedParticipants(MANAGER_USER_ID, DELETED_FACILITY_ID, windowStart,
+                windowEnd)).isZero();
+
+        var counts = statsMapper.countParticipantsByWeekdayAndHour(MANAGER_USER_ID, DELETED_FACILITY_ID,
+                windowStart, windowEnd);
+        assertThat(counts).isEmpty();
+        assertThat(weekdayTotals(counts)).isEmpty();
+        assertThat(hourTotals(counts)).isEmpty();
     }
 
     @Test

@@ -88,8 +88,9 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
         List<WeeklyHourRow> weeklyRows = weeklyRows(snapshot.rules());
         List<String> hourOptions = hourOptions();
         CalendarView calendar = calendar(selected, snapshot, schedule, date, visibleMonth, sportId, tab);
-        List<SportOption> sports = sportOptions(id);
-        ConditionsView conditions = conditions(id, sportId);
+        List<FacilitySportCondition> sportConditions = scheduleMapper.selectSportConditions(id);
+        List<SportOption> sports = sportOptions(sportConditions);
+        ConditionsView conditions = conditions(sportConditions, sportId);
         List<ClosureRow> closures = closureRows(id);
         return new SchedulePage(selected, weeklyRows, hourOptions, calendar, sports, conditions,
                 closures, normalizeTab(tab));
@@ -399,8 +400,7 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
         return options;
     }
 
-    private List<SportOption> sportOptions(long facilityId) {
-        List<FacilitySportCondition> conditions = scheduleMapper.selectSportConditions(facilityId);
+    private List<SportOption> sportOptions(List<FacilitySportCondition> conditions) {
         List<SportOption> options = new ArrayList<>();
         if (conditions == null) {
             return options;
@@ -411,8 +411,7 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
         return options;
     }
 
-    private ConditionsView conditions(long facilityId, Long sportId) {
-        List<FacilitySportCondition> conditions = scheduleMapper.selectSportConditions(facilityId);
+    private ConditionsView conditions(List<FacilitySportCondition> conditions, Long sportId) {
         if (conditions == null || conditions.isEmpty()) {
             return ConditionsView.empty();
         }

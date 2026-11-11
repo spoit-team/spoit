@@ -1,0 +1,8 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+<span th:fragment="statusBadge(status)" class="status-badge report-status"
+      th:classappend="${status == '접수' ? 'is-received' : (status == '검토 중' ? 'is-reviewing' : (status == '처리 완료' ? 'is-done' : (status == '기각' ? 'is-dismissed' : '')))}"
+      th:text="${status}">상태</span>
+</body>
+</html>

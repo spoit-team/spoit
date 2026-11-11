@@ -75,9 +75,7 @@
                 <td><span class="report-category" th:text="${report.category}">유형</span></td>
                 <td><span class="report-time" th:text="${report.createdAt}">접수 일시</span></td>
                 <td>
-                  <span class="status-badge report-status"
-                        th:classappend="${report.status == '접수' ? 'is-received' : (report.status == '검토 중' ? 'is-reviewing' : (report.status == '처리 완료' ? 'is-done' : (report.status == '기각' ? 'is-dismissed' : '')))}"
-                        th:text="${report.status}">상태</span>
+                  <span th:replace="~{admin/report-fragments :: statusBadge(${report.status})}">상태</span>
                 </td>
                 <td>
                   <a class="admin-button small"
@@ -122,9 +120,7 @@
               <h2 id="report-case-title" th:text="${'신고 #' + selectedReport.reportId}">신고 #0</h2>
               <p class="report-case-target" th:text="${'대상 ' + (selectedReport.targetName != null ? selectedReport.targetName : '이름 없음') + ' · ' + selectedReport.category}">대상 · 유형</p>
             </div>
-            <span class="status-badge report-status"
-                  th:classappend="${selectedReport.status == '접수' ? 'is-received' : (selectedReport.status == '검토 중' ? 'is-reviewing' : (selectedReport.status == '처리 완료' ? 'is-done' : (selectedReport.status == '기각' ? 'is-dismissed' : '')))}"
-                  th:text="${selectedReport.status}">상태</span>
+            <span th:replace="~{admin/report-fragments :: statusBadge(${selectedReport.status})}">상태</span>
             <button class="modal-close" type="button" data-close-report aria-label="신고 상세 닫기">×</button>
           </div>
           <div class="modal-body report-selected-main">

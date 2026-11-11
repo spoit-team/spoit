@@ -21,6 +21,10 @@ import ch.qos.logback.classic.Logger;
  */
 class SystemErrorLogBufferTest {
 
+    /** 마스킹 회귀 검증용 가짜 값. 실제 자격 증명이 아니다. */
+    private static final String MASKING_PAYLOAD = "요청 거부 {\"user\":\"spoit\",\"password\":\"hunter2\","
+            + "\"api_key\":\"AKIA123\",\"authorization\":\"Bearer abc.def\"} Cookie: session=xyz";
+
     private final SystemErrorLogBuffer buffer = new SystemErrorLogBuffer();
     private final Logger logger = (Logger) LoggerFactory.getLogger("co.kr.spoit.match.AdminBufferTest");
 
@@ -82,16 +86,49 @@ class SystemErrorLogBufferTest {
     @Test
     @DisplayName("이메일·전화번호·비밀번호·토큰 값은 마스킹한다")
     void masksSensitiveValues() {
-        logger.error("로그인 실패 user@example.com 010-1234-5678 password=hunter2 token: abc.def Bearer eyJhbGciOi");
+        logger.error("로그인 실패 user@example.com 010-1234-5678 password=dummyPass1 token: abc.def Bearer eyJhbGciOi");
 
         String summary = buffer.recent().get(0).summary();
 
         assertThat(summary).doesNotContain("user@example.com")
                 .doesNotContain("010-1234-5678")
-                .doesNotContain("hunter2")
+                .doesNotContain("dummyPass1")
                 .doesNotContain("abc.def")
                 .doesNotContain("eyJhbGciOi")
                 .contains("***");
+    }
+
+    @Test
+    @DisplayName("따옴표로 감싼 JSON 민감 키의 실제 값은 요약에서 사라진다")
+    void masksQuotedJsonSecretsInSummary() {
+        logger.error(MASKING_PAYLOAD);
+
+        String summary = buffer.recent().get(0).summary();
+
+        assertThat(summary).doesNotContain("hunter2")
+                .doesNotContain("AKIA123")
+                .doesNotContain("abc.def")
+                .doesNotContain("session=xyz")
+                .contains("\"password\":\"***\"")
+                .contains("\"api_key\":\"***\"")
+                .contains("\"authorization\":\"***\"")
+                .contains("Cookie: ***")
+                .contains("\"user\":\"spoit\"");
+    }
+
+    @Test
+    @DisplayName("예외 상세에서도 따옴표 민감 키와 Cookie 헤더 값이 사라진다")
+    void masksQuotedJsonSecretsInDetail() {
+        logger.error("인증 실패", new IllegalStateException(MASKING_PAYLOAD));
+
+        String detail = buffer.recent().get(0).detail();
+
+        assertThat(detail).doesNotContain("hunter2")
+                .doesNotContain("AKIA123")
+                .doesNotContain("abc.def")
+                .doesNotContain("session=xyz")
+                .contains("IllegalStateException")
+                .contains("\"user\":\"spoit\"");
     }
 
     @Test
@@ -108,6 +145,16 @@ class SystemErrorLogBufferTest {
         assertThat(longSummary).endsWith("…");
         assertThat(withThrowable.code()).isEqualTo("java.lang.IllegalStateException");
         assertThat(withThrowable.detail()).contains("IllegalStateException").contains("원인");
+    }
+
+    @Test
+    @DisplayName("recent()가 돌려준 목록은 버퍼와 분리된 복사본이다")
+    void recentReturnsDetachedCopy() {
+        logger.error("오류");
+
+        buffer.recent().clear();
+
+        assertThat(buffer.recent()).hasSize(1);
     }
 
     @Test

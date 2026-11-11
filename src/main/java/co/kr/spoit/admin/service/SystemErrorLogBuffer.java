@@ -57,9 +57,21 @@ public class SystemErrorLogBuffer extends AppenderBase<ILoggingEvent> {
 
     private static final Pattern EMAIL = Pattern.compile("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}");
     private static final Pattern PHONE = Pattern.compile("\\b0\\d{1,2}[-. ]?\\d{3,4}[-. ]?\\d{4}\\b");
+    private static final String SECRET_KEY =
+            "password|passwd|pwd|token|secret|authorization|api[-_]?key|access[-_]?key";
+    /**
+     * 민감 키의 값을 지운다. 키와 값이 따옴표로 감싸인 JSON 표기({@code "password":"hunter2"})에서도
+     * 인용부호를 유지한 채 값만 마스킹한다.
+     */
+    private static final Pattern QUOTED_SECRET_ASSIGNMENT = Pattern.compile(
+            "(?i)([\"']?)\\b(" + SECRET_KEY + ")\\b\\1(\\s*[=:]\\s*)([\"'])[^\"']*\\4");
+    /** 인용부호 없는 값과 키만 따옴표로 감싼 표기를 마스킹한다. */
     private static final Pattern SECRET_ASSIGNMENT = Pattern.compile(
-            "(?i)\\b(password|passwd|pwd|token|secret|authorization|api[-_]?key|access[-_]?key)\\b\\s*[=:]\\s*\\S+");
+            "(?i)([\"']?)\\b(" + SECRET_KEY + ")\\b\\1(\\s*[=:]\\s*)[^\\s\"']\\S*");
     private static final Pattern BEARER = Pattern.compile("(?i)\\bbearer\\s+[A-Za-z0-9._-]+");
+    /** {@code Cookie}, {@code Set-Cookie} 헤더 값은 세션 식별자를 포함할 수 있으므로 값 전체를 지운다. */
+    private static final Pattern COOKIE_HEADER = Pattern.compile(
+            "(?i)\\b((?:set-)?cookie)\\s*:\\s*[^\\s;=]+=[^\\s;]*(?:;\\s*[^\\s;=]+=[^\\s;]*)*");
 
     private final Deque<SystemErrorRecord> records = new ArrayDeque<>(CAPACITY);
     private Logger attachedRoot;
@@ -190,8 +202,11 @@ public class SystemErrorLogBuffer extends AppenderBase<ILoggingEvent> {
         }
         String masked = EMAIL.matcher(value).replaceAll(MASK);
         masked = PHONE.matcher(masked).replaceAll(MASK);
-        masked = SECRET_ASSIGNMENT.matcher(masked).replaceAll("$1=" + MASK);
+        // Bearer 값을 먼저 지워야 authorization 같은 키에 붙은 토큰이 남지 않는다.
         masked = BEARER.matcher(masked).replaceAll("Bearer " + MASK);
+        masked = QUOTED_SECRET_ASSIGNMENT.matcher(masked).replaceAll("$1$2$1$3$4" + MASK + "$4");
+        masked = SECRET_ASSIGNMENT.matcher(masked).replaceAll("$1$2$3" + MASK);
+        masked = COOKIE_HEADER.matcher(masked).replaceAll("$1: " + MASK);
         return masked;
     }
 

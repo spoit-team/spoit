@@ -597,6 +597,14 @@
   padding-top: 16px;
 }
 
+/* 접수함 모달에서는 진술이 화면의 주인공입니다. 목록 화면과 같은 인용 블록 결을
+   유지하되, 모달 안에서만 글자와 줄 간격을 키워 읽기 좋게 만듭니다. */
+.report-modal .report-statement {
+  padding: 16px 18px;
+  font-size: 13.5px;
+  line-height: 1.85;
+}
+
 .report-case-summary h3,
 .report-case-result h3 {
   margin: 0 0 7px;
@@ -719,16 +727,24 @@
 
 /* ── 신고 상세 모달 ──────────────────────────────────────
    페이지 하단 상세 패널 대신 모달로 상세를 엽니다. .admin-modal.wide 위에
-   신고 접수함의 문서형 결을 얹고, 처리·페널티 패널은 footer 영역에 둡니다. */
+   신고 접수함의 문서형 결을 얹고, 처리·페널티 패널은 footer 영역에 둡니다.
+   모달 전체가 하나의 스크롤 영역입니다. 진술·처리·페널티를 각자의 스크롤에
+   가두면 높이 상한(90vh·760px) 안에서 처리 패널 아래쪽, 즉 페널티 적용
+   버튼이 잘려 보이므로, 콘텐츠가 길면 모달이 통째로 스크롤됩니다. */
 .report-modal .admin-modal {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .report-modal .modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--admin-line);
+  background: var(--admin-paper);
 }
 
 .report-modal .modal-header .report-kicker {
@@ -754,9 +770,6 @@
 
 .report-modal .report-selected-main {
   flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
   padding: 18px 23px 20px;
 }
 

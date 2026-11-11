@@ -116,6 +116,35 @@
         DELETE FROM user_region WHERE user_id = #{userId}
     </delete>
 
+    <!-- 사용자 관리 목록과 건수가 같은 필터를 사용한다. -->
+    <sql id="adminUserFilters">
+        <where>
+            u.deleted_at IS NULL
+            <if test="keyword != null and keyword != ''">
+                AND (u.nickname LIKE CONCAT('%', #{keyword}, '%')
+                     OR u.email LIKE CONCAT('%', #{keyword}, '%')
+                     OR CAST(u.user_id AS CHAR) = #{keyword})
+            </if>
+            <if test="roleCode != null and roleCode != ''">
+                AND u.role IN (#{roleCode}, #{roleLabel})
+            </if>
+            <if test="status == 'pending'">
+                AND EXISTS (SELECT 1 FROM admin_request ar
+                             WHERE ar.user_id = u.user_id
+                               AND ar.status = '대기')
+            </if>
+            <if test="status == 'active'">
+                AND (u.penalty_time IS NULL OR u.penalty_time &lt;= #{now})
+                AND NOT EXISTS (SELECT 1 FROM admin_request ar
+                                 WHERE ar.user_id = u.user_id
+                                   AND ar.status = '대기')
+            </if>
+            <if test="status == 'suspended'">
+                AND u.penalty_time &gt; #{now}
+            </if>
+        </where>
+    </sql>
+
     <!--
       시스템 관리자 사용자 관리 목록.
       탈퇴 계정은 관리 대상에서 제외하고, 대기 중인 관리자 권한 요청이 있으면 pendingRequest=true로 내린다.
@@ -133,31 +162,7 @@
                  WHERE ar.user_id = u.user_id
                    AND ar.status = '대기') AS pendingRequest
           FROM app_user u
-        <where>
-            u.deleted_at IS NULL
-            <if test="keyword != null and keyword != ''">
-                AND (u.nickname LIKE CONCAT('%', #{keyword}, '%')
-                     OR u.email LIKE CONCAT('%', #{keyword}, '%')
-                     OR CAST(u.user_id AS CHAR) = #{keyword})
-            </if>
-            <if test="roleCode != null and roleCode != ''">
-                AND u.role IN (#{roleCode}, #{roleLabel})
-            </if>
-            <if test="status == 'pending'">
-                AND EXISTS (SELECT 1 FROM admin_request ar
-                             WHERE ar.user_id = u.user_id
-                               AND ar.status = '대기')
-            </if>
-            <if test="status == 'active'">
-                AND (u.penalty_time IS NULL OR u.penalty_time &lt;= #{now})
-                AND NOT EXISTS (SELECT 1 FROM admin_request ar
-                                 WHERE ar.user_id = u.user_id
-                                   AND ar.status = '대기')
-            </if>
-            <if test="status == 'suspended'">
-                AND u.penalty_time &gt; #{now}
-            </if>
-        </where>
+        <include refid="adminUserFilters"/>
          ORDER BY u.created_at DESC, u.user_id DESC
          LIMIT #{limit} OFFSET #{offset}
     </select>
@@ -165,31 +170,7 @@
     <select id="countAdminUsers" resultType="int">
         SELECT COUNT(*)
           FROM app_user u
-        <where>
-            u.deleted_at IS NULL
-            <if test="keyword != null and keyword != ''">
-                AND (u.nickname LIKE CONCAT('%', #{keyword}, '%')
-                     OR u.email LIKE CONCAT('%', #{keyword}, '%')
-                     OR CAST(u.user_id AS CHAR) = #{keyword})
-            </if>
-            <if test="roleCode != null and roleCode != ''">
-                AND u.role IN (#{roleCode}, #{roleLabel})
-            </if>
-            <if test="status == 'pending'">
-                AND EXISTS (SELECT 1 FROM admin_request ar
-                             WHERE ar.user_id = u.user_id
-                               AND ar.status = '대기')
-            </if>
-            <if test="status == 'active'">
-                AND (u.penalty_time IS NULL OR u.penalty_time &lt;= #{now})
-                AND NOT EXISTS (SELECT 1 FROM admin_request ar
-                                 WHERE ar.user_id = u.user_id
-                                   AND ar.status = '대기')
-            </if>
-            <if test="status == 'suspended'">
-                AND u.penalty_time &gt; #{now}
-            </if>
-        </where>
+        <include refid="adminUserFilters"/>
     </select>
 
     <select id="countActiveUsers" resultType="int">

@@ -47,6 +47,8 @@ public class AdminUserService {
 
     static final int PAGE_SIZE = 20;
     static final int MAX_PAGE = 1000;
+    static final int EXPORT_BATCH_SIZE = 500;
+    static final int MAX_EXPORT_ROWS = PAGE_SIZE * (MAX_PAGE + 1);
 
     private static final int REASON_MIN = 2;
     private static final int REASON_MAX = 200;
@@ -87,16 +89,15 @@ public class AdminUserService {
             }
         }
         int total = memberMapper.countAdminUsers(keyword, roleCode, roleLabel, statusFilter, now);
+        int facilityManagerCount = memberMapper.countActiveUsersByRole(codeOf(MemberRole.FACILITY_MANAGER),
+                MemberRole.FACILITY_MANAGER.label());
+        int adminCount = memberMapper.countActiveUsersByRole(codeOf(MemberRole.ADMIN), MemberRole.ADMIN.label());
         AdminUserMetrics metrics = new AdminUserMetrics(
                 memberMapper.countActiveUsers(),
                 memberMapper.countPendingAdminRequests(),
-                memberMapper.countActiveUsersByRole(codeOf(MemberRole.FACILITY_MANAGER),
-                        MemberRole.FACILITY_MANAGER.label())
-                        + memberMapper.countActiveUsersByRole(codeOf(MemberRole.ADMIN),
-                                MemberRole.ADMIN.label()),
-                memberMapper.countActiveUsersByRole(codeOf(MemberRole.ADMIN), MemberRole.ADMIN.label()),
-                memberMapper.countActiveUsersByRole(codeOf(MemberRole.FACILITY_MANAGER),
-                        MemberRole.FACILITY_MANAGER.label()),
+                facilityManagerCount + adminCount,
+                adminCount,
+                facilityManagerCount,
                 memberMapper.countSuspendedUsers(now));
         return new AdminUserPage(metrics,
                 new AdminUserFilters(keyword, roleValue(roleFilter), statusValue(statusFilter), safePage),
@@ -106,9 +107,8 @@ public class AdminUserService {
     /**
      * 내보내기용으로 화면과 같은 필터에 맞는 모든 계정을 모은다.
      *
-     * <p>목록 화면과 같은 {@code findAdminUsers} 조회를 {@code PAGE_SIZE + 1} 건 단위로 페이지 상한
-     * ({@link #MAX_PAGE})까지 순회하며, 각 페이지에서는 화면과 동일하게 {@code PAGE_SIZE} 건까지만
-     * 노출한다. 페이지가 덜 찬 시점이 마지막 페이지다.</p>
+     * <p>목록 화면과 같은 필터·정렬로 조회하되 내보내기는 한 번에 최대 {@code EXPORT_BATCH_SIZE}건을
+     * 읽는다. 기존 페이지 상한에 해당하는 {@code MAX_EXPORT_ROWS}건까지만 내보낸다.</p>
      */
     @Transactional(readOnly = true)
     public List<AdminUserListItem> findAllForExport(String q, String role, String status) {
@@ -120,16 +120,16 @@ public class AdminUserService {
         LocalDateTime now = LocalDateTime.now(ZONE);
 
         List<AdminUserListItem> users = new ArrayList<>();
-        int limit = PAGE_SIZE + 1;
-        for (int page = 0; page <= MAX_PAGE; page++) {
+        for (int offset = 0; offset < MAX_EXPORT_ROWS; offset += EXPORT_BATCH_SIZE) {
+            int batchSize = Math.min(EXPORT_BATCH_SIZE, MAX_EXPORT_ROWS - offset);
             List<AdminUserRow> rows = memberMapper.findAdminUsers(keyword, roleCode, roleLabel, statusFilter,
-                    now, limit, offset(page));
+                    now, batchSize + 1, offset);
             if (rows == null || rows.isEmpty()) {
                 break;
             }
             int added = 0;
             for (AdminUserRow row : rows) {
-                if (added >= PAGE_SIZE) {
+                if (added >= batchSize) {
                     break;
                 }
                 if (row != null) {
@@ -137,8 +137,8 @@ public class AdminUserService {
                     added++;
                 }
             }
-            // 조회 건수가 limit 미만이면 다음 페이지가 없다.
-            if (rows.size() < limit || added == 0) {
+            // 추가로 조회한 한 행이 없으면 다음 배치가 없다.
+            if (rows.size() <= batchSize || added == 0) {
                 break;
             }
         }

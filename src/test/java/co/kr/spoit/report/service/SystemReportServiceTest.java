@@ -330,6 +330,35 @@ class SystemReportServiceTest {
     }
 
     @Test
+    @DisplayName("잠근 신고에 대상 회원이 없으면 제재 발급·처리 완료·알림 전에 거부한다")
+    void rejectsPenaltyWithoutTargetUser() {
+        Report report = report("검토 중");
+        report.setTargetUserId(null);
+        when(mapper.findReportForUpdate(REPORT_ID)).thenReturn(report);
+
+        assertThatThrownBy(() -> service.applyPenalty(REPORT_ID, "경고", null, "사유", "검토 중", null, ADMIN_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("신고 대상 회원을 확인할 수 없습니다");
+
+        verify(penaltyService, never()).issueForReport(anyLong(), anyLong(), anyLong(), any(), any(), any());
+        verify(mapper, never()).applyFinalDecision(anyLong(), anyString(), anyString(), anyString(), anyLong());
+        verifyNoInteractions(notification);
+    }
+
+    @Test
+    @DisplayName("처리 사유가 비어 있고 제재 사유가 255자를 넘으면 255자로 잘라 처리 사유로 저장한다")
+    void truncatesLongReasonWhenResolutionBlank() {
+        String longReason = "가".repeat(300);
+        when(mapper.findReportForUpdate(REPORT_ID)).thenReturn(report("검토 중"));
+
+        service.applyPenalty(REPORT_ID, "경고", null, longReason, "검토 중", "   ", ADMIN_ID);
+
+        verify(penaltyService).issueForReport(REPORT_ID, TARGET_ID, ADMIN_ID, "경고", null, longReason);
+        verify(mapper).applyFinalDecision(REPORT_ID, "검토 중", "처리 완료", "가".repeat(255), ADMIN_ID);
+        verify(notification).notifyResolved(REPORT_ID, REPORTER_ID, "처리 완료");
+    }
+
+    @Test
     @DisplayName("상세 단독 조회는 목록 조회 없이 한 건만 읽고, 없으면 404 예외다")
     void loadsDetailOnly() {
         ReportRow row = new ReportRow();

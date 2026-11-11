@@ -16,10 +16,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.domain.MemberPrincipal;
@@ -92,6 +95,44 @@ class MemberSessionRegistrationTest {
         assertThat(freshSession).isNotNull();
         assertThat(memberSessionRegistry.getSessionInformation(freshSession.getId())).isNotNull();
         assertThat(memberSessionRegistry.isTracked(freshSession)).isTrue();
+    }
+
+    @Test
+    @DisplayName("폐기된 세션의 프로필 저장 요청은 CSRF 검사 이전에 로그인 화면으로 돌려보내진다")
+    void expiredSessionPostIsRejectedBeforeCsrf() throws Exception {
+        given(memberMapper.findByEmail(anyString())).willReturn(Optional.of(activeMember()));
+
+        MockHttpSession session = (MockHttpSession) mockMvc.perform(post("/login")
+                        .with(csrf())
+                        .param("email", MEMBER_EMAIL)
+                        .param("password", RAW_PASSWORD))
+                .andExpect(status().is3xxRedirection())
+                .andReturn().getRequest().getSession(false);
+        assertThat(session).isNotNull();
+
+        // 같은 컨텍스트를 공유하는 다른 테스트의 세션이 남을 수 있으므로 개수 대신 이 세션의 만료만 확인한다.
+        assertThat(memberSessionRegistry.expireSessionsOf(MEMBER_ID)).isPositive();
+        assertThat(memberSessionRegistry.getSessionInformation(session.getId()).isExpired()).isTrue();
+
+        // CSRF 토큰을 일부러 붙이지 않는다. 폐기 필터가 CsrfFilter 앞에서 막아야 403이 아니라 리다이렉트다.
+        MvcResult result = mockMvc.perform(post("/mypage/profile")
+                        .session(session)
+                        .param("nickname", "새닉네임")
+                        .param("phone", "010-9876-5432"))
+                .andExpect(status().is3xxRedirection())
+                .andReturn();
+
+        MockHttpServletResponse response = result.getResponse();
+        assertThat(response.getStatus()).isNotEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(response.getRedirectedUrl()).startsWith("/login?error=");
+        assertThat(session.isInvalid()).isTrue();
+
+        Cookie sessionCookie = response.getCookie("JSESSIONID");
+        Cookie rememberMeCookie = response.getCookie("remember-me");
+        assertThat(sessionCookie).isNotNull();
+        assertThat(sessionCookie.getMaxAge()).isZero();
+        assertThat(rememberMeCookie).isNotNull();
+        assertThat(rememberMeCookie.getMaxAge()).isZero();
     }
 
     private static final Long MEMBER_ID = 1L;

@@ -72,6 +72,53 @@ class PenaltyServiceTest {
     }
 
     @Test
+    @DisplayName("계정 정지는 신고 없이 이용 제한을 저장하고 회원 이용정지 종료 시각을 연장한다")
+    void issuesAccountRestrictionWithoutReport() {
+        service.issueForAccount(TARGET_ID, ADMIN_ID, 7, "운영 정책 위반");
+
+        ArgumentCaptor<Penalty> captor = ArgumentCaptor.forClass(Penalty.class);
+        verify(mapper).insertPenalty(captor.capture());
+        Penalty saved = captor.getValue();
+        assertThat(saved.getPenaltyType()).isEqualTo(PenaltyService.TYPE_RESTRICTION);
+        assertThat(saved.getReportId()).isNull();
+        assertThat(saved.getIssuedBy()).isEqualTo(ADMIN_ID);
+        assertThat(saved.getStatus()).isEqualTo(PenaltyService.STATUS_ACTIVE);
+        assertThat(saved.getEndAt()).isEqualTo(saved.getStartAt().plusDays(7));
+        verify(memberPenaltyTimeService).extendUntil(eq(TARGET_ID), eq(saved.getEndAt()));
+    }
+
+    @Test
+    @DisplayName("정지 해제는 회원 행을 잠그고 제재를 해제한 뒤 회원 이용정지를 비운다")
+    void releasesAllActiveRestrictionsAndClearsPenaltyTime() {
+        when(mapper.releaseActiveRestrictions(eq(TARGET_ID), eq(ADMIN_ID), any())).thenReturn(2);
+
+        int released = service.releaseActiveRestrictions(TARGET_ID, ADMIN_ID);
+
+        assertThat(released).isEqualTo(2);
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(memberPenaltyTimeService, mapper);
+        order.verify(memberPenaltyTimeService).lock(TARGET_ID);
+        order.verify(mapper).releaseActiveRestrictions(eq(TARGET_ID), eq(ADMIN_ID), any());
+        order.verify(memberPenaltyTimeService).overwrite(TARGET_ID, null);
+    }
+
+    @Test
+    @DisplayName("정지 해제는 잘못된 대상·처리자를 거부하고 매퍼를 건드리지 않는다")
+    void rejectsInvalidTargetOrActorOnBulkRelease() {
+        assertThatThrownBy(() -> service.releaseActiveRestrictions(null, ADMIN_ID))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.releaseActiveRestrictions(0L, ADMIN_ID))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.releaseActiveRestrictions(TARGET_ID, null))
+                .isInstanceOf(ReportAccessDeniedException.class);
+        assertThatThrownBy(() -> service.releaseActiveRestrictions(TARGET_ID, 0L))
+                .isInstanceOf(ReportAccessDeniedException.class);
+
+        verify(mapper, never()).releaseActiveRestrictions(anyLong(), anyLong(), any());
+        verify(memberPenaltyTimeService, never()).lock(anyLong());
+        verify(memberPenaltyTimeService, never()).overwrite(anyLong(), any());
+    }
+
+    @Test
     @DisplayName("경고는 기간 없이 이력만 남기고 회원 이용정지를 건드리지 않는다")
     void warningDoesNotTouchPenaltyTime() {
         service.issueForReport(REPORT_ID, TARGET_ID, ADMIN_ID, "경고", 7, "경고 1회");

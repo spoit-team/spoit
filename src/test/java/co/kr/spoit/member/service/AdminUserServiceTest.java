@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -122,6 +123,19 @@ class AdminUserServiceTest {
     }
 
     @Test
+    @DisplayName("이미 같은 역할로 바꾸는 요청은 아무것도 바꾸지 않고 거절한다")
+    void rejectsNoOpSameRoleChange() {
+        when(accountLockService.lockById(TARGET)).thenReturn(member("시설 관리자"));
+
+        AdminUserActionResult result = service.changeRole(ACTOR, TARGET, "facility", "재지정");
+
+        assertThat(result.applied()).isFalse();
+        assertThat(result.message()).contains("이미 같은 역할");
+        verify(memberMapper, never()).updateRole(anyLong(), any());
+        verify(sessionRevocationService, never()).revokeAfterCommit(anyLong());
+    }
+
+    @Test
     @DisplayName("대기 중인 관리자 요청이 없으면 승인·거절은 아무것도 바꾸지 않는다")
     void approveWithoutRequestIsSafe() {
         when(accountLockService.lockById(TARGET)).thenReturn(member("일반 회원"));
@@ -173,6 +187,42 @@ class AdminUserServiceTest {
         verify(memberMapper, never()).updateRole(anyLong(), any());
         verify(memberMapper, never()).reviewAdminRequest(anyLong(), any(), anyLong());
         verify(sessionRevocationService, never()).revokeAfterCommit(anyLong());
+    }
+
+    @Test
+    @DisplayName("요청 역할이 일반 회원이면 승인하지 않는다")
+    void approveRejectsUnusableRequestedRole() {
+        when(accountLockService.lockById(TARGET)).thenReturn(member("일반 회원"));
+        AdminRequestRow request = new AdminRequestRow();
+        request.setRequestId(9L);
+        request.setUserId(TARGET);
+        request.setRequestedRole("MEMBER");
+        when(memberMapper.findPendingAdminRequestForUpdate(TARGET)).thenReturn(request);
+
+        AdminUserActionResult result = service.approve(ACTOR, TARGET);
+
+        assertThat(result.applied()).isFalse();
+        assertThat(result.message()).contains("요청된 역할");
+        verify(memberMapper, never()).updateRole(anyLong(), any());
+        verify(memberMapper, never()).reviewAdminRequest(anyLong(), any(), anyLong());
+        verify(sessionRevocationService, never()).revokeAfterCommit(anyLong());
+    }
+
+    @Test
+    @DisplayName("거절 검토 갱신이 0건이면 적용되지 않은 결과로 돌려준다")
+    void rejectReportsLostUpdateAsNotApplied() {
+        when(accountLockService.lockById(TARGET)).thenReturn(member("일반 회원"));
+        AdminRequestRow request = new AdminRequestRow();
+        request.setRequestId(9L);
+        request.setUserId(TARGET);
+        request.setRequestedRole("FACILITY_MANAGER");
+        when(memberMapper.findPendingAdminRequestForUpdate(TARGET)).thenReturn(request);
+        when(memberMapper.reviewAdminRequest(9L, "거절", ACTOR)).thenReturn(0);
+
+        AdminUserActionResult result = service.reject(ACTOR, TARGET);
+
+        assertThat(result.applied()).isFalse();
+        assertThat(result.message()).contains("다른 관리자가 먼저 처리");
     }
 
     @Test
@@ -238,6 +288,20 @@ class AdminUserServiceTest {
     }
 
     @Test
+    @DisplayName("아직 이용정지가 남아 있으면 다시 정지하지 않는다")
+    void rejectsSecondSuspendWhilePenaltyIsFuture() {
+        Member suspended = member("일반 회원");
+        suspended.setPenaltyTime(LocalDateTime.now().plusDays(3));
+        when(accountLockService.lockById(TARGET)).thenReturn(suspended);
+
+        AdminUserActionResult result = service.suspend(ACTOR, TARGET, 7, "중복 정지");
+
+        assertThat(result.applied()).isFalse();
+        assertThat(result.message()).contains("이미 이용이 제한");
+        verify(penaltyService, never()).issueForAccount(anyLong(), anyLong(), anyInt(), any());
+    }
+
+    @Test
     @DisplayName("복구는 남은 이용 제한을 모두 해제한다")
     void restoresSuspendedAccount() {
         Member suspended = member("일반 회원");
@@ -274,6 +338,8 @@ class AdminUserServiceTest {
                 anyInt(), anyInt())).thenReturn(List.of(row));
         when(memberMapper.countAdminUsers(isNull(), eq("ADMIN"), eq("시스템 관리자"), isNull(), any()))
                 .thenReturn(45);
+        when(memberMapper.countActiveUsersByRole("ADMIN", "시스템 관리자")).thenReturn(2);
+        when(memberMapper.countActiveUsersByRole("FACILITY_MANAGER", "시설 관리자")).thenReturn(3);
 
         AdminUserPage page = service.loadPage(null, "system", "all", 1);
 
@@ -283,6 +349,11 @@ class AdminUserServiceTest {
         assertThat(page.getPagination().getTotalPages()).isEqualTo(3);
         assertThat(page.getPagination().getPrevUrl()).contains("view=users").contains("page=0");
         assertThat(page.getPagination().getNextUrl()).contains("page=2");
+        assertThat(page.getMetrics().getAdminCount()).isEqualTo(5);
+        assertThat(page.getMetrics().getSystemAdminCount()).isEqualTo(2);
+        assertThat(page.getMetrics().getFacilityAdminCount()).isEqualTo(3);
+        verify(memberMapper).countActiveUsersByRole("ADMIN", "시스템 관리자");
+        verify(memberMapper).countActiveUsersByRole("FACILITY_MANAGER", "시설 관리자");
     }
 
     @Test
@@ -295,23 +366,23 @@ class AdminUserServiceTest {
     }
 
     @Test
-    @DisplayName("내보내기는 20건을 넘는 일치 계정을 페이지 상한까지 모두 모은다")
+    @DisplayName("내보내기는 배치를 넘는 일치 계정을 순서대로 모두 모은다")
     void findAllForExportCollectsBeyondFirstPage() {
         List<AdminUserRow> firstPage = new ArrayList<>();
-        for (long id = 1; id <= AdminUserService.PAGE_SIZE + 1; id++) {
+        for (long id = 1; id <= AdminUserService.EXPORT_BATCH_SIZE + 1; id++) {
             firstPage.add(row(id));
         }
-        List<AdminUserRow> secondPage = List.of(row(22L), row(23L), row(24L));
+        List<AdminUserRow> secondPage = List.of(row(501L), row(502L), row(503L));
         when(memberMapper.findAdminUsers(any(), any(), any(), any(), any(), anyInt(), anyInt()))
                 .thenReturn(firstPage, secondPage);
 
         List<AdminUserListItem> users = service.findAllForExport(null, null, null);
 
-        assertThat(users).hasSize(AdminUserService.PAGE_SIZE + 3);
+        assertThat(users).hasSize(AdminUserService.EXPORT_BATCH_SIZE + 3);
         verify(memberMapper).findAdminUsers(isNull(), isNull(), isNull(), isNull(), any(),
-                eq(AdminUserService.PAGE_SIZE + 1), eq(0));
+                eq(AdminUserService.EXPORT_BATCH_SIZE + 1), eq(0));
         verify(memberMapper).findAdminUsers(isNull(), isNull(), isNull(), isNull(), any(),
-                eq(AdminUserService.PAGE_SIZE + 1), eq(AdminUserService.PAGE_SIZE));
+                eq(AdminUserService.EXPORT_BATCH_SIZE + 1), eq(AdminUserService.EXPORT_BATCH_SIZE));
     }
 
     @Test
@@ -323,7 +394,37 @@ class AdminUserServiceTest {
         service.findAllForExport("kim", "facility", "suspended");
 
         verify(memberMapper).findAdminUsers(eq("kim"), eq("FACILITY_MANAGER"), eq("시설 관리자"),
-                eq("suspended"), any(), eq(AdminUserService.PAGE_SIZE + 1), eq(0));
+                eq("suspended"), any(), eq(AdminUserService.EXPORT_BATCH_SIZE + 1), eq(0));
+    }
+
+    @Test
+    @DisplayName("내보내기 배치 경계와 기존 페이지 상한을 유지한다")
+    void findAllForExportPreservesBatchBoundariesAndCap() {
+        int[] sizes = {0, 20, 21, 500, 501, 20020, 20021};
+        int[] expectedCalls = {1, 1, 1, 1, 2, 41, 41};
+        int[] currentSize = {0};
+        when(memberMapper.findAdminUsers(any(), any(), any(), any(), any(), anyInt(), anyInt()))
+                .thenAnswer(invocation -> {
+                    int limit = invocation.getArgument(5);
+                    int offset = invocation.getArgument(6);
+                    List<AdminUserRow> rows = new ArrayList<>();
+                    for (int i = offset; i < Math.min(currentSize[0], offset + limit); i++) {
+                        rows.add(row(i + 1L));
+                    }
+                    return rows;
+                });
+        for (int i = 0; i < sizes.length; i++) {
+            currentSize[0] = sizes[i];
+            org.mockito.Mockito.clearInvocations(memberMapper);
+            List<AdminUserListItem> users = service.findAllForExport(null, null, null);
+            int expectedSize = Math.min(sizes[i], AdminUserService.MAX_EXPORT_ROWS);
+            assertThat(users).hasSize(expectedSize);
+            for (int index = 0; index < expectedSize; index++) {
+                assertThat(users.get(index).getUserId()).isEqualTo(index + 1L);
+            }
+            verify(memberMapper, times(expectedCalls[i])).findAdminUsers(isNull(), isNull(), isNull(), isNull(),
+                    any(), anyInt(), anyInt());
+        }
     }
 
     private static AdminUserRow row(long userId) {

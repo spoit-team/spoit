@@ -2,6 +2,8 @@ package co.kr.spoit.notification.websocket;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -22,6 +24,7 @@ import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
+import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.member.domain.MemberPrincipalFixture;
 import jakarta.servlet.http.HttpServletRequest;
@@ -162,7 +165,57 @@ class NotificationCsrfHandshakeTest {
         assertThat(canConnect(attackerAttributes, victimToken)).isFalse();
     }
 
+    @Test
+    @DisplayName("로그인 상태여도 조회 결과가 이용정지 중이면 403으로 거부하고 속성을 남기지 않는다")
+    void rejectsStillAuthenticatedPrincipalThatIsNowSuspended() {
+        LocalDateTime futurePenalty = LocalDateTime.now(ZoneId.of("Asia/Seoul")).plusDays(3);
+        MemberPrincipal suspended = principalOf("일반 회원", futurePenalty);
+
+        assertHandshakeRejected(username -> suspended);
+    }
+
+    @Test
+    @DisplayName("로그인 상태여도 조회 결과의 역할이 달라졌으면 403으로 거부한다")
+    void rejectsPrincipalWhoseRoleChanged() {
+        assertHandshakeRejected(username -> MemberPrincipalFixture.admin());
+    }
+
+    @Test
+    @DisplayName("계정 조회가 실패하면 핸드셰이크를 거부한다(fail closed)")
+    void rejectsWhenAccountLookupFails() {
+        assertHandshakeRejected(username -> {
+            throw new IllegalStateException("회원 조회 실패");
+        });
+    }
+
     /* ---------------- helpers ---------------- */
+
+    /** 커밋된 계정 상태를 다시 읽는 조회가 거부 사유를 보고할 때의 핸드셰이크 결과를 확인한다. */
+    private void assertHandshakeRejected(UserDetailsService lookup) {
+        NotificationHandshakeInterceptor interceptor = new NotificationHandshakeInterceptor(repository, lookup);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        Map<String, Object> attributes = new HashMap<>();
+
+        boolean accepted = interceptor.beforeHandshake(
+                new ServletServerHttpRequest(sessionRequest(session)),
+                new org.springframework.http.server.ServletServerHttpResponse(response), null, attributes);
+
+        assertThat(accepted).isFalse();
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(attributes).isEmpty();
+    }
+
+    /** 이용정지 종료 시각이 미래인 회원의 주체를 만든다. */
+    private static MemberPrincipal principalOf(String role, LocalDateTime penaltyTime) {
+        Member member = new Member();
+        member.setUserId(7L);
+        member.setEmail("user@example.com");
+        member.setNickname("회원");
+        member.setPhone("010-1234-5678");
+        member.setRole(role);
+        member.setPenaltyTime(penaltyTime);
+        return MemberPrincipal.from(member);
+    }
 
     private void saveOrigin(MockHttpSession target, String token) {
         MockHttpServletRequest request = new MockHttpServletRequest();

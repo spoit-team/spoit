@@ -12,7 +12,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -123,6 +125,40 @@ class ReportPageRenderTest {
                 .doesNotContain("data-report-summary")
                 .doesNotContain("data-report-detail")
                 .doesNotContain("data-selected-report");
+    }
+
+    @Test
+    @DisplayName("두 신고 화면에서 상태 배지는 목록과 상세에 같은 클래스와 이스케이프된 문구를 표시한다")
+    void rendersStatusBadgesOnBothScreens() throws Exception {
+        List<String> statuses = List.of("접수", "검토 중", "처리 완료", "기각", "<img src=x>");
+        List<ReportListItem> reports = new ArrayList<>();
+        for (int i = 0; i < statuses.size(); i++) {
+            reports.add(new ReportListItem((long) i + 1, 100L, "시설", "경기", "대상", "신고자",
+                    "기타", statuses.get(i), "2026-11-01 10:00", null));
+        }
+        ReportDetail selected = new ReportDetail(5L, 100L, "시설", "경기", "대상", "신고자", "기타",
+                "<img src=x>", "2026-11-01 10:00", "신고 원문", null);
+        when(facilityReportService.loadPage(any(), any(), any(), any(), anyInt(), anyInt())).thenReturn(
+                new FacilityReportPage(List.of(), List.of(), reports, null, null, selected, 0, false, 0, false));
+        when(systemReportService.loadPage(any(), any(), anyInt())).thenReturn(
+                new SystemReportPage(reports, selected, null, 0, false));
+
+        String facilityHtml = mockMvc.perform(get("/admin/facility/reports").with(user(facilityManager())))
+                .andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        String systemHtml = mockMvc.perform(get("/admin/system/reports").with(user(admin())))
+                .andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        for (String html : List.of(facilityHtml, systemHtml)) {
+            assertThat(html).contains("class=\"status-badge report-status is-received\">접수</span>")
+                    .contains("class=\"status-badge report-status is-reviewing\">검토 중</span>")
+                    .contains("class=\"status-badge report-status is-done\">처리 완료</span>")
+                    .contains("class=\"status-badge report-status is-dismissed\">기각</span>")
+                    .doesNotContain("<img src=x>");
+            assertThat(Pattern.compile("class=\"status-badge report-status\\s*\">&lt;img src=x&gt;</span>")
+                    .matcher(html).results().count()).isEqualTo(2);
+        }
     }
 
     @Test

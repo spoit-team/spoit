@@ -95,14 +95,12 @@ public class FacilityStatsService {
     public FacilityStats load(Long managerUserId, Long facilityId, String period, String periodFrom,
             String periodTo) {
         DateRange range = resolveRange(period, periodFrom, periodTo);
-        FacilityStats empty = emptyStats(range.period(), range.label());
-        empty.setRequestedPeriod(range.requestedPeriod());
         if (!hasManager(managerUserId) || facilityId == null || facilityId <= 0) {
-            return empty;
+            return emptyStats(range);
         }
         // 담당자로 매핑된 시설만 집계한다. 삭제된 시설은 매퍼의 deleted_at 조건 때문에 0건이 된다.
         if (!facilityMapper.existsFacilityManager(facilityId, managerUserId)) {
-            return empty;
+            return emptyStats(range);
         }
 
         LocalDateTime startAt = range.startAt();
@@ -199,8 +197,9 @@ public class FacilityStatsService {
      * 표시값만 호출자가 정하고 나머지 지표·인기 라벨은 0·null이며, 실제 조회 구간
      * ({@code periodFrom}·{@code periodTo})은 채우지 않는다.</p>
      */
-    private static FacilityStats emptyStats(int period, String periodLabel) {
-        FacilityStats stats = new FacilityStats(period, periodLabel, 0, 0, null, null, 0, 0, 0, 0, 0);
+    private static FacilityStats emptyStats(DateRange range) {
+        FacilityStats stats = new FacilityStats(range.period(), range.label(), 0, 0, null, null, 0, 0, 0, 0, 0);
+        stats.setRequestedPeriod(range.requestedPeriod());
         stats.setWeekdayDetails(buildWeekdayDetails(new long[WEEKDAY_LABELS.size()], 0));
         stats.setHourDetails(buildHourDetails(new long[HOURS_PER_DAY], 0));
         stats.setWeekdayHourDetails(

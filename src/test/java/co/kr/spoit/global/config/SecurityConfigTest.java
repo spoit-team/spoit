@@ -141,7 +141,9 @@ class SecurityConfigTest {
             "/admin/operations",
             "/admin/operations/1",
             "/admin/system",
-            "/admin/system/settings"
+            "/admin/system/settings",
+            "/admin/system/errors/export",
+            "/admin/system/users/export"
     })
     @DisplayName("비로그인 관리자 화면 요청은 로그인 화면으로 보낸다")
     void anonymousAdminPagesRedirectToLogin(String path) throws Exception {
@@ -158,6 +160,8 @@ class SecurityConfigTest {
             "/admin/operations/1",
             "/admin/system",
             "/admin/system/settings",
+            "/admin/system/errors/export",
+            "/admin/system/users/export",
             "/admin/unknown"
     })
     @DisplayName("일반 회원은 관리자 화면에 직접 접근할 수 없다")
@@ -186,6 +190,8 @@ class SecurityConfigTest {
     @ValueSource(strings = {
             "/admin/system",
             "/admin/system/settings",
+            "/admin/system/errors/export",
+            "/admin/system/users/export",
             "/admin/unknown"
     })
     @DisplayName("시설 관리자는 시스템 관리 화면에 접근할 수 없다")
@@ -198,6 +204,8 @@ class SecurityConfigTest {
     @ValueSource(strings = {
             "/admin/system",
             "/admin/system/settings",
+            "/admin/system/errors/export",
+            "/admin/system/users/export",
             "/admin/unknown"
     })
     @DisplayName("시스템 관리자는 시스템 관리 화면에 접근할 수 있다")

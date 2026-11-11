@@ -207,6 +207,134 @@ class FacilityStatsServiceTest {
         verifyNoInteractions(facilityStatsMapper, facilityMapper);
     }
 
+    @Test
+    @DisplayName("관리자·시설 ID가 0이나 음수면 매퍼를 호출하지 않고 기간만 정규화한 빈 통계를 반환한다")
+    void returnsNormalizedEmptyStatsForNonPositiveIds() {
+        for (Long managerUserId : List.of(0L, -1L)) {
+            for (Long facilityId : List.of(0L, -1L)) {
+                FacilityStats stats = service.load(managerUserId, facilityId, "90", null, null);
+
+                // ID가 양수가 아니면 실제 조회 구간(periodFrom/periodTo)은 채우지 않는다.
+                assertThat(stats.getPeriod()).as("manager=%s facility=%s", managerUserId, facilityId)
+                        .isEqualTo(90);
+                assertThat(stats.getPeriodLabel()).isEqualTo("최근 90일");
+                assertThat(stats.getRequestedPeriod()).isEqualTo("90");
+                assertThat(stats.getPeriodFrom()).isNull();
+                assertThat(stats.getPeriodTo()).isNull();
+                assertThat(stats.getBookingCount()).isZero();
+                assertThat(stats.getParticipantCount()).isZero();
+                assertThat(stats.getApplicationTotal()).isZero();
+                assertThat(stats.getPopularDay()).isNull();
+                assertThat(stats.getPeakTime()).isNull();
+                // 조회하지 않아도 화면 모양은 0으로 채운 목록과 상한 1로 유지된다.
+                assertThat(stats.getWeekdayDetails()).hasSize(7);
+                assertThat(stats.getHourDetails()).hasSize(24);
+                assertThat(stats.getWeekdayHourDetails()).hasSize(7);
+                assertThat(stats.getApplicationWeekdayDetails()).hasSize(7);
+                assertThat(stats.getApplicationHourDetails()).hasSize(24);
+                assertThat(stats.getApplicationWeekdayHourDetails()).hasSize(7);
+                assertThat(stats.getWeekdayChartMax()).isEqualTo(1L);
+                assertThat(stats.getHourChartMax()).isEqualTo(1L);
+                assertThat(stats.getWeekdayHourChartMax()).isEqualTo(1L);
+            }
+        }
+
+        verifyNoInteractions(facilityStatsMapper, facilityMapper);
+    }
+
+    @Test
+    @DisplayName("매퍼가 null·음수 집계를 돌려주면 0으로 정규화하고 차트 목록은 0으로 채운다")
+    void normalizesNullAndNegativeAggregates() {
+        stubOwnedFacility();
+        // 스칼라 집계는 음수, 신청 요약과 요일×시간대 목록은 null로 응답한다.
+        stubCounts(-3, -7, null);
+        when(facilityStatsMapper.countParticipantsByWeekdayAndHour(eq(USER_ID), eq(FACILITY_ID),
+                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(null);
+        when(facilityStatsMapper.countApplicationStatusesByWeekdayAndHour(eq(USER_ID), eq(FACILITY_ID),
+                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(null);
+
+        FacilityStats stats = service.load(USER_ID, FACILITY_ID, "30", null, null);
+
+        // 음수·null 응답을 0으로 올려 화면에 음수 지표가 나가지 않게 한다.
+        assertThat(stats.getBookingCount()).isZero();
+        assertThat(stats.getParticipantCount()).isZero();
+        assertThat(stats.getApplicationTotal()).isZero();
+        assertThat(stats.getIndividualCount()).isZero();
+        assertThat(stats.getClubCount()).isZero();
+        assertThat(stats.getApprovedCount()).isZero();
+        assertThat(stats.getCancelledCount()).isZero();
+        assertThat(stats.getResolvedCount()).isZero();
+        assertThat(stats.getApprovalRate()).isZero();
+        assertThat(stats.getCancelRate()).isZero();
+        assertThat(stats.getPopularDay()).isNull();
+        assertThat(stats.getPeakTime()).isNull();
+
+        // 참가 인원 상세는 7/24/7×24를 0으로 채운다.
+        assertThat(stats.getWeekdayDetails()).extracting(FacilityStats.WeekdayDetail::getCount)
+                .containsOnly(0L);
+        assertThat(stats.getHourDetails()).extracting(FacilityStats.HourDetail::getCount)
+                .containsOnly(0L);
+        assertThat(stats.getWeekdayHourDetails())
+                .allSatisfy(row -> assertThat(row.getHourlyCounts()).hasSize(24).containsOnly(0L));
+
+        // 신청 분포도 7/24/7×24를 0으로 채우고 차트 상한은 최소 1이다.
+        assertThat(stats.getApplicationWeekdayDetails())
+                .extracting(FacilityStats.ApplicationDistributionDetail::getTotalCount)
+                .containsOnly(0L);
+        assertThat(stats.getApplicationHourDetails())
+                .extracting(FacilityStats.ApplicationDistributionDetail::getTotalCount)
+                .containsOnly(0L);
+        assertThat(stats.getApplicationWeekdayHourDetails())
+                .allSatisfy(day -> assertThat(day.getHours()).hasSize(24)
+                        .allSatisfy(hour -> {
+                            assertThat(hour.getTotalCount()).isZero();
+                            assertThat(hour.getApprovedCount()).isZero();
+                            assertThat(hour.getCancelledCount()).isZero();
+                        }));
+        assertThat(stats.getWeekdayChartMax()).isEqualTo(1L);
+        assertThat(stats.getHourChartMax()).isEqualTo(1L);
+        assertThat(stats.getWeekdayHourChartMax()).isEqualTo(1L);
+        assertAllTotalCountsEqualResolved(stats);
+
+        // 요약 필드와 집계 행 자체가 음수여도 0으로 올리고, 알 수 없는 요일·시간대 행은 버린다.
+        stubCounts(0, 0, summary(-5, -2, -1, -4, -3));
+        stubWeekdayHourCounts(
+                participantWeekdayHour(2, 9, -4),
+                participantWeekdayHour(9, 5, 7));
+        stubApplicationStatuses(
+                applicationStatus(2, 9, -2, -3, -5),
+                applicationStatus(3, 40, 6, 6, 12));
+
+        FacilityStats negatives = service.load(USER_ID, FACILITY_ID, "30", null, null);
+
+        assertThat(negatives.getApplicationTotal()).isZero();
+        assertThat(negatives.getIndividualCount()).isZero();
+        assertThat(negatives.getClubCount()).isZero();
+        assertThat(negatives.getApprovedCount()).isZero();
+        assertThat(negatives.getCancelledCount()).isZero();
+        assertThat(negatives.getResolvedCount()).isZero();
+        assertThat(negatives.getWeekdayDetails()).extracting(FacilityStats.WeekdayDetail::getCount)
+                .containsOnly(0L);
+        assertThat(negatives.getHourDetails()).extracting(FacilityStats.HourDetail::getCount)
+                .containsOnly(0L);
+        assertThat(negatives.getWeekdayHourDetails())
+                .allSatisfy(row -> assertThat(row.getHourlyCounts()).hasSize(24).containsOnly(0L));
+        // 음수·범위 밖 신청 행이 모두 걸러져 분포도 0이고 상한은 최소값을 지킨다.
+        assertThat(negatives.getApplicationWeekdayDetails())
+                .extracting(FacilityStats.ApplicationDistributionDetail::getTotalCount)
+                .containsOnly(0L);
+        assertThat(negatives.getApplicationHourDetails())
+                .extracting(FacilityStats.ApplicationDistributionDetail::getTotalCount)
+                .containsOnly(0L);
+        assertThat(negatives.getApplicationWeekdayHourDetails())
+                .allSatisfy(day -> assertThat(day.getHours()).hasSize(24)
+                        .allSatisfy(hour -> assertThat(hour.getTotalCount()).isZero()));
+        assertThat(negatives.getWeekdayChartMax()).isEqualTo(1L);
+        assertThat(negatives.getHourChartMax()).isEqualTo(1L);
+        assertThat(negatives.getWeekdayHourChartMax()).isEqualTo(1L);
+        assertAllTotalCountsEqualResolved(negatives);
+    }
+
     /* ---------------- 계산 ---------------- */
 
     @Test
