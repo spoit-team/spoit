@@ -66,7 +66,7 @@
         <a class="team-button team-button-quiet" th:href="@{/teams}">조건 초기화</a>
       </div>
     </div>
-    <div th:replace="~{fragments/infinite-list :: box(${clubPage.page}, ${clubPage.lastPage}, '동호회 더 보기', '마지막 동호회입니다')}"></div>
+    <div th:replace="~{fragments/infinite-list :: box(${clubPage.page}, ${clubPage.lastPage}, ${clubPage.nextSize}, ${clubPage.at}, '동호회 더 보기', '마지막 동호회입니다')}"></div>
   </section>
 </main>
 

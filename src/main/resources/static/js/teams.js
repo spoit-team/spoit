@@ -32,9 +32,34 @@
     dialogOpener = null;
   }
 
+  // 뒤로 가기를 써도 되는지: 보통 왼쪽 클릭 + 같은 탭에 이전 기록 + 바로 전 화면이 이 링크와 같은 목록
+  function canGoBackToList(link, event) {
+    // Ctrl·Shift·Cmd 클릭(새 탭·새 창)은 브라우저에 맡김
+    if (event.button !== 0 || event.ctrlKey || event.shiftKey || event.metaKey || event.altKey) return false;
+    // 새 탭으로 연 상세는 돌아갈 기록이 없음
+    if (window.history.length <= 1) return false;
+    if (!document.referrer) return false;
+    try {
+      const from = new URL(document.referrer);
+      const to = new URL(link.href);
+      // 알림·마이페이지·관리 화면이나 가입 신청 뒤(상세가 다시 열림)면 뒤로 가기 대신 링크 주소로
+      return from.origin === window.location.origin && from.pathname === to.pathname;
+    } catch (error) {
+      return false;
+    }
+  }
+
   document.addEventListener('click', function (event) {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
+   
+    // 목록으로 돌아가기: 바로 전이 목록이면 뒤로 가기(보던 자리·불러온 장 그대로), 아니면 링크대로
+    const backLink = target.closest('[data-back-to-list]');
+    if (backLink && canGoBackToList(backLink, event)) {
+      event.preventDefault();
+      window.history.back();
+      return;
+    }
 
     if (target.closest('[data-team-apply]')) {
       openDialog();

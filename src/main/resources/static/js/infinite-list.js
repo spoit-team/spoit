@@ -19,6 +19,8 @@
     const endText = box.querySelector('[data-infinite-end]');
     const lastPage = Number(box.dataset.lastPage);
     let page = Number(box.dataset.page);
+    // 다음 장 한 번에 받는 수, 이보다 적게 오면 끝
+    const size = Number(box.dataset.size);
     let loading = false;
     let stopped = false;
     let observer = null;
@@ -40,9 +42,14 @@
       const nextPage = page + 1;
       const url = new URL(window.location.href);
       url.searchParams.set('page', String(nextPage));
+      // 주소창에는 시각을 안 남김(나중에 돌아오면 그때 시각으로 새로 그림)
+      url.searchParams.delete('at');
+      // 서버에 보낼 주소에만 첫 화면 시각을 붙여 같은 순서로 받음
+      const requestUrl = new URL(url);
+      if(box.dataset.at) requestUrl.searchParams.set('at', box.dataset.at);
 
       try {
-        const response = await fetch(url, { headers: { 'X-Requested-With': 'fetch' } });
+        const response = await fetch(requestUrl, { headers: { 'X-Requested-With': 'fetch' } });
         // 형식 오류로 /teams로 돌아간 응답도 실패로 봄
         if (!response.ok || response.redirected) throw new Error('status ' + response.status);
         const html = await response.text();
@@ -66,7 +73,8 @@
         // 뒤로 가기로 오면 이 장까지 다시 그리게 주소만 바꿈(기록은 안 늘림)
         window.history.replaceState(window.history.state, '', url);
 
-        if (page >= lastPage) {
+        // 꽉 채워 오지 않았으면 끝(첫 화면 뒤 동호회가 늘어도 끝까지 받게, 마지막 장 번호 대신 받은 개수로)
+        if (items.length < size) {
           finish();
         } else if (observer) {
           // 붙인 뒤에도 감지 칸이 보이면 한 번 더 부르게 다시 감시

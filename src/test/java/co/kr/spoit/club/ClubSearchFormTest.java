@@ -2,6 +2,9 @@ package co.kr.spoit.club;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -66,16 +69,43 @@ public class ClubSearchFormTest {
     }
 
     @Test
-    @DisplayName("다음 장 요청은 그 장 12개만, 앞 장들은 건너뜀")
+    @DisplayName("다음 장 요청은 앞 장 끝 3개를 겹쳐 15개, 1장은 12개")
     void 다음_장_개수() {
         ClubSearchForm form = new ClubSearchForm();
         form.setCardsOnly(true);
         form.setPage(3);
-        assertThat(form.getSize()).isEqualTo(12);
-        assertThat(form.getSkip()).isEqualTo(24);
+        assertThat(form.getSize()).isEqualTo(15);
+        assertThat(form.getSkip()).isEqualTo(21);
         form.setPage(9);
+        assertThat(form.getSize()).isEqualTo(15);
+        assertThat(form.getSkip()).isEqualTo(93);
+        // 1장은 겹칠 앞 장이 없어서 처음부터 12개(OFFSET이 음수면 SQL 오류)
+        form.setPage(1);
         assertThat(form.getSize()).isEqualTo(12);
-        assertThat(form.getSkip()).isEqualTo(96);
+        assertThat(form.getSkip()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("기준 시각은 30분 안의 지난 값만 쓰고, 미래·오래된 값·없으면 지금")
+    void 기준_시각() {
+        ClubSearchForm form = new ClubSearchForm();
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+
+        LocalDateTime tenMinutesAgo = now.minusMinutes(10);
+        form.setAt(tenMinutesAgo);
+        assertThat(form.getNow()).isEqualTo(tenMinutesAgo);
+
+        // 미래·30분 넘게 지난 값·없음은 지금 시각
+        form.setAt(now.plusMinutes(5));
+        assertThat(form.getNow()).isBetween(now, now.plusMinutes(1));
+        form.setAt(now.minusMinutes(31));
+        assertThat(form.getNow()).isBetween(now, now.plusMinutes(1));
+        form.setAt(null);
+        assertThat(form.getNow()).isBetween(now, now.plusMinutes(1));
+
+        // 첫 화면은 정한 시각을 SQL도 그대로 씀
+        form.useNowAsBaseTime();
+        assertThat(form.getNow()).isEqualTo(form.getAt());
     }
 
 }

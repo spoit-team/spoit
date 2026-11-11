@@ -45,6 +45,8 @@ public class ClubController {
             model.addAttribute("clubs", clubService.findClubCards(filters));
             return "teams/list :: clubCards";
         }
+        // 첫 화면 시각을 정해 두고, 다음 장 요청은 이 시각을 받아 같은 순서로
+        filters.useNowAsBaseTime();
         ClubPageResponse clubPage = clubService.findClubPage(filters);
         model.addAttribute("clubs", clubPage.getClubs());
         model.addAttribute("resultCount", clubPage.getTotalCount());
