@@ -75,6 +75,8 @@ public class MyPageController {
     static final String CANCEL_ERROR_TITLE = "신청을 취소할 수 없습니다";
     static final String PROFILE_ERROR_TITLE = "프로필을 저장할 수 없습니다";
     static final String WITHDRAWAL_ERROR_TITLE = "회원 탈퇴를 할 수 없습니다";
+    /** 탈퇴 실패 사유가 비었을 때 보여 주는 기존 안내 문구. */
+    static final String WITHDRAWAL_FALLBACK_REASON = "탈퇴를 처리하지 못했습니다.";
 
     private final MemberService memberService;
     private final MyReservationService reservationService;
@@ -271,7 +273,9 @@ public class MyPageController {
             memberService.withdraw(principal.getUserId(), form.getPassword());
         } catch (IllegalArgumentException | IllegalStateException exception) {
             // 탈퇴 차단(WithdrawalBlockedException)도 여기로 온다. 로그아웃 전에 반환하므로 세션이 유지된다.
-            FlashFeedback.failure(redirect, WITHDRAWAL_ERROR_TITLE, exception.getMessage());
+            String reason = exception.getMessage();
+            FlashFeedback.failure(redirect, WITHDRAWAL_ERROR_TITLE,
+                    reason == null || reason.isBlank() ? WITHDRAWAL_FALLBACK_REASON : reason);
             return "redirect:/mypage/profile";
         }
         new CookieClearingLogoutHandler("JSESSIONID", "remember-me").logout(request, response, authentication);

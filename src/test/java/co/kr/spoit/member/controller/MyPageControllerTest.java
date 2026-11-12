@@ -365,6 +365,18 @@ class MyPageControllerTest {
     }
 
     @Test
+    @DisplayName("탈퇴 실패 사유가 비어 있으면 기존 안내 문구를 그대로 보여 준다")
+    void withdrawalWithoutReasonKeepsOriginalFallback() throws Exception {
+        willThrow(new IllegalStateException())
+                .given(memberService).withdraw(USER_ID, RAW_PASSWORD);
+
+        mockMvc.perform(post("/mypage/withdrawal-requests").with(principal())
+                        .param("password", RAW_PASSWORD))
+                .andExpect(redirectedUrl("/mypage/profile"))
+                .andExpect(flash().attribute("error", "탈퇴를 처리하지 못했습니다."));
+    }
+
+    @Test
     @DisplayName("비로그인 탈퇴 요청은 서비스를 호출하지 않고 로그인 화면으로 보낸다")
     void anonymousWithdrawalRedirectsToLogin() throws Exception {
         mockMvc.perform(post("/mypage/withdrawal-requests")
