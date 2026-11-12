@@ -32,6 +32,14 @@
     target.hidden = !message;
   }
 
+  /* 서버가 결제를 거부했거나 연결이 끊긴 경우: 원인을 공용 실패 안내 모달로 보여 준다.
+     동의 체크처럼 입력 바로 옆에서 고칠 수 있는 안내는 setError로 그 자리에 둔다. */
+  function showPaymentFailure(message) {
+    const feedback = window.SpoitFeedback;
+    if (feedback) feedback.alert('결제를 시작할 수 없습니다', message, { returnFocus: payButton });
+    else setError(paymentError, message);
+  }
+
   function setStep(step) {
     currentStep = step;
     panels.forEach(function (panel) {
@@ -134,11 +142,11 @@
         window.location.assign(prepared.data.redirectUrl);
         return;
       }
-      setError(paymentError, prepared.data.message || '결제를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.');
       setPaying(false);
+      showPaymentFailure(prepared.data.message || '결제를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.');
     } catch (error) {
-      setError(paymentError, '서버에 연결하지 못했습니다. 네트워크 상태를 확인해 주세요.');
       setPaying(false);
+      showPaymentFailure('서버에 연결하지 못했습니다. 네트워크 상태를 확인해 주세요.');
     }
   }
 

@@ -23,6 +23,7 @@ import co.kr.spoit.admin.dto.SystemDashboard;
 import co.kr.spoit.admin.dto.SystemErrorLogPage;
 import co.kr.spoit.admin.service.SystemErrorLogService;
 import co.kr.spoit.admin.service.SystemMonitoringService;
+import co.kr.spoit.global.common.FlashFeedback;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.member.dto.AdminUserActionResult;
 import co.kr.spoit.member.dto.AdminUserPage;
@@ -56,6 +57,8 @@ public class SystemAdminController {
     private static final String VIEW_USERS = "users";
     private static final String VIEW_PENALTIES = "penalties";
     private static final String VIEW_SETTINGS = "settings";
+    /** 회원 역할·승인·상태 변경이 막혔을 때 실패 안내 모달의 제목 */
+    static final String USER_ACTION_ERROR_TITLE = "회원 관리 요청을 처리할 수 없습니다";
 
     private final SystemMonitoringService systemMonitoringService;
     private final SystemErrorLogService systemErrorLogService;
@@ -254,9 +257,9 @@ public class SystemAdminController {
         }
         try {
             penaltyService.release(penaltyId, principal.getUserId());
-            redirect.addFlashAttribute("message", "제재를 조기 해제했습니다.");
+            FlashFeedback.success(redirect, "제재를 조기 해제했습니다.");
         } catch (RuntimeException exception) {
-            redirect.addFlashAttribute("error", exception.getMessage());
+            FlashFeedback.failure(redirect, "제재를 해제할 수 없습니다", exception.getMessage());
         }
         return redirectTo(VIEW_PENALTIES, q, null, status, page);
     }
@@ -316,10 +319,14 @@ public class SystemAdminController {
         }
         try {
             AdminUserActionResult result = action.apply(principal.getUserId());
-            redirect.addFlashAttribute(result.applied() ? "message" : "error", result.message());
+            if (result.applied()) {
+                FlashFeedback.success(redirect, result.message());
+            } else {
+                FlashFeedback.failure(redirect, USER_ACTION_ERROR_TITLE, result.message());
+            }
         } catch (RuntimeException exception) {
-            // 입력·상태 오류는 화면 안내로 돌려보내고 저장하지 않는다.
-            redirect.addFlashAttribute("error", exception.getMessage());
+            // 입력·상태 오류는 실패 안내 모달로 돌려보내고 저장하지 않는다.
+            FlashFeedback.failure(redirect, USER_ACTION_ERROR_TITLE, exception.getMessage());
         }
         return redirectTo(VIEW_USERS, q, role, status, page);
     }

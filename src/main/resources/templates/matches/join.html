@@ -65,7 +65,8 @@
         <div th:if="${!canReserve}" id="capacity-notice" class="join-inline-notice">
           <span aria-hidden="true">ℹ</span><span><b>현재 선택으로 예약할 수 없습니다.</b> <span th:text="${capacityNotice}">현재 남은 자리를 확인해 주세요.</span></span>
         </div>
-        <p th:if="${error != null and #lists.isEmpty(timeConflicts)}" class="join-error" role="alert" th:text="${error}">신청을 처리하지 못했습니다.</p>
+        <!--/* 카카오페이에서 직접 취소하고 돌아온 경우의 안내. 실패가 아니므로 모달 대신 이 자리에 보여 줍니다. */-->
+        <p th:if="${paymentNotice != null}" class="join-error" role="status" th:text="${paymentNotice}">결제를 취소했습니다.</p>
         <label class="join-agreement"><input id="rules-agree" name="agreeRules" type="checkbox" value="true" aria-describedby="rules-guide-hint" /><span><b>매치 운영 규칙과 취소·노쇼 안내를 확인했습니다. <button id="rules-guide-open" type="button" class="join-rules-link" aria-haspopup="dialog">안내 보기</button></b><small id="rules-guide-hint">참가 신청 후 취소는 마이페이지의 신청 내역에서 진행할 수 있습니다.</small></span></label>
         <p id="join-error" class="join-error" role="alert" hidden></p>
         <div class="join-stage-actions">
@@ -212,6 +213,8 @@
 
 <footer th:replace="~{fragments/layout :: simpleFooter}"></footer>
 
+<!--/* 신청·결제 실패 안내. 시간 겹침 안내 창이 뜨는 경우에는 그 창이 이유를 보여 주므로 한 번 더 띄우지 않습니다. */-->
+<th:block th:if="${timeConflicts == null or #lists.isEmpty(timeConflicts)}"><div th:replace="~{fragments/feedback :: flash}"></div></th:block>
 <script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/site-menu.js}"></script>
 <script th:src="@{/js/match-join-page.js}" th:attr="data-completed=${completed}"></script>

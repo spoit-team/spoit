@@ -254,11 +254,17 @@ const documentObject = {
 };
 
 const toasts = [];
+const errorAlerts = [];
 const trapCalls = [];
 const windowObject = {
   confirm: () => true,
   PlayOnAdmin: {
     toast(message, isError) { toasts.push({ message, isError }); },
+    /* 실패 안내 모달: 사용자가 [확인]을 누른 것처럼 바로 닫고 문제가 된 칸으로 초점을 돌려준다. */
+    showErrorModal(title, message, returnFocus) {
+      errorAlerts.push({ title, message });
+      returnFocus?.focus?.();
+    },
     openModal(modal, focusSelector) {
       modal.hidden = false;
       modal.focusSelector = focusSelector;
@@ -279,7 +285,7 @@ weekdays.forEach(day => { day.openDay.checked = false; });
 const allClosedSubmit = documentObject.dispatch('submit', weeklyForm);
 assert.equal(allClosedSubmit.defaultPrevented, false,
   'all-week closure must be submitted: it is a valid setting');
-assert.equal(toasts.length, 0, 'all-week closure must not raise an error toast');
+assert.equal(toasts.length + errorAlerts.length, 0, 'all-week closure must not raise an error');
 
 /* 2) 같은 시각은 거부한다. */
 weekdays[0].openDay.checked = true;
@@ -287,8 +293,11 @@ weekdays[0].start.value = '10:00';
 weekdays[0].end.value = '10:00';
 const sameTimeSubmit = documentObject.dispatch('submit', weeklyForm);
 assert.equal(sameTimeSubmit.defaultPrevented, true, 'identical start/end must be blocked before POST');
-assert.equal(toasts.at(-1).isError, true);
-assert.equal(weekdays[0].end.focused, true, 'the invalid end select must receive focus');
+assert.deepEqual(errorAlerts.at(-1), { title: '운영 시간을 저장할 수 없습니다',
+  message: '시작과 종료 시간이 같은 요일이 있습니다. 시간을 다시 선택해 주세요.' },
+  'identical times must be explained in the failure modal, not a toast');
+assert.equal(toasts.length, 0, 'failures must not use the toast');
+assert.equal(weekdays[0].end.focused, true, 'closing the modal must return focus to the invalid end select');
 
 /* 3) 종료가 이르면 다음 날 운영으로 허용하고, 행에 그 사실을 표시한다. */
 weekdays[0].start.select('22:00');

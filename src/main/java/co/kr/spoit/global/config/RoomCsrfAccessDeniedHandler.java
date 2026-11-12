@@ -12,12 +12,14 @@ import org.springframework.web.servlet.support.SessionFlashMapManager;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import co.kr.spoit.global.common.FlashFeedback;
+
 /**
  * 매칭방 생성·수정·취소({@code POST /admin/rooms/**}) 요청이 CSRF 토큰 불일치로 막히면
  * 403 기본 화면 대신 매칭방 관리 화면으로 돌려보내고 안내 모달을 띄운다.
  *
  * <p>CSRF 토큰은 세션에 있으므로 서버 재시작·세션 만료 뒤 예전 화면에서 저장하면 이 경우가 된다.
- * 안내는 {@code RoomAdminController}와 같은 flash 속성({@code roomErrorTitle}, {@code roomError})으로
+ * 안내는 {@code RoomAdminController}와 같은 공용 실패 안내 flash 속성({@code errorTitle}, {@code error})으로
  * 넘긴다. 필터 단계라 DispatcherServlet의 FlashMapManager를 쓸 수 없어, 같은 기본 구현인
  * {@link SessionFlashMapManager}로 직접 저장한다. 그 밖의 거부(권한 없음 등)는 기본 처리(403)를 따른다.</p>
  */
@@ -40,8 +42,8 @@ public class RoomCsrfAccessDeniedHandler implements AccessDeniedHandler {
             return;
         }
         FlashMap flashMap = new FlashMap();
-        flashMap.put("roomErrorTitle", titleFor(path));
-        flashMap.put("roomError", SESSION_EXPIRED_MESSAGE);
+        flashMap.put(FlashFeedback.ERROR_TITLE, titleFor(path));
+        flashMap.put(FlashFeedback.ERROR, SESSION_EXPIRED_MESSAGE);
         flashMap.setTargetRequestPath(BOOKINGS_PATH);
         flashMap.addTargetRequestParam("view", "bookings");
         flashMapManager.saveOutputFlashMap(flashMap, request, response);

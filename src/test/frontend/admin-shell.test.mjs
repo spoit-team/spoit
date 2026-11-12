@@ -54,7 +54,7 @@ function createPage(hash = '') {
   const layout = new Control();
   const sidebarToggle = new Control();
   const breadcrumb = control('breadcrumb-current');
-  for (const element of ['admin-toast', 'admin-notification-modal', 'room-editor-modal', 'room-editor-form',
+  for (const element of ['admin-notification-modal', 'room-editor-modal', 'room-editor-form',
     'facility-modal', 'facility-form', 'room-editor-capacity-hint', 'room-editor-hour-grid']) {
     control(element);
   }
@@ -124,52 +124,35 @@ assert.equal(fallbackPage.window.history.lastUrl, '#facility-dashboard',
   'the removed hash must be replaced with the dashboard hash');
 assert.equal(fallbackPage.document.title, '대시보드 · SPO:IT 관리자');
 
-/* 저장 뒤 새로고침하는 화면(승인·반려, 팀 배정)은 결과 토스트를 새로고침된 페이지에서 한 번만 보여 줘야 한다. */
-function memoryStorage() {
-  const values = new Map();
-  return {
-    getItem: key => values.has(key) ? values.get(key) : null,
-    setItem: (key, value) => values.set(key, String(value)),
-    removeItem: key => values.delete(key),
-    size: () => values.size
-  };
-}
+/* 결과 안내는 공용 ui-feedback.js가 그린다. 관리자 셸은 기존 화면 스크립트가 쓰던 PlayOnAdmin API를 그쪽으로 넘긴다.
+   (새로고침 뒤 한 번만 보여 주는 토스트 자체는 ui-feedback.test.mjs가 검증한다.) */
+const delegated = createPage();
+const feedbackCalls = [];
+delegated.window.SpoitFeedback = {
+  toast: message => feedbackCalls.push(['toast', message]),
+  alert: (title, reason, options) => feedbackCalls.push(['alert', title, reason, options?.returnFocus ?? null]),
+  reloadWithToast: message => feedbackCalls.push(['reloadWithToast', message])
+};
+let directReloads = 0;
+delegated.window.location.reload = () => { directReloads++; };
+globalThis.window = delegated.window;
+globalThis.document = delegated.document;
+await import('../../main/resources/static/js/admin-shell.js?delegation');
+const shell = delegated.window.PlayOnAdmin;
+const focusTarget = { focus() {} };
 
-const storage = memoryStorage();
-const beforeReload = createPage();
-let reloads = 0;
-beforeReload.window.sessionStorage = storage;
-beforeReload.window.location.reload = () => { reloads++; };
-globalThis.window = beforeReload.window;
-globalThis.document = beforeReload.document;
-await import('../../main/resources/static/js/admin-shell.js?before-reload');
-beforeReload.window.PlayOnAdmin.reloadWithToast('참가 신청을 승인했습니다.', false);
-assert.equal(reloads, 1, 'reloadWithToast must reload immediately');
-assert.equal(beforeReload.document.getElementById('admin-toast').textContent, '',
-  'the toast must not flash on the page that is about to reload');
+shell.reloadWithToast('참가 신청을 승인했습니다.', false);
+shell.toast('레이팅 반영에서 제외했습니다.', false);
+shell.toast('이미 레이팅에 반영된 경기입니다.', true);
+shell.showErrorModal('팀 배정을 처리할 수 없습니다', '정원이 모두 찼습니다.', focusTarget);
+shell.reloadWithToast('저장하지 못했습니다.', true);
+assert.deepEqual(feedbackCalls, [
+  ['reloadWithToast', '참가 신청을 승인했습니다.'],
+  ['toast', '레이팅 반영에서 제외했습니다.'],
+  ['alert', null, '이미 레이팅에 반영된 경기입니다.', null],
+  ['alert', '팀 배정을 처리할 수 없습니다', '정원이 모두 찼습니다.', focusTarget],
+  ['alert', null, '저장하지 못했습니다.', null]
+], 'success goes to the toast, every failure goes to the failure modal with its reason');
+assert.equal(directReloads, 0, 'a failure must not reload the page; the success reload is left to ui-feedback.js');
 
-const afterReload = createPage();
-afterReload.window.sessionStorage = storage;
-globalThis.window = afterReload.window;
-globalThis.document = afterReload.document;
-await import('../../main/resources/static/js/admin-shell.js?after-reload');
-const reloadedToast = afterReload.document.getElementById('admin-toast');
-assert.equal(reloadedToast.textContent, '참가 신청을 승인했습니다.', 'the reloaded page must show the pending toast');
-assert.equal(reloadedToast.dataset.kind, 'success');
-assert.equal(reloadedToast.hidden, false);
-assert.equal(storage.size(), 0, 'the pending toast must be shown only once');
-
-const blockedStorage = createPage();
-let delayedReloads = 0;
-blockedStorage.window.sessionStorage = { setItem() { throw new Error('blocked'); }, getItem: () => null, removeItem() {} };
-blockedStorage.window.location.reload = () => { delayedReloads++; };
-blockedStorage.window.setTimeout = handler => handler();
-globalThis.window = blockedStorage.window;
-globalThis.document = blockedStorage.document;
-await import('../../main/resources/static/js/admin-shell.js?blocked-storage');
-blockedStorage.window.PlayOnAdmin.reloadWithToast('팀 배정을 저장했습니다.', false);
-assert.equal(blockedStorage.document.getElementById('admin-toast').textContent, '팀 배정을 저장했습니다.',
-  'without storage the toast falls back to the current page');
-assert.equal(delayedReloads, 1, 'without storage the page still reloads after the toast');
-
-console.log('PASS: admin shell and facility scripts initialize with window, open modals, switch views, fall back from a removed hash, and carry the result toast across a reload.');
+console.log('PASS: admin shell and facility scripts initialize with window, open modals, switch views, fall back from a removed hash, and hand results to the shared toast and failure modal.');

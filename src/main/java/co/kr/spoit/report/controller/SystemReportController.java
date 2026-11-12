@@ -11,6 +11,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import co.kr.spoit.admin.common.AdminShellModel;
+import co.kr.spoit.global.common.FlashFeedback;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.report.dto.SystemReportPage;
 import co.kr.spoit.report.service.PenaltyService;
@@ -76,11 +77,11 @@ public class SystemReportController {
         }
         try {
             systemReportService.decide(reportId, action, expectedStatus, resolution, principal.getUserId());
-            redirect.addFlashAttribute("message", messageFor(action));
+            FlashFeedback.success(redirect, messageFor(action));
         } catch (IllegalArgumentException | ReportAccessDeniedException | ReportStateConflictException
                 | ReportNotFoundException exception) {
-            // 상태 경합·입력 오류는 화면 안내로 되돌린다.
-            redirect.addFlashAttribute("error", exception.getMessage());
+            // 상태 경합·입력 오류는 실패 안내 모달로 되돌린다.
+            FlashFeedback.failure(redirect, "신고를 처리할 수 없습니다", exception.getMessage());
         }
         return redirectTo(reportId, status, page);
     }
@@ -109,11 +110,11 @@ public class SystemReportController {
         try {
             systemReportService.applyPenalty(reportId, penaltyType, durationDays, reason, expectedStatus,
                     resolution, principal.getUserId());
-            redirect.addFlashAttribute("message", penaltyMessageFor(penaltyType));
+            FlashFeedback.success(redirect, penaltyMessageFor(penaltyType));
         } catch (IllegalArgumentException | ReportAccessDeniedException | ReportStateConflictException
                 | ReportNotFoundException exception) {
-            // 검증·상태 경합은 모달 밖 flash로 안내하고 목록을 다시 그린다.
-            redirect.addFlashAttribute("error", exception.getMessage());
+            // 검증·상태 경합은 실패 안내 모달로 알리고 목록을 다시 그린다.
+            FlashFeedback.failure(redirect, "제재를 적용할 수 없습니다", exception.getMessage());
         }
         return redirectTo(reportId, status, page);
     }

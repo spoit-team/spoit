@@ -9,8 +9,7 @@
     <header th:replace="~{fragments/admin :: topbar('모니터링', '시스템 관리자')}"></header>
 
     <div class="admin-content">
-      <p th:if="${message != null}" class="admin-flash" role="status" th:text="${message}">처리 결과</p>
-      <p th:if="${error != null}" class="admin-flash is-error" role="alert" th:text="${error}">요청을 처리하지 못했습니다.</p>
+      <div th:replace="~{fragments/feedback :: flash}"></div>
 
       <!-- 모니터링 -->
       <section class="admin-view" id="system-dashboard" data-view-title="모니터링"
@@ -243,8 +242,6 @@
     </form>
   </section>
 </div>
-
-<div th:replace="~{fragments/admin :: toast}"></div>
 
 <script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/admin-shell.js}"></script>

@@ -14,7 +14,7 @@
     <a class="team-button team-button-primary" th:href="@{/teams/manage}">내 동호회 관리 <span aria-hidden="true">→</span></a>
   </section>
 
-  <p th:if="${message != null}" id="team-status-message" class="team-status-message" role="status" th:text="${message}">동호회 안내</p>
+  <div th:replace="~{fragments/feedback :: flash}"></div>
 
   <div id="team-sport-tabs" class="team-sport-tabs" aria-label="종목별 동호회 필터" role="group">
     <a th:each="sport : ${sportTabs}" class="team-sport-tab" th:classappend="${sport.active} ? 'is-active' : ''" th:href="@{${sport.url}}" th:attr="aria-current=${sport.active} ? 'page' : null">

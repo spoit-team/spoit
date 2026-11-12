@@ -210,7 +210,7 @@ class ReportFlowIntegrationTest {
                         .with(csrf())
                         .with(user(principal(MANAGER_A, "시설 관리자"))))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(flash().attribute("success", "신고가 접수되었습니다."))
+                .andExpect(flash().attribute("message", "신고가 접수되었습니다."))
                 .andReturn();
 
         long reportId = reportIdFromLocation(submitted);
@@ -296,7 +296,9 @@ class ReportFlowIntegrationTest {
                         .with(csrf())
                         .with(user(principal(MANAGER_A, "시설 관리자"))))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(flash().attribute("error", "이용이 끝난 경기만 신고할 수 있습니다."))
+                // 작성한 내용은 양식에 되돌려 주므로 실패 안내에 그 사실을 덧붙인다.
+                .andExpect(flash().attribute("error", "이용이 끝난 경기만 신고할 수 있습니다.\n"
+                        + co.kr.spoit.report.controller.FacilityReportController.KEPT_INPUT_NOTICE))
                 .andExpect(redirectedUrl("/admin/facility/reports?matchId=" + RECRUITING_MATCH
                         + "&targetUserId=" + TARGET_USER + "&matchPage=0&reportPage=0"));
 

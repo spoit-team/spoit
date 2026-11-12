@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import co.kr.spoit.facility.service.FacilityScheduleUnavailableException;
+import co.kr.spoit.global.common.FlashFeedback;
 import co.kr.spoit.match.dto.RoomForm;
 import co.kr.spoit.match.service.RoomCommandException;
 import co.kr.spoit.match.service.RoomCommandService;
@@ -18,8 +19,8 @@ import co.kr.spoit.member.domain.MemberPrincipal;
 /**
  * 시설 관리자의 매칭방 생성·수정·취소 요청을 처리한다.
  *
- * <p>관리자 ID는 인증 주체에서만 가져오고, 결과는 매칭방 관리 섹션으로 되돌아가 안내 문구로
- * 보여 준다. 담당 범위·상태·일정 검증은 {@link RoomCommandService}가 맡는다.</p>
+ * <p>관리자 ID는 인증 주체에서만 가져오고, 결과는 매칭방 관리 섹션으로 되돌아가 공용 안내
+ * (성공 토스트·실패 모달)로 보여 준다. 담당 범위·상태·일정 검증은 {@link RoomCommandService}가 맡는다.</p>
  */
 @Controller
 public class RoomAdminController {
@@ -52,7 +53,7 @@ public class RoomAdminController {
         }
         try {
             long matchId = roomCommandService.create(principal.getUserId(), form);
-            redirect.addAttribute("message", matchId + "번 매칭방을 만들었습니다.");
+            FlashFeedback.success(redirect, matchId + "번 매칭방을 만들었습니다.");
         } catch (RoomCommandException | FacilityScheduleUnavailableException exception) {
             return roomError(redirect, CREATE_ERROR_TITLE, exception.getMessage());
         } catch (RuntimeException exception) {
@@ -74,7 +75,7 @@ public class RoomAdminController {
         }
         try {
             roomCommandService.update(principal.getUserId(), matchId, form);
-            redirect.addAttribute("message", matchId + "번 매칭방을 수정했습니다.");
+            FlashFeedback.success(redirect, matchId + "번 매칭방을 수정했습니다.");
         } catch (RoomCommandException | FacilityScheduleUnavailableException exception) {
             return roomError(redirect, UPDATE_ERROR_TITLE, exception.getMessage());
         } catch (RuntimeException exception) {
@@ -92,7 +93,7 @@ public class RoomAdminController {
         }
         try {
             roomCommandService.cancel(principal.getUserId(), matchId);
-            redirect.addAttribute("message", matchId + "번 매칭방을 취소했습니다.");
+            FlashFeedback.success(redirect, matchId + "번 매칭방을 취소했습니다.");
         } catch (RoomCommandException | FacilityScheduleUnavailableException exception) {
             return roomError(redirect, CANCEL_ERROR_TITLE, exception.getMessage());
         } catch (RuntimeException exception) {
@@ -103,11 +104,10 @@ public class RoomAdminController {
     }
 
     /**
-     * 생성·수정·취소 실패는 상단 문구 대신 안내 모달로 보여 준다. flash 속성이라 새로고침하면 다시 뜨지 않는다.
+     * 생성·수정·취소 실패는 공용 실패 안내 모달로 보여 준다. flash 속성이라 새로고침하면 다시 뜨지 않는다.
      */
     private static String roomError(RedirectAttributes redirect, String title, String message) {
-        redirect.addFlashAttribute("roomErrorTitle", title);
-        redirect.addFlashAttribute("roomError", message);
+        FlashFeedback.failure(redirect, title, message);
         return BOOKINGS_REDIRECT;
     }
 }

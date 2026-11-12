@@ -25,7 +25,9 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import co.kr.spoit.global.common.FlashFeedback;
 import co.kr.spoit.mat.dto.MyRatingRecords;
 import co.kr.spoit.mat.dto.MyRatingRecords.SportCard;
 import co.kr.spoit.mat.service.MatchResultPageService;
@@ -69,6 +71,13 @@ public class MyPageController {
     /** 대표 종목을 정하지 않아 반영 경기가 가장 많은 종목을 대신 보여 줄 때 붙이는 표시 */
     private static final String BY_RECORDS_TEXT = "경기 기록 기준";
 
+    /** 실패 안내 모달의 제목 */
+    static final String CANCEL_ERROR_TITLE = "신청을 취소할 수 없습니다";
+    static final String PROFILE_ERROR_TITLE = "프로필을 저장할 수 없습니다";
+    static final String WITHDRAWAL_ERROR_TITLE = "회원 탈퇴를 할 수 없습니다";
+    /** 탈퇴 실패 사유가 비었을 때 보여 주는 기존 안내 문구. */
+    static final String WITHDRAWAL_FALLBACK_REASON = "탈퇴를 처리하지 못했습니다.";
+
     private final MemberService memberService;
     private final MyReservationService reservationService;
     private final MatchApplicationService applicationService;
@@ -90,7 +99,6 @@ public class MyPageController {
     /** 마이페이지 요약 화면. 비로그인 상태는 세션 주체가 없어 빈 값으로 렌더링된다. */
     @GetMapping("/mypage")
     public String myPage(Authentication authentication, HttpServletRequest request, Model model,
-            @RequestParam(name = "message", required = false) String message,
             @RequestParam(name = "recordSport", required = false) String recordSport) {
         // 신청 취소 폼이 있으므로 지연 생성되는 CSRF 토큰을 렌더링 전에 확정한다.
         // standalone MockMvc에서는 시큐리티 필터가 없어 속성이 비어 있을 수 있다.
@@ -115,12 +123,12 @@ public class MyPageController {
         model.addAttribute("pastReservations", reservations.getPast());
         model.addAttribute("resultSubmitMatchIds", resultPageService.findResultSubmittableMatchIds(userId));
         // 알림 목록은 GlobalModelAdvice가 로그인 주체 기준으로 채운다. 여기서 덮어쓰지 않는다.
-        model.addAttribute("message", blankToNull(message));
+        // 신청 취소 결과(message/error)는 flash로 들어와 공용 안내(토스트·실패 모달)로 보인다.
         return "mypage/index";
     }
 
     /**
-     * RES-05 신청 취소. 결과는 성공·실패 모두 마이페이지 상단 안내 영역에 보여 준다.
+     * RES-05 신청 취소. 성공은 토스트, 실패는 원인을 담은 안내 모달로 보여 준다.
      * RES-04 팀 신청 대표는 취소할 팀원(memberApplicationIds)과, 본인이 빠질 때 새 대표를 함께 보낸다.
      * 팀원을 보내지 않으면 팀 전체를 취소한다.
      */
@@ -128,23 +136,22 @@ public class MyPageController {
     public String cancelApplication(@PathVariable long applicationId,
                                     @RequestParam(required = false) List<Long> memberApplicationIds,
                                     @RequestParam(required = false) Long newLeaderApplicationId,
-                                    Authentication authentication) {
+                                    Authentication authentication, RedirectAttributes redirect) {
         MemberPrincipal principal = principalOf(authentication);
         if (principal == null) {
             return "redirect:/login";
         }
-        String message;
         try {
             if (memberApplicationIds == null || memberApplicationIds.isEmpty()) {
                 applicationService.cancel(applicationId, principal.getUserId());
             } else {
                 applicationService.cancel(applicationId, principal.getUserId(), memberApplicationIds, newLeaderApplicationId);
             }
-            message = "신청을 취소했습니다.";
+            FlashFeedback.success(redirect, "신청을 취소했습니다.");
         } catch (MatchApplyException exception) {
-            message = exception.getMessage();
+            FlashFeedback.failure(redirect, CANCEL_ERROR_TITLE, exception.getMessage());
         }
-        return "redirect:/mypage?message=" + URLEncoder.encode(message, StandardCharsets.UTF_8) + "#reservations";
+        return "redirect:/mypage#reservations";
     }
 
     /** 템플릿이 참조하는 회원 표시값만 담는다. */
@@ -222,18 +229,16 @@ public class MyPageController {
 
     /** 프로필 수정 화면. 로그인 회원이면 저장된 정보를, 아니면 빈 폼을 보여준다. */
     @GetMapping("/mypage/profile")
-    public String profile(Authentication authentication, Model model,
-            @RequestParam(name = "error", required = false) String error,
-            @RequestParam(name = "message", required = false) String message) {
+    public String profile(Authentication authentication, Model model) {
         MemberPrincipal principal = principalOf(authentication);
-        return renderProfile(model, principal == null ? null : principal.getUserId(),
-                profileView(principal), blankToNull(error), blankToNull(message));
+        // 저장·탈퇴 결과(message/error)는 flash로 들어와 공용 안내(토스트·실패 모달)로 보인다.
+        return renderProfile(model, principal == null ? null : principal.getUserId(), profileView(principal));
     }
 
     /** 프로필 저장. 검증 실패 시 제출 값을 유지한 채 프로필 화면을 다시 그린다. */
     @PostMapping("/mypage/profile")
     public String updateProfile(@ModelAttribute("profileUpdateForm") ProfileUpdateForm form,
-            BindingResult bindingResult, Authentication authentication, Model model) {
+            BindingResult bindingResult, Authentication authentication, Model model, RedirectAttributes redirect) {
         MemberPrincipal principal = principalOf(authentication);
         if (principal == null) {
             return "redirect:/login";
@@ -248,7 +253,8 @@ public class MyPageController {
             return renderProfileError(model, principal, form,
                     message == null || message.isBlank() ? "입력 정보를 확인해 주세요." : message);
         }
-        return "redirect:/mypage/profile?message=" + URLEncoder.encode("프로필을 저장했습니다.", StandardCharsets.UTF_8);
+        FlashFeedback.success(redirect, "프로필을 저장했습니다.");
+        return "redirect:/mypage/profile";
     }
 
     /**
@@ -257,7 +263,8 @@ public class MyPageController {
      */
     @PostMapping("/mypage/withdrawal-requests")
     public String withdraw(@ModelAttribute("withdrawalRequestForm") WithdrawalRequestForm form,
-            Authentication authentication, HttpServletRequest request, HttpServletResponse response) {
+            Authentication authentication, HttpServletRequest request, HttpServletResponse response,
+            RedirectAttributes redirect) {
         MemberPrincipal principal = principalOf(authentication);
         if (principal == null) {
             return "redirect:/login";
@@ -266,18 +273,14 @@ public class MyPageController {
             memberService.withdraw(principal.getUserId(), form.getPassword());
         } catch (IllegalArgumentException | IllegalStateException exception) {
             // 탈퇴 차단(WithdrawalBlockedException)도 여기로 온다. 로그아웃 전에 반환하므로 세션이 유지된다.
-            return redirectProfileError(exception.getMessage());
+            String reason = exception.getMessage();
+            FlashFeedback.failure(redirect, WITHDRAWAL_ERROR_TITLE,
+                    reason == null || reason.isBlank() ? WITHDRAWAL_FALLBACK_REASON : reason);
+            return "redirect:/mypage/profile";
         }
         new CookieClearingLogoutHandler("JSESSIONID", "remember-me").logout(request, response, authentication);
         new SecurityContextLogoutHandler().logout(request, response, authentication);
         return "redirect:/login?message=" + URLEncoder.encode("탈퇴가 완료되었습니다.", StandardCharsets.UTF_8);
-    }
-
-    /** 탈퇴 실패 사유를 프로필 화면 안내로 되돌린다. */
-    private static String redirectProfileError(String message) {
-        return "redirect:/mypage/profile?error=" + URLEncoder.encode(
-                message == null || message.isBlank() ? "탈퇴를 처리하지 못했습니다." : message,
-                StandardCharsets.UTF_8);
     }
 
     /** 저장 실패 시 제출 값을 유지해 사용자가 수정 내용을 잃지 않게 한다. */
@@ -289,11 +292,12 @@ public class MyPageController {
         profile.put("representativeRatingNote", "확정 매치 기록이 없으면 기록 없음으로 표시합니다.");
         profile.put("regionId", form == null ? null : form.getRegionId());
         profile.put("email", principal.getEmail());
-        return renderProfile(model, principal.getUserId(), profile, error, null);
+        FlashFeedback.failure(model, PROFILE_ERROR_TITLE, error);
+        return renderProfile(model, principal.getUserId(), profile);
     }
 
     /** 프로필 화면 모델을 조립한다. 선택지가 없으면 저장된 지역을 표시할 수 없으므로 가입 화면과 같은 자치구 목록을 쓴다. */
-    private String renderProfile(Model model, Long userId, Map<String, Object> profile, String error, String message) {
+    private String renderProfile(Model model, Long userId, Map<String, Object> profile) {
         // 종목 option의 data-rating과 처음 미리보기 문구가 같은 값을 쓰도록 한 번 읽어 둔다.
         Map<Long, String> sportRatings = ratingRecordService.findSportCards(userId).stream()
                 .collect(Collectors.toMap(SportCard::getSportId, SportCard::getTierLabel));
@@ -305,8 +309,6 @@ public class MyPageController {
         model.addAttribute("sports", memberService.findSports());
         model.addAttribute("sportRatings", sportRatings);
         model.addAttribute("districts", memberService.findSignupRegions());
-        model.addAttribute("error", error);
-        model.addAttribute("message", message);
         // 화면과 무관하게 서버가 확인한 탈퇴 차단 사유를 항상 내려준다. 비로그인이면 빈 목록.
         model.addAttribute("withdrawalBlocks", withdrawalBlocks(userId));
         return "mypage/profile";
@@ -347,11 +349,6 @@ public class MyPageController {
             return NO_REGION_TEXT;
         }
         return String.join(REGION_SEPARATOR, regions.stream().map(SignupRegion::getName).toList());
-    }
-
-    /** 쿼리 파라미터의 빈 값을 템플릿의 null 조건에 맞춘다. */
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value;
     }
 
     /** 익명 인증은 로그인으로 보지 않는다. */

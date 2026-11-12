@@ -177,11 +177,6 @@
     input.focus();
   });
 
-  const message = document.getElementById('team-management-message');
-  if (message) {
-    message.addEventListener('click', function () { message.hidden = true; });
-    window.setTimeout(function () { message.hidden = true; }, 6000);
-  }
     // 제출 버튼 두 번 누름 방지(POST만, 검사에 걸려 막힌 제출은 그대로 둠)
   document.addEventListener('submit', function (event) {
     const form = event.target;

@@ -18,8 +18,7 @@
         <div class="heading-actions"><a class="admin-button small" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">← 매칭방 목록</a></div>
       </div>
 
-      <p th:if="${message != null}" class="ops-message" role="status" th:text="${message}">운영 안내</p>
-      <p th:if="${error != null}" class="ops-message is-error" role="alert" th:text="${error}">요청을 처리하지 못했습니다.</p>
+      <div th:replace="~{fragments/feedback :: flash}"></div>
 
       <!-- 매칭방을 찾지 못했거나 조회할 수 없는 경우 -->
       <section id="ops-unavailable" class="ops-empty" th:if="${match == null}">
@@ -242,7 +241,6 @@
 </div>
 
 <div th:replace="~{fragments/admin :: notificationModal('시설 알림', '시설 운영 관련 알림을 확인합니다.')}"></div>
-<div th:replace="~{fragments/admin :: toast}"></div>
 
 <!-- 참가자 이력: participant-history.js가 이름 버튼을 누르면 이력 조회 API의 요약으로 본문을 채운다. -->
 <div th:if="${match != null}" class="modal-backdrop" id="participant-history-modal" hidden

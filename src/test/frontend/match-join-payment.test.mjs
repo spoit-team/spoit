@@ -85,10 +85,12 @@ function setup({ paid, team = false, responses }) {
       return [];
     }
   };
-  const calls = { fetch: [], assigned: null };
+  const calls = { fetch: [], assigned: null, alerts: [] };
   globalThis.window = {
     scrollTo() {},
-    location: { assign: url => { calls.assigned = url; } }
+    location: { assign: url => { calls.assigned = url; } },
+    // 공용 실패 안내(ui-feedback.js): 서버가 거부한 결제는 원인을 모달로 보여 준다.
+    SpoitFeedback: { alert: (title, reason, options) => calls.alerts.push({ title, reason, options }) }
   };
   let index = 0;
   globalThis.fetch = async (url, options) => {
@@ -139,7 +141,7 @@ const prepared = { status: 200, body: { ok: true, redirectUrl: 'https://online-p
   assert.equal(page.payButton.disabled, true, '이동하는 동안 다시 누를 수 없다');
 }
 
-// 3. 서버가 결제 준비를 거절하면 이동하지 않고 사유를 보여 주며 다시 누를 수 있다.
+// 3. 서버가 결제 준비를 거절하면 이동하지 않고 사유를 실패 안내 모달로 보여 주며 다시 누를 수 있다.
 {
   const page = setup({ paid: true, responses: [{ status: 400, body: { ok: false, message: '정원이 모두 찼습니다.' } }] });
   page.rulesAgree.checked = true;
@@ -147,7 +149,10 @@ const prepared = { status: 200, body: { ok: true, redirectUrl: 'https://online-p
   page.payButton.dispatch('click');
   await flush();
   assert.equal(page.calls.assigned, null);
-  assert.equal(page.paymentError.textContent, '정원이 모두 찼습니다.');
+  assert.deepEqual(page.calls.alerts.map(({ title, reason }) => ({ title, reason })),
+    [{ title: '결제를 시작할 수 없습니다', reason: '정원이 모두 찼습니다.' }]);
+  assert.equal(page.calls.alerts[0].options.returnFocus, page.payButton, '모달을 닫으면 결제 버튼으로 돌아간다');
+  assert.equal(page.paymentError.textContent, '', '서버 거부 사유는 입력 옆 문구로 남기지 않는다');
   assert.equal(page.payButton.disabled, false);
 }
 
