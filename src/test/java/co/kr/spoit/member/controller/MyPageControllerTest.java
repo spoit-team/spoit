@@ -126,8 +126,8 @@ class MyPageControllerTest {
         given(memberService.findRegions(USER_ID)).willReturn(List.of());
         given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.of(sportOption(2L, "농구")));
         given(ratingRecordService.find(any(), any())).willReturn(records(
-                card(2L, "농구", "배치 중 (4/5)", "MMR 1,016", 4),
-                card(3L, "축구", "실버 2 · 40P", "MMR 1,120", 9)));
+                card(2L, "농구", "배치 중 (4/5)", 4),
+                card(3L, "축구", "실버 2 · 40P", 9)));
 
         mockMvc.perform(get("/mypage").with(principal()))
                 .andExpect(status().isOk())
@@ -138,7 +138,7 @@ class MyPageControllerTest {
                         Matchers.<String, Object>hasEntry("sportId", 3L),
                         Matchers.<String, Object>hasEntry("name", "축구"),
                         Matchers.<String, Object>hasEntry("ratingText", "실버 2 · 40P"),
-                        Matchers.<String, Object>hasEntry("note", "경기 9회 · MMR 1,120")))));
+                        Matchers.<String, Object>hasEntry("note", "경기 9회")))));
     }
 
     @Test
@@ -147,9 +147,9 @@ class MyPageControllerTest {
         given(memberService.findRegions(USER_ID)).willReturn(List.of());
         given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.empty());
         given(ratingRecordService.find(any(), any())).willReturn(records(
-                card(2L, "농구", "배치 중 (4/5)", "MMR 1,016", 4),
-                card(5L, "배구", "골드 4 · 10P", "MMR 1,205", 9),
-                card(3L, "축구", "실버 2 · 40P", "MMR 1,120", 9)));
+                card(2L, "농구", "배치 중 (4/5)", 4),
+                card(5L, "배구", "골드 4 · 10P", 9),
+                card(3L, "축구", "실버 2 · 40P", 9)));
 
         mockMvc.perform(get("/mypage").with(principal()))
                 .andExpect(status().isOk())
@@ -514,7 +514,7 @@ class MyPageControllerTest {
         return new MyRatingRecords(List.of(cards), true, 0, "전체 종목", 0, List.of(), "레이팅이 반영된 경기가 없습니다.");
     }
 
-    private static SportCard card(Long sportId, String name, String tierLabel, String mmrText, int ratedMatchCount) {
-        return new SportCard(sportId, name, tierLabel, mmrText, ratedMatchCount, ratedMatchCount >= 5, 0, false);
+    private static SportCard card(Long sportId, String name, String tierLabel, int ratedMatchCount) {
+        return new SportCard(sportId, name, tierLabel, null, ratedMatchCount, ratedMatchCount >= 5, 0, false);
     }
 }

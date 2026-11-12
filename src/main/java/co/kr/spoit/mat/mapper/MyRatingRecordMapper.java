@@ -45,6 +45,8 @@ public interface MyRatingRecordMapper {
 
     // 신청 행은 참가자 행의 application_id로 찾는다. 동호회 신청 팀원은 본인 신청 행 없이 대표 신청의 참가자로만 있다.
     // 시설·신청은 표시 값이라, 찾지 못해도 반영된 경기가 이력에서 빠지지 않게 LEFT JOIN한다.
+    // 반영 후 경기 수는 현재 반영 경기 수에서 그 뒤에 반영된 이력 수를 뺀다. 이력 없이 경기 수만 가진 회원도 종목 카드와
+    // 같은 배치 상태가 되도록 이력을 처음부터 세지 않는다. 종목 필터와 LIMIT 전에 그 회원 전체 이력으로 계산한다.
     @Select("""
             <script>
             SELECT h.history_id AS historyId,
@@ -64,8 +66,17 @@ public interface MyRatingRecordMapper {
                    h.actual_score AS actualScore,
                    h.team_avg_mmr_a AS teamAvgMmrA,
                    h.team_avg_mmr_b AS teamAvgMmrB,
-                   h.calculated_at AS calculatedAt
-            FROM sport_rating_history h
+                   h.calculated_at AS calculatedAt,
+                   h.rated_match_count_after AS ratedMatchCountAfter
+            FROM (
+                SELECT rh.*,
+                       sr.rated_match_count + 1 - ROW_NUMBER() OVER (
+                           PARTITION BY rh.sport_id ORDER BY rh.calculated_at DESC, rh.history_id DESC
+                       ) AS rated_match_count_after
+                FROM sport_rating_history rh
+                JOIN sport_rating sr ON sr.user_id = rh.user_id AND sr.sport_id = rh.sport_id
+                WHERE rh.user_id = #{userId}
+            ) h
             JOIN social_match sm ON sm.match_id = h.match_id
             JOIN sport s ON s.sport_id = h.sport_id
             JOIN match_participant mp ON mp.participant_id = h.participant_id

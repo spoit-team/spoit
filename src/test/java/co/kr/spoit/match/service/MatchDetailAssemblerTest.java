@@ -33,7 +33,7 @@ class MatchDetailAssemblerTest {
         club.setLeaderName("박민수");
         club.setMemberCount(3);
         TeamMemberRow applicant = teamMember(100L, 99L, "김채원", "동호회원", null, null, false);
-        TeamMemberRow leader = teamMember(101L, 21L, "박민수", "동호회장", "1240", 3, false);
+        TeamMemberRow leader = teamMember(101L, 21L, "박민수", "동호회장", "1240", 7, false);
         TeamMemberRow applied = teamMember(102L, 22L, "정하늘", "동호회원", "1100", 0, true);
 
         List<TeamOption> options = assembler.toTeamOptions(List.of(club), List.of(applicant, leader, applied), 99L);
@@ -43,11 +43,11 @@ class MatchDetailAssemblerTest {
         TeamOption option = page.getClubs().get(0);
         assertThat(option.getSelectionCount()).isEqualTo(1);
         // 경기 기록이 있는 회원(박민수)만 평균에 들어간다.
-        assertThat(option.getAverageRatingText()).isEqualTo("1,240");
+        assertThat(option.getAverageRatingText()).isEqualTo("골드 4");
         assertThat(option.getMembers()).extracting(TeamMemberOption::getNickname).containsExactly("박민수", "정하늘");
         assertThat(option.getMembers()).extracting(TeamMemberOption::isLeader).containsExactly(true, false);
         assertThat(option.getMembers()).extracting(TeamMemberOption::isAlreadyApplied).containsExactly(false, true);
-        assertThat(option.getMembers()).extracting(TeamMemberOption::getRatingText).containsExactly("1,240", "기록 없음");
+        assertThat(option.getMembers()).extracting(TeamMemberOption::getRatingText).containsExactly("골드 4", "기록 없음");
         assertThat(option.getMembers().get(0).getInitial()).isEqualTo("박");
     }
 
@@ -106,21 +106,59 @@ class MatchDetailAssemblerTest {
     @Test
     void matchedMatchShowsTeamsWithCaptainAndAverage() {
         List<ParticipantRow> participants = List.of(
-                participant(1L, 10L, "확정", "A", "1010"),
-                participant(2L, 11L, "확정", "A", "991"),
-                participant(3L, 12L, "확정", "B", "1000"),
-                participant(4L, 13L, "확정", "B", "1000"));
+                participant(1L, 10L, "확정", "A", "1010", 6),
+                participant(2L, 11L, "확정", "A", "991", 6),
+                participant(3L, 12L, "확정", "B", "1000", 6),
+                participant(4L, 13L, "확정", "B", "1000", 6));
 
         MatchDetailPage page = assembler.toPage(match("매칭 완료"), participants, null, NOW, TODAY);
 
         assertThat(page.isCanApply()).isFalse();
         assertThat(page.getStatusLabel()).isEqualTo("팀 배정 완료");
         assertThat(page.getApplyMessageClass()).isEqualTo("is-pending");
-        assertThat(page.getTeamA().getAverageText()).isEqualTo("1,001");
+        assertThat(page.getTeamA().getAverageText()).isEqualTo("실버 4");
         assertThat(page.getTeamA().getMembers()).extracting(RosterMember::getMeta)
-                .containsExactly("팀장 · MMR 1,010", "MMR 991");
+                .containsExactly("팀장 · 실버 4", "브론즈 1");
         assertThat(page.getTeamA().getMembers().get(0).isHost()).isTrue();
         assertThat(page.getOccupancyCaption()).isEqualTo("정원 마감");
+    }
+
+    @Test
+    void participantMetaUsesPlacementAtEntryAndNeverShowsMmr() {
+        // 신청 시점 반영 경기 수로 정한다: 0경기 기록 없음, 5경기 미만 배치 중, 그 뒤로는 티어 이름
+        List<ParticipantRow> participants = List.of(
+                participant(1L, 10L, "확정", "A", "1149.99", 4),
+                participant(2L, 11L, "확정", "A", "1000", 0),
+                participant(3L, 12L, "확정", "B", "1149.99", 5),
+                participant(4L, 13L, "확정", "B", "799.99", 12));
+
+        MatchDetailPage page = assembler.toPage(match("매칭 완료"), participants, null, NOW, TODAY);
+
+        assertThat(page.getTeamA().getMembers()).extracting(RosterMember::getMeta)
+                .containsExactly("팀장 · 배치 중", "기록 없음");
+        assertThat(page.getTeamB().getMembers()).extracting(RosterMember::getMeta)
+                .containsExactly("실버 2", "브론즈 4");
+        assertThat(page.getRatingNote()).isEqualTo("신청 시점 레이팅 기준");
+        assertThat(List.of(page.getRatingNote(), page.getTeamA().getAverageText(), page.getTeamB().getAverageText()))
+                .noneMatch(text -> text.contains("MMR"));
+    }
+
+    @Test
+    void teamMemberRatingFollowsPlacement() {
+        TeamClubRow club = new TeamClubRow();
+        club.setClubId(5L);
+        club.setClubName("스매시클럽");
+        club.setMemberCount(3);
+        TeamMemberRow none = teamMember(101L, 21L, "박민수", "동호회원", "1000", 0, false);
+        TeamMemberRow placing = teamMember(102L, 22L, "정하늘", "동호회원", "1300", 4, false);
+        TeamMemberRow placed = teamMember(103L, 23L, "김도윤", "동호회원", "1100", 5, false);
+
+        TeamOption option = assembler.toTeamOptions(List.of(club), List.of(none, placing, placed), 99L).get(0);
+
+        assertThat(option.getMembers()).extracting(TeamMemberOption::getRatingText)
+                .containsExactly("기록 없음", "배치 중", "실버 2");
+        // 반영 경기가 있는 회원(1300, 1100)만 평균에 들어간다: 1200은 골드 4
+        assertThat(option.getAverageRatingText()).isEqualTo("골드 4");
     }
 
     @Test
@@ -168,7 +206,13 @@ class MatchDetailAssemblerTest {
     }
 
     private ParticipantRow participant(Long participantId, Long userId, String status, String side, String mmr) {
+        return participant(participantId, userId, status, side, mmr, 0);
+    }
+
+    private ParticipantRow participant(Long participantId, Long userId, String status, String side, String mmr,
+                                       int entryRatedMatchCount) {
         ParticipantRow p = new ParticipantRow();
+        p.setEntryRatedMatchCount(entryRatedMatchCount);
         p.setParticipantId(participantId);
         p.setMatchId(1L);
         p.setUserId(userId);

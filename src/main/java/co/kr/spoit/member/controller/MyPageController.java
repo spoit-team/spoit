@@ -170,6 +170,7 @@ public class MyPageController {
     private Map<String, Object> summaryView(Representative representative, MyReservations reservations) {
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("representativeRatingText", representative.ratingText());
+        summary.put("representativeTierKey", representative.tierKey());
         summary.put("representativeSportId", representative.sportId() == null ? "" : representative.sportId());
         summary.put("representativeSportName", representative.name());
         summary.put("representativeBasis", representative.byRecords() ? BY_RECORDS_TEXT : null);
@@ -191,21 +192,22 @@ public class MyPageController {
                 (userId == null || userId <= 0) ? Optional.empty() : memberService.findRepresentativeSport(userId);
         if (chosen.isPresent()) {
             SportOption sport = chosen.get();
-            String ratingText = cards.stream()
-                    .filter(card -> Objects.equals(card.getSportId(), sport.getSportId()))
-                    .map(SportCard::getTierLabel)
-                    .findFirst()
-                    .orElse(NO_RATING_TEXT);
-            return new Representative(sport.getSportId(), sport.getName(), ratingText, false);
+            Optional<SportCard> card = cards.stream()
+                    .filter(c -> Objects.equals(c.getSportId(), sport.getSportId()))
+                    .findFirst();
+            return new Representative(sport.getSportId(), sport.getName(),
+                    card.map(SportCard::getTierLabel).orElse(NO_RATING_TEXT),
+                    card.map(SportCard::getTierKey).orElse(null), false);
         }
         return cards.stream()
                 .min(Comparator.comparingInt(SportCard::getRatedMatchCount).reversed()
                         .thenComparing(SportCard::getSportId))
-                .map(card -> new Representative(card.getSportId(), card.getName(), card.getTierLabel(), true))
-                .orElse(new Representative(null, null, NO_RATING_TEXT, false));
+                .map(card -> new Representative(card.getSportId(), card.getName(), card.getTierLabel(),
+                        card.getTierKey(), true))
+                .orElse(new Representative(null, null, NO_RATING_TEXT, null, false));
     }
 
-    /** 대표 종목을 뺀, 반영된 경기가 있는 종목. 템플릿의 sport.sportId·name·ratingText·note를 채운다. */
+    /** 대표 종목을 뺀, 반영된 경기가 있는 종목. 템플릿의 sport.sportId·name·ratingText·tierKey·note를 채운다. */
     private static List<Map<String, Object>> otherSportsView(List<SportCard> cards, Long representativeSportId) {
         return cards.stream()
                 .filter(card -> !Objects.equals(card.getSportId(), representativeSportId))
@@ -214,7 +216,8 @@ public class MyPageController {
                     sport.put("sportId", card.getSportId());
                     sport.put("name", card.getName());
                     sport.put("ratingText", card.getTierLabel());
-                    sport.put("note", "경기 " + card.getRatedMatchCount() + "회 · " + card.getMmrText());
+                    sport.put("tierKey", card.getTierKey());
+                    sport.put("note", "경기 " + card.getRatedMatchCount() + "회");
                     return sport;
                 })
                 .toList();
@@ -368,7 +371,7 @@ public class MyPageController {
         return value == null ? "" : value;
     }
 
-    /** 프로필 영역에 보여 줄 대표 종목. byRecords는 설정 대신 경기 기록으로 고른 경우다. */
-    private record Representative(Long sportId, String name, String ratingText, boolean byRecords) {
+    /** 프로필 영역에 보여 줄 대표 종목. tierKey는 배치 중·기록 없음이면 null, byRecords는 설정 대신 경기 기록으로 고른 경우다. */
+    private record Representative(Long sportId, String name, String ratingText, String tierKey, boolean byRecords) {
     }
 }

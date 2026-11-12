@@ -1481,6 +1481,12 @@ check(/한 번에 한 페이지씩 표시하며, 전체 건수는 아닙니다/.
 check(/페이지 단위로 나뉘어 표시됩니다/.test(systemReportSource),
   'report-system.html: the inbox heading must state that the list is paged');
 
+/* 사용자 화면은 내부 MMR 대신 티어·포인트(P)로 보여 준다. 화면 문구와 aria-label에 MMR이 다시 들어오지 않게 막는다. */
+const matchDetailSource = await readFile(path.join(resources, 'templates/matches/detail.html'), 'utf8');
+for (const [source, name] of [[myPageSource, 'mypage/index.html'], [matchDetailSource, 'matches/detail.html']]) {
+  check(!/MMR/i.test(source), `${name}: user-facing ratings must show tier and points, never MMR`);
+}
+
 if (failures.length) {
   console.error(failures.join('\n'));
   process.exitCode = 1;

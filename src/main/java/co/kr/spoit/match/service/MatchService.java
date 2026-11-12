@@ -186,7 +186,8 @@ public class MatchService {
             return Optional.empty();
         }
         LocalDateTime now = LocalDateTime.now(ZONE);
-        List<ParticipantRow> participants = findOccupants(List.of(matchId));
+        List<ParticipantRow> participants = withPendingApplicants(List.of(matchId),
+                matchMapper.findDetailParticipants(matchId, ParticipationStatus.occupyingValues()));
         List<TeamOption> clubs = currentUserId == null ? List.of() : findTeamOptions(row, currentUserId);
         return Optional.of(detailAssembler.toPage(row, participants, currentUserId, now, now.toLocalDate(), clubs));
     }
@@ -225,8 +226,12 @@ public class MatchService {
      * 신청은 확정 전까지 match_participant에 없으므로 여기서 합쳐 기존 Assembler가 그대로 쓰게 한다.
      */
     private List<ParticipantRow> findOccupants(List<Long> matchIds) {
-        List<ParticipantRow> rows = new ArrayList<>(
+        return withPendingApplicants(matchIds,
                 matchMapper.findParticipants(matchIds, ParticipationStatus.occupyingValues()));
+    }
+
+    private List<ParticipantRow> withPendingApplicants(List<Long> matchIds, List<ParticipantRow> participants) {
+        List<ParticipantRow> rows = new ArrayList<>(participants);
         rows.addAll(matchMapper.findPendingApplicants(matchIds,
                 ApplicationStatus.WAITING.dbValue(),
                 ParticipationStatus.WAITING.dbValue()));
