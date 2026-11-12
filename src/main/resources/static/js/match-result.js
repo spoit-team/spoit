@@ -124,6 +124,27 @@
     });
   }
 
+  /* 같은 날 끝나는 일정은 날짜와 "10:00 ~ 12:00"을, 자정을 넘기는 일정은 시작과 끝 일시를 두 줄로 나눈다. */
+  function setSchedule(label) {
+    const parts = /^(.+\)) (\d{2}:\d{2}) ~ (.+)$/.exec(label || '');
+    if (!parts) {
+      setField('schedule', label);
+      return;
+    }
+    const sameDay = /^\d{2}:\d{2}$/.test(parts[3]);
+    const lines = sameDay
+      ? [parts[1], parts[2] + ' ~ ' + parts[3]]
+      : [parts[1] + ' ' + parts[2] + ' ~', parts[3]];
+    root.querySelectorAll('[data-field="schedule"]').forEach(function (node) {
+      node.replaceChildren.apply(node, lines.map(function (text, index) {
+        const line = document.createElement('span');
+        line.className = sameDay && index === 1 ? 'match-result-schedule-line is-time' : 'match-result-schedule-line';
+        line.textContent = text;
+        return line;
+      }));
+    });
+  }
+
   function stateCard(label, tone, title, note) {
     const wrapper = document.createElement('div');
     wrapper.className = 'match-result-state ' + tone;
@@ -334,7 +355,7 @@
     setField('side', sideText(summary.mySide));
     setField('resultStatus', resultStatusText(summary.resultStatus));
     setField('ratingStatus', ratingText(summary.ratingStatus));
-    setField('schedule', summary.scheduleLabel);
+    setSchedule(summary.scheduleLabel);
     setField('facility', summary.facilityName);
     setField('deadline', summary.deadlineLabel);
     renderTeams();
