@@ -74,6 +74,11 @@ class MatchResultPageControllerTest {
                 // 서버는 팀장 여부를 모르므로 단계 바는 숨긴 채 내려 보내고, 팀장 결과 조회가 열리면 스크립트가 보인다.
                 .andExpect(content().string(Matchers.matchesPattern(
                         "(?s).*<ol(?=[^>]*\\sdata-result-steps)(?=[^>]*\\shidden(?:\\s|=|>))[^>]*>.*")))
+                // 경기 번호는 정보 표가 아니라 제목 위 종목 표시 옆에 둔다.
+                .andExpect(content().string(Matchers.allOf(
+                        Matchers.stringContainsInOrder("class=\"match-result-sport\"", "data-field=\"sport\"",
+                                "data-field=\"matchId\"", "class=\"match-result-facts\"", "data-field=\"schedule\""),
+                        Matchers.not(Matchers.containsString("<dt>경기 번호</dt>")))))
                 .andExpect(content().string(Matchers.allOf(
                         Matchers.stringContainsInOrder("id=\"match-result\"", "id=\"match-evaluation\""),
                         Matchers.matchesPattern("(?s).*<section(?=[^>]*\\sid=\"match-evaluation\")"

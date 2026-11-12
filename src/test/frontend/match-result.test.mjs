@@ -186,7 +186,11 @@ function stepStates(page) {
   assert.equal(page.fields.side.textContent, 'A팀');
   assert.equal(page.fields.title.textContent, '토요 풋살');
   assert.equal(page.fields.sport.textContent, '풋살');
-  assert.equal(page.fields.schedule.textContent, '2026년 10월 30일 (금) 18:00 ~ 20:00');
+  // 일시는 날짜와 시간 범위를 두 줄 요소로 나눠 textContent로 넣는다.
+  assert.deepEqual(page.fields.schedule.children.map(node => [node.className, node.textContent]), [
+    ['match-result-schedule-line', '2026년 10월 30일 (금)'],
+    ['match-result-schedule-line is-time', '18:00 ~ 20:00']
+  ]);
   assert.equal(page.fields.facility.textContent, 'MAT 테스트 시설');
   assert.equal(page.fields.deadline.textContent, '2026년 10월 31일 (토) 20:00');
   assert.equal(page.submitSection.hidden, true, '팀장이 아니면 제출 영역을 감춰야 합니다.');
@@ -214,7 +218,8 @@ function stepStates(page) {
   const page = resultPage({
     summary: {
       matchId: 42, status: 'MATCHED', resultStatus: 'SUBMITTED', ratingStatus: 'WAITING',
-      finalResult: null, mySide: 'B', myResult: 'B_WIN'
+      finalResult: null, mySide: 'B', myResult: 'B_WIN',
+      scheduleLabel: '2026년 10월 30일 (금) 23:00 ~ 2026년 10월 31일 (토) 01:00'
     },
     captain: {
       matchId: 42, mySide: 'B', myResult: null, opponentSubmitted: true, conflict: false,
@@ -232,6 +237,11 @@ function stepStates(page) {
 
   assert.equal(page.submitSection.hidden, false, '팀장에게는 제출 영역을 열어야 합니다.');
   assert.equal(page.steps.hidden, false, '팀장에게는 단계 바를 보여 줘야 합니다.');
+  // 자정을 넘기는 일정은 시작과 끝 일시를 두 줄로 나누고, 날짜가 붙은 줄은 좁으면 접히게 둔다.
+  assert.deepEqual(page.fields.schedule.children.map(node => [node.className, node.textContent]), [
+    ['match-result-schedule-line', '2026년 10월 30일 (금) 23:00 ~'],
+    ['match-result-schedule-line', '2026년 10월 31일 (토) 01:00']
+  ]);
 
   const choices = page.submitBody.children.find(child => hasClass(child, 'match-result-choices'));
   assert.ok(choices, '제출 가능한 팀장에게 결과 선택지를 보여 줘야 합니다.');
