@@ -1,8 +1,6 @@
 package co.kr.spoit.match.service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.text.DecimalFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -13,6 +11,9 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
+import co.kr.spoit.mat.domain.RatingPolicy;
+import co.kr.spoit.mat.domain.RatingTier;
+import co.kr.spoit.mat.domain.TierRank;
 import co.kr.spoit.match.domain.MatchStatus;
 import co.kr.spoit.match.domain.ParticipationStatus;
 import co.kr.spoit.match.dto.Fact;
@@ -142,7 +143,7 @@ public class MatchDetailAssembler {
                 .occupancyPercent(percent)
                 .occupancyLabel(occupied + " / " + max + "명")
                 .occupancyCaption(caption)
-                .ratingNote("신청 시점 MMR 기준")
+                .ratingNote("신청 시점 레이팅 기준")
                 .teamA(roster(confirmed, "A", row.getCaptainAParticipantId(), row))
                 .teamB(roster(confirmed, "B", row.getCaptainBParticipantId(), row))
                 .pendingParticipants(pending.stream()
@@ -176,18 +177,12 @@ public class MatchDetailAssembler {
         }).toList();
     }
 
-    /** 확정 경기 기록이 있는 회원만 MMR을 보여 준다 (마이페이지와 같은 기준). */
     private String ratingText(TeamMemberRow m) {
-        return rated(m) ? formatMmr(m.getCurrentMmr()) : NO_RATING;
+        return tierText(m.getCurrentMmr(), m.getRatedMatchCount());
     }
 
     private String averageRating(List<TeamMemberRow> members) {
-        List<BigDecimal> values = members.stream().filter(this::rated).map(TeamMemberRow::getCurrentMmr).toList();
-        if (values.isEmpty()) {
-            return NO_RATING;
-        }
-        BigDecimal sum = values.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
-        return formatMmr(sum.divide(BigDecimal.valueOf(values.size()), 0, RoundingMode.HALF_UP));
+        return averageTier(members.stream().filter(this::rated).map(TeamMemberRow::getCurrentMmr).toList());
     }
 
     private boolean rated(TeamMemberRow m) {
@@ -227,26 +222,32 @@ public class MatchDetailAssembler {
         List<RosterMember> views = members.stream()
                 .map(p -> new RosterMember(p.getNickname(), isHost(p, row), memberMeta(p, captainId)))
                 .toList();
-        return new TeamRoster(averageMmr(members), views);
+        return new TeamRoster(averageTier(members.stream().map(ParticipantRow::getEntryMmr).filter(Objects::nonNull).toList()),
+                views);
     }
 
+    /** 참가자는 신청 시점 값(entry_mmr과 그때까지 반영된 경기 수)으로 보여 준다. */
     private String memberMeta(ParticipantRow p, Long captainId) {
-        String mmr = p.getEntryMmr() == null ? "기록 없음" : "MMR " + formatMmr(p.getEntryMmr());
-        return Objects.equals(p.getParticipantId(), captainId) ? "팀장 · " + mmr : mmr;
+        String tier = tierText(p.getEntryMmr(), p.getEntryRatedMatchCount());
+        return Objects.equals(p.getParticipantId(), captainId) ? "팀장 · " + tier : tier;
     }
 
-    /** 팀 평균 MMR, 인원이 없으면 "기록 없음" */
-    private String averageMmr(List<ParticipantRow> members) {
-        List<BigDecimal> values = members.stream().map(ParticipantRow::getEntryMmr).filter(Objects::nonNull).toList();
+    /** 반영 경기가 없으면 기록 없음, 배치 5경기 전이면 배치 중, 그 뒤로는 "실버 3"처럼 티어 이름 */
+    private static String tierText(BigDecimal mmr, Integer ratedMatchCount) {
+        if (mmr == null || ratedMatchCount == null || ratedMatchCount <= 0) {
+            return NO_RATING;
+        }
+        return RatingTier.tierNameOf(mmr, ratedMatchCount);
+    }
+
+    /** 팀 평균의 티어 이름. 레이팅 반영과 같은 자릿수로 평균을 낸다. 인원이 없으면 "기록 없음" */
+    private static String averageTier(List<BigDecimal> values) {
         if (values.isEmpty()) {
-            return "기록 없음";
+            return NO_RATING;
         }
         BigDecimal sum = values.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
-        return formatMmr(sum.divide(BigDecimal.valueOf(values.size()), 0, RoundingMode.HALF_UP));
-    }
-
-    private String formatMmr(BigDecimal value) {
-        return new DecimalFormat("#,##0").format(value);
+        return TierRank.of(sum.divide(BigDecimal.valueOf(values.size()), RatingPolicy.MMR_SCALE, RatingPolicy.ROUNDING))
+                .divisionLabel();
     }
 
     private boolean isHost(ParticipantRow p, MatchDetailRow row) {

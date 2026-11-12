@@ -25,7 +25,8 @@ public class MyRatingRecords {
         private final Long sportId;
         private final String name;
         private final String tierLabel;
-        private final String mmrText;
+        /** 티어 색 키(bronze 등). 배치 중이면 null */
+        private final String tierKey;
         private final int ratedMatchCount;
         /** 배치를 마쳐 티어 진행도 막대를 그릴 수 있는지 */
         private final boolean placed;
@@ -45,15 +46,29 @@ public class MyRatingRecords {
         private final String resultLabel;
         /** win, draw, loss */
         private final String resultKey;
+        /** "+38P"처럼 포인트 변동, 배치 경기면 "배치 1/5"나 "배치 완료" */
         private final String deltaText;
-        /** up, down, zero */
+        /** up, down, zero, placement */
         private final String deltaKey;
-        private final String mmrBeforeText;
-        private final String mmrAfterText;
+        /** 화살표 앞: "실버 4 · 31P", 배치 경기면 "배치 경기 1/5"나 "배치 완료" */
+        private final TierText ratingFrom;
+        /** 화살표 뒤: "실버 4 · 93P". 배치 중인 경기면 null이라 화살표를 그리지 않는다. */
+        private final TierText ratingTo;
+        /** 승급, 강등. 단계가 그대로거나 배치 경기면 null */
+        private final String divisionChange;
         private final String myTeam;
-        private final String averageAText;
-        private final String averageBText;
+        /** 반영 시점 팀 평균의 티어 이름 */
+        private final TierText averageA;
+        private final TierText averageB;
         private final List<Fact> facts;
+    }
+
+    /** 티어 색과 함께 보여 줄 문구. tierKey가 null이면 배치 문구라 중립색이다. */
+    @Getter
+    @AllArgsConstructor
+    public static class TierText {
+        private final String text;
+        private final String tierKey;
     }
 
     @Getter

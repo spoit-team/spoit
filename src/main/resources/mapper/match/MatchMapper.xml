@@ -127,6 +127,38 @@
          ORDER BY mp.match_id, mp.joined_at, mp.participant_id
     </select>
 
+    <!--
+        신청 시점 반영 경기 수 = 현재 반영 경기 수 - 참가 확정(joined_at, entry_mmr을 찍은 시각) 뒤에 반영된 이력 수.
+        이력 없이 sport_rating의 경기 수만 가진 회원이 있어 이력을 처음부터 세지 않는다(마이페이지 이력과 같은 방식).
+    -->
+    <select id="findDetailParticipants" resultType="co.kr.spoit.match.dto.ParticipantRow">
+        SELECT mp.participant_id,
+               mp.match_id,
+               mp.user_id,
+               u.nickname,
+               mp.participation_status,
+               mp.match_side,
+               mp.entry_mmr,
+               mp.joined_at,
+               GREATEST(COALESCE(sr.rated_match_count, 0)
+                        - (SELECT COUNT(*)
+                             FROM sport_rating_history h
+                            WHERE h.user_id = mp.user_id
+                              AND h.sport_id = sm.sport_id
+                              AND h.calculated_at &gt;= mp.joined_at), 0) AS entry_rated_match_count
+          FROM match_participant mp
+          JOIN social_match sm ON sm.match_id = mp.match_id
+          JOIN app_user u ON u.user_id = mp.user_id
+          LEFT JOIN sport_rating sr ON sr.user_id = mp.user_id
+                                   AND sr.sport_id = sm.sport_id
+         WHERE mp.match_id = #{matchId}
+           AND mp.participation_status IN
+               <foreach collection="statuses" item="st" open="(" separator="," close=")">
+                   #{st}
+               </foreach>
+         ORDER BY mp.joined_at, mp.participant_id
+    </select>
+
     <!-- RES-03·04: 대기 신청은 match_participant에 없으므로 화면 정원 계산용으로 따로 가져온다 (팀 신청은 팀원마다 행이 있다) -->
     <select id="findPendingApplicants" resultType="co.kr.spoit.match.dto.ParticipantRow">
         SELECT NULL                   AS participant_id,
