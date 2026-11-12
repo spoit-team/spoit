@@ -1,5 +1,5 @@
 -- =====================================================================
--- 동호회 시연 데이터: 축구+풋살 동호회 10개(시연 2개 포함) + 등급 테두리 예시 동호회 2개, 회원 88명,
+-- 동호회 시연 데이터: 축구+풋살 동호회 10개(시연 2개 포함), 회원 76명,
 --                   지난 동호회 경기 50개(레이팅 이력 500행), 11/29 매칭방 2개와 팀 신청 10행
 -- 이 파일은 scripts/club-demo-data.py가 만든다. 직접 고치지 말고 스크립트를 고쳐 다시 만든다.
 -- 대상: 20261110-seoul-public-facilities.sql과 20261112-club-single-region.sql을 적용한 DB (로컬·운영)
@@ -12,8 +12,6 @@
 --     1000부터 시간순 계산했고, sport_rating은 마지막 이력 값·이력 행 수다. 팀 등급은 이 레이팅에서 나온다.
 --   * 시연 동호회마다 11/29(일) 잠실종합운동장 제2풋살경기장 매칭방 1개와 C~G 팀 신청(대기).
 --     → 발표 때 "모집 중인 팀 매치에 신청된 동호회원은 추방할 수 없습니다"가 나온다.
---   * 등급 테두리 예시 동호회 하이포스트 BC(농구), 장충 서브앤발리(테니스): 진짜 이력으로는 평균 1400 이상이 나오지 않아
---     플래티넘·다이아 테두리를 보여 주려고 넣었다. 회원은 그 종목 레이팅만 있고 경기·레이팅 이력은 없다(모두 배치 완료).
 -- 원칙
 --   * 한 트랜잭션. 사전 확인에 실패하면 멈추고 아무 행도 넣지 않는다.
 --   * club-00@spoit.test가 이미 있으면 적용된 것으로 보고 아무것도 넣지 않는다(오류 없음).
@@ -25,8 +23,6 @@ START TRANSACTION;
 
 -- 0. 이름으로 번호 찾기
 SET @cd_s = (SELECT MAX(sport_id) FROM sport WHERE name = '축구+풋살');
-SET @cd_s_농구 = (SELECT MAX(sport_id) FROM sport WHERE name = '농구');
-SET @cd_s_테니스 = (SELECT MAX(sport_id) FROM sport WHERE name = '테니스');
 SET @cd_r_광진구 = (SELECT MAX(region_id) FROM region WHERE parent_region_id = 1 AND name = '광진구');
 SET @cd_r_구로구 = (SELECT MAX(region_id) FROM region WHERE parent_region_id = 1 AND name = '구로구');
 SET @cd_r_동작구 = (SELECT MAX(region_id) FROM region WHERE parent_region_id = 1 AND name = '동작구');
@@ -35,8 +31,6 @@ SET @cd_r_서초구 = (SELECT MAX(region_id) FROM region WHERE parent_region_id 
 SET @cd_r_송파구 = (SELECT MAX(region_id) FROM region WHERE parent_region_id = 1 AND name = '송파구');
 SET @cd_r_영등포구 = (SELECT MAX(region_id) FROM region WHERE parent_region_id = 1 AND name = '영등포구');
 SET @cd_r_용산구 = (SELECT MAX(region_id) FROM region WHERE parent_region_id = 1 AND name = '용산구');
-SET @cd_r_종로구 = (SELECT MAX(region_id) FROM region WHERE parent_region_id = 1 AND name = '종로구');
-SET @cd_r_중구 = (SELECT MAX(region_id) FROM region WHERE parent_region_id = 1 AND name = '중구');
 SET @cd_f1 = (SELECT MAX(f.facility_id) FROM facility f JOIN region r ON r.region_id = f.region_id AND r.parent_region_id = 1 WHERE r.name = '송파구' AND f.name = '잠실종합운동장 풋살경기장' AND f.deleted_at IS NULL);
 SET @cd_f1_mgr = (SELECT MIN(fm.user_id) FROM facility_manager fm JOIN app_user u ON u.user_id = fm.user_id WHERE fm.facility_id = @cd_f1 AND u.email LIKE 'facility-__@spoit.test');
 SET @cd_f2 = (SELECT MAX(f.facility_id) FROM facility f JOIN region r ON r.region_id = f.region_id AND r.parent_region_id = 1 WHERE r.name = '서초구' AND f.name = '반포한강공원 축구장' AND f.deleted_at IS NULL);
@@ -57,10 +51,10 @@ SET @cd_f9 = (SELECT MAX(f.facility_id) FROM facility f JOIN region r ON r.regio
 SET @cd_f9_mgr = (SELECT MIN(fm.user_id) FROM facility_manager fm JOIN app_user u ON u.user_id = fm.user_id WHERE fm.facility_id = @cd_f9 AND u.email LIKE 'facility-__@spoit.test');
 
 -- 사전 확인. 출력되는 값이 모두 1이어야 진행한다. already_applied가 1이면 이미 적용된 DB라 아무것도 넣지 않는다.
-SELECT (@cd_s IS NOT NULL AND @cd_s_농구 IS NOT NULL AND @cd_s_테니스 IS NOT NULL),
-       ((@cd_r_광진구 IS NOT NULL) + (@cd_r_구로구 IS NOT NULL) + (@cd_r_동작구 IS NOT NULL) + (@cd_r_마포구 IS NOT NULL) + (@cd_r_서초구 IS NOT NULL) + (@cd_r_송파구 IS NOT NULL) + (@cd_r_영등포구 IS NOT NULL) + (@cd_r_용산구 IS NOT NULL) + (@cd_r_종로구 IS NOT NULL) + (@cd_r_중구 IS NOT NULL)) = 10,
+SELECT (@cd_s IS NOT NULL),
+       ((@cd_r_광진구 IS NOT NULL) + (@cd_r_구로구 IS NOT NULL) + (@cd_r_동작구 IS NOT NULL) + (@cd_r_마포구 IS NOT NULL) + (@cd_r_서초구 IS NOT NULL) + (@cd_r_송파구 IS NOT NULL) + (@cd_r_영등포구 IS NOT NULL) + (@cd_r_용산구 IS NOT NULL)) = 8,
        ((@cd_f1 IS NOT NULL AND @cd_f1_mgr IS NOT NULL AND EXISTS (SELECT 1 FROM facility_sport WHERE facility_id = @cd_f1 AND sport_id = @cd_s)) + (@cd_f2 IS NOT NULL AND @cd_f2_mgr IS NOT NULL AND EXISTS (SELECT 1 FROM facility_sport WHERE facility_id = @cd_f2 AND sport_id = @cd_s)) + (@cd_f3 IS NOT NULL AND @cd_f3_mgr IS NOT NULL AND EXISTS (SELECT 1 FROM facility_sport WHERE facility_id = @cd_f3 AND sport_id = @cd_s)) + (@cd_f4 IS NOT NULL AND @cd_f4_mgr IS NOT NULL AND EXISTS (SELECT 1 FROM facility_sport WHERE facility_id = @cd_f4 AND sport_id = @cd_s)) + (@cd_f5 IS NOT NULL AND @cd_f5_mgr IS NOT NULL AND EXISTS (SELECT 1 FROM facility_sport WHERE facility_id = @cd_f5 AND sport_id = @cd_s)) + (@cd_f6 IS NOT NULL AND @cd_f6_mgr IS NOT NULL AND EXISTS (SELECT 1 FROM facility_sport WHERE facility_id = @cd_f6 AND sport_id = @cd_s)) + (@cd_f7 IS NOT NULL AND @cd_f7_mgr IS NOT NULL AND EXISTS (SELECT 1 FROM facility_sport WHERE facility_id = @cd_f7 AND sport_id = @cd_s)) + (@cd_f8 IS NOT NULL AND @cd_f8_mgr IS NOT NULL AND EXISTS (SELECT 1 FROM facility_sport WHERE facility_id = @cd_f8 AND sport_id = @cd_s)) + (@cd_f9 IS NOT NULL AND @cd_f9_mgr IS NOT NULL AND EXISTS (SELECT 1 FROM facility_sport WHERE facility_id = @cd_f9 AND sport_id = @cd_s))) = 9,
-       NOT EXISTS (SELECT 1 FROM club WHERE active_club_name IN ('잠실 드림풋살', '반포 리버사이드 FC', '이촌 한강 FS', '영등포 레인보우 FS', '망원 선데이 FC', 'BLUE WAVE FS', '구일 FS', 'OFFSIDE FC', '가락 FS', '코사 FS', '하이포스트 BC', '장충 서브앤발리')),
+       NOT EXISTS (SELECT 1 FROM club WHERE active_club_name IN ('잠실 드림풋살', '반포 리버사이드 FC', '이촌 한강 FS', '영등포 레인보우 FS', '망원 선데이 FC', 'BLUE WAVE FS', '구일 FS', 'OFFSIDE FC', '가락 FS', '코사 FS')),
        NOT EXISTS (SELECT 1 FROM social_match WHERE status <> '취소' AND (
          (facility_id = @cd_f7 AND start_at < '2026-08-01 16:00:00' AND end_at > '2026-08-01 14:00:00') OR
          (facility_id = @cd_f2 AND start_at < '2026-08-01 09:00:00' AND end_at > '2026-08-01 07:00:00') OR
@@ -115,7 +109,7 @@ SELECT (@cd_s IS NOT NULL AND @cd_s_농구 IS NOT NULL AND @cd_s_테니스 IS NO
          (facility_id = @cd_f9 AND start_at < '2026-11-29 12:00:00' AND end_at > '2026-11-29 10:00:00') OR
          (facility_id = @cd_f9 AND start_at < '2026-11-29 20:00:00' AND end_at > '2026-11-29 18:00:00'))),
        NOT EXISTS (SELECT 1 FROM match_application WHERE receipt_no IN ('RCPT-20260728-62YJ339Y', 'RCPT-20260728-L2476YH3', 'RCPT-20260728-CUHKUS58', 'RCPT-20260728-RJS27FB4', 'RCPT-20260728-ACJ3M3K3', 'RCPT-20260729-K7RXTSJG', 'RCPT-20260729-4FAAC2B3', 'RCPT-20260729-SLMW5HEK', 'RCPT-20260729-BU223EB8', 'RCPT-20260729-RCV8YCHD', 'RCPT-20260729-SXYAGK8X', 'RCPT-20260729-S3YTC9N5', 'RCPT-20260729-X47X6TWG', 'RCPT-20260729-BJQ7VCSQ', 'RCPT-20260729-YVQDZEEA', 'RCPT-20260729-MDJM2X3W', 'RCPT-20260729-RAQFA9L8', 'RCPT-20260729-FJH2GKW4', 'RCPT-20260729-2JB6KDA2', 'RCPT-20260729-MDYVUX52', 'RCPT-20260731-NT3RGTQ5', 'RCPT-20260731-YH3MUMGB', 'RCPT-20260731-UL2XE7BH', 'RCPT-20260731-HBHHUZXS', 'RCPT-20260731-AR3JLAW3', 'RCPT-20260731-CQBSJM39', 'RCPT-20260731-RLAQ9HDN', 'RCPT-20260731-76XLCM32', 'RCPT-20260731-KJHH7JAK', 'RCPT-20260731-3RWM9VYW', 'RCPT-20260802-UZABRW5H', 'RCPT-20260802-KQM36QFJ', 'RCPT-20260802-9KDPWJ2N', 'RCPT-20260802-DD84MC4X', 'RCPT-20260802-KE87CGTW', 'RCPT-20260802-7VL4SH9M', 'RCPT-20260802-NJTC8687', 'RCPT-20260802-MBXKXLLL', 'RCPT-20260802-FGWN4RSB', 'RCPT-20260802-H3KQ8RLP', 'RCPT-20260805-K6MMCSLW', 'RCPT-20260805-FAY8LSFF', 'RCPT-20260805-AKALQBRM', 'RCPT-20260805-5E87GP5M', 'RCPT-20260805-ZC87BS8J', 'RCPT-20260807-PHW25767', 'RCPT-20260807-Q5CLFCVM', 'RCPT-20260807-X9JNZGQH', 'RCPT-20260807-ZJWHCJJX', 'RCPT-20260807-BVV9BZCF', 'RCPT-20260807-QVAU7KPM', 'RCPT-20260807-BXM7MT7Z', 'RCPT-20260807-8G5XTX3Q', 'RCPT-20260807-G8SCXXSA', 'RCPT-20260807-SP5V3Z2P', 'RCPT-20260805-MRH6L8MV', 'RCPT-20260805-6G67XDSP', 'RCPT-20260805-3WW6467F', 'RCPT-20260805-C5FEMHAU', 'RCPT-20260805-MUW5HXQC', 'RCPT-20260809-7CZ5F4F2', 'RCPT-20260809-8DT8D9XM', 'RCPT-20260809-72DD9QRP', 'RCPT-20260809-NZLZNWAS', 'RCPT-20260809-T8DDPH7J', 'RCPT-20260810-CMY6FXRD', 'RCPT-20260810-EAUAMCUN', 'RCPT-20260810-4JED9ZA6', 'RCPT-20260810-UNQHFLEJ', 'RCPT-20260810-4BWVYL4P', 'RCPT-20260812-G8LJ7VAJ', 'RCPT-20260812-E84Q9J8S', 'RCPT-20260812-N3YKPZ4S', 'RCPT-20260812-WZXJC95U', 'RCPT-20260812-4G4WAFRE', 'RCPT-20260811-W48AM235', 'RCPT-20260811-XQS5F63X', 'RCPT-20260811-JR9AQCN6', 'RCPT-20260811-W789JB77', 'RCPT-20260811-VHS3BCHN', 'RCPT-20260814-7VA4VAPX', 'RCPT-20260814-RUWP5EH9', 'RCPT-20260814-CD5NVAEY', 'RCPT-20260814-E4S7MYWH', 'RCPT-20260814-S2XADRXT', 'RCPT-20260814-4T3KK52M', 'RCPT-20260814-5GDG28LG', 'RCPT-20260814-FK3JUF2X', 'RCPT-20260814-TV2BN9YV', 'RCPT-20260814-Y7FMCRNF', 'RCPT-20260817-Z4T2MJ2H', 'RCPT-20260817-WDL2JUBX', 'RCPT-20260817-HM6JW3VV', 'RCPT-20260817-YM6LD8UA', 'RCPT-20260817-EBZCJLD6', 'RCPT-20260817-KVE4FAR2', 'RCPT-20260817-6YH9MCJV', 'RCPT-20260817-WLTGUC34', 'RCPT-20260817-NBT8WXFG', 'RCPT-20260817-G358R96P', 'RCPT-20260819-9WFHXV22', 'RCPT-20260819-4BP5GGH5', 'RCPT-20260819-6835VRXM', 'RCPT-20260819-Z8Y5GR2Y', 'RCPT-20260819-W3FY6F9E', 'RCPT-20260819-H9MLVBDT', 'RCPT-20260819-J7HTAVSV', 'RCPT-20260819-WZYW9RRM', 'RCPT-20260819-DDLXUA53', 'RCPT-20260819-2HX93RRN', 'RCPT-20260820-E53U26G4', 'RCPT-20260820-Z8NSLGGQ', 'RCPT-20260820-5JP3LWVD', 'RCPT-20260820-AJ93CPYX', 'RCPT-20260820-XBN6WP9B', 'RCPT-20260819-G5GFMPCM', 'RCPT-20260819-X9KXQA23', 'RCPT-20260819-9DADNDDA', 'RCPT-20260819-TEHLN34Y', 'RCPT-20260819-F9WQ54RT', 'RCPT-20260824-2JF2GMAB', 'RCPT-20260824-TEPWMB6P', 'RCPT-20260824-BGXSAN2J', 'RCPT-20260824-69T74R65', 'RCPT-20260824-KTGDPTF8', 'RCPT-20260824-VHXD8GNB', 'RCPT-20260824-FYBQVE2C', 'RCPT-20260824-U5B9FQFP', 'RCPT-20260824-JNU972FV', 'RCPT-20260824-KWPUAJTP', 'RCPT-20260825-NABG5MFY', 'RCPT-20260825-FY8HHEGM', 'RCPT-20260825-PR8FPKJW', 'RCPT-20260825-SPMK3KXU', 'RCPT-20260825-9DEEHJLH', 'RCPT-20260825-FSNMMF2G', 'RCPT-20260825-CVQSKQAN', 'RCPT-20260825-J4SX8SUS', 'RCPT-20260825-EBYY8NKT', 'RCPT-20260825-QL3UWKAL', 'RCPT-20260828-2JBUZ29Q', 'RCPT-20260828-8K9SYM5H', 'RCPT-20260828-DNZYNYHJ', 'RCPT-20260828-EPKAXDDU', 'RCPT-20260828-6DLSE85K', 'RCPT-20260828-Q7REWT3V', 'RCPT-20260828-GYSCCAEV', 'RCPT-20260828-A4QPUPQT', 'RCPT-20260828-5969P9JW', 'RCPT-20260828-26BH9X6Y', 'RCPT-20260829-BXWTFJQS', 'RCPT-20260829-9EBWXLJD', 'RCPT-20260829-NPHWYA3C', 'RCPT-20260829-W8LK8ESD', 'RCPT-20260829-XL85V2SF', 'RCPT-20260829-CZ3J8LWC', 'RCPT-20260829-ZVLTU8T2', 'RCPT-20260829-NWVNX4D7', 'RCPT-20260829-R4HJM8BC', 'RCPT-20260829-AZ3CPWFF', 'RCPT-20260831-TLV4X46T', 'RCPT-20260831-SMSZ6EBL', 'RCPT-20260831-3J75KSLC', 'RCPT-20260831-6NFJXDPW', 'RCPT-20260831-9MUSD6XK', 'RCPT-20260831-JM8DNE9F', 'RCPT-20260831-ZZ9X5YAZ', 'RCPT-20260831-3ET46UX7', 'RCPT-20260831-RY8Y7DJ8', 'RCPT-20260831-LRSNWCEF', 'RCPT-20260831-YDC2Q772', 'RCPT-20260831-KXTXQ8DU', 'RCPT-20260831-QJQ38E52', 'RCPT-20260831-A3RZA4EE', 'RCPT-20260831-FTECJ2KJ', 'RCPT-20260902-MZQWVZQK', 'RCPT-20260902-MH352L2S', 'RCPT-20260902-XZCVE9PD', 'RCPT-20260902-88XUYZNE', 'RCPT-20260902-PEG2NS67', 'RCPT-20260831-232TGMBZ', 'RCPT-20260831-G2SLLRHR', 'RCPT-20260831-KB9KEZNY', 'RCPT-20260831-M9BE6M76', 'RCPT-20260831-AVA5PACF', 'RCPT-20260902-L2VDF2G3', 'RCPT-20260902-YPSQME7M', 'RCPT-20260902-RLAL8RK4', 'RCPT-20260902-82M4ZPXX', 'RCPT-20260902-VHP98AHH', 'RCPT-20260903-8YLPHRSG', 'RCPT-20260903-EMC6Z64A', 'RCPT-20260903-WLN4ZUFE', 'RCPT-20260903-S4FSCETL', 'RCPT-20260903-N299US5U', 'RCPT-20260904-HXALH8R3', 'RCPT-20260904-LFFTEJT5', 'RCPT-20260904-VMB4536H', 'RCPT-20260904-WW7FJQYC', 'RCPT-20260904-9NGRPBPM', 'RCPT-20260906-XHEWXBHH', 'RCPT-20260906-KE4PGKSC', 'RCPT-20260906-Y2VLLF7A', 'RCPT-20260906-NCQSULJS', 'RCPT-20260906-9EM9GVNP', 'RCPT-20260907-LAW3R9AL', 'RCPT-20260907-9MWGG856', 'RCPT-20260907-S4WZMU4X', 'RCPT-20260907-VYBVVUZS', 'RCPT-20260907-U5JN59DA', 'RCPT-20260908-UPTQ2NM5', 'RCPT-20260908-625GD2RW', 'RCPT-20260908-VQMBKPMH', 'RCPT-20260908-JVRAWHY8', 'RCPT-20260908-TX2BY7WS', 'RCPT-20260908-A85SA2GE', 'RCPT-20260908-3V844754', 'RCPT-20260908-L874DTBK', 'RCPT-20260908-9FDY4DSE', 'RCPT-20260908-BGZPN9EL', 'RCPT-20260910-2DKWEL72', 'RCPT-20260910-SST7GF86', 'RCPT-20260910-YU5WGAB6', 'RCPT-20260910-GZZCVTBK', 'RCPT-20260910-CCPMFCKM', 'RCPT-20260911-7CPVAGCW', 'RCPT-20260911-V7ATDWN6', 'RCPT-20260911-QLGCLEDC', 'RCPT-20260911-63YLYRCR', 'RCPT-20260911-937HX7TM', 'RCPT-20260915-R3GJG6M6', 'RCPT-20260915-FXUM4QWN', 'RCPT-20260915-YQGLXJYB', 'RCPT-20260915-CMSD9Q6P', 'RCPT-20260915-7CX7KP6S', 'RCPT-20260915-PS4TMQCJ', 'RCPT-20260915-JQJ5VZMA', 'RCPT-20260915-2B29VSBD', 'RCPT-20260915-7XC52Q7D', 'RCPT-20260915-HK99PG6M', 'RCPT-20260916-J5JF2JCM', 'RCPT-20260916-NY2C48FP', 'RCPT-20260916-GFHBVWB9', 'RCPT-20260916-ZXFLACPR', 'RCPT-20260916-2FYYA8ND', 'RCPT-20260915-3DZNSWDS', 'RCPT-20260915-WU78YNR5', 'RCPT-20260915-NLEJLDUD', 'RCPT-20260915-776ZC32X', 'RCPT-20260915-3DZDENV6', 'RCPT-20260915-F7TNWC7N', 'RCPT-20260915-QSXPE725', 'RCPT-20260915-8DBN85MQ', 'RCPT-20260915-2ADPYBDS', 'RCPT-20260915-VWECR5SM', 'RCPT-20260915-EA2YDKPY', 'RCPT-20260915-5HJ79MFG', 'RCPT-20260915-259YDB3Y', 'RCPT-20260915-BLHRB2LN', 'RCPT-20260915-YJTBTW9Q', 'RCPT-20260920-XZJSG9ZQ', 'RCPT-20260920-SMB9BUHU', 'RCPT-20260920-N9C7LZPK', 'RCPT-20260920-5SKDM2XG', 'RCPT-20260920-F84ZUZ8R', 'RCPT-20260919-DSKXYGT8', 'RCPT-20260919-22ZAPDJL', 'RCPT-20260919-ZT996N7W', 'RCPT-20260919-7EXR9WW6', 'RCPT-20260919-6YMUGDSR', 'RCPT-20260923-S7EQR6FL', 'RCPT-20260923-N5V5GLHF', 'RCPT-20260923-23JQN4CF', 'RCPT-20260923-MB3S2AWG', 'RCPT-20260923-SWPJKYC6', 'RCPT-20260922-NLE2LBR8', 'RCPT-20260922-RF5N7YER', 'RCPT-20260922-U868LL3X', 'RCPT-20260922-6HQLAX93', 'RCPT-20260922-2AK86W7T', 'RCPT-20260922-UEQ549V9', 'RCPT-20260922-FGXDEAAU', 'RCPT-20260922-82XJV8TP', 'RCPT-20260922-EQPQLXJV', 'RCPT-20260922-78MB6NMU', 'RCPT-20260924-G5NUANLV', 'RCPT-20260924-B792VGTX', 'RCPT-20260924-NWDT9M6M', 'RCPT-20260924-D63UEF2E', 'RCPT-20260924-UPXK6TBC', 'RCPT-20260924-DHK4ECR8', 'RCPT-20260924-HMWDCQEV', 'RCPT-20260924-4MWSWSCF', 'RCPT-20260924-PNTE7DC4', 'RCPT-20260924-Q38CFSWB', 'RCPT-20260924-7AELVW67', 'RCPT-20260924-AFR9QQLT', 'RCPT-20260924-2CBHAK2J', 'RCPT-20260924-GDJQ9UUE', 'RCPT-20260924-2LB8EPH8', 'RCPT-20260928-QC8KVAAK', 'RCPT-20260928-SMXLVEW4', 'RCPT-20260928-MWCH6K6V', 'RCPT-20260928-PVYS9CNG', 'RCPT-20260928-39UDPSBK', 'RCPT-20260929-HJMT9WBB', 'RCPT-20260929-38FSH5X2', 'RCPT-20260929-WFAS3FQC', 'RCPT-20260929-D95CH3YT', 'RCPT-20260929-SQPU73D8', 'RCPT-20260928-7WQ9G3CK', 'RCPT-20260928-7H6WBZHJ', 'RCPT-20260928-KA7MFP3G', 'RCPT-20260928-C5MGHAL4', 'RCPT-20260928-XUL359KA', 'RCPT-20260929-VFPANRQ3', 'RCPT-20260929-Z5J9R72K', 'RCPT-20260929-U6Z7NJNR', 'RCPT-20260929-6ND3NJKV', 'RCPT-20260929-6W7PEHGF', 'RCPT-20260930-R9XWX6AF', 'RCPT-20260930-SALZ6V78', 'RCPT-20260930-S6SE7Y67', 'RCPT-20260930-B564AQU7', 'RCPT-20260930-85WX8LS8', 'RCPT-20260930-8VRNSR2L', 'RCPT-20260930-4VPE23KU', 'RCPT-20260930-96JL2UWX', 'RCPT-20260930-XYBTCQ6Z', 'RCPT-20260930-YES22T7Q', 'RCPT-20261004-XMT6AQKH', 'RCPT-20261004-D4U34DWZ', 'RCPT-20261004-VVLMN4EA', 'RCPT-20261004-A3UHE8QT', 'RCPT-20261004-PHFWRYA2', 'RCPT-20261003-PYE66P67', 'RCPT-20261003-ZT872JPR', 'RCPT-20261003-92UGREAL', 'RCPT-20261003-GPFX5P2F', 'RCPT-20261003-DC64EXDK', 'RCPT-20261006-AEX8AXWR', 'RCPT-20261006-HYUMM962', 'RCPT-20261006-MXEMPBPM', 'RCPT-20261006-PJTR6922', 'RCPT-20261006-S9QLQARS', 'RCPT-20261007-5XU437X4', 'RCPT-20261007-H7Y4CK8Q', 'RCPT-20261007-ZMCNP9U7', 'RCPT-20261007-FM76N67Y', 'RCPT-20261007-NMH6VTWA', 'RCPT-20261006-SZ56D2JG', 'RCPT-20261006-7VWZR5KW', 'RCPT-20261006-PDGK8F4H', 'RCPT-20261006-3RAEH2Q3', 'RCPT-20261006-V5NUANR2', 'RCPT-20261009-E9S988YJ', 'RCPT-20261009-2AFEES3F', 'RCPT-20261009-H37WXWA6', 'RCPT-20261009-JHBM53HK', 'RCPT-20261009-WRKFNTRY', 'RCPT-20261007-BVA9HNW6', 'RCPT-20261007-TFF2N2L6', 'RCPT-20261007-JRZZKT4J', 'RCPT-20261007-G5EA2JP5', 'RCPT-20261007-WR89674H', 'RCPT-20261007-SZJXHPJE', 'RCPT-20261007-GSPTQ6VN', 'RCPT-20261007-LY4ZLXUR', 'RCPT-20261007-F7MTUMNV', 'RCPT-20261007-D2ZQVLWV', 'RCPT-20261009-V65SUVHL', 'RCPT-20261009-8B5PPQES', 'RCPT-20261009-Q32647WZ', 'RCPT-20261009-XDE5XFW6', 'RCPT-20261009-CCCGDT8T', 'RCPT-20261011-6G6NN3UJ', 'RCPT-20261011-7TBSXFDK', 'RCPT-20261011-UNRJYAF9', 'RCPT-20261011-UTXHXQZM', 'RCPT-20261011-MATT9XFQ', 'RCPT-20261011-8FTHDNMM', 'RCPT-20261011-SX9LAP4P', 'RCPT-20261011-UX9VTVHV', 'RCPT-20261011-YM6N7WZY', 'RCPT-20261011-6V8M99X8', 'RCPT-20261012-SFQH3KWX', 'RCPT-20261012-33NJF739', 'RCPT-20261012-PUFEXZ8E', 'RCPT-20261012-N2J4SLKS', 'RCPT-20261012-GD6XXFBH', 'RCPT-20261011-6YW2BWA9', 'RCPT-20261011-9WQZXKH9', 'RCPT-20261011-YHR6SPJM', 'RCPT-20261011-P2JXZ8HU', 'RCPT-20261011-WT8PHLCP', 'RCPT-20261013-9CTJMZ66', 'RCPT-20261013-73472TV7', 'RCPT-20261013-88AQ2JV4', 'RCPT-20261013-EBM2723X', 'RCPT-20261013-479JH9AF', 'RCPT-20261014-RUAV86B7', 'RCPT-20261014-XV4NLVNH', 'RCPT-20261014-WY67PZKY', 'RCPT-20261014-KGJA4R94', 'RCPT-20261014-RKLJBY4A', 'RCPT-20261014-3QQYV3SM', 'RCPT-20261014-FK578HLK', 'RCPT-20261014-J244LSV2', 'RCPT-20261014-4VZY63MT', 'RCPT-20261014-7JEH3SEP', 'RCPT-20261019-ZLJXGMM9', 'RCPT-20261019-YLW7WAAM', 'RCPT-20261019-VH3UF624', 'RCPT-20261019-EQHSF7TD', 'RCPT-20261019-FWDX399U', 'RCPT-20261018-P7KZF59P', 'RCPT-20261018-XCHUYS6X', 'RCPT-20261018-J7AQVR72', 'RCPT-20261018-VQ4JSBNS', 'RCPT-20261018-43BJ397S', 'RCPT-20261019-S2ZBSASM', 'RCPT-20261019-J54T9QEY', 'RCPT-20261019-TB7PYY3G', 'RCPT-20261019-VRWFSJ9J', 'RCPT-20261019-QXH8YYJW', 'RCPT-20261020-2X8CPHQV', 'RCPT-20261020-6V8PGECE', 'RCPT-20261020-56JVHYVK', 'RCPT-20261020-F6GQYVQ3', 'RCPT-20261020-9MXRFBJN', 'RCPT-20261020-G6M3PTRV', 'RCPT-20261020-BXDZVAFE', 'RCPT-20261020-H7FW2GZX', 'RCPT-20261020-C2JHN3YP', 'RCPT-20261020-6V4EMJ6N', 'RCPT-20261022-3CJS2VLW', 'RCPT-20261022-SBDFFLMH', 'RCPT-20261022-ZCLG4XDF', 'RCPT-20261022-KAL9KMB8', 'RCPT-20261022-QR2ERCRY', 'RCPT-20261022-SWTKRJN2', 'RCPT-20261022-9KEBCWFB', 'RCPT-20261022-DELNL8ZG', 'RCPT-20261022-AS33A65X', 'RCPT-20261022-KHD2TYGX', 'RCPT-20261021-8YV4NE3C', 'RCPT-20261021-9JPC2N69', 'RCPT-20261021-CUPRGFGY', 'RCPT-20261021-A22QMXKL', 'RCPT-20261021-6SLQ38VU', 'RCPT-20261023-U74YACU5', 'RCPT-20261023-QUYBSBD9', 'RCPT-20261023-PN6LFLPY', 'RCPT-20261023-4GR6DMC4', 'RCPT-20261023-EKXQCY3S', 'RCPT-20261024-GXS7DMHC', 'RCPT-20261024-K3ELBC3C', 'RCPT-20261024-66YKNUVD', 'RCPT-20261024-234SR8YU', 'RCPT-20261024-E4TYTN5N', 'RCPT-20261025-RP7853SA', 'RCPT-20261025-T5F2GP3G', 'RCPT-20261025-6SGMJP3P', 'RCPT-20261025-8AHW9LTG', 'RCPT-20261025-U7UHGMU3', 'RCPT-20261025-NW89PZ8Y', 'RCPT-20261025-BVZSKJKX', 'RCPT-20261025-NX6WWWMY', 'RCPT-20261025-UQHN8KBS', 'RCPT-20261025-UXHHKHKC', 'RCPT-20261026-DUKD59NK', 'RCPT-20261026-DFUDJVXH', 'RCPT-20261026-28Q9DBH8', 'RCPT-20261026-TFS4ES4N', 'RCPT-20261026-4BZWBK2B', 'RCPT-20261026-MVZRMFXA', 'RCPT-20261026-JEMQXGSY', 'RCPT-20261026-7WQ5M8J8', 'RCPT-20261026-WF6X2J2V', 'RCPT-20261026-GAX4XZTH', 'RCPT-20261102-3E3FVJYH', 'RCPT-20261102-YFU6CFDK', 'RCPT-20261102-4WSHBHZ4', 'RCPT-20261102-3WQ4R8RA', 'RCPT-20261102-DN8BLP4E', 'RCPT-20261031-NPKC96PN', 'RCPT-20261031-TKBD3RYE', 'RCPT-20261031-RQX8YKDY', 'RCPT-20261031-EPM7H4DS', 'RCPT-20261031-RQEH6T6X', 'RCPT-20261104-YS2N42GT', 'RCPT-20261104-JY4JFKWN', 'RCPT-20261104-YZWRQBLY', 'RCPT-20261104-QNQNENNH', 'RCPT-20261104-JFPV7VXK', 'RCPT-20261104-Y53MDKV7', 'RCPT-20261104-5GCNVNH9', 'RCPT-20261104-A97UCMRN', 'RCPT-20261104-LM5VEE9V', 'RCPT-20261104-NQH6HHXB', 'RCPT-20261111-GKRSKPBM', 'RCPT-20261111-3ESVPJEC', 'RCPT-20261111-CUSJ9E6L', 'RCPT-20261111-RG4G2CAL', 'RCPT-20261111-WK7SR4HY', 'RCPT-20261111-487KTF3X', 'RCPT-20261111-SNNGBLSX', 'RCPT-20261111-QH2BVVNW', 'RCPT-20261111-JTFM5EC6', 'RCPT-20261111-EW4TSLED')),
-       NOT EXISTS (SELECT 1 FROM app_user WHERE email IN ('club-member-001@spoit.test', 'club-member-002@spoit.test', 'club-member-003@spoit.test', 'club-member-004@spoit.test', 'club-member-005@spoit.test', 'club-member-006@spoit.test', 'club-member-007@spoit.test', 'club-member-008@spoit.test', 'club-member-009@spoit.test', 'club-member-010@spoit.test', 'club-member-011@spoit.test', 'club-member-012@spoit.test', 'club-member-013@spoit.test', 'club-member-014@spoit.test', 'club-member-015@spoit.test', 'club-member-016@spoit.test', 'club-member-017@spoit.test', 'club-member-018@spoit.test', 'club-member-019@spoit.test', 'club-member-020@spoit.test', 'club-member-021@spoit.test', 'club-member-022@spoit.test', 'club-member-023@spoit.test', 'club-member-024@spoit.test', 'club-member-025@spoit.test', 'club-member-026@spoit.test', 'club-member-027@spoit.test', 'club-member-028@spoit.test', 'club-member-029@spoit.test', 'club-member-030@spoit.test', 'club-member-031@spoit.test', 'club-member-032@spoit.test', 'club-member-033@spoit.test', 'club-member-034@spoit.test', 'club-member-035@spoit.test', 'club-member-036@spoit.test', 'club-member-037@spoit.test', 'club-member-038@spoit.test', 'club-member-039@spoit.test', 'club-member-040@spoit.test', 'club-member-041@spoit.test', 'club-member-042@spoit.test', 'club-member-043@spoit.test', 'club-member-044@spoit.test', 'club-member-045@spoit.test', 'club-member-046@spoit.test', 'club-member-047@spoit.test', 'club-member-048@spoit.test', 'club-member-049@spoit.test', 'club-member-050@spoit.test', 'club-member-051@spoit.test', 'club-member-052@spoit.test', 'club-member-053@spoit.test', 'club-member-054@spoit.test', 'club-member-055@spoit.test', 'club-member-056@spoit.test', 'club-01@spoit.test', 'club-02@spoit.test', 'club-member-057@spoit.test', 'club-member-058@spoit.test', 'club-member-059@spoit.test', 'club-member-060@spoit.test', 'club-member-061@spoit.test', 'club-member-062@spoit.test', 'club-member-063@spoit.test', 'club-03@spoit.test', 'club-04@spoit.test', 'club-05@spoit.test', 'club-member-064@spoit.test', 'club-member-065@spoit.test', 'club-member-066@spoit.test', 'club-member-067@spoit.test', 'club-member-068@spoit.test', 'club-member-069@spoit.test', 'club-member-070@spoit.test', 'club-member-071@spoit.test', 'club-member-072@spoit.test', 'club-member-073@spoit.test', 'club-member-074@spoit.test', 'club-member-075@spoit.test', 'club-member-076@spoit.test', 'club-member-077@spoit.test', 'club-member-078@spoit.test', 'club-member-079@spoit.test', 'club-member-080@spoit.test', 'club-member-081@spoit.test', 'club-member-082@spoit.test')),
+       NOT EXISTS (SELECT 1 FROM app_user WHERE email IN ('club-member-001@spoit.test', 'club-member-002@spoit.test', 'club-member-003@spoit.test', 'club-member-004@spoit.test', 'club-member-005@spoit.test', 'club-member-006@spoit.test', 'club-member-007@spoit.test', 'club-member-008@spoit.test', 'club-member-009@spoit.test', 'club-member-010@spoit.test', 'club-member-011@spoit.test', 'club-member-012@spoit.test', 'club-member-013@spoit.test', 'club-member-014@spoit.test', 'club-member-015@spoit.test', 'club-member-016@spoit.test', 'club-member-017@spoit.test', 'club-member-018@spoit.test', 'club-member-019@spoit.test', 'club-member-020@spoit.test', 'club-member-021@spoit.test', 'club-member-022@spoit.test', 'club-member-023@spoit.test', 'club-member-024@spoit.test', 'club-member-025@spoit.test', 'club-member-026@spoit.test', 'club-member-027@spoit.test', 'club-member-028@spoit.test', 'club-member-029@spoit.test', 'club-member-030@spoit.test', 'club-member-031@spoit.test', 'club-member-032@spoit.test', 'club-member-033@spoit.test', 'club-member-034@spoit.test', 'club-member-035@spoit.test', 'club-member-036@spoit.test', 'club-member-037@spoit.test', 'club-member-038@spoit.test', 'club-member-039@spoit.test', 'club-member-040@spoit.test', 'club-member-041@spoit.test', 'club-member-042@spoit.test', 'club-member-043@spoit.test', 'club-member-044@spoit.test', 'club-member-045@spoit.test', 'club-member-046@spoit.test', 'club-member-047@spoit.test', 'club-member-048@spoit.test', 'club-member-049@spoit.test', 'club-member-050@spoit.test', 'club-member-051@spoit.test', 'club-member-052@spoit.test', 'club-member-053@spoit.test', 'club-member-054@spoit.test', 'club-member-055@spoit.test', 'club-member-056@spoit.test', 'club-01@spoit.test', 'club-02@spoit.test', 'club-member-057@spoit.test', 'club-member-058@spoit.test', 'club-member-059@spoit.test', 'club-member-060@spoit.test', 'club-member-061@spoit.test', 'club-member-062@spoit.test', 'club-member-063@spoit.test', 'club-03@spoit.test', 'club-04@spoit.test', 'club-05@spoit.test', 'club-member-064@spoit.test', 'club-member-065@spoit.test', 'club-member-066@spoit.test', 'club-member-067@spoit.test', 'club-member-068@spoit.test', 'club-member-069@spoit.test', 'club-member-070@spoit.test')),
        EXISTS (SELECT 1 FROM app_user WHERE email = 'club-00@spoit.test')
   INTO @cd_sport, @cd_districts, @cd_facilities, @cd_club_names_free, @cd_slots_free, @cd_receipts_free, @cd_emails_free, @cd_already_applied;
 SET @cd_checks = @cd_sport AND @cd_districts AND @cd_facilities AND @cd_club_names_free AND @cd_slots_free AND @cd_receipts_free AND @cd_emails_free;
@@ -211,18 +205,6 @@ SELECT * FROM (
        UNION ALL SELECT (@cd_u + 74), 'club-member-068@spoit.test', '$2a$10$pSiGR361K/rv0YEnNbH/keZbZxx7hwMkuC/6YDWu2TTBY3pzRPppi', '황태현', '010-8874-9346', 'MEMBER', '2026-07-11 08:30:00'
        UNION ALL SELECT (@cd_u + 75), 'club-member-069@spoit.test', '$2a$10$pSiGR361K/rv0YEnNbH/keZbZxx7hwMkuC/6YDWu2TTBY3pzRPppi', '김서진', '010-8875-1488', 'MEMBER', '2026-07-23 09:30:00'
        UNION ALL SELECT (@cd_u + 76), 'club-member-070@spoit.test', '$2a$10$pSiGR361K/rv0YEnNbH/keZbZxx7hwMkuC/6YDWu2TTBY3pzRPppi', '한건우', '010-8876-1435', 'MEMBER', '2026-10-16 12:30:00'
-       UNION ALL SELECT (@cd_u + 77), 'club-member-071@spoit.test', '$2a$10$pSiGR361K/rv0YEnNbH/keZbZxx7hwMkuC/6YDWu2TTBY3pzRPppi', '정다은', '010-8877-8422', 'MEMBER', '2026-05-20 10:00:00'
-       UNION ALL SELECT (@cd_u + 78), 'club-member-072@spoit.test', '$2a$10$pSiGR361K/rv0YEnNbH/keZbZxx7hwMkuC/6YDWu2TTBY3pzRPppi', '박시우', '010-8878-9662', 'MEMBER', '2026-06-10 19:00:00'
-       UNION ALL SELECT (@cd_u + 79), 'club-member-073@spoit.test', '$2a$10$pSiGR361K/rv0YEnNbH/keZbZxx7hwMkuC/6YDWu2TTBY3pzRPppi', '배선우', '010-8879-5334', 'MEMBER', '2026-06-26 13:30:00'
-       UNION ALL SELECT (@cd_u + 80), 'club-member-074@spoit.test', '$2a$10$pSiGR361K/rv0YEnNbH/keZbZxx7hwMkuC/6YDWu2TTBY3pzRPppi', '김현준', '010-8880-1720', 'MEMBER', '2026-09-11 21:00:00'
-       UNION ALL SELECT (@cd_u + 81), 'club-member-075@spoit.test', '$2a$10$pSiGR361K/rv0YEnNbH/keZbZxx7hwMkuC/6YDWu2TTBY3pzRPppi', '권성민', '010-8881-7583', 'MEMBER', '2026-09-17 05:30:00'
-       UNION ALL SELECT (@cd_u + 82), 'club-member-076@spoit.test', '$2a$10$pSiGR361K/rv0YEnNbH/keZbZxx7hwMkuC/6YDWu2TTBY3pzRPppi', '허도현', '010-8882-3953', 'MEMBER', '2026-10-23 14:00:00'
-       UNION ALL SELECT (@cd_u + 83), 'club-member-077@spoit.test', '$2a$10$pSiGR361K/rv0YEnNbH/keZbZxx7hwMkuC/6YDWu2TTBY3pzRPppi', '황준우', '010-8883-3339', 'MEMBER', '2026-08-12 03:00:00'
-       UNION ALL SELECT (@cd_u + 84), 'club-member-078@spoit.test', '$2a$10$pSiGR361K/rv0YEnNbH/keZbZxx7hwMkuC/6YDWu2TTBY3pzRPppi', '장진수', '010-8884-7607', 'MEMBER', '2026-08-26 17:30:00'
-       UNION ALL SELECT (@cd_u + 85), 'club-member-079@spoit.test', '$2a$10$pSiGR361K/rv0YEnNbH/keZbZxx7hwMkuC/6YDWu2TTBY3pzRPppi', '박민준', '010-8885-2463', 'MEMBER', '2026-09-14 09:30:00'
-       UNION ALL SELECT (@cd_u + 86), 'club-member-080@spoit.test', '$2a$10$pSiGR361K/rv0YEnNbH/keZbZxx7hwMkuC/6YDWu2TTBY3pzRPppi', '손은우', '010-8886-9410', 'MEMBER', '2026-09-27 13:00:00'
-       UNION ALL SELECT (@cd_u + 87), 'club-member-081@spoit.test', '$2a$10$pSiGR361K/rv0YEnNbH/keZbZxx7hwMkuC/6YDWu2TTBY3pzRPppi', '김유준', '010-8887-8633', 'MEMBER', '2026-09-25 02:30:00'
-       UNION ALL SELECT (@cd_u + 88), 'club-member-082@spoit.test', '$2a$10$pSiGR361K/rv0YEnNbH/keZbZxx7hwMkuC/6YDWu2TTBY3pzRPppi', '서건우', '010-8888-4565', 'MEMBER', '2026-10-09 11:00:00'
 ) v
  WHERE @cd_ready = 1;
 
@@ -304,18 +286,6 @@ SELECT * FROM (
        UNION ALL SELECT (@cd_u + 74), @cd_r_송파구
        UNION ALL SELECT (@cd_u + 75), @cd_r_송파구
        UNION ALL SELECT (@cd_u + 76), @cd_r_송파구
-       UNION ALL SELECT (@cd_u + 77), @cd_r_종로구
-       UNION ALL SELECT (@cd_u + 78), @cd_r_종로구
-       UNION ALL SELECT (@cd_u + 79), @cd_r_종로구
-       UNION ALL SELECT (@cd_u + 80), @cd_r_종로구
-       UNION ALL SELECT (@cd_u + 81), @cd_r_종로구
-       UNION ALL SELECT (@cd_u + 82), @cd_r_종로구
-       UNION ALL SELECT (@cd_u + 83), @cd_r_중구
-       UNION ALL SELECT (@cd_u + 84), @cd_r_중구
-       UNION ALL SELECT (@cd_u + 85), @cd_r_중구
-       UNION ALL SELECT (@cd_u + 86), @cd_r_중구
-       UNION ALL SELECT (@cd_u + 87), @cd_r_중구
-       UNION ALL SELECT (@cd_u + 88), @cd_r_중구
 ) v
  WHERE @cd_ready = 1;
 
@@ -397,23 +367,10 @@ SELECT * FROM (
        UNION ALL SELECT (@cd_u + 74), @cd_s
        UNION ALL SELECT (@cd_u + 75), @cd_s
        UNION ALL SELECT (@cd_u + 76), @cd_s
-       UNION ALL SELECT (@cd_u + 77), @cd_s_농구
-       UNION ALL SELECT (@cd_u + 78), @cd_s_농구
-       UNION ALL SELECT (@cd_u + 79), @cd_s_농구
-       UNION ALL SELECT (@cd_u + 80), @cd_s_농구
-       UNION ALL SELECT (@cd_u + 81), @cd_s_농구
-       UNION ALL SELECT (@cd_u + 82), @cd_s_농구
-       UNION ALL SELECT (@cd_u + 83), @cd_s_테니스
-       UNION ALL SELECT (@cd_u + 84), @cd_s_테니스
-       UNION ALL SELECT (@cd_u + 85), @cd_s_테니스
-       UNION ALL SELECT (@cd_u + 86), @cd_s_테니스
-       UNION ALL SELECT (@cd_u + 87), @cd_s_테니스
-       UNION ALL SELECT (@cd_u + 88), @cd_s_테니스
 ) v
  WHERE @cd_ready = 1;
 
 -- 종목별 레이팅 = 마지막 레이팅 이력. rated_match_count가 5 이상이면 배치 완료로 팀 등급 평균에 들어간다.
--- 등급 테두리 예시 동호회 회원(농구·테니스)은 이력 없이 레이팅 숫자만 넣는다.
 INSERT INTO sport_rating (user_id, sport_id, current_mmr, rated_match_count, updated_at)
 SELECT * FROM (
                  SELECT (@cd_u + 1) AS user_id, @cd_s AS sport_id, 1236.45 AS current_mmr, 18 AS rated_match_count, '2026-11-05 21:00:00' AS updated_at
@@ -492,18 +449,6 @@ SELECT * FROM (
        UNION ALL SELECT (@cd_u + 74), @cd_s, 1032.14, 5, '2026-10-28 22:00:00'
        UNION ALL SELECT (@cd_u + 75), @cd_s, 971.36, 5, '2026-10-25 09:00:00'
        UNION ALL SELECT (@cd_u + 76), @cd_s, 1024.47, 1, '2026-11-09 18:00:00'
-       UNION ALL SELECT (@cd_u + 77), @cd_s_농구, 1744.98, 20, '2026-11-10 13:00:00'
-       UNION ALL SELECT (@cd_u + 78), @cd_s_농구, 1638.39, 23, '2026-11-09 20:00:00'
-       UNION ALL SELECT (@cd_u + 79), @cd_s_농구, 1720.64, 13, '2026-11-09 14:00:00'
-       UNION ALL SELECT (@cd_u + 80), @cd_s_농구, 1610.56, 18, '2026-11-09 21:00:00'
-       UNION ALL SELECT (@cd_u + 81), @cd_s_농구, 1617.29, 22, '2026-11-04 14:00:00'
-       UNION ALL SELECT (@cd_u + 82), @cd_s_농구, 1720.12, 24, '2026-11-07 12:00:00'
-       UNION ALL SELECT (@cd_u + 83), @cd_s_테니스, 1531.37, 20, '2026-11-06 09:00:00'
-       UNION ALL SELECT (@cd_u + 84), @cd_s_테니스, 1422.50, 16, '2026-11-06 18:00:00'
-       UNION ALL SELECT (@cd_u + 85), @cd_s_테니스, 1478.22, 12, '2026-11-04 19:00:00'
-       UNION ALL SELECT (@cd_u + 86), @cd_s_테니스, 1437.29, 8, '2026-11-08 09:00:00'
-       UNION ALL SELECT (@cd_u + 87), @cd_s_테니스, 1507.29, 14, '2026-11-04 21:00:00'
-       UNION ALL SELECT (@cd_u + 88), @cd_s_테니스, 1480.63, 11, '2026-11-06 14:00:00'
 ) v
  WHERE @cd_ready = 1;
 
@@ -520,8 +465,6 @@ SELECT * FROM (
        UNION ALL SELECT (@cd_c + 8), @cd_s, 'OFFSIDE FC', '노량진 축구장에서 화·금 저녁에 뛰는 OFFSIDE FC입니다.\n\n동네 친구 몇 명이 시작해서 지금은 매주 두 번 모여요. 경기 영상을 찍어서 다 같이 돌려 보는 걸 좋아하고, 지난 경기에서 아쉬웠던 점을 짧게 이야기하고 시작합니다.\n\n· 화·금 20:00~22:00\n· 정원이 차서 지금은 모집 마감입니다', 7, '마감', '2,5', '20:00:00', '22:00:00', '2026-07-24 10:00:00'
        UNION ALL SELECT (@cd_c + 9), @cd_s, '가락 FS', '가락동·문정동 이웃들이 일요일 아침마다 모여 공을 차는 풋살팀 가락 FS입니다.\n\n잠실종합운동장 제2풋살경기장에서 매주 5:5로 뛰어요. 시작 전 20분은 다 같이 몸을 풀고, 쿼터마다 팀을 다시 나눠 한쪽으로 기울지 않게 맞춥니다. 끝나면 근처에서 가볍게 아침을 먹고 헤어져요.\n\n[이런 분을 찾아요]\n· 한 달에 두 번 이상 일요일 오전을 비울 수 있는 분\n· 풋살 경험 1년 안팎, 중급 정도 실력\n· 이기는 것보다 다치지 않는 걸 먼저 챙기는 분\n\n[활동 안내]\n· 정기 모임: 매주 일요일 10:00~12:00\n· 다른 동호회와 친선 매치: 한 달에 두세 번\n· 구장비는 그날 나온 사람끼리 나눠 냅니다\n\n가입 신청에 주 포지션과 풋살 경력을 적어 주세요. 동호회장이 확인하고 단체 채팅방 링크를 보내 드려요.', 15, '모집중', '7', '10:00:00', '12:00:00', '2026-03-07 10:00:00'
        UNION ALL SELECT (@cd_c + 10), @cd_s, '코사 FS', '일요일 저녁, 한 주를 땀으로 마무리하고 싶은 사람들이 모인 풋살팀 코사 FS입니다.\n\n회사도 사는 곳도 제각각이지만 일요일 저녁만큼은 꼭 모여요. 처음 오신 분도 첫 쿼터부터 바로 뛰고, 그날 온 사람 실력에 맞춰 팀을 나눕니다.\n\n[이런 분을 찾아요]\n· 일요일 저녁 시간을 꾸준히 낼 수 있는 분\n· 초급부터 중급까지, 즐겁게 오래 뛰고 싶은 분\n· 송파·강동 쪽에서 오가기 편한 분\n\n[활동 안내]\n· 정기 모임: 매주 일요일 18:00~20:00, 잠실종합운동장 제2풋살경기장\n· 한 달에 한두 번 다른 동호회와 매치\n· 경기 뒤 저녁 식사는 원하는 분만\n\n가입 신청에 간단한 자기소개를 남겨 주시면 동호회장이 확인하고 연락드릴게요.', 15, '모집중', '7', '18:00:00', '20:00:00', '2026-06-13 10:00:00'
-       UNION ALL SELECT (@cd_c + 11), @cd_s_농구, '하이포스트 BC', '대학 농구부 출신과 사회인 리그 선수들이 모인 농구팀 하이포스트 BC입니다.\n\n종로 농구센터에서 주 2회 5:5 풀코트로 뜁니다. 수비 전술을 맞추고 경기 영상을 같이 돌려 보며 다음 경기를 준비해요.\n\n[이런 분을 찾아요]\n· 5:5 풀코트 경기 경험이 많은 분\n· 주 2회 중 한 번 이상 꾸준히 나올 수 있는 분\n· 포지션 상관없이 수비부터 성실한 분\n\n[활동 안내]\n· 정기 모임: 매주 화·목 20:00~22:00\n· 사회인 리그와 다른 동호회 교류전: 한 달에 두세 번\n\n가입 신청에 농구 경력과 주 포지션을 적어 주세요.', 12, '모집중', '2,4', '20:00:00', '22:00:00', '2026-05-30 10:00:00'
-       UNION ALL SELECT (@cd_c + 12), @cd_s_테니스, '장충 서브앤발리', '장충테니스장에서 토요일 아침을 여는 복식 위주 테니스 동호회입니다.\n\n구력 5년 이상인 분들이 많아 랠리가 길고 경기 흐름이 빠른 편이에요. 매주 파트너를 바꿔 복식을 치고, 끝나면 그날 경기를 짧게 돌아봅니다.\n\n[이런 분을 찾아요]\n· 구력 3년 이상, 복식 경기에 익숙한 분\n· 토요일 이른 아침에 꾸준히 나올 수 있는 분\n· 코트 예절을 잘 지키는 분\n\n[활동 안내]\n· 정기 모임: 매주 토요일 07:00~09:00\n· 다른 동호회와 교류전: 한 달에 한 번\n\n가입 신청에 구력과 주로 치는 위치(포·백)를 적어 주세요.', 10, '모집중', '6', '07:00:00', '09:00:00', '2026-09-05 10:00:00'
 ) v
  WHERE @cd_ready = 1;
 
@@ -537,8 +480,6 @@ SELECT * FROM (
        UNION ALL SELECT (@cd_c + 8), @cd_r_동작구
        UNION ALL SELECT (@cd_c + 9), @cd_r_송파구
        UNION ALL SELECT (@cd_c + 10), @cd_r_송파구
-       UNION ALL SELECT (@cd_c + 11), @cd_r_종로구
-       UNION ALL SELECT (@cd_c + 12), @cd_r_중구
 ) v
  WHERE @cd_ready = 1;
 
@@ -621,18 +562,6 @@ SELECT * FROM (
        UNION ALL SELECT (@cd_m + 74), (@cd_c + 10), (@cd_u + 74), '동호회원', '2026-07-20 12:30:00'
        UNION ALL SELECT (@cd_m + 75), (@cd_c + 10), (@cd_u + 75), '동호회원', '2026-07-29 14:30:00'
        UNION ALL SELECT (@cd_m + 76), (@cd_c + 10), (@cd_u + 76), '동호회원', '2026-10-30 16:30:00'
-       UNION ALL SELECT (@cd_m + 77), (@cd_c + 11), (@cd_u + 77), '동호회장', '2026-05-30 10:00:00'
-       UNION ALL SELECT (@cd_m + 78), (@cd_c + 11), (@cd_u + 78), '동호회원', '2026-06-19 21:00:00'
-       UNION ALL SELECT (@cd_m + 79), (@cd_c + 11), (@cd_u + 79), '동호회원', '2026-07-05 18:30:00'
-       UNION ALL SELECT (@cd_m + 80), (@cd_c + 11), (@cd_u + 80), '동호회원', '2026-09-16 21:00:00'
-       UNION ALL SELECT (@cd_m + 81), (@cd_c + 11), (@cd_u + 81), '동호회원', '2026-10-03 11:30:00'
-       UNION ALL SELECT (@cd_m + 82), (@cd_c + 11), (@cd_u + 82), '동호회원', '2026-10-27 17:00:00'
-       UNION ALL SELECT (@cd_m + 83), (@cd_c + 12), (@cd_u + 83), '동호회장', '2026-09-05 10:00:00'
-       UNION ALL SELECT (@cd_m + 84), (@cd_c + 12), (@cd_u + 84), '동호회원', '2026-09-08 22:30:00'
-       UNION ALL SELECT (@cd_m + 85), (@cd_c + 12), (@cd_u + 85), '동호회원', '2026-09-19 17:30:00'
-       UNION ALL SELECT (@cd_m + 86), (@cd_c + 12), (@cd_u + 86), '동호회원', '2026-09-30 16:00:00'
-       UNION ALL SELECT (@cd_m + 87), (@cd_c + 12), (@cd_u + 87), '동호회원', '2026-10-05 09:30:00'
-       UNION ALL SELECT (@cd_m + 88), (@cd_c + 12), (@cd_u + 88), '동호회원', '2026-10-24 15:00:00'
 ) v
  WHERE @cd_ready = 1;
 
@@ -2545,16 +2474,15 @@ COMMIT;
 
 -- 확인 1: 넣은 행 수 (이미 적용된 DB에서도 위임·탈퇴 전이면 같은 값)
 SELECT (SELECT COUNT(*) FROM app_user u WHERE u.email LIKE 'club-member-___@spoit.test' OR u.email IN ('club-00@spoit.test', 'club-01@spoit.test', 'club-02@spoit.test', 'club-03@spoit.test', 'club-04@spoit.test', 'club-05@spoit.test')) AS club_demo_users,
-       (SELECT COUNT(*) FROM club WHERE club_name IN ('잠실 드림풋살', '반포 리버사이드 FC', '이촌 한강 FS', '영등포 레인보우 FS', '망원 선데이 FC', 'BLUE WAVE FS', '구일 FS', 'OFFSIDE FC', '가락 FS', '코사 FS', '하이포스트 BC', '장충 서브앤발리') AND deleted_at IS NULL) AS club_demo_clubs,
-       (SELECT COUNT(*) FROM club_member m JOIN club c ON c.club_id = m.club_id WHERE c.club_name IN ('잠실 드림풋살', '반포 리버사이드 FC', '이촌 한강 FS', '영등포 레인보우 FS', '망원 선데이 FC', 'BLUE WAVE FS', '구일 FS', 'OFFSIDE FC', '가락 FS', '코사 FS', '하이포스트 BC', '장충 서브앤발리') AND c.deleted_at IS NULL AND m.left_at IS NULL) AS active_members,
+       (SELECT COUNT(*) FROM club WHERE club_name IN ('잠실 드림풋살', '반포 리버사이드 FC', '이촌 한강 FS', '영등포 레인보우 FS', '망원 선데이 FC', 'BLUE WAVE FS', '구일 FS', 'OFFSIDE FC', '가락 FS', '코사 FS') AND deleted_at IS NULL) AS club_demo_clubs,
+       (SELECT COUNT(*) FROM club_member m JOIN club c ON c.club_id = m.club_id WHERE c.club_name IN ('잠실 드림풋살', '반포 리버사이드 FC', '이촌 한강 FS', '영등포 레인보우 FS', '망원 선데이 FC', 'BLUE WAVE FS', '구일 FS', 'OFFSIDE FC', '가락 FS', '코사 FS') AND c.deleted_at IS NULL AND m.left_at IS NULL) AS active_members,
        (SELECT COUNT(DISTINCT ma.match_id) FROM match_application ma JOIN club c ON c.club_id = ma.club_id JOIN social_match sm ON sm.match_id = ma.match_id
-         WHERE c.club_name IN ('잠실 드림풋살', '반포 리버사이드 FC', '이촌 한강 FS', '영등포 레인보우 FS', '망원 선데이 FC', 'BLUE WAVE FS', '구일 FS', 'OFFSIDE FC', '가락 FS', '코사 FS', '하이포스트 BC', '장충 서브앤발리') AND ma.status = '확정' AND sm.status = '종료') AS past_matches,
+         WHERE c.club_name IN ('잠실 드림풋살', '반포 리버사이드 FC', '이촌 한강 FS', '영등포 레인보우 FS', '망원 선데이 FC', 'BLUE WAVE FS', '구일 FS', 'OFFSIDE FC', '가락 FS', '코사 FS') AND ma.status = '확정' AND sm.status = '종료') AS past_matches,
        (SELECT COUNT(*) FROM sport_rating_history h JOIN app_user u ON u.user_id = h.user_id WHERE u.email LIKE 'club-member-___@spoit.test' OR u.email IN ('club-00@spoit.test', 'club-01@spoit.test', 'club-02@spoit.test', 'club-03@spoit.test', 'club-04@spoit.test', 'club-05@spoit.test')) AS history_rows,
        (SELECT COUNT(*) FROM match_application WHERE receipt_no IN ('RCPT-20261111-GKRSKPBM', 'RCPT-20261111-3ESVPJEC', 'RCPT-20261111-CUSJ9E6L', 'RCPT-20261111-RG4G2CAL', 'RCPT-20261111-WK7SR4HY', 'RCPT-20261111-487KTF3X', 'RCPT-20261111-SNNGBLSX', 'RCPT-20261111-QH2BVVNW', 'RCPT-20261111-JTFM5EC6', 'RCPT-20261111-EW4TSLED') AND status = '대기' AND group_application_id IS NOT NULL) AS team_applications;
--- 기대값: club_demo_users 88, club_demo_clubs 12, active_members 88, past_matches 50, history_rows 500, team_applications 10
+-- 기대값: club_demo_users 76, club_demo_clubs 10, active_members 76, past_matches 50, history_rows 500, team_applications 10
 
 -- 확인 2: 레이팅이 이력과 맞는지 (sport_rating = 마지막 이력, 경기 수 = 이력 행 수). 0이면 맞다.
---         축구+풋살 레이팅만 본다. 등급 테두리 예시 동호회 회원은 농구·테니스 레이팅만 있고 이력이 없어 여기서 빠진다.
 SELECT COUNT(*) AS rating_mismatches
   FROM app_user u JOIN sport_rating sr ON sr.user_id = u.user_id
   JOIN sport s ON s.sport_id = sr.sport_id AND s.name = '축구+풋살'
@@ -2568,7 +2496,7 @@ SELECT c.club_name, c.recruit_status, CONCAT(COUNT(m.club_member_id), '/', c.max
        (SELECT ROUND(AVG(sr.current_mmr)) FROM club_member am JOIN sport_rating sr ON sr.user_id = am.user_id AND sr.sport_id = c.sport_id
          WHERE am.club_id = c.club_id AND am.left_at IS NULL AND sr.rated_match_count >= 5) AS average_mmr
   FROM club c JOIN club_member m ON m.club_id = c.club_id AND m.left_at IS NULL
- WHERE c.club_name IN ('잠실 드림풋살', '반포 리버사이드 FC', '이촌 한강 FS', '영등포 레인보우 FS', '망원 선데이 FC', 'BLUE WAVE FS', '구일 FS', 'OFFSIDE FC', '가락 FS', '코사 FS', '하이포스트 BC', '장충 서브앤발리') AND c.deleted_at IS NULL
+ WHERE c.club_name IN ('잠실 드림풋살', '반포 리버사이드 FC', '이촌 한강 FS', '영등포 레인보우 FS', '망원 선데이 FC', 'BLUE WAVE FS', '구일 FS', 'OFFSIDE FC', '가락 FS', '코사 FS') AND c.deleted_at IS NULL
  GROUP BY c.club_id ORDER BY average_mmr DESC;
--- 기대 등급(위임·탈퇴 전): 잠실 드림풋살 골드(1203), 반포 리버사이드 FC 실버(1016), 이촌 한강 FS 실버(1020), 영등포 레인보우 FS 브론즈(978), 망원 선데이 FC 브론즈(930), BLUE WAVE FS 브론즈(927), 구일 FS 브론즈(898), OFFSIDE FC 브론즈(919), 가락 FS 실버(1034), 코사 FS 실버(1027), 하이포스트 BC 다이아(1675), 장충 서브앤발리 플래티넘(1476)
--- 등급별 동호회 수: 브론즈 5, 실버 4, 골드 1, 플래티넘 1, 다이아 1
+-- 기대 등급(위임·탈퇴 전): 잠실 드림풋살 골드(1203), 반포 리버사이드 FC 실버(1016), 이촌 한강 FS 실버(1020), 영등포 레인보우 FS 브론즈(978), 망원 선데이 FC 브론즈(930), BLUE WAVE FS 브론즈(927), 구일 FS 브론즈(898), OFFSIDE FC 브론즈(919), 가락 FS 실버(1034), 코사 FS 실버(1027)
+-- 등급별 동호회 수: 브론즈 5, 실버 4, 골드 1, 플래티넘 0, 다이아 0

@@ -16,8 +16,6 @@
   * 시연 동호회 2개(발표·리허설): 동호회장 A, 가장 먼저 가입한 동호회원 B, 11/29 매칭방에 팀으로 신청한 C(대표)~G.
     11/29 신청은 앱이 팀 신청 때 만드는 모양 그대로다(대표 행 group_application_id = 자기 번호, 팀원 행 = 대표 번호,
     참가자 행은 시설 담당자가 승인할 때 생기므로 넣지 않는다).
-  * 등급 테두리 예시 동호회 2개(농구 다이아, 테니스 플래티넘): 진짜 이력으로는 평균 1400 이상이 나오지 않아 따로 둔다.
-    회원은 그 종목 레이팅 숫자만 있고 경기·이력은 없다. 다른 난수를 써서 위 동호회의 일정·레이팅은 그대로다.
 """
 import random
 from datetime import date, datetime, time, timedelta
@@ -122,31 +120,7 @@ CLUBS = [
 DEMO_ACCOUNTS = {1: ['club-00', 'club-01', 'club-02'], 2: ['club-03', 'club-04', 'club-05']}  # A·B·C
 ROOM_TITLE = {'10:00': '잠실 제2풋살경기장 일요일 오전 5:5', '18:00': '잠실 제2풋살경기장 일요일 저녁 5:5'}
 WEEKDAY = '월화수목금토일'
-
-# 등급 테두리 예시 동호회: 진짜 Elo 이력으로는 평균 1400 이상이 나오지 않아(수십 연승 필요) 플래티넘·다이아 테두리를
-# 보여 줄 수 없다. 그래서 다른 종목에 이력 없이 레이팅 숫자만 넣은 동호회 2곳을 따로 둔다.
-# 위 동호회와 다른 난수를 써서 위 동호회 10곳의 일정·레이팅은 바뀌지 않는다.
-EXAMPLE_SEED = 20261124
-EXAMPLE_CLUBS = [
-    dict(name='하이포스트 BC', sport='농구', district='종로구', days='2,4', start='20:00', end='22:00', max=12, count=6,
-         created=date(2026, 5, 30), mmr=(1610, 1760), target=(1660, 1700), games=(9, 24),
-         intro='대학 농구부 출신과 사회인 리그 선수들이 모인 농구팀 하이포스트 BC입니다.\n\n'
-               '종로 농구센터에서 주 2회 5:5 풀코트로 뜁니다. 수비 전술을 맞추고 경기 영상을 같이 돌려 보며 다음 경기를 준비해요.\n\n'
-               '[이런 분을 찾아요]\n· 5:5 풀코트 경기 경험이 많은 분\n· 주 2회 중 한 번 이상 꾸준히 나올 수 있는 분\n'
-               '· 포지션 상관없이 수비부터 성실한 분\n\n'
-               '[활동 안내]\n· 정기 모임: 매주 화·목 20:00~22:00\n· 사회인 리그와 다른 동호회 교류전: 한 달에 두세 번\n\n'
-               '가입 신청에 농구 경력과 주 포지션을 적어 주세요.'),
-    dict(name='장충 서브앤발리', sport='테니스', district='중구', days='6', start='07:00', end='09:00', max=10, count=6,
-         created=date(2026, 9, 5), mmr=(1410, 1540), target=(1440, 1480), games=(8, 20),
-         intro='장충테니스장에서 토요일 아침을 여는 복식 위주 테니스 동호회입니다.\n\n'
-               '구력 5년 이상인 분들이 많아 랠리가 길고 경기 흐름이 빠른 편이에요. 매주 파트너를 바꿔 복식을 치고, '
-               '끝나면 그날 경기를 짧게 돌아봅니다.\n\n'
-               '[이런 분을 찾아요]\n· 구력 3년 이상, 복식 경기에 익숙한 분\n· 토요일 이른 아침에 꾸준히 나올 수 있는 분\n'
-               '· 코트 예절을 잘 지키는 분\n\n'
-               '[활동 안내]\n· 정기 모임: 매주 토요일 07:00~09:00\n· 다른 동호회와 교류전: 한 달에 한 번\n\n'
-               '가입 신청에 구력과 주로 치는 위치(포·백)를 적어 주세요.'),
-]
-SPORT_VAR = {'축구+풋살': '@cd_s', '농구': '@cd_s_농구', '테니스': '@cd_s_테니스'}
+SPORT_VAR = {'축구+풋살': '@cd_s'}
 
 SURNAMES = ['김', '이', '박', '최', '정', '강', '조', '윤', '장', '임', '한', '오', '서', '신', '권', '황', '안', '송',
             '류', '홍', '전', '고', '문', '양', '손', '배', '백', '허', '유', '남']
@@ -436,45 +410,6 @@ def find():
     raise SystemExit('조건에 맞는 일정을 찾지 못했습니다.')
 
 
-def build_examples(users):
-    """등급 테두리 예시 동호회의 회원. 이력 없이 그 종목 레이팅만 있고, 모두 배치를 마쳤다."""
-    rng = random.Random(EXAMPLE_SEED)
-    used_names = {u['nickname'] for u in users}
-    member_no = sum(1 for u in users if u['email'].startswith('club-member-'))
-    examples, members_of = [], []
-    for ei, c in enumerate(EXAMPLE_CLUBS):
-        c['sport_var'] = SPORT_VAR[c['sport']]
-        # 평균이 등급 경계에서 여유 있게 들어오도록 범위 안에서 다시 뽑는다
-        while True:
-            mmrs = [Decimal(rng.randint(c['mmr'][0] * 100, c['mmr'][1] * 100)).scaleb(-2) for _ in range(c['count'])]
-            if c['target'][0] <= sql_avg(mmrs) <= c['target'][1]:
-                break
-        joined = [datetime.combine(c['created'], time(10, 0))]
-        for _ in range(1, c['count']):
-            d = c['created'] + timedelta(days=rng.randint(1, (JOINED_UNTIL - c['created']).days))
-            joined.append(datetime.combine(d, time(rng.randint(9, 22), rng.choice([0, 30]))))
-        joined = [joined[0]] + sorted(joined[1:])
-        ids = []
-        for k in range(c['count']):
-            member_no += 1
-            while True:
-                name = rng.choice(SURNAMES) + rng.choice(GIVEN)
-                if name not in used_names:
-                    used_names.add(name)
-                    break
-            no = len(users) + len(examples) + 1
-            examples.append({'no': no, 'email': 'club-member-%03d@spoit.test' % member_no, 'nickname': name,
-                             'district': c['district'], 'club': len(CLUBS) + ei, 'sport_var': c['sport_var'],
-                             'phone': '010-88%02d-%04d' % (no % 100, rng.randint(1000, 9999)),
-                             'created_at': joined[k] - timedelta(days=rng.randint(1, 30), hours=rng.randint(0, 8)),
-                             'joined_at': joined[k], 'role': '동호회장' if k == 0 else '동호회원',
-                             'mmr': mmrs[k], 'count': rng.randint(*c['games']),
-                             'rated_at': datetime.combine(date(2026, 11, rng.randint(1, 10)), time(rng.randint(9, 22), 0))})
-            ids.append(no)
-        members_of.append(ids)
-    return examples, members_of
-
-
 def receipt_maker(rng):
     alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
     used = set()
@@ -491,26 +426,22 @@ def receipt_maker(rng):
 def main():
     rng, (matches, users, members_of), attempt = find()
     receipt = receipt_maker(rng)
-    examples, example_members = build_examples(users)
     for c in CLUBS:
         c['sport_var'] = SPORT_VAR['축구+풋살']
-    all_clubs = CLUBS + EXAMPLE_CLUBS
-    all_users = users + examples
-    all_members = members_of + example_members
     for u in users:
         u['sport_var'] = SPORT_VAR['축구+풋살']
-    for c in all_clubs:
+    for c in CLUBS:
         assert len(c['intro']) <= 500, c['name']
         assert c['count'] <= c['max'] and 2 <= c['max'] <= 30, c['name']
         c['status'] = '마감' if c['count'] >= c['max'] else '모집중'
-    districts = sorted({c['district'] for c in all_clubs})
+    districts = sorted({c['district'] for c in CLUBS})
     facilities = []
     for c in CLUBS:
         key = (c['district'], c['home'][0])
         if key not in facilities:
             facilities.append(key)
     fac_var = {f[1]: '@cd_f%d' % (i + 1) for i, f in enumerate(facilities)}
-    club_names = [c['name'] for c in all_clubs]
+    club_names = [c['name'] for c in CLUBS]
     marker = '%s@spoit.test' % DEMO_ACCOUNTS[1][0]
 
     # 지난 경기 행 번호
@@ -551,9 +482,9 @@ def main():
     w = out.append
     history_rows = sum(len(m['history']) for m in matches)
     w('-- =====================================================================\n')
-    w('-- 동호회 시연 데이터: 축구+풋살 동호회 %d개(시연 2개 포함) + 등급 테두리 예시 동호회 %d개, 회원 %d명,\n'
+    w('-- 동호회 시연 데이터: 축구+풋살 동호회 %d개(시연 2개 포함), 회원 %d명,\n'
       '--                   지난 동호회 경기 %d개(레이팅 이력 %d행), 11/29 매칭방 %d개와 팀 신청 %d행\n'
-      % (len(CLUBS), len(EXAMPLE_CLUBS), len(all_users), len(matches), history_rows, len(rooms), len(waiting)))
+      % (len(CLUBS), len(users), len(matches), history_rows, len(rooms), len(waiting)))
     w('-- 이 파일은 scripts/club-demo-data.py가 만든다. 직접 고치지 말고 스크립트를 고쳐 다시 만든다.\n')
     w('-- 대상: 20261110-seoul-public-facilities.sql과 20261112-club-single-region.sql을 적용한 DB (로컬·운영)\n')
     w('-- 내용\n')
@@ -565,9 +496,6 @@ def main():
     w('--     1000부터 시간순 계산했고, sport_rating은 마지막 이력 값·이력 행 수다. 팀 등급은 이 레이팅에서 나온다.\n')
     w('--   * 시연 동호회마다 11/29(일) 잠실종합운동장 제2풋살경기장 매칭방 1개와 C~G 팀 신청(대기).\n')
     w('--     → 발표 때 "모집 중인 팀 매치에 신청된 동호회원은 추방할 수 없습니다"가 나온다.\n')
-    w('--   * 등급 테두리 예시 동호회 %s: 진짜 이력으로는 평균 1400 이상이 나오지 않아\n'
-      '--     플래티넘·다이아 테두리를 보여 주려고 넣었다. 회원은 그 종목 레이팅만 있고 경기·레이팅 이력은 없다(모두 배치 완료).\n'
-      % ', '.join('%s(%s)' % (c['name'], c['sport']) for c in EXAMPLE_CLUBS))
     w('-- 원칙\n')
     w('--   * 한 트랜잭션. 사전 확인에 실패하면 멈추고 아무 행도 넣지 않는다.\n')
     w('--   * %s가 이미 있으면 적용된 것으로 보고 아무것도 넣지 않는다(오류 없음).\n' % marker)
@@ -591,7 +519,7 @@ def main():
     slots = [(fac_var[m['facility'][0]], m['start'], m['end']) for m in matches]
     demo_fac = fac_var[DEMO_FACILITY[1]]
     slots += [(demo_fac, datetime.combine(ROOM_DAY, hm(r['start'])), datetime.combine(ROOM_DAY, hm(r['end']))) for r in rooms]
-    emails = [u['email'] for u in all_users if u['email'] != marker]
+    emails = [u['email'] for u in users if u['email'] != marker]
     w('-- 사전 확인. 출력되는 값이 모두 1이어야 진행한다. already_applied가 1이면 이미 적용된 DB라 아무것도 넣지 않는다.\n')
     w('SELECT (%s),\n' % ' AND '.join('%s IS NOT NULL' % v for v in SPORT_VAR.values()))
     w('       (%s) = %d,\n' % (' + '.join('(@cd_r_%s IS NOT NULL)' % d for d in districts), len(districts)))
@@ -623,31 +551,30 @@ def main():
     w('-- 1. 회원 (비밀번호 spoit1234)\n')
     w('INSERT INTO app_user (user_id, email, password_hash, nickname, phone, role, created_at)\n')
     w(union([['(@cd_u + %d)' % u['no'], q(u['email']), q(PASSWORD_HASH), q(u['nickname']), q(u['phone']), q(ROLE),
-              q(dt(u['created_at']))] for u in all_users],
+              q(dt(u['created_at']))] for u in users],
             ['user_id', 'email', 'password_hash', 'nickname', 'phone', 'role', 'created_at']))
     w('\nINSERT INTO user_region (user_id, region_id)\n')
-    w(union([['(@cd_u + %d)' % u['no'], '@cd_r_%s' % u['district']] for u in all_users], ['user_id', 'region_id']))
+    w(union([['(@cd_u + %d)' % u['no'], '@cd_r_%s' % u['district']] for u in users], ['user_id', 'region_id']))
     w('\nINSERT INTO user_preferred_sport (user_id, sport_id)\n')
-    w(union([['(@cd_u + %d)' % u['no'], u['sport_var']] for u in all_users], ['user_id', 'sport_id']))
+    w(union([['(@cd_u + %d)' % u['no'], u['sport_var']] for u in users], ['user_id', 'sport_id']))
     w('\n-- 종목별 레이팅 = 마지막 레이팅 이력. rated_match_count가 5 이상이면 배치 완료로 팀 등급 평균에 들어간다.\n')
-    w('-- 등급 테두리 예시 동호회 회원(농구·테니스)은 이력 없이 레이팅 숫자만 넣는다.\n')
     w('INSERT INTO sport_rating (user_id, sport_id, current_mmr, rated_match_count, updated_at)\n')
     w(union([['(@cd_u + %d)' % u['no'], u['sport_var'], str(u['mmr']), str(u['count']), q(dt(u['rated_at'] or u['joined_at']))]
-             for u in all_users], ['user_id', 'sport_id', 'current_mmr', 'rated_match_count', 'updated_at']))
+             for u in users], ['user_id', 'sport_id', 'current_mmr', 'rated_match_count', 'updated_at']))
 
     w('\n-- 2. 동호회 (정원이 찬 동호회는 마감)\n')
     w('INSERT INTO club (club_id, sport_id, club_name, intro, max_members, recruit_status, activity_days, activity_start_time, activity_end_time, created_at)\n')
     w(union([['(@cd_c + %d)' % (i + 1), c['sport_var'], q(c['name']), q(c['intro']), str(c['max']), q(c['status']), q(c['days']),
               q(c['start'] + ':00'), q(c['end'] + ':00'), q(dt(datetime.combine(c['created'], time(10, 0))))]
-             for i, c in enumerate(all_clubs)],
+             for i, c in enumerate(CLUBS)],
             ['club_id', 'sport_id', 'club_name', 'intro', 'max_members', 'recruit_status', 'activity_days',
              'activity_start_time', 'activity_end_time', 'created_at']))
     w('\nINSERT INTO club_region (club_id, region_id)\n')
-    w(union([['(@cd_c + %d)' % (i + 1), '@cd_r_%s' % c['district']] for i, c in enumerate(all_clubs)], ['club_id', 'region_id']))
+    w(union([['(@cd_c + %d)' % (i + 1), '@cd_r_%s' % c['district']] for i, c in enumerate(CLUBS)], ['club_id', 'region_id']))
     w('\n-- 동호회장은 창단일에 가입, 동호회원 목록은 동호회장 → 가입 순서라 시연 동호회의 B가 동호회장 바로 아래에 보인다.\n')
     w('INSERT INTO club_member (club_member_id, club_id, user_id, role, joined_at)\n')
     w(union([['(@cd_m + %d)' % u['no'], '(@cd_c + %d)' % (u['club'] + 1), '(@cd_u + %d)' % u['no'], q(u['role']), q(dt(u['joined_at']))]
-             for u in all_users], ['club_member_id', 'club_id', 'user_id', 'role', 'joined_at']))
+             for u in users], ['club_member_id', 'club_id', 'user_id', 'role', 'joined_at']))
 
     w('\n-- 3. 경기: 지난 동호회 경기(종료, 결과 확정, 레이팅 반영) + 11/29 매칭방(모집 중). 팀장은 참가자를 넣은 뒤 지정한다.\n')
     w('INSERT INTO social_match (match_id, facility_id, sport_id, created_by, title, start_at, end_at, min_participants, max_participants, '
@@ -724,7 +651,7 @@ def main():
     w('\nCOMMIT;\n\n')
 
     # 확인 질의와 기대값
-    averages = [club_average(all_users, ids) for ids in all_members]
+    averages = [club_average(users, ids) for ids in members_of]
     tiers = {}
     for a in averages:
         tiers[tier(a)] = tiers.get(tier(a), 0) + 1
@@ -741,9 +668,8 @@ def main():
     w("       (SELECT COUNT(*) FROM match_application WHERE receipt_no IN (%s) AND status = '대기' AND group_application_id IS NOT NULL) AS team_applications;\n"
       % ', '.join(q(a['receipt']) for a in waiting))
     w('-- 기대값: club_demo_users %d, club_demo_clubs %d, active_members %d, past_matches %d, history_rows %d, team_applications %d\n\n'
-      % (len(all_users), len(all_clubs), len(all_users), len(matches), history_rows, len(waiting)))
+      % (len(users), len(CLUBS), len(users), len(matches), history_rows, len(waiting)))
     w('-- 확인 2: 레이팅이 이력과 맞는지 (sport_rating = 마지막 이력, 경기 수 = 이력 행 수). 0이면 맞다.\n')
-    w('--         축구+풋살 레이팅만 본다. 등급 테두리 예시 동호회 회원은 농구·테니스 레이팅만 있고 이력이 없어 여기서 빠진다.\n')
     w('SELECT COUNT(*) AS rating_mismatches\n  FROM app_user u JOIN sport_rating sr ON sr.user_id = u.user_id\n'
       '  JOIN sport s ON s.sport_id = sr.sport_id AND s.name = \'축구+풋살\'\n'
       ' WHERE (%s)\n'
@@ -757,13 +683,13 @@ def main():
     w('  FROM club c JOIN club_member m ON m.club_id = c.club_id AND m.left_at IS NULL\n')
     w(' WHERE c.club_name IN (%s) AND c.deleted_at IS NULL\n' % names_sql)
     w(' GROUP BY c.club_id ORDER BY average_mmr DESC;\n')
-    w('-- 기대 등급(위임·탈퇴 전): %s\n' % ', '.join('%s %s(%s)' % (c['name'], tier(a), a) for c, a in zip(all_clubs, averages)))
+    w('-- 기대 등급(위임·탈퇴 전): %s\n' % ', '.join('%s %s(%s)' % (c['name'], tier(a), a) for c, a in zip(CLUBS, averages)))
     w('-- 등급별 동호회 수: %s\n' % ', '.join('%s %d' % (t, tiers.get(t, 0)) for t in TIERS))
 
     OUT.write_text(''.join(out), encoding='utf-8', newline='\n')
     counts = {
-        'app_user': len(all_users), 'user_region': len(all_users), 'user_preferred_sport': len(all_users),
-        'sport_rating': len(all_users), 'club': len(all_clubs), 'club_region': len(all_clubs), 'club_member': len(all_users),
+        'app_user': len(users), 'user_region': len(users), 'user_preferred_sport': len(users),
+        'sport_rating': len(users), 'club': len(CLUBS), 'club_region': len(CLUBS), 'club_member': len(users),
         'social_match': len(matches) + len(rooms), 'match_application': app_no,
         'match_participant': part_no, 'match_result_submission': 2 * len(matches), 'sport_rating_history': history_rows,
     }
@@ -780,22 +706,15 @@ def main():
         if c['demo']:
             print('     without A:', club_average(users, ids[1:]),
                   [(users[u - 1]['email'], users[u - 1]['nickname'], str(users[u - 1]['mmr']), users[u - 1]['count']) for u in ids])
-    for ei, c in enumerate(EXAMPLE_CLUBS):
-        ids = example_members[ei]
-        a = averages[len(CLUBS) + ei]
-        print('  %-12s %s %s %d/%d avg %s %s intro %d' % (c['name'], c['sport'], c['status'], c['count'], c['max'], a, tier(a),
-                                                       len(c['intro'])))
-        print('     ', [(all_users[u - 1]['email'], all_users[u - 1]['nickname'], str(all_users[u - 1]['mmr']),
-                         all_users[u - 1]['count']) for u in ids])
-    main_existing({u['nickname'] for u in all_users})
+    main_existing({u['nickname'] for u in users})
 
 
 # =====================================================================
-# 기존 동호회 데이터: seed·HY 님 데이터의 동호회에 새 회원·지난 경기·레이팅 이력·예정 일정·소개 글을 채운다.
+# 기존 동호회 데이터: seed 동호회에 새 회원·지난 경기·레이팅 이력·예정 일정을, seed·HY 님 데이터 동호회에 소개 글을 채운다.
 # 출력은 따로(20261113-club-existing-data.sql). 시연 데이터와 다른 난수를 써서 시연 데이터 파일은 바뀌지 않는다.
 # 기존 회원(seed 팀원 계정, demo-NNN)은 건드리지 않는다. 경기는 새 회원끼리만 뛴다.
 # =====================================================================
-EX_SEED = 20288808  # 조건에 맞는 일정이 바로 나오는 시드(20261113부터 찾음). 시연 데이터 시드와 달라야 접수 번호가 안 겹친다
+EX_SEED = 20288860  # 조건에 맞는 일정이 바로 나오는 시드(20261113부터 찾음). 시연 데이터 시드와 달라야 접수 번호가 안 겹친다
 EX_OUT = OUT.parent / '20261113-club-existing-data.sql'
 EX_MARKER = 'club-user-001@spoit.test'
 EX_MATCH_FROM = date(2026, 8, 1)
@@ -823,9 +742,8 @@ def ex_intro(line, mood, want, days, start, end, place, extra, join):
 
 
 # 동호회 이름·종목·구·요일·시간은 DB 그대로다(이름으로 찾고 사전 확인한다). home = (구장 이름, 제목에 쓸 짧은 이름).
-# silver = (배치를 마친 기존 회원 수, 그 레이팅 합): HY 님 데이터 값(로컬 DB에서 확인). 최신순 첫 화면이 브론즈만 있지 않도록
-#          새 회원과 합친 팀 등급이 실버가 되게 한다.
-# play=False인 곳은 소개 글만 바꾼다(seed 가입 신청·매치에 쓰이거나 다른 파트 테스트 계정이 있는 곳).
+# play=False인 곳은 소개 글만 바꾼다. seed 가입 신청·매치에 쓰이거나 다른 파트 테스트 계정이 있는 곳,
+# HY 님 시연 데이터 동호회(회원·경기·매칭방은 HY 님 데이터 그대로), 같은 종목 상대 동호회가 없어지는 곳(은평 풋살 클럽·관악 족구회).
 EX_CLUBS = [
     dict(name='주말 풋살 클럽', sport='축구+풋살', district='성동구', days='2,4', start='19:00', end='21:00', play=False,
          intro=ex_intro('이름은 주말 풋살 클럽이지만 지금은 평일 저녁에 모이는 성동구 풋살팀입니다.',
@@ -903,8 +821,7 @@ EX_CLUBS = [
                         ['평일엔 바쁜 직장인', '일요일 오전을 운동으로 시작하고 싶은 분'],
                         '일요일', '09:00', '12:00', '송파 배드민턴홀', ['한 달에 한 번 다른 동호회와 교류전'],
                         '가입 신청에 배드민턴 경력과 주로 치는 시간대를 적어 주세요.')),
-    dict(name='은평 풋살 클럽', sport='축구+풋살', district='은평구', days='3,6', start='20:00', end='22:00', created=date(2025, 11, 2),
-         home=('은평 풋살아레나', '은평 풋살아레나'),
+    dict(name='은평 풋살 클럽', sport='축구+풋살', district='은평구', days='3,6', start='20:00', end='22:00', play=False,
          intro=ex_intro('은평 풋살아레나에서 수요일과 토요일 밤에 정기전을 여는 풋살 동호회입니다.',
                         '매번 두 팀으로 나눠 정기전을 하고, 한 달에 두세 번은 다른 동호회를 불러 5:5 경기를 합니다.',
                         ['은평구 근처에 살거나 일하는 분', '풋살화를 갖고 있는 분'],
@@ -937,8 +854,7 @@ EX_CLUBS = [
                         ['일요일 오후에 시간이 되는 분', '노원구 근처에 사는 분'],
                         '일요일', '15:00', '17:00', None, ['구장비는 참석 인원끼리 나눠 냅니다'],
                         '가입 신청에 간단한 자기소개를 남겨 주세요.')),
-    dict(name='관악 족구회', sport='족구', district='관악구', days='6', start='09:00', end='11:00', created=date(2026, 2, 15),
-         home=('관악 족구장', '관악 족구장'),
+    dict(name='관악 족구회', sport='족구', district='관악구', days='6', start='09:00', end='11:00', play=False,
          intro=ex_intro('토요일 아침 관악 족구장에서 3:3 족구를 하는 지역 동호회입니다.',
                         '군대에서 족구를 처음 배운 분부터 대학 동아리 출신까지 모였어요. 서브와 토스 연습을 하고 나서 세트 경기를 합니다.',
                         ['족구 규칙을 아는 분', '토요일 아침에 꾸준히 나올 수 있는 분'],
@@ -963,57 +879,49 @@ EX_CLUBS = [
                         '퇴근 후 가볍게 슈팅 연습을 하고 3:3, 4:4로 경기를 합니다.',
                         ['지금은 모집을 마감했어요', '다시 모집할 때 이 글로 알릴게요'],
                         '월·수', '20:00', '22:00', None, ['다른 동호회와 교류전은 인원이 모이면 잡아요'], None)),
-    dict(name='뚝섬 FC', sport='축구+풋살', district='광진구', days='6,7', start='10:00', end='12:00', created=date(2026, 9, 1),
-         home=('뚝섬한강공원 축구장 2', '뚝섬한강공원 축구장'), has_rooms=True,
+    dict(name='뚝섬 FC', sport='축구+풋살', district='광진구', days='6,7', start='10:00', end='12:00', play=False,
          intro=ex_intro('뚝섬한강공원 축구장에서 주말 오전에 뛰는 광진구 풋살팀 뚝섬 FC입니다.',
                         '한강을 옆에 두고 5:5로 뛰는 맛에 모인 팀이에요. 초보도 환영하고, 실력이 섞이도록 매번 팀을 다시 나눕니다.',
                         ['주말 오전에 한 번 이상 나올 수 있는 분', '초보부터 중급까지 누구나'],
                         '토·일', '10:00', '12:00', '뚝섬한강공원 축구장 2', ['다른 동호회와 5:5 매치: 한 달에 두세 번'],
                         '가입 신청에 주 포지션과 풋살 경력을 적어 주세요.')),
-    dict(name='망원 풋살 크루', silver=(9, Decimal('9120.52')), sport='축구+풋살', district='마포구', days='2,4', start='19:00', end='21:00', created=date(2026, 9, 4),
-         home=('망원유수지 풋살장', '망원유수지 풋살장'), has_rooms=True,
+    dict(name='망원 풋살 크루', sport='축구+풋살', district='마포구', days='2,4', start='19:00', end='21:00', play=False,
          intro=ex_intro('화요일과 목요일 저녁 망원유수지 풋살장에서 모이는 마포구 풋살 크루입니다.',
                         '합정·망원·상수에서 일하는 사람들이 퇴근길에 들러 뛰고 가요. 초보도 환영하고, 처음 오신 분은 수비부터 같이 맞춰 봅니다.',
                         ['평일 저녁 7시에 올 수 있는 분', '같이 뛰고 같이 치우는 분'],
                         '화·목', '19:00', '21:00', '망원유수지 풋살장', ['다른 동호회와 5:5 매치: 한 달에 두세 번'],
                         '가입 신청에 주 포지션을 적어 주세요.')),
-    dict(name='잠실 풋살 클럽', silver=(8, Decimal('8217.77')), sport='축구+풋살', district='송파구', days='6', start='14:00', end='16:00', created=date(2026, 9, 7),
-         home=('잠실종합운동장 제2풋살경기장', '잠실 제2풋살경기장'), has_rooms=True,
+    dict(name='잠실 풋살 클럽', sport='축구+풋살', district='송파구', days='6', start='14:00', end='16:00', play=False,
          intro=ex_intro('토요일 오후 잠실종합운동장 제2풋살경기장에서 뛰는 송파구 풋살 클럽입니다.',
                         '점심 먹고 느긋하게 모여 두 시간 동안 5:5 경기를 합니다. 초보도 환영하고, 실력에 맞춰 팀을 나눠요.',
                         ['토요일 오후에 시간이 되는 분', '송파구 근처에 사는 분'],
                         '토요일', '14:00', '16:00', '잠실종합운동장 제2풋살경기장', ['다른 동호회와 5:5 매치: 한 달에 두 번'],
                         '가입 신청에 간단한 자기소개를 남겨 주세요.')),
-    dict(name='반포 농구단', silver=(7, Decimal('7007.35')), sport='농구', district='서초구', days='3,6', start='18:00', end='20:00', created=date(2026, 9, 10),
-         home=('반포한강공원 농구장(1,2)', '반포한강공원 농구장'), has_rooms=True,
+    dict(name='반포 농구단', sport='농구', district='서초구', days='3,6', start='18:00', end='20:00', play=False,
          intro=ex_intro('반포한강공원 농구장에서 해 질 무렵 농구하는 서초구 동호회입니다.',
                         '수요일과 토요일 저녁 6시에 모여 4:4로 뜁니다. 초보도 환영하고, 처음 오신 분은 3:3 하프코트부터 같이 해요.',
                         ['저녁 6시에 올 수 있는 분', '야외 코트를 좋아하는 분'],
                         '수·토', '18:00', '20:00', '반포한강공원 농구장', ['다른 동호회와 4:4 교류전: 한 달에 두세 번'],
                         '가입 신청에 농구 경력과 주 포지션을 적어 주세요.')),
-    dict(name='광나루 바스켓', sport='농구', district='강동구', days='7', start='14:00', end='16:00', created=date(2026, 9, 13),
-         home=('광나루한강공원 농구장 1, 2', '광나루한강공원 농구장'), has_rooms=True,
+    dict(name='광나루 바스켓', sport='농구', district='강동구', days='7', start='14:00', end='16:00', play=False,
          intro=ex_intro('일요일 오후 광나루한강공원 농구장에서 뛰는 강동구 농구 동호회입니다.',
                         '천호·암사 이웃들이 모여 만든 팀이에요. 4:4 경기를 주로 하고, 초보도 환영해서 경기마다 실력을 섞어 팀을 나눕니다.',
                         ['일요일 오후에 시간이 되는 분', '강동구 근처에 사는 분'],
                         '일요일', '14:00', '16:00', '광나루한강공원 농구장', ['다른 동호회와 4:4 교류전: 한 달에 두 번'],
                         '가입 신청에 농구 경력을 적어 주세요.')),
-    dict(name='한강 족구회', sport='족구', district='광진구', days='6,7', start='10:00', end='12:00', created=date(2026, 9, 16),
-         home=('뚝섬한강공원 족구장 1', '뚝섬한강공원 족구장'),
+    dict(name='한강 족구회', sport='족구', district='광진구', days='6,7', start='10:00', end='12:00', play=False,
          intro=ex_intro('주말 오전 뚝섬한강공원 족구장에서 3:3 족구를 하는 광진구 동호회입니다.',
                         '족구를 처음 하는 분도 환영해요. 서브 받는 법부터 같이 연습하고, 몸이 풀리면 세트 경기를 합니다.',
                         ['주말 오전에 시간이 되는 분', '족구를 해 보고 싶었던 분'],
                         '토·일', '10:00', '12:00', '뚝섬한강공원 족구장', ['다른 동호회와 3:3 교류전: 한 달에 한두 번'],
                         '가입 신청에 간단한 자기소개를 남겨 주세요.')),
-    dict(name='뚝섬 셔틀콕', silver=(7, Decimal('6976.97')), sport='배드민턴', district='광진구', days='2,5', start='18:00', end='20:00', created=date(2026, 9, 19),
-         home=('뚝섬한강공원 배드민턴장 2', '뚝섬한강공원 배드민턴장'),
+    dict(name='뚝섬 셔틀콕', sport='배드민턴', district='광진구', days='2,5', start='18:00', end='20:00', play=False,
          intro=ex_intro('화요일과 금요일 저녁 뚝섬한강공원 배드민턴장에서 치는 광진구 배드민턴 동호회입니다.',
                         '바람이 약한 저녁 시간에 야외 코트에서 복식을 칩니다. 초보도 환영하고, 셔틀콕은 동호회에서 준비해요.',
                         ['퇴근 후 6시에 올 수 있는 분', '야외에서 운동하는 걸 좋아하는 분'],
                         '화·금', '18:00', '20:00', '뚝섬한강공원 배드민턴장', ['다른 동호회와 복식 교류전: 한 달에 한두 번'],
                         '가입 신청에 배드민턴 경력을 적어 주세요.')),
-    dict(name='마포 랠리 테니스', silver=(6, Decimal('5997.00')), sport='테니스', district='마포구', days='6', start='10:00', end='12:00', created=date(2026, 9, 22),
-         home=('망원나들목 테니스장', '망원나들목 테니스장'),
+    dict(name='마포 랠리 테니스', sport='테니스', district='마포구', days='6', start='10:00', end='12:00', play=False,
          intro=ex_intro('토요일 오전 망원나들목 테니스장에서 랠리와 복식을 즐기는 마포구 테니스 동호회입니다.',
                         '이름처럼 랠리를 길게 이어 가는 걸 좋아해요. 앞 한 시간은 랠리, 뒤 한 시간은 복식 경기를 합니다. 초보도 환영해요.',
                         ['토요일 오전에 시간이 되는 분', '랠리를 오래 치고 싶은 분'],
@@ -1072,8 +980,6 @@ def ex_build(rng, used_names):
         c['i'] = i
         c['games'] = EX_GAMES if c['sport'] != '족구' else EX_GAMES - 1
         c['strength'] = rng.uniform(0.3, 0.8)
-        if c.get('silver'):
-            c['strength'] = 0.85  # 실버로 보일 동호회는 조금 더 강하게
     matches = []
     for sport in TEAM_SIZE:
         pool = [c for c in play if c['sport'] == sport]
@@ -1179,11 +1085,9 @@ def ex_build(rng, used_names):
             m['history'].append({'pid': r['pid'], 'user': r['user'], 'before': before, 'after': u['mmr'],
                                  'delta': delta, 'actual': actual, 'expected': exp[r['side']]})
 
-    # 예정 일정: HY 님 데이터에 예정 매칭방이 있는 곳 말고, 동호회마다 11/24~12/6 활동 시간에 매칭방 1개와 팀 신청(대기)
+    # 예정 일정: 동호회마다 11/24~12/6 활동 시간에 매칭방 1개와 팀 신청(대기)
     rooms = []
     for c in play:
-        if c.get('has_rooms'):
-            continue
         days = [EX_ROOM_FROM + timedelta(days=k) for k in range((EX_ROOM_UNTIL - EX_ROOM_FROM).days + 1)]
         days = [d for d in days if str(d.isoweekday()) in c['days'].split(',') and not any(
             s < datetime.combine(d, hm(c['end'])) and e > datetime.combine(d, hm(c['start'])) for s, e in EX_BUSY.get(c['home'][0], []))]
@@ -1213,12 +1117,6 @@ def ex_acceptable(result):
             return False
         if max(m['day'] for m in played) < date(2026, 10, 15):
             return False
-        if c.get('silver'):
-            # 기존 회원과 합친 팀 등급이 실버 경계(1000)에서 여유 있게 실버여야 한다
-            n, total = c['silver']
-            placed = [users[u - 1]['mmr'] for u in members_of[ci] if users[u - 1]['count'] >= PLACEMENT_MATCHES]
-            if (total + sum(placed)) / (n + len(placed)) < 1005:
-                return False
     return True
 
 
@@ -1282,18 +1180,20 @@ def main_existing(used_names):
     out = []
     w = out.append
     w('-- =====================================================================\n')
-    w('-- 기존 동호회 데이터: seed·HY 님 데이터의 동호회 %d곳에 새 회원 %d명, 지난 동호회 경기 %d개(레이팅 이력 %d행),\n'
-      '--                   예정 매칭방 %d개와 팀 신청 %d행을 넣고, %d곳의 소개 글을 다시 쓴다.\n'
+    w('-- 기존 동호회 데이터: seed 동호회 %d곳에 새 회원 %d명, 지난 동호회 경기 %d개(레이팅 이력 %d행),\n'
+      '--                   예정 매칭방 %d개와 팀 신청 %d행을 넣고, seed·HY 님 데이터 동호회 %d곳의 소개 글을 다시 쓴다.\n'
       % (len(play), len(users), len(matches), history_rows, len(rooms), len(waiting), len(EX_CLUBS)))
     w('-- 이 파일은 scripts/club-demo-data.py가 만든다. 직접 고치지 말고 스크립트를 고쳐 다시 만든다.\n')
     w('-- 대상: 20261112-club-demo-data.sql까지 적용한 DB (로컬·운영)\n')
     w('-- 내용\n')
     w('--   * 기존 회원(seed 계정, demo-NNN)은 바꾸지 않는다. 새 회원(club-user-NNN@spoit.test, 비밀번호 spoit1234)만 동호회원으로 넣고,\n'
-      '--     지난 경기는 새 회원끼리 같은 종목 동호회와 치른 것이다(축구+풋살 5:5, 농구 4:4, 족구 3:3, 배드민턴·테니스 복식 2:2).\n')
+      '--     지난 경기는 새 회원끼리 같은 종목 동호회와 치른 것이다(농구 4:4, 배드민턴·테니스 복식 2:2).\n')
     w('--   * 지난 경기는 2026-08~11월 초, 홈 동호회의 구장·활동 시간. 팀 신청 확정 → 참가자 → 두 팀장 결과 제출 → 결과 마감(종료 24시간 뒤)에\n'
       '--     평가 없이 레이팅 반영까지 끝난 종료 상태다. 레이팅은 RatingCalculator와 같은 식으로 1000부터 시간순 계산했다.\n')
-    w('--   * 예정 일정: HY 님 데이터에 예정 매칭방이 없는 동호회마다 11/24~12/6 활동 시간에 매칭방 1개와 팀 신청(대기).\n')
-    w('--   * 소개 글만 바꾸는 곳: %s(seed 가입 신청·매치에 쓰이거나 다른 파트 테스트 계정이 있음).\n'
+    w('--   * 예정 일정: 새 회원을 넣은 동호회마다 11/24~12/6 활동 시간에 매칭방 1개와 팀 신청(대기).\n')
+    w('--   * 소개 글만 바꾸는 곳: %s.\n'
+      '--     seed 가입 신청·매치에 쓰이거나 다른 파트 테스트 계정이 있는 곳, HY 님 시연 데이터 동호회(회원·경기·매칭방은 그대로),\n'
+      '--     같은 종목 상대 동호회가 없는 곳이다.\n'
       % ', '.join(c['name'] for c in EX_CLUBS if not c.get('play', True)))
     w('-- 원칙\n')
     w('--   * 한 트랜잭션. 사전 확인에 실패하면 멈추고 아무 행도 넣지 않는다.\n')
