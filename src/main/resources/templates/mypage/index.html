@@ -28,7 +28,7 @@
     <div class="mypage-player-summary">
       <div class="mypage-skill-highlight">
         <span class="mypage-summary-label">대표 종목 레이팅<th:block th:if="${summary.representativeBasis != null}" th:text="${' · ' + summary.representativeBasis}"> · 경기 기록 기준</th:block></span>
-        <strong th:text="${summary.representativeRatingText}">기록 없음</strong>
+        <strong th:classappend="${summary.representativeTierKey != null ? 'is-tier-' + summary.representativeTierKey : ''}" th:text="${summary.representativeRatingText}">기록 없음</strong>
         <a th:if="${summary.representativeSportName != null}" class="mypage-skill-sport-link" th:href="@{/mypage(recordSport=${summary.representativeSportId})} + '#match-records'" th:text="${summary.representativeSportName}">종목</a>
         <p th:text="${summary.skillNote}">참가 확정 매치의 개인 레이팅 평균을 표시합니다.</p>
       </div>
@@ -43,7 +43,7 @@
       <div class="mypage-sport-levels-heading"><h3>다른 종목 레이팅</h3><p>대표 종목 외에 참가 기록이 있는 종목의 레이팅을 간략히 표시합니다.</p></div>
       <div class="mypage-sport-level-list" aria-live="polite">
         <a th:each="sport : ${otherSports}" class="mypage-sport-level-row" th:href="@{/mypage(recordSport=${sport.sportId})} + '#match-records'" th:aria-label="${sport.name + ' 경기 기록 보기'}">
-          <span th:text="${sport.name}">종목</span><strong th:text="${sport.ratingText}">기록 없음</strong><small th:text="${sport.note}">경기 기록</small>
+          <span th:text="${sport.name}">종목</span><strong th:classappend="${sport.tierKey != null ? 'is-tier-' + sport.tierKey : ''}" th:text="${sport.ratingText}">기록 없음</strong><small th:text="${sport.note}">경기 기록</small>
         </a>
         <p th:if="${#lists.isEmpty(otherSports)}" class="mypage-sport-level-empty" th:text="${summary.otherSportsNote}">매칭 참가 기록이 생기면 종목별 레이팅을 표시합니다.</p>
       </div>
@@ -80,10 +80,10 @@
                 <span class="mypage-rating-sport-grade"><strong th:text="${records.historyTotalCount + '경기'}">0경기</strong><small>전체 기록</small></span>
               </a>
               <a th:each="sport : ${records.sports}" class="mypage-rating-sport" th:href="@{/mypage(recordSport=${sport.sportId})} + '#match-records'" th:aria-current="${sport.selected ? 'true' : null}" th:classappend="${sport.selected} ? 'is-selected' : ''">
-                <span class="mypage-rating-sport-copy"><span class="mypage-rating-sport-name" th:text="${sport.name}">종목</span><small th:text="${'경기 ' + sport.ratedMatchCount + '회 · ' + sport.mmrText}">경기 0회 · MMR 1,000</small></span>
+                <span class="mypage-rating-sport-copy"><span class="mypage-rating-sport-name" th:text="${sport.name}">종목</span><small th:text="${'경기 ' + sport.ratedMatchCount + '회'}">경기 0회</small></span>
                 <span class="mypage-rating-sport-grade">
-                  <strong th:text="${sport.tierLabel}">배치 중</strong>
-                  <span th:if="${sport.placed}" class="mypage-rating-meter" role="img" th:aria-label="${sport.name + ' 티어 진행도 ' + sport.tierPoints + 'P'}"><i th:style="'width:' + ${sport.tierPoints} + '%'"></i></span>
+                  <strong th:classappend="${sport.tierKey != null ? 'is-tier-' + sport.tierKey : ''}" th:text="${sport.tierLabel}">배치 중</strong>
+                  <span th:if="${sport.placed}" class="mypage-rating-meter" th:classappend="${'is-tier-' + sport.tierKey}" role="img" th:aria-label="${sport.name + ' 티어 진행도 ' + sport.tierPoints + 'P'}"><i th:style="'width:' + ${sport.tierPoints} + '%'"></i></span>
                 </span>
               </a>
             </div>
@@ -105,18 +105,18 @@
                       <span class="mypage-match-history-status" th:classappend="${'is-' + item.resultKey}" th:text="${item.resultLabel}">승</span>
                     </span>
                   </span>
-                  <span class="mypage-match-history-score"><small>MMR 변동</small><strong th:classappend="${'is-' + item.deltaKey}" th:text="${item.deltaText}">0.00</strong></span>
+                  <span class="mypage-match-history-score"><small>레이팅</small><strong th:classappend="${'is-' + item.deltaKey}" th:text="${item.deltaText}">0P</strong></span>
                   <span class="mypage-match-history-chevron" aria-hidden="true">⌄</span>
                 </button>
                 <div class="mypage-match-history-detail" hidden>
                   <div class="mypage-match-score-summary">
                     <div class="mypage-match-player-score">
-                      <small>내 MMR</small>
-                      <strong th:text="${item.mmrBeforeText + ' → ' + item.mmrAfterText}">1,000 → 1,000</strong>
+                      <small>내 레이팅</small>
+                      <strong><span class="mypage-rating-step" th:classappend="${item.ratingFrom.tierKey != null ? 'is-tier-' + item.ratingFrom.tierKey : ''}" th:text="${item.ratingFrom.text}">실버 4 · 0P</span><th:block th:if="${item.ratingTo != null}"><span class="mypage-rating-arrow">→</span><span class="mypage-rating-step" th:classappend="${'is-tier-' + item.ratingTo.tierKey}" th:text="${item.ratingTo.text}">실버 4 · 0P</span></th:block><em th:if="${item.divisionChange != null}" class="mypage-match-division-change" th:classappend="${item.divisionChange == '승급'} ? 'is-up' : 'is-down'" th:text="${item.divisionChange}">승급</em></strong>
                     </div>
-                    <div class="mypage-match-team-averages" role="group" aria-label="반영 시점 A팀과 B팀 평균 MMR">
-                      <span th:classappend="${item.myTeam == 'A'} ? 'is-mine' : ''"><i class="is-team-a" aria-hidden="true"></i>A팀 <b th:text="${item.averageAText}">1,000</b><small th:if="${item.myTeam == 'A'}">내 팀</small></span>
-                      <span th:classappend="${item.myTeam == 'B'} ? 'is-mine' : ''"><i class="is-team-b" aria-hidden="true"></i>B팀 <b th:text="${item.averageBText}">1,000</b><small th:if="${item.myTeam == 'B'}">내 팀</small></span>
+                    <div class="mypage-match-team-averages" role="group" aria-label="반영 시점 A팀과 B팀 평균 티어">
+                      <span th:classappend="${item.myTeam == 'A'} ? 'is-mine' : ''"><i class="is-team-a" aria-hidden="true"></i>A팀 평균 <b th:classappend="${'is-tier-' + item.averageA.tierKey}" th:text="${item.averageA.text}">실버 4</b><small th:if="${item.myTeam == 'A'}">내 팀</small></span>
+                      <span th:classappend="${item.myTeam == 'B'} ? 'is-mine' : ''"><i class="is-team-b" aria-hidden="true"></i>B팀 평균 <b th:classappend="${'is-tier-' + item.averageB.tierKey}" th:text="${item.averageB.text}">실버 4</b><small th:if="${item.myTeam == 'B'}">내 팀</small></span>
                     </div>
                   </div>
                   <dl class="mypage-match-history-facts">

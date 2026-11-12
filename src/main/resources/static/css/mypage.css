@@ -1,3 +1,42 @@
+/*
+ * 티어 색. 글자색은 흰 배경(#fff)과 가장 진한 연회색(#f1f2f4), 배지 배경(-bg) 모두에서 대비 4.5:1 이상인 진한 톤이다.
+ * 티어 클래스(is-tier-*)는 --tier-color·--tier-bg만 정하고, 각 글자 규칙이 var(--tier-color, 기존 색)으로 쓴다.
+ * 배치 중·배치 경기 문구에는 티어 클래스가 없어 기존 색 그대로이고 배지도 씌우지 않는다.
+ */
+:root {
+  --color-tier-bronze: #8a5a2b;
+  --color-tier-bronze-bg: #f6e9dc;
+  --color-tier-silver: #5f6b78;
+  --color-tier-silver-bg: #eceff3;
+  --color-tier-gold: #8a6400;
+  --color-tier-gold-bg: #fbf0cc;
+  --color-tier-platinum: #15706d;
+  --color-tier-platinum-bg: #daf2ef;
+  --color-tier-diamond: #3554c4;
+  --color-tier-diamond-bg: #e4eafd;
+}
+
+.is-tier-bronze { --tier-color: var(--color-tier-bronze); --tier-bg: var(--color-tier-bronze-bg); }
+.is-tier-silver { --tier-color: var(--color-tier-silver); --tier-bg: var(--color-tier-silver-bg); }
+.is-tier-gold { --tier-color: var(--color-tier-gold); --tier-bg: var(--color-tier-gold-bg); }
+.is-tier-platinum { --tier-color: var(--color-tier-platinum); --tier-bg: var(--color-tier-platinum-bg); }
+.is-tier-diamond { --tier-color: var(--color-tier-diamond); --tier-bg: var(--color-tier-diamond-bg); }
+
+/* 티어 배지. 팀 평균처럼 작은 글자와 진행도 막대는 배지 없이 색만 쓴다. 세로 여백은 em이라 글자 크기마다 줄 높이가 거의 그대로다. */
+:is(.mypage-skill-highlight strong, .mypage-rating-sport-grade strong, .mypage-sport-level-row strong, .mypage-rating-step):is(
+    .is-tier-bronze, .is-tier-silver, .is-tier-gold, .is-tier-platinum, .is-tier-diamond) {
+  justify-self: start;
+  border-radius: 5px;
+  background: var(--tier-bg);
+  padding: .1em .45em;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.mypage-rating-sport-grade strong:is(.is-tier-bronze, .is-tier-silver, .is-tier-gold, .is-tier-platinum, .is-tier-diamond) {
+  justify-self: end;
+}
+
 .mypage-page {
   min-height: 100vh;
 }
@@ -197,7 +236,7 @@
 }
 
 .mypage-skill-highlight strong {
-  color: var(--color-match-ink);
+  color: var(--tier-color, var(--color-match-ink));
   font-size: 22px;
   font-weight: 850;
   letter-spacing: -.04em;
@@ -340,7 +379,7 @@
 }
 
 .mypage-sport-level-row strong {
-  color: var(--color-match-ink);
+  color: var(--tier-color, var(--color-match-ink));
   font-weight: 800;
 }
 
@@ -471,7 +510,7 @@
 }
 
 .mypage-rating-sport-grade strong {
-  color: var(--color-match-ink);
+  color: var(--tier-color, var(--color-match-ink));
   font-size: 11px;
   font-weight: 850;
 }
@@ -489,7 +528,7 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--color-match);
+  background: var(--tier-color, var(--color-match));
 }
 
 .mypage-rating-disclaimer {
@@ -592,6 +631,7 @@
 
 .mypage-match-history-score strong.is-down { color: var(--color-danger); }
 .mypage-match-history-score strong.is-zero { color: var(--color-muted); }
+.mypage-match-history-score strong.is-placement { color: var(--color-ink-2); font-weight: 750; }
 
 .mypage-match-history-detail {
   margin: 0 4px 12px 74px;
@@ -613,17 +653,39 @@
 
 .mypage-match-player-score {
   display: grid;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   gap: 4px;
+  min-width: 0;
 }
 
+/* "실버 4 · 31P → 실버 4 · 93P 승급"처럼 길어 좁은 화면에서는 줄을 바꾼다. */
 .mypage-match-player-score strong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
   color: var(--color-match-ink);
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 850;
   font-variant-numeric: tabular-nums;
-  line-height: 1;
+  line-height: 1.2;
+  word-break: keep-all;
 }
+
+.mypage-rating-step { color: var(--tier-color, var(--color-match-ink)); }
+.mypage-rating-arrow { color: var(--color-muted); font-weight: 700; }
+
+.mypage-match-division-change {
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.mypage-match-division-change.is-up { background: var(--color-match-soft); color: var(--color-match-ink); }
+.mypage-match-division-change.is-down { background: var(--color-danger-soft); color: var(--color-danger); }
 
 .mypage-match-team-averages {
   display: flex;
@@ -651,7 +713,7 @@
 }
 
 .mypage-match-team-averages i.is-team-a { background: var(--color-match); }
-.mypage-match-team-averages b { color: var(--color-ink-2); font-variant-numeric: tabular-nums; }
+.mypage-match-team-averages b { color: var(--tier-color, var(--color-ink-2)); font-variant-numeric: tabular-nums; }
 .mypage-match-team-averages small { color: var(--color-book-ink); font-size: 9px; font-weight: 800; }
 
 .mypage-match-history-facts {

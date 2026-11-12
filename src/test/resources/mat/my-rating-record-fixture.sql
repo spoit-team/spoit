@@ -5,6 +5,7 @@
 -- 회원 911(본인): 종목 A 반영 22경기, 종목 B 반영 1경기(동호회 신청 팀원), 종목 A 제외 경기 1개(이력 없음)
 -- 회원 912(다른 회원): 911과 같은 종목 A 22경기에 이력이 있다.
 -- 회원 913: 종목 B 동호회 신청의 대표. 911은 본인 신청 행 없이 이 신청의 참가자로만 있다.
+-- 회원 914: 반영 10경기 중 마지막 2경기만 이력이 있다(파일 끝).
 
 INSERT INTO app_user (
     user_id, email, password_hash, nickname, phone, role, created_at
@@ -140,3 +141,41 @@ INSERT INTO sport_rating (
     (911, 912, 1016.40, 1, '2026-08-10 18:00:00'),
     (911, 913, 1000.00, 0, '2026-07-01 09:00:00'),
     (912, 911, 648.00, 22, '2026-08-24 12:00:00');
+
+-- 회원 914: 반영 10경기 중 마지막 2경기(종목 A n=21, 22)만 이력이 있다. 데모 회원처럼 앞 경기의 이력이 없어도
+-- 반영 후 경기 수는 sport_rating의 경기 수 기준이라 10, 9가 된다.
+INSERT INTO app_user (
+    user_id, email, password_hash, nickname, phone, role, created_at
+) VALUES
+    (914, 'rating-record-914@example.invalid', 'TEST_ONLY_NOT_A_PASSWORD_HASH',
+     '레이팅 이력 테스트 회원 914', '010-0000-0914', 'USER', '2026-07-01 09:00:00');
+
+INSERT INTO match_application (
+    application_id, match_id, applicant_user_id, club_id, application_type,
+    status, receipt_no, created_at, confirmed_at, cancelled_at, cancelled_by
+) VALUES
+    (9851, 9121, 914, NULL, '개인', '확정', 'MRR-914-21', '2026-07-20 09:00:00', '2026-07-20 09:00:00', NULL, NULL),
+    (9852, 9122, 914, NULL, '개인', '확정', 'MRR-914-22', '2026-07-20 09:00:00', '2026-07-20 09:00:00', NULL, NULL);
+
+INSERT INTO match_participant (
+    participant_id, application_id, match_id, user_id, participation_status,
+    match_side, entry_mmr, joined_at, cancelled_at
+) VALUES
+    (9651, 9851, 9121, 914, '확정', 'A', 1100.00, '2026-07-20 09:00:00', NULL),
+    (9652, 9852, 9122, 914, '확정', 'A', 1116.00, '2026-07-20 09:00:00', NULL);
+
+INSERT INTO sport_rating_history (
+    history_id, match_id, participant_id, user_id, sport_id, mmr_before, mmr_after,
+    elo_delta, evaluation_delta, final_delta, evaluation_score,
+    actual_score, expected_score, team_avg_mmr_a, team_avg_mmr_b,
+    algorithm_version, calculated_at
+) VALUES
+    (9451, 9121, 9651, 914, 911, 1100.00, 1116.00, 16.00, 0.00, 16.00, NULL, 1.0, 0.5000, 1000.00, 1000.00,
+     'TEST', '2026-08-23 12:00:00'),
+    (9452, 9122, 9652, 914, 911, 1116.00, 1132.00, 16.00, 0.00, 16.00, NULL, 1.0, 0.5000, 1000.00, 1000.00,
+     'TEST', '2026-08-24 12:00:00');
+
+INSERT INTO sport_rating (
+    user_id, sport_id, current_mmr, rated_match_count, updated_at
+) VALUES
+    (914, 911, 1132.00, 10, '2026-08-24 12:00:00');

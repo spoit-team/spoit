@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
 RNG = random.Random(20261123)
-PASSWORD_HASH = '$2b$10$nJEWjTEEvGGRB89hDIxRNemCToYJvZWZ.8cQ2wwzZV6TsYxvLuTpe'  # spoit1234!
+PASSWORD_HASH = '$2a$10$07lKk4fyZS6R8PqWjRJ/m.rl7Pe0VJKFj/Za3BiFLAyHkQHAx4OsG'  # spoit1234 (seed 회원과 같은 비밀번호)
 NOW_REF = datetime(2026, 11, 11, 12, 0)  # 미래 경기 신청 접수 시각의 상한
 FUTURE_DAYS = [date(2026, 11, 12) + timedelta(days=i) for i in range(19)]  # 11/12 ~ 11/30
 PAST_DAYS = [date(2026, 11, 1) + timedelta(days=i) for i in range(9)]       # 11/1 ~ 11/9
@@ -459,7 +459,7 @@ w("""-- =====================================================================
 -- 이 파일은 scripts/demo-match-data.py가 만든다. 직접 고치지 말고 스크립트를 고쳐 다시 만든다.
 -- 대상: 20261110-seoul-public-facilities.sql과 20261109-evaluation-items.sql을 적용한 DB (로컬·운영)
 -- 내용
---   * 데모 회원 demo-001~100@spoit.test, 발표자 demo-presenter@spoit.test (비밀번호 모두 spoit1234!)
+--   * 데모 회원 demo-001~100@spoit.test, 발표자 demo-presenter@spoit.test (비밀번호 모두 spoit1234)
 --   * 11/12~11/30 매일 매칭방 9개 (정원이 찬 방은 시작 시각에 자동 배정되어 경기 후 결과·평가 입력 가능)
 --   * 11/1~11/9 지난 경기 %d개: 결과·평가까지 넣고 rating_status WAITING으로 둔다.
 --     앱 스케줄러가 결과 마감(종료 24시간 후) 처리로 레이팅을 반영하고 종료로 바꾼다.
