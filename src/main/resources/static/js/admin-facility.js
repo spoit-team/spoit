@@ -18,11 +18,6 @@
   const facilityConfirmMessage = document.getElementById('facility-confirm-message');
   const facilityConfirmName = document.querySelector('[data-facility-confirm-name]');
   const facilityConfirmSubmit = document.getElementById('facility-confirm-submit');
-  const roomErrorModal = document.getElementById('room-error-modal');
-  const roomErrorTitle = document.getElementById('room-error-title');
-  const roomErrorMessage = document.getElementById('room-error-message');
-  /* 안내 모달을 닫은 뒤 초점을 보낼 입력(문제가 된 칸) */
-  let roomErrorReturnFocus = null;
 
   /* 확인을 기다리는 작업: { form, name, title, message, submitLabel, danger } */
   let pendingFacilityConfirm = null;
@@ -48,7 +43,7 @@
   }
 
   function activeFacilityModals() {
-    return [roomEditorModal, facilityModal, facilityConfirmModal, roomErrorModal].filter(function (modal) {
+    return [roomEditorModal, facilityModal, facilityConfirmModal].filter(function (modal) {
       return modal && !modal.hidden;
     });
   }
@@ -122,40 +117,48 @@
     submitConfirmed(action.form);
   }
 
+  /** 매칭방 저장 요청을 보낸 뒤에는 화면이 넘어갈 때까지 저장 버튼을 잠근다. */
+  function lockRoomEditorSubmit() {
+    if (!roomEditorForm) return;
+    roomEditorForm.dataset.submitting = 'true';
+    const submit = document.getElementById('room-editor-submit');
+    if (!submit) return;
+    submit.disabled = true;
+    submit.textContent = '저장 중…';
+  }
+
+  /** 창을 새로 열거나 뒤로 가기로 돌아왔을 때 저장 버튼을 원래 상태로 되돌린다. */
+  function releaseRoomEditorSubmit() {
+    if (!roomEditorForm) return;
+    delete roomEditorForm.dataset.submitting;
+    const submit = document.getElementById('room-editor-submit');
+    if (!submit) return;
+    submit.disabled = false;
+    submit.textContent = roomEditorForm.dataset.roomMode === 'edit' ? '수정 저장' : '매칭방 생성';
+  }
+
+  /* 뒤로 가기 캐시에서 복원되면 잠긴 버튼이 그대로 남으므로 풀어 준다. */
+  global.addEventListener?.('pageshow', function (event) {
+    if (event.persisted) releaseRoomEditorSubmit();
+  });
+
   /**
-   * 매칭방 생성·수정이 막힌 이유를 안내 모달로 보여 준다. 생성·수정 창은 입력값을 유지한 채 뒤에 그대로 둔다.
-   * focusTarget은 확인을 누른 뒤 초점을 보낼 칸이다.
+   * 매칭방 생성·수정이 막힌 이유를 공용 실패 안내 모달로 보여 준다. 생성·수정 창은 입력값을 유지한 채 뒤에 그대로 둔다.
+   * focusTarget은 확인을 누른 뒤 초점을 보낼 칸이다. 서버가 거부한 경우는 flash로 돌아와 공용 안내가 직접 띄운다.
    */
   function showRoomError(message, focusTarget) {
-    if (!roomErrorModal) {
-      admin?.toast(message, true);
-      focusTarget?.focus?.();
+    const editing = roomEditorForm?.dataset.roomMode === 'edit';
+    showError(editing ? '매칭방을 수정할 수 없습니다' : '매칭방을 만들 수 없습니다', message, focusTarget);
+  }
+
+  /* 저장 전 검사에 걸린 이유를 실패 안내 모달로 보여 주고, 닫으면 문제가 된 칸으로 초점을 보낸다. */
+  function showError(title, message, focusTarget) {
+    if (admin && typeof admin.showErrorModal === 'function') {
+      admin.showErrorModal(title, message, focusTarget);
       return;
     }
-    const editing = roomEditorForm?.dataset.roomMode === 'edit';
-    if (roomErrorTitle) roomErrorTitle.textContent = editing ? '매칭방을 수정할 수 없습니다' : '매칭방을 만들 수 없습니다';
-    if (roomErrorMessage) roomErrorMessage.textContent = message;
-    roomErrorReturnFocus = focusTarget || null;
-    openModal(roomErrorModal, '#room-error-confirm');
-  }
-
-  function closeRoomError() {
-    if (!roomErrorModal || roomErrorModal.hidden) return;
-    closeModal(roomErrorModal);
-    /* 공통 셸은 모달을 닫으면 화면 스크롤 잠금을 푼다. 아래 생성·수정 창이 열려 있으면 다시 잠근다. */
-    if (roomEditorModal && !roomEditorModal.hidden) document.body.classList.add('has-admin-modal');
-    const target = roomErrorReturnFocus;
-    roomErrorReturnFocus = null;
-    target?.focus?.();
-  }
-
-  /* 서버가 생성·수정을 거부하고 돌아온 경우에만 자동으로 연다. 새로고침하면 flash가 사라져 다시 열리지 않는다. */
-  function openServerRoomError() {
-    if (!roomErrorModal || roomErrorModal.dataset.autoOpen !== 'true') return;
-    delete roomErrorModal.dataset.autoOpen;
-    roomErrorReturnFocus = document.querySelector('#facility-bookings [data-open-room-editor]')
-      || document.querySelector('[data-open-room-editor]');
-    openModal(roomErrorModal, '#room-error-confirm');
+    if (typeof global.alert === 'function') global.alert(message);
+    focusTarget?.focus?.();
   }
 
   /**
@@ -366,8 +369,7 @@
         ? room.id + '번 매칭방의 정보를 수정합니다.'
         : '담당 시설의 운영 시간에 맞춰 매칭방을 개설합니다. 연속된 1시간 블록을 선택하세요.';
     }
-    const submit = document.getElementById('room-editor-submit');
-    if (submit) submit.textContent = editing ? '수정 저장' : '매칭방 생성';
+    releaseRoomEditorSubmit();
     const lockedNote = document.getElementById('room-editor-locked-note');
     if (lockedNote) lockedNote.hidden = !locked;
 
@@ -666,13 +668,6 @@
     if (event.target === facilityConfirmModal) cancelFacilityConfirmation();
   });
 
-  roomErrorModal?.addEventListener('click', function (event) {
-    if (event.target === roomErrorModal || (event.target instanceof Element
-        && event.target.closest('[data-close-room-error]'))) {
-      closeRoomError();
-    }
-  });
-
   /* Escape는 가장 위에 열린 모달 하나만 닫습니다. 확인 창이 열려 있으면 확인 창만 닫힙니다. */
   /* 확인 창이 열려 있으면 Escape는 확인 창만 닫고, 아래 수정 모달은 그대로 둡니다. */
   function hasOpenNotificationModal() {
@@ -687,7 +682,6 @@
     const top = topModal();
     if (!top) return;
     if (top === facilityConfirmModal) cancelFacilityConfirmation();
-    else if (top === roomErrorModal) closeRoomError();
     else if (top === facilityModal) closeFacilityModal();
     else closeModal(top);
   });
@@ -729,13 +723,11 @@
     if (!(form instanceof HTMLFormElement)) return;
 
     if (form === statsFilterForm) {
-      /* 시설 미선택이면 서버로 보내지 않는다. 경고 방식은 다른 검증과 같은 토스트를 쓴다. */
+      /* 시설 미선택이면 서버로 보내지 않는다. 경고 방식은 다른 검증과 같은 실패 안내 모달을 쓴다. */
       if (statsFacilitySelect && !statsFacilitySelect.value) {
         event.preventDefault();
         const warning = '통계를 조회할 시설을 선택해 주세요.';
-        if (admin && typeof admin.toast === 'function') admin.toast(warning, true);
-        else global.alert(warning);
-        statsFacilitySelect.focus();
+        showError('통계를 조회할 수 없습니다', warning, statsFacilitySelect);
       }
       return;
     }
@@ -765,8 +757,7 @@
       if (!selectedSports.length) {
         event.preventDefault();
         confirmedSubmitForm = null;
-        admin?.toast('시설 이용 종목을 하나 이상 선택해 주세요.', true);
-        facilitySportOptions[0]?.focus();
+        showError('시설을 저장할 수 없습니다', '시설 이용 종목을 하나 이상 선택해 주세요.', facilitySportOptions[0]);
         return;
       }
       const sportsValue = document.getElementById('facility-sports-value');
@@ -814,12 +805,19 @@
     }
 
     if (form === roomEditorForm) {
+      /* 이미 서버로 보낸 뒤 다시 누르거나 Enter를 쳐도 같은 매칭방이 두 번 저장되지 않게 막는다. */
+      if (form.dataset.submitting === 'true') {
+        event.preventDefault();
+        return;
+      }
       const problem = roomEditorProblem(form);
       if (problem) {
         event.preventDefault();
         if (problem.photo) setRoomPhotoError(problem.message);
         showRoomError(problem.message, problem.field);
+        return;
       }
+      lockRoomEditorSubmit();
       return;
     }
 
@@ -829,8 +827,8 @@
       const invalidRow = findInvalidWeeklyRow();
       if (invalidRow) {
         event.preventDefault();
-        admin?.toast('시작과 종료 시간이 같은 요일이 있습니다. 시간을 다시 선택해 주세요.', true);
-        invalidRow.querySelector('select[name^="end-"]')?.focus();
+        showError('운영 시간을 저장할 수 없습니다', '시작과 종료 시간이 같은 요일이 있습니다. 시간을 다시 선택해 주세요.',
+          invalidRow.querySelector('select[name^="end-"]'));
       }
       return;
     }
@@ -853,8 +851,8 @@
       /* 서버가 다시 검증하지만, 명백히 같은 시각이면 요청을 보내지 않는다. */
       if (start && end && hourToMinutes(start) === hourToMinutes(end)) {
         event.preventDefault();
-        admin?.toast('휴관 시작과 종료 시간이 같습니다. 다른 시간을 선택해 주세요.', true);
-        document.getElementById('closure-end')?.focus();
+        showError('휴관 일정을 등록할 수 없습니다', '휴관 시작과 종료 시간이 같습니다. 다른 시간을 선택해 주세요.',
+          document.getElementById('closure-end'));
       }
       return;
     }
@@ -1174,7 +1172,6 @@
   });
 
   openScheduleConflicts();
-  openServerRoomError();
 
   /* 시설 삭제 차단 경고: 삭제가 거부되어 차단 목록이 돌아온 경우에만 자동으로 연다.
      목록이 없으면 정상 삭제 흐름이며 아무것도 열지 않는다. */

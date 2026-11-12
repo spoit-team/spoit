@@ -44,13 +44,7 @@
       if (event.key === 'Escape') closeToList();
       else if (event.key === 'Tab') admin?.trapFocus(modal, event);
     });
-
-    // 처리·페널티 전송 뒤에는 서버 flash가 모달 뒤에 렌더됩니다. 닫으면 사라지므로
-    // 열리는 시점에 토스트로 한 번 보여 결과를 놓치지 않게 합니다.
-    const flash = document.querySelector('.admin-flash');
-    if (flash?.textContent?.trim()) {
-      admin?.toast(flash.textContent.trim(), flash.classList.contains('is-error'));
-    }
+    // 처리·페널티 전송 결과는 공용 안내(ui-feedback.js)가 성공 토스트·실패 모달로 상세 모달 위에 보여 줍니다.
   }
 
   const form = document.getElementById('report-decision-form');

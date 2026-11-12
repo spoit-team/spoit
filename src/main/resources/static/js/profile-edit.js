@@ -3,7 +3,6 @@
   'use strict';
 
   const form = document.getElementById('profile-form');
-  const message = document.getElementById('profile-edit-message');
   const sportSelect = document.getElementById('profile-representative-sport');
   const ratingPreview = document.getElementById('representative-level-preview');
   const ratingNote = document.getElementById('representative-level-note');
@@ -134,10 +133,4 @@
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape' && withdrawalDialog?.open) closeWithdrawal();
   });
-
-  if (message) {
-    message.addEventListener('click', function () {
-      message.hidden = true;
-    });
-  }
 })();

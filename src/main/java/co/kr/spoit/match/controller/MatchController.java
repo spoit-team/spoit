@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import co.kr.spoit.global.common.FlashFeedback;
 import co.kr.spoit.match.dto.JoinPage;
 import co.kr.spoit.match.dto.MatchCardPage;
 import co.kr.spoit.match.dto.MatchListView;
@@ -40,6 +41,8 @@ import lombok.RequiredArgsConstructor;
 public class MatchController {
 
     private static final String LIST_PATH = "/matches";
+    /** 참가 신청이 막혔을 때 실패 안내 모달의 제목 */
+    static final String APPLY_ERROR_TITLE = "참가 신청을 할 수 없습니다";
 
     private final MatchService matchService;
     private final MatchApplicationService applicationService;
@@ -132,7 +135,7 @@ public class MatchController {
                          @RequestParam(defaultValue = "false") boolean agreeRules,
                          RedirectAttributes redirect) {
         if (!agreeRules) {
-            redirect.addFlashAttribute("error", "매치 운영 규칙과 취소·노쇼 안내에 동의해 주세요.");
+            FlashFeedback.failure(redirect, APPLY_ERROR_TITLE, "매치 운영 규칙과 취소·노쇼 안내에 동의해 주세요.");
             return "redirect:/matches/{matchId}/apply";
         }
         try {
@@ -140,7 +143,7 @@ public class MatchController {
             redirect.addAttribute("receiptNo", receiptNo);
             return "redirect:/matches/{matchId}/apply/complete";
         } catch (MatchApplyException e) {
-            redirect.addFlashAttribute("error", e.getMessage());
+            FlashFeedback.failure(redirect, APPLY_ERROR_TITLE, e.getMessage());
             return "redirect:/matches/{matchId}/apply";
         }
     }
@@ -173,7 +176,7 @@ public class MatchController {
                              RedirectAttributes redirect) {
         List<Long> memberIds = nullToEmpty(clubMemberIds);
         if (!agreeRules) {
-            redirect.addFlashAttribute("error", "매치 운영 규칙과 취소·노쇼 안내에 동의해 주세요.");
+            FlashFeedback.failure(redirect, APPLY_ERROR_TITLE, "매치 운영 규칙과 취소·노쇼 안내에 동의해 주세요.");
             addTeamSelection(redirect, clubId, memberIds);
             return "redirect:/matches/{matchId}/apply/team";
         }
@@ -182,7 +185,7 @@ public class MatchController {
             redirect.addAttribute("receiptNo", receiptNo);
             return "redirect:/matches/{matchId}/apply/complete";
         } catch (MatchApplyException e) {
-            redirect.addFlashAttribute("error", e.getMessage());
+            FlashFeedback.failure(redirect, APPLY_ERROR_TITLE, e.getMessage());
             addTeamSelection(redirect, clubId, memberIds);
             return "redirect:/matches/{matchId}/apply/team";
         }

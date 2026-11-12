@@ -199,7 +199,16 @@
       ${teams().map(team => teamTable(team, locked)).join('')}`;
   }
 
+  /* 제출 결과: 성공은 공용 토스트, 실패는 원인을 담은 공용 안내 모달(ui-feedback.js).
+     공용 안내를 쓸 수 없는 환경에서만 평가 영역의 문구로 대신한다. */
   function showMessage(result) {
+    const feedback = global.SpoitFeedback;
+    if (feedback) {
+      messageBox.hidden = true;
+      if (result.ok) feedback.toast(result.message);
+      else feedback.alert('평가를 제출할 수 없습니다', result.message);
+      return;
+    }
     messageBox.textContent = result.message;
     messageBox.classList.toggle('is-error', !result.ok);
     messageBox.classList.toggle('is-success', result.ok);

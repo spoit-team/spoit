@@ -86,7 +86,7 @@ public interface ClubService {
     // 동호회 해체
     void disbandClub(Long userId, Long clubId, String clubNameConfirmation);
 
-    // 동호회 정보 수정: 정원이 차서 모집 마감으로 저장했으면 true
+    // 동호회 정보 수정: '모집중'을 골랐는데 정원이 차서 못 열었으면 true
     boolean updateClub(Long userId, Long clubId, ClubCreateForm form) throws ClubNameExistException;
 
     /**

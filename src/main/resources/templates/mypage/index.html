@@ -50,7 +50,7 @@
     </div>
   </section>
 
-  <div id="mypage-message" class="auth-message mypage-message" role="status" aria-live="polite" th:if="${message != null}" th:text="${message}"></div>
+  <div th:replace="~{fragments/feedback :: flash}"></div>
   <aside class="mypage-notice" aria-label="데이터 안내">
     <span class="mypage-notice-mark" aria-hidden="true">i</span>
   <p>신청·프로필·알림은 서버에서 제공하는 현재 회원 데이터입니다. 결제 안내는 참고 정보이며 이 화면에는 결제 상태를 저장하지 않습니다.</p>

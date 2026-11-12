@@ -9,10 +9,8 @@
     <header th:replace="~{fragments/admin :: topbar('신고 접수함', '시스템 관리자')}"></header>
 
     <div class="admin-content">
-      <!-- 처리 결과는 PRG로 되돌아올 때 서버가 넘긴 flash로만 표시합니다(관리자 공통 message/error, 신고 화면 success). -->
-      <p th:if="${message != null or success != null}" class="admin-flash" role="status"
-         th:text="${message != null ? message : success}">처리 결과</p>
-      <p th:if="${error != null}" class="admin-flash is-error" role="alert" th:text="${error}">요청을 처리하지 못했습니다.</p>
+      <!-- 처리 결과는 PRG로 되돌아올 때 서버가 넘긴 flash로만 표시합니다(성공 토스트·실패 안내 모달). -->
+      <div th:replace="~{fragments/feedback :: flash}"></div>
 
       <div class="page-heading">
         <div class="page-heading-copy">
@@ -248,7 +246,6 @@
 </div>
 
 <div th:replace="~{fragments/admin :: notificationModal('시스템 알림', '서비스 상태와 신고 접수 알림을 확인합니다.')}"></div>
-<div th:replace="~{fragments/admin :: toast}"></div>
 
 <script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/admin-shell.js}"></script>

@@ -17,6 +17,7 @@ import co.kr.spoit.club.dto.ClubManageResponse;
 import co.kr.spoit.club.dto.ClubPageResponse;
 import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.service.ClubService;
+import co.kr.spoit.global.common.FlashFeedback;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -82,7 +83,7 @@ public class ClubController {
         } catch (IllegalArgumentException exception) {
             // 내 동호회 아니면 번호 없이 돌아감
             log.warn("동호회 관리 거부: userId={}, clubId={}", userId, clubId);
-            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+            FlashFeedback.failure(redirectAttributes, "동호회를 관리할 수 없습니다", exception.getMessage());
             return "redirect:/teams/manage";
         }
 
@@ -110,7 +111,7 @@ public class ClubController {
         // 형식이 맞지 않으면 관리 화면으로 보냄(숫자 칸에 글자가 오는 등)
         if (bindingResult.hasErrors()) {
             log.info("동호회 생성 입력 형식 오류: {}", bindingResult.getAllErrors());
-            redirectAttributes.addFlashAttribute("error", "입력 정보를 확인해 주세요.");
+            FlashFeedback.failure(redirectAttributes, "동호회를 만들 수 없습니다", "입력 정보를 확인해 주세요.");
             return "redirect:/teams/manage";
         }
 
@@ -119,16 +120,16 @@ public class ClubController {
             clubId = clubService.createClub(principal.getUserId(), form);
         } catch (ClubService.ClubNameExistException exception) {
             log.warn("동호회 생성 거부: 이름 중복 {}", form.getClubName());
-            redirectAttributes.addFlashAttribute("error", "이미 사용 중인 이름입니다.");
+            FlashFeedback.failure(redirectAttributes, "동호회를 만들 수 없습니다", "이미 사용 중인 이름입니다.");
             return "redirect:/teams/manage";
         } catch (IllegalArgumentException exception) {
             log.warn("동호회 생성 거부: {}", exception.getMessage());
-            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+            FlashFeedback.failure(redirectAttributes, "동호회를 만들 수 없습니다", exception.getMessage());
             return "redirect:/teams/manage";
         }
 
         log.info("동호회 생성 완료: clubId={}", clubId);
-        redirectAttributes.addFlashAttribute("message", "동호회를 만들었습니다.");
+        FlashFeedback.success(redirectAttributes, "동호회를 만들었습니다.");
         return "redirect:/teams/manage?clubId=" + clubId;
     }
 
@@ -141,24 +142,24 @@ public class ClubController {
         // 형식이 맞지 않으면 관리 화면으로 보냄(숫자 칸에 글자가 오는 등)
         if (bindingResult.hasErrors()) {
             log.info("동호회 수정 입력 형식 오류: {}", bindingResult.getAllErrors());
-            redirectAttributes.addFlashAttribute("error", "입력 정보를 확인해 주세요.");
+            FlashFeedback.failure(redirectAttributes, "동호회 정보를 수정할 수 없습니다", "입력 정보를 확인해 주세요.");
             return "redirect:/teams/manage?clubId=" + clubId;
         }
 
-        boolean closed;
+        boolean cannotOpen;
         try {
-            closed = clubService.updateClub(userId, clubId, form);
+            cannotOpen = clubService.updateClub(userId, clubId, form);
         } catch (ClubService.ClubNameExistException exception) {
             log.warn("동호회 수정 거부: 이름 중복 {}", form.getClubName());
-            redirectAttributes.addFlashAttribute("error", "이미 사용 중인 이름입니다.");
+            FlashFeedback.failure(redirectAttributes, "동호회 정보를 수정할 수 없습니다", "이미 사용 중인 이름입니다.");
             return "redirect:/teams/manage?clubId=" + clubId;
         } catch (IllegalArgumentException exception) {
             log.warn("동호회 수정 거부: {}, {}", clubId, exception.getMessage());
-            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+            FlashFeedback.failure(redirectAttributes, "동호회 정보를 수정할 수 없습니다", exception.getMessage());
             return "redirect:/teams/manage?clubId=" + clubId;
         }
-        redirectAttributes.addFlashAttribute("message",
-                closed ? "동호회 정보를 수정했습니다. 정원이 차서 모집 마감으로 저장했습니다." : "동호회 정보를 수정했습니다.");
+        FlashFeedback.success(redirectAttributes,
+                cannotOpen ? "동호회 정보를 수정했습니다. 정원이 차서 모집 중으로 바꿀 수 없습니다." : "동호회 정보를 수정했습니다.");
         return "redirect:/teams/manage?clubId=" + clubId;
     }
 
@@ -173,13 +174,13 @@ public class ClubController {
         try {
             clubService.applyJoin(userId, clubId, message);
         } catch (IllegalArgumentException exception) {
-            // 상세 화면이 대화상자를 다시 열어 이유를 보여 줌
+            // 상세 화면이 실패 안내 모달로 이유를 보여 줌
             log.warn("가입 신청 거부: clubId={}, userId={}, {}", clubId, userId, exception.getMessage());
-            redirectAttributes.addFlashAttribute("applicationError", exception.getMessage());
+            FlashFeedback.failure(redirectAttributes, "가입 신청을 할 수 없습니다", exception.getMessage());
             return "redirect:/teams/" + clubId;
         }
 
-        redirectAttributes.addFlashAttribute("message", "가입 신청을 보냈습니다.");
+        FlashFeedback.success(redirectAttributes, "가입 신청을 보냈습니다.");
         return "redirect:/teams/" + clubId;
     }
 
@@ -191,10 +192,10 @@ public class ClubController {
         log.info("가입 신청 승인 요청: clubId={}, joinRequestId={}, userId={}", clubId, joinRequestId, userId);
         try {
             clubService.approveJoin(userId, clubId, joinRequestId);
-            redirectAttributes.addFlashAttribute("message", "가입 신청을 승인했습니다.");
+            FlashFeedback.success(redirectAttributes, "가입 신청을 승인했습니다.");
         } catch (IllegalArgumentException exception) {
             log.warn("가입 신청 승인 거부: clubId={}, joinRequestId={}, {}", clubId, joinRequestId, exception.getMessage());
-            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+            FlashFeedback.failure(redirectAttributes, "가입 신청을 승인할 수 없습니다", exception.getMessage());
         }
         return "redirect:/teams/manage?clubId=" + clubId + "&tab=applications";
     }
@@ -207,10 +208,10 @@ public class ClubController {
         log.info("가입 신청 거절 요청: clubId={}, joinRequestId={}, userId={}", clubId, joinRequestId, userId);
         try {
             clubService.rejectJoin(userId, clubId, joinRequestId);
-            redirectAttributes.addFlashAttribute("message", "가입 신청을 거절했습니다.");
+            FlashFeedback.success(redirectAttributes, "가입 신청을 거절했습니다.");
         } catch (IllegalArgumentException exception) {
             log.warn("가입 신청 거절 거부: clubId={}, joinRequestId={}, {}", clubId, joinRequestId, exception.getMessage());
-            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+            FlashFeedback.failure(redirectAttributes, "가입 신청을 거절할 수 없습니다", exception.getMessage());
         }
         return "redirect:/teams/manage?clubId=" + clubId + "&tab=applications";
     }
@@ -225,10 +226,10 @@ public class ClubController {
         log.info("가입 신청 취소 요청: clubId={}, joinRequestId={}, userId={}", clubId, joinRequestId, userId);
         try {
             clubService.cancelJoin(userId, clubId, joinRequestId);
-            redirectAttributes.addFlashAttribute("message", "가입 신청을 취소했습니다.");
+            FlashFeedback.success(redirectAttributes, "가입 신청을 취소했습니다.");
         } catch (IllegalArgumentException exception) {
             log.warn("가입 신청 취소 거부: clubId={}, joinRequestId={}, {}", clubId, joinRequestId, exception.getMessage());
-            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+            FlashFeedback.failure(redirectAttributes, "가입 신청을 취소할 수 없습니다", exception.getMessage());
         }
         if (returnTab != null) {
             if (returnClubId != null) {
@@ -248,10 +249,10 @@ public class ClubController {
         log.info("동호회장 위임 요청: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
         try {
             clubService.transferLeader(userId, clubId, clubMemberId);
-            redirectAttributes.addFlashAttribute("message", "동호회장을 위임했습니다.");
+            FlashFeedback.success(redirectAttributes, "동호회장을 위임했습니다.");
         } catch (IllegalArgumentException exception) {
             log.warn("동호회장 위임 거부: clubId={}, clubMemberId={}, {}", clubId, clubMemberId, exception.getMessage());
-            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+            FlashFeedback.failure(redirectAttributes, "동호회장을 위임할 수 없습니다", exception.getMessage());
         }
         return "redirect:/teams/manage?clubId=" + clubId + "&tab=members";
     }
@@ -266,10 +267,10 @@ public class ClubController {
             clubService.leaveClub(userId, clubId);
         } catch (IllegalArgumentException exception) {
             log.warn("동호회 탈퇴 거부: clubId={}, userId={}, {}", clubId, userId, exception.getMessage());
-            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+            FlashFeedback.failure(redirectAttributes, "동호회를 탈퇴할 수 없습니다", exception.getMessage());
             return "redirect:/teams/manage?clubId=" + clubId;
         }
-        redirectAttributes.addFlashAttribute("message", "동호회를 탈퇴했습니다.");
+        FlashFeedback.success(redirectAttributes, "동호회를 탈퇴했습니다.");
         return "redirect:/teams/manage";
     }
 
@@ -283,10 +284,10 @@ public class ClubController {
         log.info("동호회원 추방 요청: clubId={}, clubMemberId={}, userId={}", clubId, clubMemberId, userId);
         try {
             clubService.kickMember(userId, clubId, clubMemberId, kickReason);
-            redirectAttributes.addFlashAttribute("message", "동호회원을 추방했습니다.");
+            FlashFeedback.success(redirectAttributes, "동호회원을 추방했습니다.");
         } catch (IllegalArgumentException exception) {
             log.warn("동호회원 추방 거부: clubId={}, clubMemberId={}, {}", clubId, clubMemberId, exception.getMessage());
-            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+            FlashFeedback.failure(redirectAttributes, "동호회원을 추방할 수 없습니다", exception.getMessage());
         }
         return "redirect:/teams/manage?clubId=" + clubId + "&tab=members";
     }
@@ -302,10 +303,10 @@ public class ClubController {
             clubService.disbandClub(userId, clubId, clubNameConfirmation);
         } catch (IllegalArgumentException exception) {
             log.warn("동호회 해체 거부: clubId={}, userId={}, {}", clubId, userId, exception.getMessage());
-            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+            FlashFeedback.failure(redirectAttributes, "동호회를 해체할 수 없습니다", exception.getMessage());
             return "redirect:/teams/manage?clubId=" + clubId;
         }
-        redirectAttributes.addFlashAttribute("message", "동호회를 해체했습니다.");
+        FlashFeedback.success(redirectAttributes, "동호회를 해체했습니다.");
         return "redirect:/teams/manage";
     }
 }

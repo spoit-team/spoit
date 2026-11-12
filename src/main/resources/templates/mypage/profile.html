@@ -14,8 +14,7 @@
     <a th:href="@{/mypage}" class="mypage-edit-link profile-edit-back">마이페이지로 <span aria-hidden="true">↗</span></a>
   </section>
 
-  <p th:if="${error != null}" id="profile-edit-error" class="auth-message is-error mypage-message" role="alert" th:text="${error}">프로필을 저장하지 못했습니다.</p>
-  <p th:if="${message != null}" id="profile-edit-message" class="auth-message is-success mypage-message" role="status" th:text="${message}">프로필 저장 결과</p>
+  <div th:replace="~{fragments/feedback :: flash}"></div>
   <aside class="mypage-notice profile-edit-notice" aria-label="프로필 안내">
     <span class="mypage-notice-mark" aria-hidden="true">i</span>
     <p>프로필은 서버에 저장됩니다. 레이팅은 확정 매치 기록을 기준으로 서버가 계산하며 이 화면에서 직접 설정할 수 없습니다.</p>

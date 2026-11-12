@@ -1,5 +1,7 @@
 package co.kr.spoit.report.controller;
 
+import java.util.Optional;
+
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -10,6 +12,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import co.kr.spoit.admin.common.AdminShellModel;
+import co.kr.spoit.global.common.FlashFeedback;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.report.domain.ReportCategory;
 import co.kr.spoit.report.dto.FacilityReportPage;
@@ -27,7 +30,7 @@ import co.kr.spoit.report.service.ReportAccessDeniedException;
  * {@code participants}(userId, nickname), {@code reports}(reportId, matchId, facilityName,
  * matchTitle, targetName, category, status, createdAt, resolution), {@code selectedMatchId},
  * {@code selectedTargetUserId}, {@code selectedReport}(nullable), {@code matchPage},
- * {@code hasNextMatches}, {@code reportPage}, {@code hasNextReports}, {@code success}/{@code error}
+ * {@code hasNextMatches}, {@code reportPage}, {@code hasNextReports}, 공용 안내 {@code message}/{@code errorTitle}·{@code error}
  * flash. 쿼리 파라미터는 {@code matchId}·{@code targetUserId}·{@code reportId}·{@code matchPage}·
  * {@code reportPage} 모두 선택이다. 페이지는 0부터 시작하며 잘못된 입력은 정규화한다.</p>
  */
@@ -36,6 +39,8 @@ public class FacilityReportController {
 
     private static final String VIEW = "admin/report-facility";
     private static final String REDIRECT_LOGIN = "redirect:/login";
+    /** 접수 실패 안내에 덧붙이는 문구. 작성하던 내용은 flash로 양식에 되돌려 준다. */
+    public static final String KEPT_INPUT_NOTICE = "작성한 내용과 선택은 양식에 그대로 남아 있습니다.";
 
     private final FacilityReportService facilityReportService;
 
@@ -99,7 +104,7 @@ public class FacilityReportController {
         try {
             long reportId = facilityReportService.submit(principal.getUserId(), matchId, targetUserId,
                     category, summary);
-            redirect.addFlashAttribute("success", "신고가 접수되었습니다.");
+            FlashFeedback.success(redirect, "신고가 접수되었습니다.");
             // 성공하면 방금 만든 본인 신고 상세로 이동해 처리 상태를 바로 확인하게 한다.
             UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/admin/facility/reports")
                     .queryParam("reportId", reportId)
@@ -108,9 +113,12 @@ public class FacilityReportController {
             return "redirect:" + builder.build().encode().toUriString() + "#report-selected";
         } catch (IllegalArgumentException | ReportAccessDeniedException exception) {
             // 대상 조건 위반은 권한·상태 안내로 처리하고, 존재 여부를 404로 흘리지 않는다.
-            redirect.addFlashAttribute("error", exception.getMessage());
             // 작성 내용은 URL이 아니라 길이 제한 flash로만 보존한다. escaping은 템플릿이 맡는다.
-            addSubmittedFlash(redirect, summary, category);
+            boolean kept = addSubmittedFlash(redirect, summary, category);
+            String reason = exception.getMessage();
+            FlashFeedback.failure(redirect, "신고를 접수할 수 없습니다",
+                    kept && reason != null && !reason.isBlank() ? reason + "\n" + KEPT_INPUT_NOTICE
+                            : reason);
         }
 
         UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/admin/facility/reports");
@@ -130,14 +138,17 @@ public class FacilityReportController {
      * 경우에만 남긴다(입력 유효성과 무관하게 임의 문자열을 화면에 되돌리지 않는다). 빈 값은 모델에 넣지
      * 않아 템플릿이 빈 상자를 그리지 않게 한다.
      */
-    private static void addSubmittedFlash(RedirectAttributes redirect, String summary, String category) {
+    private static boolean addSubmittedFlash(RedirectAttributes redirect, String summary, String category) {
+        boolean kept = false;
         String summaryValue = limitSummary(summary);
         if (!summaryValue.isEmpty()) {
             redirect.addFlashAttribute("submittedSummary", summaryValue);
+            kept = true;
         }
         // 허용 유형만 되돌린다. 알 수 없는 값은 화면에 반사하지 않는다.
-        ReportCategory.from(category)
-                .ifPresent(value -> redirect.addFlashAttribute("submittedCategory", value.dbValue()));
+        Optional<ReportCategory> submittedCategory = ReportCategory.from(category);
+        submittedCategory.ifPresent(value -> redirect.addFlashAttribute("submittedCategory", value.dbValue()));
+        return kept || submittedCategory.isPresent();
     }
 
     /** 신고 원문을 입력 상한으로 자른다. null·공백은 빈 문자열이며, 로그로 남기지 않는다. */

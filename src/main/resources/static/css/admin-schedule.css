@@ -67,24 +67,6 @@
   white-space: nowrap;
 }
 
-/* 관리자 공통 보조 UI */
-.admin-flash {
-  margin: 0 0 14px;
-  border: 1px solid var(--admin-line-strong);
-  border-left: 3px solid var(--admin-blue);
-  border-radius: 8px;
-  background: #fff;
-  padding: 11px 14px;
-  color: var(--admin-ink-2);
-  font-size: 11.5px;
-  font-weight: 650;
-}
-
-.admin-flash.is-error {
-  border-left-color: #b23b2e;
-  color: #8a2f25;
-}
-
 .schedule-facility-form {
   display: flex;
   align-items: center;

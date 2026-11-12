@@ -18,8 +18,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
@@ -76,8 +74,8 @@ class RoomAdminRouteTest {
                         .param("teamCapacity", "3")
                         .param("feePerPerson", "9000").param("requiredSkill", "중급"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl(BOOKINGS + "&message=" + encode("812번 매칭방을 만들었습니다.")
-                        + "#facility-bookings"));
+                .andExpect(redirectedUrl(BOOKINGS + "#facility-bookings"))
+                .andExpect(flash().attribute("message", "812번 매칭방을 만들었습니다."));
 
         verify(roomCommandService).create(eq(7L), argThat(form -> form.getFacilityId() == 30L
                 && form.getHours().equals(List.of("10:00", "11:00"))
@@ -97,8 +95,8 @@ class RoomAdminRouteTest {
                         .param("teamCapacity", "3").param("feePerPerson", "9000").param("requiredSkill", "중급")
                         .param("removePhoto", "true"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl(BOOKINGS + "&message=" + encode("813번 매칭방을 만들었습니다.")
-                        + "#facility-bookings"));
+                .andExpect(redirectedUrl(BOOKINGS + "#facility-bookings"))
+                .andExpect(flash().attribute("message", "813번 매칭방을 만들었습니다."));
 
         verify(roomCommandService).create(eq(7L), argThat(form -> form.getPhoto() != null
                 && "court.jpg".equals(form.getPhoto().getOriginalFilename())
@@ -116,8 +114,8 @@ class RoomAdminRouteTest {
                         .param("title", "변경"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl(BOOKINGS + "#facility-bookings"))
-                .andExpect(flash().attribute("roomErrorTitle", "매칭방을 수정할 수 없습니다"))
-                .andExpect(flash().attribute("roomError", "운영 시간이 아닙니다."));
+                .andExpect(flash().attribute("errorTitle", "매칭방을 수정할 수 없습니다"))
+                .andExpect(flash().attribute("error", "운영 시간이 아닙니다."));
     }
 
     @Test
@@ -127,18 +125,18 @@ class RoomAdminRouteTest {
                 .thenThrow(new org.springframework.dao.QueryTimeoutException("Lock wait timeout exceeded"));
         mockMvc.perform(post("/admin/rooms").with(user(facilityManager())).with(csrf()).param("title", "토요 풋살"))
                 .andExpect(redirectedUrl(BOOKINGS + "#facility-bookings"))
-                .andExpect(flash().attribute("roomErrorTitle", "매칭방을 만들 수 없습니다"))
-                .andExpect(flash().attribute("roomError", "일시적인 오류로 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."));
+                .andExpect(flash().attribute("errorTitle", "매칭방을 만들 수 없습니다"))
+                .andExpect(flash().attribute("error", "일시적인 오류로 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."));
 
         doThrow(new IllegalStateException("boom")).when(roomCommandService).update(eq(7L), eq(500L), any());
         mockMvc.perform(post("/admin/rooms/500").with(user(facilityManager())).with(csrf()).param("title", "변경"))
-                .andExpect(flash().attribute("roomErrorTitle", "매칭방을 수정할 수 없습니다"))
-                .andExpect(flash().attribute("roomError", "일시적인 오류로 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."));
+                .andExpect(flash().attribute("errorTitle", "매칭방을 수정할 수 없습니다"))
+                .andExpect(flash().attribute("error", "일시적인 오류로 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."));
 
         doThrow(new IllegalStateException("boom")).when(roomCommandService).cancel(7L, 502L);
         mockMvc.perform(post("/admin/rooms/502/cancel").with(user(facilityManager())).with(csrf()))
-                .andExpect(flash().attribute("roomErrorTitle", "매칭방을 취소할 수 없습니다"))
-                .andExpect(flash().attribute("roomError", "일시적인 오류로 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."));
+                .andExpect(flash().attribute("errorTitle", "매칭방을 취소할 수 없습니다"))
+                .andExpect(flash().attribute("error", "일시적인 오류로 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."));
     }
 
     @Test
@@ -151,24 +149,24 @@ class RoomAdminRouteTest {
                         .param("title", "토요 풋살"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl(BOOKINGS + "#facility-bookings"))
-                .andExpect(flash().attribute("roomErrorTitle", "매칭방을 만들 수 없습니다"))
-                .andExpect(flash().attribute("roomError", "동시 대관 한도를 넘었습니다."));
+                .andExpect(flash().attribute("errorTitle", "매칭방을 만들 수 없습니다"))
+                .andExpect(flash().attribute("error", "동시 대관 한도를 넘었습니다."));
     }
 
     @Test
     @DisplayName("취소는 인증 주체 ID로 처리하고 실패 문구는 안내 모달용 flash 속성으로 돌려준다")
     void cancelsRoom() throws Exception {
         mockMvc.perform(post("/admin/rooms/500/cancel").with(user(facilityManager())).with(csrf()))
-                .andExpect(redirectedUrl(BOOKINGS + "&message=" + encode("500번 매칭방을 취소했습니다.")
-                        + "#facility-bookings"));
+                .andExpect(redirectedUrl(BOOKINGS + "#facility-bookings"))
+                .andExpect(flash().attribute("message", "500번 매칭방을 취소했습니다."));
         verify(roomCommandService).cancel(7L, 500L);
 
         doThrow(new RoomCommandException("매칭방을 찾을 수 없습니다."))
                 .when(roomCommandService).cancel(7L, 501L);
         mockMvc.perform(post("/admin/rooms/501/cancel").with(user(facilityManager())).with(csrf()))
                 .andExpect(redirectedUrl(BOOKINGS + "#facility-bookings"))
-                .andExpect(flash().attribute("roomErrorTitle", "매칭방을 취소할 수 없습니다"))
-                .andExpect(flash().attribute("roomError", "매칭방을 찾을 수 없습니다."));
+                .andExpect(flash().attribute("errorTitle", "매칭방을 취소할 수 없습니다"))
+                .andExpect(flash().attribute("error", "매칭방을 찾을 수 없습니다."));
     }
 
     @Test
@@ -182,15 +180,15 @@ class RoomAdminRouteTest {
                 .andExpect(redirectedUrl(BOOKINGS + "#facility-bookings"))
                 .andReturn();
         FlashMap flash = savedFlash(result);
-        assertThat(flash.get("roomErrorTitle")).isEqualTo("매칭방을 취소할 수 없습니다");
-        assertThat(flash.get("roomError")).isEqualTo("세션이 만료되었습니다. 다시 시도해 주세요.");
+        assertThat(flash.get("errorTitle")).isEqualTo("매칭방을 취소할 수 없습니다");
+        assertThat(flash.get("error")).isEqualTo("세션이 만료되었습니다. 다시 시도해 주세요.");
         assertThat(flash.getTargetRequestPath()).isEqualTo("/admin/facility");
 
         MvcResult update = mockMvc.perform(post("/admin/rooms/500").with(user(facilityManager()))
                         .with(csrf().useInvalidToken()))
                 .andExpect(redirectedUrl(BOOKINGS + "#facility-bookings"))
                 .andReturn();
-        assertThat(savedFlash(update).get("roomErrorTitle")).isEqualTo("매칭방을 수정할 수 없습니다");
+        assertThat(savedFlash(update).get("errorTitle")).isEqualTo("매칭방을 수정할 수 없습니다");
 
         verifyNoInteractions(roomCommandService);
     }
@@ -201,9 +199,5 @@ class RoomAdminRouteTest {
                 .getAttribute(SessionFlashMapManager.class.getName() + ".FLASH_MAPS");
         assertThat(maps).hasSize(1);
         return maps.get(0);
-    }
-
-    private static String encode(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 }

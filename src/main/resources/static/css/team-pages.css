@@ -120,23 +120,6 @@
   font-size: 11px;
 }
 
-.team-status-message {
-  margin: 0 0 18px;
-  border: 1px solid color-mix(in srgb, var(--color-match) 25%, transparent);
-  border-radius: 10px;
-  background: var(--color-match-soft);
-  padding: 11px 14px;
-  color: var(--color-match-ink);
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.team-status-message.is-error {
-  border-color: color-mix(in srgb, #b23b2e 28%, transparent);
-  background: #fdf3f1;
-  color: #8a2f25;
-}
-
 .team-sport-tabs {
   display: flex;
   gap: 7px;
@@ -723,7 +706,6 @@
 .team-activity-day-options label { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; color: var(--color-ink-2); font-size: 12px; font-weight: 600; }
 .team-activity-day-options input[type="checkbox"] { width: 16px; min-height: 16px; margin: 0; accent-color: var(--color-match); }
 .team-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--color-line); padding: 14px 21px 18px; }
-.team-toast { position: fixed; z-index: 100; right: 20px; bottom: 20px; max-width: min(420px, calc(100vw - 40px)); border-radius: 10px; background: var(--color-ink); padding: 12px 16px; color: #fff; font-size: 12px; font-weight: 700; box-shadow: 0 8px 26px rgb(19 21 25 / 22%); }
 
 @media (max-width: 1000px) {
   .team-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

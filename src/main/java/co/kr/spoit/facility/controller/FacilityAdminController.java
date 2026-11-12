@@ -29,6 +29,7 @@ import co.kr.spoit.facility.service.FacilityNotFoundException;
 import co.kr.spoit.facility.service.FacilityScheduleService;
 import co.kr.spoit.facility.service.FacilityService;
 import co.kr.spoit.facility.service.FacilityStatsService;
+import co.kr.spoit.global.common.FlashFeedback;
 import co.kr.spoit.match.dto.FacilityDashboard;
 import co.kr.spoit.match.dto.RoomManagementPage;
 import co.kr.spoit.match.service.RoomManagementService;
@@ -92,18 +93,10 @@ public class FacilityAdminController {
             @RequestParam(name = "period", required = false) String period,
             @RequestParam(name = "periodFrom", required = false) String periodFrom,
             @RequestParam(name = "periodTo", required = false) String periodTo,
-            @RequestParam(name = "message", required = false) String message,
-            @RequestParam(name = "error", required = false) String error,
             Model model) {
         AdminShellModel.apply(model);
-        // 변경 요청이 전달한 결과 안내를 화면에서 렌더링할 수 있게 모델에 옮긴다.
-        // 값이 비어 있으면 빈 안내 상자가 남지 않도록 아예 전달하지 않는다.
-        if (message != null && !message.isBlank()) {
-            model.addAttribute("message", message);
-        }
-        if (error != null && !error.isBlank()) {
-            model.addAttribute("error", error);
-        }
+        // 변경 요청의 결과 안내(message/error/errorTitle)는 flash로 모델에 들어오고,
+        // 화면의 fragments/feedback :: flash가 성공 토스트·실패 모달로 보여 준다.
         // view는 서버 상태가 아니라 뷰의 기본 선택값이다.
         boolean scheduleView = "schedule".equals(view);
         boolean bookingsView = "bookings".equals(view);
@@ -236,7 +229,11 @@ public class FacilityAdminController {
         return "fragments/schedule-card :: schedule-card";
     }
 
-    /** 시설을 등록하고 시설·공간 관리 섹션으로 되돌아간다. 오류는 화면 안내로 전달한다. */
+    static final String REGISTER_ERROR_TITLE = "시설을 등록할 수 없습니다";
+    static final String UPDATE_ERROR_TITLE = "시설 정보를 수정할 수 없습니다";
+    static final String DELETE_ERROR_TITLE = "시설을 삭제할 수 없습니다";
+
+    /** 시설을 등록하고 시설·공간 관리 섹션으로 되돌아간다. 오류는 실패 안내 모달로 전달한다. */
     @PostMapping("/admin/facilities")
     public String registerFacility(@AuthenticationPrincipal MemberPrincipal principal,
             FacilityForm form, BindingResult bindingResult, RedirectAttributes redirect) {
@@ -244,14 +241,14 @@ public class FacilityAdminController {
             return "redirect:/login";
         }
         if (bindingResult.hasErrors()) {
-            redirect.addAttribute("error", "입력 정보를 확인해 주세요.");
+            FlashFeedback.failure(redirect, REGISTER_ERROR_TITLE, "입력 정보를 확인해 주세요.");
             return FACILITY_ASSETS_REDIRECT;
         }
         try {
             facilityService.registerFacility(principal.getUserId(), form);
-            redirect.addAttribute("message", "시설을 등록했습니다.");
+            FlashFeedback.success(redirect, "시설을 등록했습니다.");
         } catch (IllegalArgumentException | FacilityAccessDeniedException | FacilityNotFoundException exception) {
-            redirect.addAttribute("error", exception.getMessage());
+            FlashFeedback.failure(redirect, REGISTER_ERROR_TITLE, exception.getMessage());
         }
         return FACILITY_ASSETS_REDIRECT;
     }
@@ -265,14 +262,14 @@ public class FacilityAdminController {
             return "redirect:/login";
         }
         if (bindingResult.hasErrors()) {
-            redirect.addAttribute("error", "입력 정보를 확인해 주세요.");
+            FlashFeedback.failure(redirect, UPDATE_ERROR_TITLE, "입력 정보를 확인해 주세요.");
             return FACILITY_ASSETS_REDIRECT;
         }
         try {
             facilityService.updateFacility(principal.getUserId(), facilityId, form);
-            redirect.addAttribute("message", "시설 정보를 수정했습니다.");
+            FlashFeedback.success(redirect, "시설 정보를 수정했습니다.");
         } catch (IllegalArgumentException | FacilityAccessDeniedException | FacilityNotFoundException exception) {
-            redirect.addAttribute("error", exception.getMessage());
+            FlashFeedback.failure(redirect, UPDATE_ERROR_TITLE, exception.getMessage());
         }
         return FACILITY_ASSETS_REDIRECT;
     }
@@ -286,7 +283,7 @@ public class FacilityAdminController {
         }
         try {
             facilityService.deleteFacility(principal.getUserId(), facilityId);
-            redirect.addAttribute("message", "시설을 삭제했습니다.");
+            FlashFeedback.success(redirect, "시설을 삭제했습니다.");
         } catch (FacilityDeleteBlockedException exception) {
             // 삭제를 막는 매칭방 전체를 경고창에 넘겨 어떤 방을 정리해야 하는지 보여 준다.
             // 안내 문구는 모달 안에만 표시하도록 별도 속성으로 전달한다.
@@ -294,7 +291,7 @@ public class FacilityAdminController {
             redirect.addFlashAttribute("deleteBlockConflicts", exception.getConflicts());
             redirect.addFlashAttribute("deleteBlockSummary", summarize(exception.getConflicts()));
         } catch (IllegalArgumentException | FacilityAccessDeniedException | FacilityNotFoundException exception) {
-            redirect.addAttribute("error", exception.getMessage());
+            FlashFeedback.failure(redirect, DELETE_ERROR_TITLE, exception.getMessage());
         }
         return FACILITY_ASSETS_REDIRECT;
     }

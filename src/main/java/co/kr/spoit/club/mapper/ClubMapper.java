@@ -88,7 +88,8 @@ public interface ClubMapper {
         List<ClubSchedule> selectUpcomingSchedules(@Param("clubId") Long clubId, @Param("now") LocalDateTime now);
 
         // 관리 화면 지난 일정
-        List<ClubSchedule> selectRecentSchedules(@Param("clubId") Long clubId, @Param("now") LocalDateTime now);
+        List<ClubSchedule> selectRecentSchedules(@Param("clubId") Long clubId, @Param("now") LocalDateTime now,
+                        @Param("limit") int limit);
 
         // 동호회 이력 화면
         ClubMember selectActiveMemberWithLeaderById(@Param("clubId") Long clubId,
@@ -155,7 +156,7 @@ public interface ClubMapper {
         int updateClubDisband(@Param("clubId") Long clubId);
 
         // 승인으로 정원이 차면 모집 마감
-        int updateClubRecruitClosed(@Param ("clubId") Long clubId);
+        int updateClubRecruitClosed(@Param("clubId") Long clubId);
 
         // 수정: 활성 동호회 정보 수정
         int updateClub(Club club);
