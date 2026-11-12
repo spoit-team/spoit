@@ -363,6 +363,18 @@ class ClubServiceTest {
     }
 
     @Test
+    @DisplayName("지난 일정은 최근 20경기까지만 가져온다")
+    void 지난_일정은_20경기까지만_가져온다() {
+        when(clubMapper.existsActiveMember(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectClubDetail(1L)).thenReturn(detailClub());
+        when(clubMapper.selectClubMembers(1L)).thenReturn(List.of(member("이슛터", "동호회장")));
+
+        service.findManagedClub(7L, 1L);
+
+        verify(clubMapper).selectRecentSchedules(eq(1L), any(), eq(20));
+    }
+
+    @Test
     @DisplayName("내 동호회 목록에서 선택된 동호회만 강조한다")
     void 선택된_동호회만_강조한다() {
         ClubSummary second = club("모집중", "2,4", 19, 21);
@@ -842,7 +854,7 @@ class ClubServiceTest {
     }
 
     @Test
-    @DisplayName("수정으로 정원이 현재 인원과 같아지면 모집중을 골라도 모집 마감으로 저장한다")
+    @DisplayName("수정으로 정원이 현재 인원과 같아지면 모집중을 골라도 모집 마감으로 저장하고 알린다")
     void 수정으로_정원이_차면_모집을_마감한다() throws Exception {
         when(clubMapper.existsRegion(3L)).thenReturn(true);
         when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClubForEdit());
@@ -850,11 +862,29 @@ class ClubServiceTest {
         // 폼 정원 10명 = 현재 10명, 폼 모집 상태는 모집중
         when(clubMapper.countActiveMembers(1L)).thenReturn(10);
 
-        service.updateClub(7L, 1L, editForm());
+        boolean cannotOpen = service.updateClub(7L, 1L, editForm());
 
+        assertThat(cannotOpen).isTrue();
         InOrder order = inOrder(clubMapper);
         order.verify(clubMapper).updateClub(any(Club.class));
         order.verify(clubMapper).updateClubRecruitClosed(1L);
+    }
+
+    @Test
+    @DisplayName("정원이 찬 동호회에서 마감을 고르면 마감으로 저장하고 알리지 않는다")
+    void 정원이_찬_동호회에서_마감을_고르면_알리지_않는다() throws Exception {
+        when(clubMapper.existsRegion(3L)).thenReturn(true);
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClubForEdit());
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        // 폼 정원 10명 = 현재 10명, 폼 모집 상태는 마감
+        when(clubMapper.countActiveMembers(1L)).thenReturn(10);
+        ClubCreateForm form = editForm();
+        form.setRecruitStatus("마감");
+
+        boolean cannotOpen = service.updateClub(7L, 1L, form);
+
+        assertThat(cannotOpen).isFalse();
+        verify(clubMapper).updateClubRecruitClosed(1L);
     }
 
     @Test

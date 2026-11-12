@@ -145,9 +145,9 @@ public class ClubController {
             return "redirect:/teams/manage?clubId=" + clubId;
         }
 
-        boolean closed;
+        boolean cannotOpen;
         try {
-            closed = clubService.updateClub(userId, clubId, form);
+            cannotOpen = clubService.updateClub(userId, clubId, form);
         } catch (ClubService.ClubNameExistException exception) {
             log.warn("동호회 수정 거부: 이름 중복 {}", form.getClubName());
             redirectAttributes.addFlashAttribute("error", "이미 사용 중인 이름입니다.");
@@ -158,7 +158,7 @@ public class ClubController {
             return "redirect:/teams/manage?clubId=" + clubId;
         }
         redirectAttributes.addFlashAttribute("message",
-                closed ? "동호회 정보를 수정했습니다. 정원이 차서 모집 마감으로 저장했습니다." : "동호회 정보를 수정했습니다.");
+                cannotOpen ? "동호회 정보를 수정했습니다. 정원이 차서 모집 중으로 바꿀 수 없습니다." : "동호회 정보를 수정했습니다.");
         return "redirect:/teams/manage?clubId=" + clubId;
     }
 
