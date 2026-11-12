@@ -9,8 +9,8 @@
     <header th:replace="~{fragments/admin :: topbar('대시보드', '운영 중')}"></header>
 
     <div class="admin-content">
-      <p th:if="${message != null}" class="admin-flash" role="status" th:text="${message}">처리 결과</p>
-      <p th:if="${error != null}" class="admin-flash is-error" role="alert" th:text="${error}">요청을 처리하지 못했습니다.</p>
+      <!-- 처리 결과: 성공은 오른쪽 아래 토스트, 실패는 원인을 담은 안내 모달(ui-feedback.js) -->
+      <div th:replace="~{fragments/feedback :: flash}"></div>
 
       <!-- 대시보드는 사용자가 해시로 화면을 바꾸기 전까지 보이는 첫 화면이다.
            서버가 view에 맞는 섹션만 보이게 렌더링해, 스크립트 실행 전에 대시보드가
@@ -544,25 +544,6 @@
   </section>
 </div>
 
-<!-- 매칭방 생성·수정·취소 실패 안내: 브라우저 사전 검사(시간 미선택 등)와 서버 거부(대관 한도·운영 시간 등)를
-     같은 모달로 보여 줍니다. 서버 거부는 flash 속성(roomError)이 있을 때만 자동으로 열립니다. -->
-<div class="modal-backdrop" id="room-error-modal" hidden
-     th:attr="data-auto-open=${roomError != null ? 'true' : null}">
-  <section class="admin-modal" role="alertdialog" aria-modal="true" aria-labelledby="room-error-title"
-           aria-describedby="room-error-message">
-    <div class="modal-header">
-      <div><h2 id="room-error-title" th:text="${roomErrorTitle != null ? roomErrorTitle : '매칭방을 만들 수 없습니다'}">매칭방을 만들 수 없습니다</h2></div>
-      <button class="modal-close" type="button" data-close-room-error aria-label="닫기">×</button>
-    </div>
-    <div class="modal-body">
-      <p class="facility-confirm-message" id="room-error-message" th:text="${roomError}">입력 정보를 확인해 주세요.</p>
-    </div>
-    <div class="modal-footer">
-      <button class="admin-button primary" type="button" id="room-error-confirm" data-close-room-error>확인</button>
-    </div>
-  </section>
-</div>
-
 <!-- 운영 일정 충돌 안내: 서버가 저장을 막았을 때 어떤 매칭방·휴관과 겹치는지 보여 줍니다.
      저장을 우회하거나 예약을 자동 취소하는 선택지는 두지 않습니다.
      충돌이 없으면 목록이 비어 있고, admin-facility.js가 자동으로 열지 않습니다. -->
@@ -659,8 +640,6 @@
     </div>
   </section>
 </div>
-
-<div th:replace="~{fragments/admin :: toast}"></div>
 
 <script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/admin-shell.js}"></script>

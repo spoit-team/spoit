@@ -449,6 +449,20 @@
     target.hidden = false;
   }
 
+  /* 결과 제출 응답: 성공은 공용 토스트, 실패·불일치는 원인을 담은 공용 안내 모달(ui-feedback.js).
+     공용 안내를 쓸 수 없는 환경에서만 제출 영역의 문구로 대신한다. */
+  function announceSubmit(result, outcome) {
+    const feedback = global.SpoitFeedback;
+    const success = result.ok && outcome !== 'CONFLICT';
+    if (!feedback) {
+      showMessage(submitMessage, result, success ? 'success' : 'error');
+      return;
+    }
+    if (submitMessage) submitMessage.hidden = true;
+    if (success) feedback.toast(result.message);
+    else feedback.alert(result.ok ? '두 팀장의 결과가 다릅니다' : '결과를 제출할 수 없습니다', result.message);
+  }
+
   /* ── 조회·제출 ─────────────────────────────────────────────────── */
 
   function loadSummary() {
@@ -540,8 +554,8 @@
       busy = false;
       pending = null;
       const outcome = result.data && result.data.outcome;
-      // 불일치는 제출 자체는 성공이지만 다시 확인해야 하므로 성공색을 쓰지 않는다.
-      showMessage(submitMessage, result, result.ok && outcome !== 'CONFLICT' ? 'success' : 'error');
+      // 불일치는 제출 자체는 성공이지만 다시 확인해야 하므로 성공 토스트 대신 안내 모달로 알린다.
+      announceSubmit(result, outcome);
       return Promise.all([loadSummary(), loadCaptain()]);
     });
   }

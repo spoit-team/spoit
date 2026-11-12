@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import co.kr.spoit.global.common.FlashFeedback;
 import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.payment.domain.Payment;
 import co.kr.spoit.payment.dto.PaymentDtos.CompletionResult;
@@ -38,6 +39,11 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/matches/{matchId}/apply/payment")
 @RequiredArgsConstructor
 public class MatchPaymentController {
+
+    /** 결제가 실패했을 때 실패 안내 모달의 제목 */
+    static final String PAYMENT_ERROR_TITLE = "결제를 완료하지 못했습니다";
+    /** 사용자가 카카오페이에서 직접 취소했을 때의 안내. 실패가 아니므로 모달 대신 신청 화면 문구로 보여 준다. */
+    static final String PAYMENT_NOTICE = "paymentNotice";
 
     private final PaymentService paymentService;
 
@@ -78,7 +84,7 @@ public class MatchPaymentController {
             redirect.addAttribute("receiptNo", result.receiptNo());
             return "redirect:/matches/{matchId}/apply/complete";
         }
-        redirect.addFlashAttribute("error", result.message());
+        FlashFeedback.failure(redirect, PAYMENT_ERROR_TITLE, result.message());
         return backToApply(payment, redirect);
     }
 
@@ -87,7 +93,7 @@ public class MatchPaymentController {
                          @RequestParam(required = false) String paymentId,
                          @AuthenticationPrincipal MemberPrincipal principal,
                          RedirectAttributes redirect) {
-        return abandon(paymentId, principal, redirect, "결제를 취소했습니다.");
+        return abandon(paymentId, principal, redirect, "결제를 취소했습니다.", false);
     }
 
     @GetMapping("/fail")
@@ -95,16 +101,21 @@ public class MatchPaymentController {
                        @RequestParam(required = false) String paymentId,
                        @AuthenticationPrincipal MemberPrincipal principal,
                        RedirectAttributes redirect) {
-        return abandon(paymentId, principal, redirect, "결제에 실패했습니다. 다시 시도해 주세요.");
+        return abandon(paymentId, principal, redirect, "결제에 실패했습니다. 다시 시도해 주세요.", true);
     }
 
-    private String abandon(String paymentId, MemberPrincipal principal, RedirectAttributes redirect, String message) {
+    private String abandon(String paymentId, MemberPrincipal principal, RedirectAttributes redirect, String message,
+                           boolean failed) {
         Payment payment = paymentService.findOwned(paymentId, principal.getUserId()).orElse(null);
         if (payment == null) {
             return "redirect:/matches/{matchId}";
         }
         paymentService.abandon(paymentId, principal.getUserId(), message);
-        redirect.addFlashAttribute("error", message);
+        if (failed) {
+            FlashFeedback.failure(redirect, PAYMENT_ERROR_TITLE, message);
+        } else {
+            redirect.addFlashAttribute(PAYMENT_NOTICE, message);
+        }
         return backToApply(payment, redirect);
     }
 

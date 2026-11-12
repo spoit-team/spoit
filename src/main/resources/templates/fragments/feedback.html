@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--/*
+  서버가 리다이렉트로 넘긴 처리 결과를 공용 안내(ui-feedback.js)에 전달합니다.
+  - message: 성공 문구 → 오른쪽 아래 토스트
+  - error (+ errorTitle): 실패 원인 → 가운데 안내 모달
+  값이 없으면 속성이 생기지 않고, 스크립트가 읽은 뒤 요소를 지워 새로고침해도 다시 뜨지 않습니다.
+*/-->
+<div th:fragment="flash" id="ui-feedback-flash" hidden
+     th:attr="data-toast=${message},
+              data-error=${error},
+              data-error-title=${errorTitle}"></div>
+
+</body>
+</html>

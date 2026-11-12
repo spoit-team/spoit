@@ -23,6 +23,7 @@ import co.kr.spoit.facility.service.FacilityAccessDeniedException;
 import co.kr.spoit.facility.service.FacilityNotFoundException;
 import co.kr.spoit.facility.service.FacilityScheduleService;
 import co.kr.spoit.facility.service.ScheduleConflictException;
+import co.kr.spoit.global.common.FlashFeedback;
 import co.kr.spoit.member.domain.MemberPrincipal;
 
 /**
@@ -37,6 +38,8 @@ public class FacilityScheduleController {
 
     /** 설정 변경 후 복귀할 섹션이다. {@code admin-shell.js}가 화면을 선택하는 실제 ID다. */
     private static final String SCHEDULE_PATH = "/admin/facility";
+    /** 운영 시간·모집 조건·휴관 변경이 막혔을 때 실패 안내 모달의 제목 */
+    static final String SCHEDULE_ERROR_TITLE = "변경 내용을 저장할 수 없습니다";
 
     /** 화면이 실제로 여는 탭 ID다. 그 밖의 값은 복귀 URL에 싣지 않는다. */
     private static final List<String> ALLOWED_TABS = List.of(
@@ -188,14 +191,14 @@ public class FacilityScheduleController {
             RedirectAttributes redirect, Runnable action, String successMessage) {
         try {
             action.run();
-            redirect.addFlashAttribute("message", successMessage);
+            FlashFeedback.success(redirect, successMessage);
         } catch (ScheduleConflictException exception) {
-            redirect.addFlashAttribute("error", exception.getMessage());
+            // 충돌은 겹치는 매칭방 목록이 있는 전용 경고창만 띄운다. 같은 실패를 공용 안내로 한 번 더 띄우지 않는다.
             redirect.addFlashAttribute("scheduleConflictRange", exception.getRangeText());
             redirect.addFlashAttribute("scheduleConflicts", exception.getConflicts());
             redirect.addFlashAttribute("scheduleConflictSummary", summarize(exception.getConflicts()));
         } catch (IllegalArgumentException | FacilityAccessDeniedException | FacilityNotFoundException exception) {
-            redirect.addFlashAttribute("error", exception.getMessage());
+            FlashFeedback.failure(redirect, SCHEDULE_ERROR_TITLE, exception.getMessage());
         }
         return scheduleRedirect(facilityId, tab, date, sportId);
     }

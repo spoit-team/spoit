@@ -154,7 +154,7 @@ class MatchPaymentControllerTest {
                         .param("paymentId", "spoit-1")
                         .with(user(member())))
                 .andExpect(redirectedUrl("/matches/1/apply"))
-                .andExpect(flash().attribute("error", "결제를 취소했습니다."));
+                .andExpect(flash().attribute("paymentNotice", "결제를 취소했습니다."));
         verify(paymentService).abandon("spoit-1", 7L, "결제를 취소했습니다.");
     }
 

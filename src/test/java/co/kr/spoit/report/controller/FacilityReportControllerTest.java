@@ -179,7 +179,7 @@ class FacilityReportControllerTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl(
                         "/admin/facility/reports?reportId=4321&matchPage=2&reportPage=3#report-selected"))
-                .andExpect(flash().attribute("success", "신고가 접수되었습니다."));
+                .andExpect(flash().attribute("message", "신고가 접수되었습니다."));
 
         verify(facilityReportService).submit(7L, 100L, 21L, "노쇼", "내용");
     }
@@ -202,7 +202,10 @@ class FacilityReportControllerTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl(
                         "/admin/facility/reports?matchId=100&targetUserId=21&matchPage=2&reportPage=3"))
-                .andExpect(flash().attribute("error", "이용이 끝난 경기만 신고할 수 있습니다."))
+                .andExpect(flash().attribute("errorTitle", "신고를 접수할 수 없습니다"))
+                // 작성 내용을 양식에 되돌려 주므로 실패 안내에 그 사실을 덧붙인다.
+                .andExpect(flash().attribute("error",
+                        "이용이 끝난 경기만 신고할 수 있습니다.\n" + FacilityReportController.KEPT_INPUT_NOTICE))
                 .andExpect(flash().attribute("submittedSummary", "작성 중이던 내용"))
                 .andExpect(flash().attribute("submittedCategory", "노쇼"));
         // 원문은 URL로 흘러가지 않는다.

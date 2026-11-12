@@ -1,6 +1,6 @@
 /* 관리자 공통 UI: 사이드바, 화면 전환, 탭, 알림 모달, 확인 폼만 담당합니다.
-   데이터와 저장 결과는 모두 서버가 제공합니다. 브라우저 저장소는 새로고침 뒤 보여 줄 토스트 문구를
-   한 번 넘길 때만 sessionStorage를 쓰고, 꺼내는 즉시 지웁니다. */
+   데이터와 저장 결과는 모두 서버가 제공합니다. 성공 토스트·실패 안내 모달은 공용 ui-feedback.js가 그리고,
+   여기서는 기존 화면 스크립트가 쓰던 PlayOnAdmin.toast·showErrorModal·reloadWithToast를 그쪽으로 넘깁니다. */
 (function (global) {
   'use strict';
 
@@ -10,22 +10,21 @@
   const views = Array.from(document.querySelectorAll('.admin-view'));
   const navTargets = Array.from(document.querySelectorAll('[data-view-target]'));
   const breadcrumb = document.getElementById('breadcrumb-current');
-  const toast = document.getElementById('admin-toast');
   const notificationModal = document.getElementById('admin-notification-modal');
-  let toastTimer = 0;
   let modalOpener = null;
 
+  function feedback() {
+    return global.SpoitFeedback || null;
+  }
+
+  /* 성공은 오른쪽 아래 토스트, 실패(isError)는 원인을 담은 가운데 안내 모달로 보여 준다. */
   function toastMessage(message, isError) {
-    if (!toast || !message) return;
-    toast.textContent = message;
-    toast.dataset.kind = isError ? 'error' : 'success';
-    toast.hidden = false;
-    global.requestAnimationFrame(function () { toast.classList.add('show'); });
-    global.clearTimeout(toastTimer);
-    toastTimer = global.setTimeout(function () {
-      toast.classList.remove('show');
-      global.setTimeout(function () { toast.hidden = true; }, 200);
-    }, 3600);
+    if (!message) return;
+    if (isError) {
+      showErrorModal(null, message);
+      return;
+    }
+    feedback()?.toast(message);
   }
 
   function setSidebarExpanded(expanded) {
@@ -243,33 +242,18 @@
     if (!global.confirm(message)) event.preventDefault();
   });
 
-  /* 새로고침 후 토스트: 저장 뒤 화면 전체를 서버 값으로 다시 그려야 할 때 결과 문구가 새로고침에 묻히지 않도록
-     sessionStorage에 한 번만 맡기고, 다시 열린 페이지가 꺼내 보여 준 뒤 바로 지운다. 데이터는 저장하지 않는다.
-     저장소를 쓸 수 없으면 예전처럼 토스트를 띄우고 잠시 뒤 새로고침한다. */
-  const PENDING_TOAST_KEY = 'playon-admin-pending-toast';
-  const FALLBACK_RELOAD_DELAY_MS = 700;
-
+  /* 저장 뒤 화면 전체를 서버 값으로 다시 그려야 할 때 결과 문구를 새로고침 뒤에 보여 준다.
+     실패는 새로고침하지 않고 그 자리에서 안내 모달로 보여 준다. */
   function reloadWithToast(message, isError) {
-    try {
-      global.sessionStorage.setItem(PENDING_TOAST_KEY, JSON.stringify({ message, isError: Boolean(isError) }));
-    } catch (error) {
-      toastMessage(message, isError);
-      global.setTimeout(function () { global.location.reload(); }, FALLBACK_RELOAD_DELAY_MS);
+    if (isError) {
+      showErrorModal(null, message);
+      return;
+    }
+    if (feedback()) {
+      feedback().reloadWithToast(message);
       return;
     }
     global.location.reload();
-  }
-
-  function showPendingToast() {
-    let pending = null;
-    try {
-      const raw = global.sessionStorage.getItem(PENDING_TOAST_KEY);
-      global.sessionStorage.removeItem(PENDING_TOAST_KEY);
-      pending = raw ? JSON.parse(raw) : null;
-    } catch (error) {
-      pending = null;
-    }
-    if (pending && typeof pending.message === 'string') toastMessage(pending.message, pending.isError);
   }
 
   /* 다른 모달이 아직 열려 있으면 뒤 페이지 스크롤 잠금을 유지한다. */
@@ -279,66 +263,11 @@
     document.body.classList.toggle('has-admin-modal', anyOpen);
   }
 
-  /* 실패 안내 모달: 토스트처럼 사라지지 않고, 사용자가 [확인]을 눌러야 닫힌다.
-     화면마다 마크업을 두지 않도록 처음 쓸 때 만들고, 시설 관리자 화면의 확인 모달과 같은 모양을 쓴다. */
-  let errorModal = null;
-  let errorReturnFocus = null;
-
-  function ensureErrorModal() {
-    if (errorModal) return errorModal;
-    errorModal = document.createElement('div');
-    errorModal.className = 'modal-backdrop';
-    errorModal.id = 'admin-error-modal';
-    errorModal.hidden = true;
-    errorModal.innerHTML = '<section class="admin-modal" role="alertdialog" aria-modal="true"'
-      + ' aria-labelledby="admin-error-title" aria-describedby="admin-error-message">'
-      + '<div class="modal-header"><div><h2 id="admin-error-title"></h2></div>'
-      + '<button class="modal-close" type="button" data-close-admin-error aria-label="닫기">×</button></div>'
-      + '<div class="modal-body"><p class="facility-confirm-message" id="admin-error-message"></p></div>'
-      + '<div class="modal-footer"><button class="admin-button primary" type="button" id="admin-error-confirm"'
-      + ' data-close-admin-error>확인</button></div></section>';
-    document.body.appendChild(errorModal);
-    errorModal.addEventListener('click', function (event) {
-      const target = event.target instanceof Element ? event.target : null;
-      if (target === errorModal || target?.closest('[data-close-admin-error]')) closeErrorModal();
-    });
-    return errorModal;
-  }
-
+  /* 실패 안내 모달: 사용자가 [확인]을 눌러야 닫힌다. 모양과 동작은 공용 ui-feedback.js가 맡는다. */
   function showErrorModal(title, message, returnFocus) {
     if (!message) return;
-    const modal = ensureErrorModal();
-    modal.querySelector('#admin-error-title').textContent = title || '요청을 처리할 수 없습니다';
-    modal.querySelector('#admin-error-message').textContent = message;
-    errorReturnFocus = returnFocus || document.activeElement;
-    modal.hidden = false;
-    document.body.classList.add('has-admin-modal');
-    modal.querySelector('#admin-error-confirm')?.focus();
+    feedback()?.alert(title, message, { returnFocus: returnFocus });
   }
-
-  function closeErrorModal() {
-    if (!errorModal || errorModal.hidden) return;
-    errorModal.hidden = true;
-    syncModalScrollLock();
-    const target = errorReturnFocus;
-    errorReturnFocus = null;
-    if (target && target.isConnected && !target.closest('[hidden]')) target.focus?.();
-  }
-
-  /* 안내 모달은 항상 맨 위에 있으므로, 다른 화면 스크립트보다 먼저(capture) Escape·Tab을 처리한다. */
-  document.addEventListener('keydown', function (event) {
-    if (!errorModal || errorModal.hidden) return;
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      closeErrorModal();
-      return;
-    }
-    if (event.key === 'Tab') {
-      event.stopImmediatePropagation();
-      trapModalFocus(errorModal, event);
-    }
-  }, true);
 
   global.PlayOnAdmin = {
     toast: toastMessage,
@@ -364,7 +293,6 @@
   };
 
   syncSidebarForViewport();
-  showPendingToast();
   /* 초기 진입(첫 화면 선택)에는 초점을 옮기지 않는다. 페이지를 열자마자 본문에
      초점 표시가 그려지는 현상을 막기 위해서다. 이후 화면 전환에서만 초점을 옮겨
      키보드 사용자가 전환된 위치를 알 수 있게 한다. */

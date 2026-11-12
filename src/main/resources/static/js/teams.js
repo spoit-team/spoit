@@ -1,21 +1,20 @@
-/* 팀 목록·상세 화면 UI: 공유, 가입 신청 대화상자, 글자 수 표시만 담당합니다. 팀 데이터와 신청 처리는 서버가 제공합니다. */
+/* 팀 목록·상세 화면 UI: 공유, 가입 신청 대화상자, 글자 수 표시만 담당합니다. 팀 데이터와 신청 처리는 서버가 제공합니다.
+   처리 결과는 공용 안내(ui-feedback.js)로 보여 줍니다: 성공은 토스트, 실패는 원인을 담은 안내 모달. */
 (function () {
   'use strict';
 
   const dialog = document.getElementById('team-application-dialog');
-  const toast = document.getElementById('team-toast');
   const messageInput = document.getElementById('team-application-message');
   const messageCount = document.getElementById('team-application-count');
-  const applicationError = document.getElementById('team-application-error');
-  let toastTimer = 0;
   let dialogOpener = null;
 
-  function announce(text) {
-    if (!toast) return;
-    toast.textContent = text;
-    toast.hidden = false;
-    window.clearTimeout(toastTimer);
-    toastTimer = window.setTimeout(function () { toast.hidden = true; }, 2800);
+  const feedback = window.SpoitFeedback;
+  const SHARE_ERROR_TITLE = '링크를 복사할 수 없습니다';
+  const SHARE_UNAVAILABLE = '현재 브라우저에서 링크 복사를 사용할 수 없습니다.';
+
+  function shareFailed() {
+    if (feedback) feedback.alert(SHARE_ERROR_TITLE, SHARE_UNAVAILABLE);
+    else window.alert(SHARE_UNAVAILABLE);
   }
 
   function openDialog() {
@@ -73,12 +72,12 @@
 
     if (target.closest('[data-team-share]')) {
       if (!navigator.clipboard?.writeText) {
-        announce('현재 브라우저에서 링크 복사를 사용할 수 없습니다.');
+        shareFailed();
         return;
       }
       navigator.clipboard.writeText(window.location.href)
-        .then(function () { announce('동호회 링크를 복사했습니다.'); })
-        .catch(function () { announce('현재 브라우저에서 링크 복사를 사용할 수 없습니다.'); });
+        .then(function () { feedback?.toast('동호회 링크를 복사했습니다.'); })
+        .catch(shareFailed);
     }
   });
 
@@ -92,10 +91,8 @@
 
   messageInput?.addEventListener('input', function () {
     if (messageCount) messageCount.textContent = String(messageInput.value.length);
-    if (applicationError) applicationError.hidden = true;
   });
 
-  if (applicationError) openDialog();
     // 제출 버튼 두 번 누름 방지(POST만, 검사에 걸려 막힌 제출은 그대로 둠)
   document.addEventListener('submit', function (event) {
     const form = event.target;

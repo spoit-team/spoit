@@ -1062,8 +1062,12 @@ for (const injected of ['submittedSummary', 'submittedCategory']) {
 }
 check(!reportScript.includes('submittedSummary') && !reportScript.includes('submittedCategory'),
   'admin-report.js: restored draft values must stay out of scripts');
-check(/submittedSummary != null or submittedCategory != null/.test(facilityReportSource),
-  'report-facility.html: the error flash must tell the user the draft was kept');
+// 작성 내용을 되돌려 준다는 안내는 실패 안내 모달의 원인 문구에 컨트롤러가 덧붙인다.
+const facilityReportControllerSource = await readFile(
+  path.resolve('src/main/java/co/kr/spoit/report/controller/FacilityReportController.java'), 'utf8');
+check(/KEPT_INPUT_NOTICE\s*=\s*"작성한 내용과 선택은 양식에 그대로 남아 있습니다\."/.test(facilityReportControllerSource)
+  && /kept && [^;]*KEPT_INPUT_NOTICE/.test(facilityReportControllerSource),
+  'FacilityReportController: the failure reason must tell the user the draft was kept');
 
 // 4-2) 원문 표시: 서버가 내려준 단건만 th:text로 그리고, HTML 주입·JS 상세 전달은 금지한다.
 check(/<p class="report-statement" th:text="\$\{selectedReport\.summary/.test(systemReportSource),
@@ -1480,6 +1484,36 @@ check(/한 번에 한 페이지씩 표시하며, 전체 건수는 아닙니다/.
   'report-facility.html: the report ledger must state that the list is one page, not the total');
 check(/페이지 단위로 나뉘어 표시됩니다/.test(systemReportSource),
   'report-system.html: the inbox heading must state that the list is paged');
+
+// 12) 공용 결과 안내: 성공은 오른쪽 아래 토스트, 실패는 제목 + 원인을 담은 가운데 안내 모달.
+//     두 공용 head가 화면 스크립트보다 먼저(defer 없이) 불러오고, 결과를 보여 주는 화면은 같은 flash 요소를 쓴다.
+for (const head of ['templates/fragments/layout.html', 'templates/fragments/admin.html']) {
+  const headSource = await readFile(path.join(resources, head), 'utf8');
+  const headFragment = headSource.slice(headSource.indexOf('th:fragment="head('), headSource.indexOf('</head>'));
+  check(/<script th:src="@\{\/js\/ui-feedback\.js[^"]*\}"><\/script>/.test(headFragment),
+    `${head}: the head must load ui-feedback.js without defer so page scripts can use it`);
+  check(headFragment.includes('/css/ui-feedback.css'), `${head}: the head must load ui-feedback.css`);
+}
+const flashFragment = await readFile(path.join(resources, 'templates/fragments/feedback.html'), 'utf8');
+check(/data-toast=\$\{message\}/.test(flashFragment) && /data-error=\$\{error\}/.test(flashFragment)
+  && /data-error-title=\$\{errorTitle\}/.test(flashFragment) && !/th:utext/.test(flashFragment),
+  'fragments/feedback :: flash must hand message/error/errorTitle to ui-feedback.js as attributes only');
+for (const page of ['admin/facility', 'admin/operations', 'admin/report-facility', 'admin/report-system', 'admin/system',
+  'matches/join', 'mypage/index', 'mypage/profile', 'teams/detail', 'teams/list', 'teams/manage']) {
+  const pageSource = await readFile(path.join(resources, `templates/${page}.html`), 'utf8');
+  check(pageSource.includes('~{fragments/feedback :: flash}'), `${page}.html: results must use the shared flash`);
+  check(!/class="(?:admin-flash|ops-message|team-status-message|team-toast|toast)\b/.test(pageSource)
+    && !/id="(?:room-error-modal|admin-toast|team-toast|mypage-message|profile-edit-message)"/.test(pageSource),
+    `${page}.html: page-specific result banners and toasts must not come back`);
+}
+const feedbackScript = await readFile(path.join(resources, 'static/js/ui-feedback.js'), 'utf8');
+check(/TOAST_DURATION_MS = 4000/.test(feedbackScript), 'ui-feedback.js: the success toast stays for 4 seconds');
+check(!/innerHTML\s*=[^;]*\+\s*(?:message|reason|title|text)\b/.test(feedbackScript),
+  'ui-feedback.js: messages must be written with textContent, never innerHTML');
+const feedbackCss = await readFile(path.join(resources, 'static/css/ui-feedback.css'), 'utf8');
+check(/\.ui-toast-region\s*\{[^}]*inset:\s*auto 28px 28px auto/.test(feedbackCss),
+  'ui-feedback.css: the success toast sits at the bottom right');
+check(/\.ui-toast-text\s*\{[^}]*font-size:\s*15px/.test(feedbackCss), 'ui-feedback.css: the toast text is 15px');
 
 if (failures.length) {
   console.error(failures.join('\n'));

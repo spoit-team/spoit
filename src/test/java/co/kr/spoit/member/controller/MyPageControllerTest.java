@@ -197,8 +197,8 @@ class MyPageControllerTest {
     @DisplayName("신청 취소는 본인 userId로 처리하고 결과를 마이페이지 안내로 돌려준다")    void cancelApplicationRedirectsWithMessage() throws Exception {
         mockMvc.perform(post("/mypage/applications/11/cancel").with(principal()))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/mypage?message="
-                        + URLEncoder.encode("신청을 취소했습니다.", StandardCharsets.UTF_8) + "#reservations"));
+                .andExpect(redirectedUrl("/mypage#reservations"))
+                .andExpect(flash().attribute("message", "신청을 취소했습니다."));
         verify(applicationService).cancel(11L, USER_ID);
     }
 
@@ -208,8 +208,8 @@ class MyPageControllerTest {
         mockMvc.perform(post("/mypage/applications/11/cancel").with(principal())
                         .param("memberApplicationIds", "11", "13")
                         .param("newLeaderApplicationId", "12"))
-                .andExpect(redirectedUrl("/mypage?message="
-                        + URLEncoder.encode("신청을 취소했습니다.", StandardCharsets.UTF_8) + "#reservations"));
+                .andExpect(redirectedUrl("/mypage#reservations"))
+                .andExpect(flash().attribute("message", "신청을 취소했습니다."));
         verify(applicationService).cancel(11L, USER_ID, List.of(11L, 13L), 12L);
         verify(applicationService, never()).cancel(anyLong(), anyLong());
     }
@@ -221,9 +221,9 @@ class MyPageControllerTest {
                 .given(applicationService).cancel(11L, USER_ID);
 
         mockMvc.perform(post("/mypage/applications/11/cancel").with(principal()))
-                .andExpect(redirectedUrl("/mypage?message="
-                        + URLEncoder.encode("이미 취소되었거나 처리된 신청입니다.", StandardCharsets.UTF_8)
-                        + "#reservations"));
+                .andExpect(redirectedUrl("/mypage#reservations"))
+                .andExpect(flash().attribute("errorTitle", "신청을 취소할 수 없습니다"))
+                .andExpect(flash().attribute("error", "이미 취소되었거나 처리된 신청입니다."));
     }
 
     @Test
@@ -258,16 +258,20 @@ class MyPageControllerTest {
     }
 
     @Test
-    @DisplayName("프로필 화면의 오류·안내 파라미터는 빈 값을 null로 바꿔 모델에 담는다")
-    void profileRendersErrorAndMessageQueryParams() throws Exception {
+    @DisplayName("프로필 화면은 flash로 받은 결과 안내만 모델에 담고, 쿼리 파라미터는 안내로 쓰지 않는다")
+    void profileRendersFlashFeedbackOnly() throws Exception {
         given(memberService.findRegions(USER_ID)).willReturn(List.of());
         given(memberService.findSports()).willReturn(List.of());
         given(memberService.findSignupRegions()).willReturn(List.of());
 
-        mockMvc.perform(get("/mypage/profile").with(principal()).param("error", " ").param("message", "저장"))
+        mockMvc.perform(get("/mypage/profile").with(principal()).flashAttr("message", "저장"))
                 .andExpect(status().isOk())
-                .andExpect(model().attribute("error", nullValue()))
-                .andExpect(model().attribute("message", "저장"));
+                .andExpect(model().attribute("message", "저장"))
+                .andExpect(model().attributeDoesNotExist("error"));
+
+        mockMvc.perform(get("/mypage/profile").with(principal()).param("message", "가짜 안내"))
+                .andExpect(status().isOk())
+                .andExpect(model().attributeDoesNotExist("message"));
     }
 
     @Test
@@ -301,7 +305,8 @@ class MyPageControllerTest {
                         .param("representativeSportId", "5")
                         .param("regionId", "11"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/mypage/profile?message=%ED%94%84%EB%A1%9C%ED%95%84%EC%9D%84+%EC%A0%80%EC%9E%A5%ED%96%88%EC%8A%B5%EB%8B%88%EB%8B%A4."));
+                .andExpect(redirectedUrl("/mypage/profile"))
+                .andExpect(flash().attribute("message", "프로필을 저장했습니다."));
 
         verify(memberService).updateProfile(eq(USER_ID), argThat(form ->
                 form.getRepresentativeSportId() == 5L && NICKNAME.equals(form.getNickname())));
@@ -354,8 +359,9 @@ class MyPageControllerTest {
         mockMvc.perform(post("/mypage/withdrawal-requests").with(principal())
                         .param("password", "wrong-password"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/mypage/profile?error="
-                        + URLEncoder.encode("비밀번호가 일치하지 않습니다.", StandardCharsets.UTF_8)));
+                .andExpect(redirectedUrl("/mypage/profile"))
+                .andExpect(flash().attribute("errorTitle", "회원 탈퇴를 할 수 없습니다"))
+                .andExpect(flash().attribute("error", "비밀번호가 일치하지 않습니다."));
     }
 
     @Test
@@ -378,8 +384,9 @@ class MyPageControllerTest {
         mockMvc.perform(post("/mypage/withdrawal-requests").with(principal())
                         .param("password", RAW_PASSWORD))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/mypage/profile?error="
-                        + URLEncoder.encode("탈퇴할 수 없습니다.", StandardCharsets.UTF_8)));
+                .andExpect(redirectedUrl("/mypage/profile"))
+                .andExpect(flash().attribute("errorTitle", "회원 탈퇴를 할 수 없습니다"))
+                .andExpect(flash().attribute("error", "탈퇴할 수 없습니다."));
     }
 
     @Test
@@ -391,9 +398,9 @@ class MyPageControllerTest {
         mockMvc.perform(post("/mypage/withdrawal-requests").with(principal())
                         .param("password", RAW_PASSWORD))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/mypage/profile?error="
-                        + URLEncoder.encode("진행 중인 개인 매치 신청이 있어 탈퇴할 수 없습니다.",
-                                StandardCharsets.UTF_8)));
+                .andExpect(redirectedUrl("/mypage/profile"))
+                .andExpect(flash().attribute("errorTitle", "회원 탈퇴를 할 수 없습니다"))
+                .andExpect(flash().attribute("error", "진행 중인 개인 매치 신청이 있어 탈퇴할 수 없습니다."));
     }
 
     @Test
