@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -110,11 +111,12 @@ class MyPageRatingRecordRenderTest {
     void tierColorClassFollowsTierAndSkipsPlacement() throws Exception {
         given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.of(sportOption(3L, "농구")));
 
-        mockMvc.perform(get("/mypage").with(user(member())))
+        String html = mockMvc.perform(get("/mypage").with(user(member())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(allOf(
-                        containsString("<strong>배치 중 (3/5)</strong>\n        <a class=\"mypage-skill-sport-link\""),
-                        containsString("<span>풋살</span><strong class=\"is-tier-silver\">실버 4 · 63P</strong>"))));
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(representativeArea(html)).contains("<strong>배치 중 (3/5)</strong>").doesNotContain("is-tier-");
+        assertThat(html).contains("<span>풋살</span><strong class=\"is-tier-silver\">실버 4 · 63P</strong>");
     }
 
     @Test
@@ -157,7 +159,8 @@ class MyPageRatingRecordRenderTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(allOf(
                         containsString("<small>경기 12회</small>"),
-                        containsString("<strong class=\"is-tier-silver\">실버 4 · 63P</strong>\n                  <span class=\"mypage-rating-meter is-tier-silver\""),
+                        containsString("<strong class=\"is-tier-silver\">실버 4 · 63P</strong>"),
+                        containsString("class=\"mypage-rating-meter is-tier-silver\""),
                         // 배치 중 종목 카드는 티어 클래스 없이 중립색이다.
                         containsString("<strong>배치 중 (3/5)</strong>"),
                         containsString("aria-label=\"풋살 티어 진행도 63P\""),
@@ -231,6 +234,13 @@ class MyPageRatingRecordRenderTest {
                 .andExpect(content().string(containsString("<p>전체 종목</p>")));
 
         verify(recordMapper, times(2)).findHistory(eq(USER_ID), isNull(), eq(20));
+    }
+
+    // 종목 카드에도 같은 문구가 있어 대표 종목 영역만 잘라 본다.
+    private static String representativeArea(String html) {
+        int start = html.indexOf("class=\"mypage-skill-highlight\"");
+        assertThat(start).isNotNegative();
+        return html.substring(start, html.indexOf("</div>", start));
     }
 
     private static SportOption sportOption(Long sportId, String name) {
