@@ -567,12 +567,9 @@ INSERT INTO club (club_id, sport_id, club_name, intro, max_members, recruit_stat
   (20, 4, '잠실 농구회', '잠실 지역 농구 동호회입니다.', 10, '마감', NULL, '1,3', '20:00:00', '22:00:00', NULL, '2026-06-14 10:00:00');
 
 INSERT INTO club_region (club_id, region_id) VALUES
-  (1, 28),
   (1, 8),
   (2, 15),
-  (2, 18),
   (3, 28),
-  (3, 9),
   (4, 18),
   (5, 26),
   (6, 8),
@@ -583,7 +580,6 @@ INSERT INTO club_region (club_id, region_id) VALUES
   (11, 28),
   (12, 16),
   (13, 9),
-  (13, 15),
   (14, 20),
   (15, 23),
   (16, 15),
