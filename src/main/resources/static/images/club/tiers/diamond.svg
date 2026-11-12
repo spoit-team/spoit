@@ -5,7 +5,7 @@
   <rect x="0.6" y="21" width="4" height="4" rx="1" fill="#6C7CF0"/>
   <rect x="41.4" y="21" width="4" height="4" rx="1" fill="#6C7CF0"/>
   <path d="M23 39.5L26 42.5L23 45.5L20 42.5Z" fill="#6C7CF0" stroke="#fff" stroke-width="0.8"/>
-  <path d="M17 3.2L20 6.5L23 2.2L26 6.5L29 3.2L28 8H18Z" fill="#6C7CF0"/>
+  <path d="M23 0.8L26.2 4L23 7.2L19.8 4Z" fill="#6C7CF0" stroke="#fff" stroke-width="0.8"/>
   <circle cx="3" cy="23" r="2.2" fill="#fff" stroke="#6C7CF0" stroke-width="1.2"/>
   <circle cx="43" cy="23" r="2.2" fill="#fff" stroke="#6C7CF0" stroke-width="1.2"/>
 </svg>
