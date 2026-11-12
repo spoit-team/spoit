@@ -386,7 +386,6 @@
   gap: 4px;
   padding: 16px 18px;
   border: 1px solid var(--color-line);
-  border-left-width: 3px;
   border-radius: 12px;
   background: var(--color-paper);
 }
@@ -412,28 +411,119 @@
   line-height: 1.6;
 }
 
-.match-result-state.is-confirmed {
-  border-left-color: var(--color-match);
-  background: var(--color-match-soft);
-}
+.match-result-state.is-confirmed { background: var(--color-match-soft); }
 
 .match-result-state.is-confirmed .match-result-state-label { color: var(--color-match-ink); }
 
-.match-result-state.is-waiting { border-left-color: var(--color-book); }
-
 .match-result-state.is-waiting .match-result-state-label { color: var(--color-book-ink); }
 
-.match-result-state.is-conflict {
-  border-left-color: var(--color-danger);
-  background: var(--color-danger-soft);
-}
+.match-result-state.is-conflict { background: var(--color-danger-soft); }
 
 .match-result-state.is-conflict .match-result-state-label { color: var(--color-danger); }
 
 .match-result-state.is-excluded,
-.match-result-state.is-closed {
-  border-left-color: var(--color-faint);
+.match-result-state.is-closed { background: var(--color-paper-soft); }
+
+/* 확정 결과 점수판. 흰 카드와 얇은 테두리만 쓰고, 이긴 팀의 "승리"만 크고 진하게 보인다. */
+.match-result-score {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-paper);
+}
+
+.match-result-score-rows {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.match-result-score-row {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.match-result-score-team {
+  display: inline-flex;
+  min-width: 52px;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-ink-2);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.match-result-score-team i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--color-ink-2);
+}
+
+.match-result-score-team i.is-team-a { background: var(--color-match); }
+
+.match-result-score-row strong {
+  color: var(--color-ink-2);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  line-height: 1.2;
+}
+
+.match-result-score-row.is-win strong {
+  color: var(--color-ink);
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.match-result-score-row.is-loss strong {
+  color: var(--color-muted);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.match-result-score-badge {
+  padding: 6px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
   background: var(--color-paper-soft);
+  color: var(--color-ink-2);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.match-result-score-badge.is-win {
+  border-color: transparent;
+  background: var(--color-match-soft);
+  color: var(--color-match-ink);
+}
+
+.match-result-score-rating {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-line);
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.match-result-score.is-pending { display: block; }
+
+.match-result-score-note {
+  margin: 0;
+  color: var(--color-ink-2);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
 }
 
 .match-result-compare {
