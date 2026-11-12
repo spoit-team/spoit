@@ -1,21 +1,41 @@
 /*
- * 티어 색. 글자에 쓰므로 흰 배경(#fff)과 가장 진한 연회색(#f1f2f4) 모두에서 대비 4.5:1 이상인 진한 톤이다.
- * 티어 클래스(is-tier-*)는 --tier-color만 정하고, 각 글자 규칙이 var(--tier-color, 기존 색)으로 쓴다.
- * 배치 중·배치 경기 문구에는 티어 클래스가 없어 기존 색 그대로다.
+ * 티어 색. 글자색은 흰 배경(#fff)과 가장 진한 연회색(#f1f2f4), 배지 배경(-bg) 모두에서 대비 4.5:1 이상인 진한 톤이다.
+ * 티어 클래스(is-tier-*)는 --tier-color·--tier-bg만 정하고, 각 글자 규칙이 var(--tier-color, 기존 색)으로 쓴다.
+ * 배치 중·배치 경기 문구에는 티어 클래스가 없어 기존 색 그대로이고 배지도 씌우지 않는다.
  */
 :root {
   --color-tier-bronze: #8a5a2b;
+  --color-tier-bronze-bg: #f6e9dc;
   --color-tier-silver: #5f6b78;
+  --color-tier-silver-bg: #eceff3;
   --color-tier-gold: #8a6400;
+  --color-tier-gold-bg: #fbf0cc;
   --color-tier-platinum: #15706d;
+  --color-tier-platinum-bg: #daf2ef;
   --color-tier-diamond: #3554c4;
+  --color-tier-diamond-bg: #e4eafd;
 }
 
-.is-tier-bronze { --tier-color: var(--color-tier-bronze); }
-.is-tier-silver { --tier-color: var(--color-tier-silver); }
-.is-tier-gold { --tier-color: var(--color-tier-gold); }
-.is-tier-platinum { --tier-color: var(--color-tier-platinum); }
-.is-tier-diamond { --tier-color: var(--color-tier-diamond); }
+.is-tier-bronze { --tier-color: var(--color-tier-bronze); --tier-bg: var(--color-tier-bronze-bg); }
+.is-tier-silver { --tier-color: var(--color-tier-silver); --tier-bg: var(--color-tier-silver-bg); }
+.is-tier-gold { --tier-color: var(--color-tier-gold); --tier-bg: var(--color-tier-gold-bg); }
+.is-tier-platinum { --tier-color: var(--color-tier-platinum); --tier-bg: var(--color-tier-platinum-bg); }
+.is-tier-diamond { --tier-color: var(--color-tier-diamond); --tier-bg: var(--color-tier-diamond-bg); }
+
+/* 티어 배지. 팀 평균처럼 작은 글자와 진행도 막대는 배지 없이 색만 쓴다. 세로 여백은 em이라 글자 크기마다 줄 높이가 거의 그대로다. */
+:is(.mypage-skill-highlight strong, .mypage-rating-sport-grade strong, .mypage-sport-level-row strong, .mypage-rating-step):is(
+    .is-tier-bronze, .is-tier-silver, .is-tier-gold, .is-tier-platinum, .is-tier-diamond) {
+  justify-self: start;
+  border-radius: 5px;
+  background: var(--tier-bg);
+  padding: .1em .45em;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.mypage-rating-sport-grade strong:is(.is-tier-bronze, .is-tier-silver, .is-tier-gold, .is-tier-platinum, .is-tier-diamond) {
+  justify-self: end;
+}
 
 .mypage-page {
   min-height: 100vh;
