@@ -260,7 +260,7 @@ button { color: inherit; }
 .table-link:hover { text-decoration: underline; }
 .table-link.danger-link { color: var(--admin-red); }
 .facility-row-actions { display: flex; align-items: center; gap: 8px; }
-.facility-delete-form { display: inline; }
+.facility-delete-form { display: flex; }
 .room-row-actions { display: flex; align-items: center; gap: 8px; }
 /* 상세·수정·취소의 공통 모양은 .admin-button.small을 재사용하고, 되돌릴 수 없는 취소만 danger-ghost로 남긴다.
    취소는 폼 안에 있어 inline이면 줄바꿈 여백만큼 아래로 밀리므로 폼을 같은 높이의 flex 상자로 만든다. */

@@ -5,14 +5,14 @@
 ## 1. 기존 데이터베이스에 마이그레이션 적용
 
 1. MySQL 관리 도구에서 애플리케이션이 사용할 데이터베이스를 선택합니다.
-2. [비밀번호 재설정 마이그레이션 SQL](../../db/migrations/20261112-password-reset.sql)을 UTF-8로 열어 실행합니다.
+2. [비밀번호 재설정 마이그레이션 SQL](../db/migrations/20261112-password-reset.sql)을 UTF-8로 열어 실행합니다.
 3. `password_reset_challenge`와 `password_reset_rate_limit` 테이블이 생성됐는지 확인합니다.
 
 마이그레이션은 `CREATE TABLE`을 사용하므로 두 테이블이 모두 없는 기존 데이터베이스에 한 번만 적용합니다. 이미 두 테이블이 생성된 신규 스키마에는 다시 적용하지 않습니다. 기존 데이터베이스에는 초기화용 `db/schema.sql`을 실행하지 않습니다.
 
 ## 2. Gmail 환경변수 설정
 
-애플리케이션을 실행하는 OS, IDE 실행 설정 또는 CI의 비밀값 관리 기능에 다음 값을 주입합니다. 설정 항목은 [application.properties](../../src/main/resources/application.properties)에서도 확인할 수 있습니다.
+애플리케이션을 실행하는 OS, IDE 실행 설정 또는 CI의 비밀값 관리 기능에 다음 값을 주입합니다. 설정 항목은 [application.properties](../src/main/resources/application.properties)에서도 확인할 수 있습니다.
 
 | 환경변수 | 설정할 값 |
 | --- | --- |
@@ -23,24 +23,11 @@
 
 `GMAIL_SENDER`에는 메일을 발송할 전용 계정 주소를 지정하고, 리프레시 토큰도 같은 계정으로 승인받아야 합니다. 클라이언트 비밀키와 리프레시 토큰은 안전한 비밀값 저장소에 보관하고 소스 코드나 문서에 기록하지 않습니다.
 
-## 3. 인증번호 보호용 비밀키 설정
+## 3. 인증번호 보호용 비밀키 자동 생성
 
-`PASSWORD_RESET_CODE_SECRET`은 인증번호와 재설정 권한을 보호하는 데 사용합니다. 암호학적으로 안전한 난수로 생성한 32바이트 이상의 비밀키를 환경변수로 주입합니다. 운영 환경에서는 안전한 비밀값 저장소에 보관한 동일한 값을 서버 재시작 후에도 사용합니다. 값을 변경하면 진행 중인 인증번호와 재설정 권한을 사용할 수 없게 됩니다.
+서버가 시작할 때 인증번호와 재설정 권한을 보호할 32바이트 비밀키를 안전한 난수로 자동 생성합니다. 이 키는 서버 메모리에서만 사용하므로 별도의 환경변수 설정이 필요하지 않습니다.
 
-프로젝트 루트에서 Windows PowerShell 5.1로 `.\scripts\generate-password-reset-code-secret.ps1`를 실행하면 암호학적으로 안전한 32바이트 키를 생성해 현재 프로세스에 설정합니다. 비밀값은 화면에 출력되지 않습니다. 직접 입력할 때는 아래 명령을 실행합니다.
-
-```powershell
-$taskKeyBytes = New-Object byte[] 32
-$taskRandom = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-try {
-    $taskRandom.GetBytes($taskKeyBytes)
-    $env:PASSWORD_RESET_CODE_SECRET = [Convert]::ToBase64String($taskKeyBytes)
-} finally {
-    $taskRandom.Dispose()
-}
-```
-
-이 예시로 설정한 값은 현재 PowerShell과 그 프로세스에서 시작한 애플리케이션에만 적용되며, 터미널을 닫으면 사라집니다. 이미 실행 중인 IDE에는 자동으로 적용되지 않으므로 IDE에서 서버를 실행한다면 실행 설정에 비밀키를 따로 주입합니다. 다른 환경변수도 서버가 시작되기 전에 설정하고, 설정을 변경한 뒤에는 서버를 다시 시작합니다.
+서버를 재시작하면 새로운 키가 생성되어 진행 중인 인증번호와 재설정 권한을 더 이상 사용할 수 없습니다. 이 경우 인증번호를 다시 요청해야 합니다. 이메일·IP별 요청 및 인증 실패 제한도 새 키를 기준으로 다시 집계됩니다.
 
 ## 4. 동작 확인
 
