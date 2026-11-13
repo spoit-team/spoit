@@ -25,6 +25,7 @@ import co.kr.spoit.club.dto.ClubCreateForm;
 import co.kr.spoit.club.dto.ClubDetailResponse;
 import co.kr.spoit.club.dto.ClubManageResponse;
 import co.kr.spoit.club.dto.ClubMemberHistoryView;
+import co.kr.spoit.club.dto.ClubPageResponse;
 import co.kr.spoit.club.dto.ClubWithdrawalBlocks;
 import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.dto.ClubSportTabResponse;
@@ -90,6 +91,40 @@ class ClubServiceTest {
         assertThat(card.getStatusLabel()).isEqualTo("모집 중");
         assertThat(card.getTime()).isEqualTo("화, 목 19:00 - 21:00");
 
+    }
+
+    @Test
+    @DisplayName("목록 첫 화면은 전체 개수로 마지막 장을 정하고, 그린 장은 마지막 장을 넘지 않는다")
+    void 목록_첫_화면_마지막_장() {
+        ClubSummary club = club("모집중", "2,4", 19, 21);
+        when(clubMapper.selectClubs(any(ClubSearchForm.class))).thenReturn(List.of(club));
+        when(clubMapper.countClubs(any(ClubSearchForm.class))).thenReturn(25);
+        ClubSearchForm filters = new ClubSearchForm();
+        filters.setPage(9);
+        // 컨트롤러처럼 첫 화면 시각을 정함
+        filters.useNowAsBaseTime();
+
+        ClubPageResponse page = service.findClubPage(filters);
+
+        assertThat(page.getClubs()).hasSize(1);
+        assertThat(page.getTotalCount()).isEqualTo(25);
+        assertThat(page.getLastPage()).isEqualTo(3);
+        assertThat(page.getPage()).isEqualTo(3);
+        // 첫 화면 시각이 그대로 상자로 감
+        assertThat(page.getAt()).isEqualTo(filters.getAt());
+    }
+
+    @Test
+    @DisplayName("동호회가 0개여도 마지막 장은 1장이다")
+    void 목록_0개면_1장() {
+        when(clubMapper.selectClubs(any(ClubSearchForm.class))).thenReturn(List.of());
+        when(clubMapper.countClubs(any(ClubSearchForm.class))).thenReturn(0);
+
+        ClubPageResponse page = service.findClubPage(new ClubSearchForm());
+
+        assertThat(page.getClubs()).isEmpty();
+        assertThat(page.getLastPage()).isEqualTo(1);
+        assertThat(page.getPage()).isEqualTo(1);
     }
 
     @Test
@@ -278,7 +313,7 @@ class ClubServiceTest {
     }
 
     @Test
-    @DisplayName("모집중이어도 정원이 차면 관리 화면에 정원이 찼다고 표시한다")
+    @DisplayName("모집중이어도 정원이 차면 관리 화면에 모집 마감으로 표시한다")
     void 정원이_찬_동호회는_관리_화면에_정원_마감으로_표시한다() {
         ClubSummary club = detailClub();
         // 정원 10명 = 현재 인원 10명
@@ -289,7 +324,7 @@ class ClubServiceTest {
 
         ClubManageResponse managed = service.findManagedClub(7L, 1L);
 
-        assertThat(managed.getRecruitLabel()).isEqualTo("모집 마감 (정원이 찼어요)");
+        assertThat(managed.getRecruitLabel()).isEqualTo("모집 마감");
     }
 
     @Test
@@ -325,6 +360,18 @@ class ClubServiceTest {
         assertThat(managed.getUpcomingSchedules().get(0).getTime()).isEqualTo("18:00 - 20:00");
         assertThat(managed.getUpcomingSchedules().get(0).getPlace()).isEqualTo("성동 풋살장");
         assertThat(managed.getUpcomingSchedules().get(1).getTime()).isEqualTo("23:00 - 익일 01:00");
+    }
+
+    @Test
+    @DisplayName("지난 일정은 최근 20경기까지만 가져온다")
+    void 지난_일정은_20경기까지만_가져온다() {
+        when(clubMapper.existsActiveMember(1L, 7L)).thenReturn(true);
+        when(clubMapper.selectClubDetail(1L)).thenReturn(detailClub());
+        when(clubMapper.selectClubMembers(1L)).thenReturn(List.of(member("이슛터", "동호회장")));
+
+        service.findManagedClub(7L, 1L);
+
+        verify(clubMapper).selectRecentSchedules(eq(1L), any(), eq(20));
     }
 
     @Test
@@ -399,6 +446,24 @@ class ClubServiceTest {
         InOrder order = inOrder(clubMapper);
         order.verify(clubMapper).updateJoinRequestStatus(5L, "승인");
         order.verify(clubMapper).insertJoinedMember(1L, 8L);
+        verify(clubMapper, never()).updateClubRecruitClosed(any());
+    }
+
+    @Test
+    @DisplayName("승인으로 정원이 차면 회원 추가 뒤 모집 마감으로 저장한다")
+    void 승인으로_정원이_차면_모집을_마감한다() {
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClub("모집중", 10));
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        when(accountLockService.lockById(8L)).thenReturn(account(8L));
+        when(clubMapper.selectPendingJoinRequestById(1L, 5L)).thenReturn(pendingRequest(8L));
+        // 정원 10명, 현재 9명 + 이번 승인 1명
+        when(clubMapper.countActiveMembers(1L)).thenReturn(9);
+
+        service.approveJoin(7L, 1L, 5L);
+
+        InOrder order = inOrder(clubMapper);
+        order.verify(clubMapper).insertJoinedMember(1L, 8L);
+        order.verify(clubMapper).updateClubRecruitClosed(1L);
     }
 
     // 알림: 수신자는 동호회원 번호가 아닌 회원 번호로 확정한다
@@ -780,9 +845,46 @@ class ClubServiceTest {
         service.updateClub(7L, 1L, editForm());
 
         InOrder order = inOrder(clubMapper);
+        order.verify(clubMapper).selectActiveClubForUpdate(1L);
+        order.verify(clubMapper).existsRegion(3L);
         order.verify(clubMapper).updateClub(any(Club.class));
         order.verify(clubMapper).deleteClubRegions(1L);
         order.verify(clubMapper).insertClubRegion(1L, 3L);
+        verify(clubMapper, never()).updateClubRecruitClosed(any());
+    }
+
+    @Test
+    @DisplayName("수정으로 정원이 현재 인원과 같아지면 모집중을 골라도 모집 마감으로 저장하고 알린다")
+    void 수정으로_정원이_차면_모집을_마감한다() throws Exception {
+        when(clubMapper.existsRegion(3L)).thenReturn(true);
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClubForEdit());
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        // 폼 정원 10명 = 현재 10명, 폼 모집 상태는 모집중
+        when(clubMapper.countActiveMembers(1L)).thenReturn(10);
+
+        boolean cannotOpen = service.updateClub(7L, 1L, editForm());
+
+        assertThat(cannotOpen).isTrue();
+        InOrder order = inOrder(clubMapper);
+        order.verify(clubMapper).updateClub(any(Club.class));
+        order.verify(clubMapper).updateClubRecruitClosed(1L);
+    }
+
+    @Test
+    @DisplayName("정원이 찬 동호회에서 마감을 고르면 마감으로 저장하고 알리지 않는다")
+    void 정원이_찬_동호회에서_마감을_고르면_알리지_않는다() throws Exception {
+        when(clubMapper.existsRegion(3L)).thenReturn(true);
+        when(clubMapper.selectActiveClubForUpdate(1L)).thenReturn(lockedClubForEdit());
+        when(clubMapper.existsActiveLeader(1L, 7L)).thenReturn(true);
+        // 폼 정원 10명 = 현재 10명, 폼 모집 상태는 마감
+        when(clubMapper.countActiveMembers(1L)).thenReturn(10);
+        ClubCreateForm form = editForm();
+        form.setRecruitStatus("마감");
+
+        boolean cannotOpen = service.updateClub(7L, 1L, form);
+
+        assertThat(cannotOpen).isFalse();
+        verify(clubMapper).updateClubRecruitClosed(1L);
     }
 
     @Test
@@ -831,7 +933,6 @@ class ClubServiceTest {
     @Test
     @DisplayName("모집 상태가 모집중, 마감이 아니면 잠그기 전에 거부한다")
     void 모집_상태_값이_틀리면_수정을_거부한다() {
-        when(clubMapper.existsRegion(3L)).thenReturn(true);
         ClubCreateForm form = editForm();
         form.setRecruitStatus("recruiting");
 
@@ -847,7 +948,7 @@ class ClubServiceTest {
     void 탈퇴_차단_사유에_가입한_동호회를_담는다() {
         when(clubMapper.selectLeaderClubBlocks(7L)).thenReturn(List.of(
                 clubBlock(1L, "강서 테니스회"), clubBlock(2L, "노원 농구회")));
-        
+
         ClubWithdrawalBlocks blocks = service.findWithdrawalBlocks(7L);
 
         assertThat(blocks.getLeaderClubNames()).containsExactly("강서 테니스회", "노원 농구회");
@@ -859,7 +960,7 @@ class ClubServiceTest {
     void 이름이_같은_다른_동호회를_각각_유지한다() {
         when(clubMapper.selectLeaderClubBlocks(7L)).thenReturn(List.of(
                 clubBlock(1L, "풋살 클럽"), clubBlock(2L, "풋살 클럽")));
-   
+
         ClubWithdrawalBlocks blocks = service.findWithdrawalBlocks(7L);
 
         assertThat(blocks.getLeaderClubNames()).containsExactly("풋살 클럽", "풋살 클럽");
@@ -869,7 +970,7 @@ class ClubServiceTest {
     @DisplayName("차단 사유가 없으면 비어 있는 목록과 blocked=false를 돌려준다")
     void 탈퇴_차단_사유가_없으면_빈_목록이다() {
         when(clubMapper.selectLeaderClubBlocks(7L)).thenReturn(List.of());
-       
+
         ClubWithdrawalBlocks blocks = service.findWithdrawalBlocks(7L);
 
         assertThat(blocks.getLeaderClubNames()).isEmpty();

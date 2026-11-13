@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -36,6 +37,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
+import co.kr.spoit.payment.service.PaymentLedgerService;
 
 @ExtendWith(MockitoExtension.class)
 class TeamAssignmentServiceTest {
@@ -57,13 +59,15 @@ class TeamAssignmentServiceTest {
 
     private TeamAssignmentService service;
 
+    private final PaymentLedgerService paymentLedger = mock(PaymentLedgerService.class);
+
     @BeforeEach
     void setUp() {
         TeamCaptainSelector captainSelector = new TeamCaptainSelector();
         AutoAssignmentService autoAssignmentService = new AutoAssignmentService(assignmentMapper, participantMapper,
                 new AutoTeamAssigner(captainSelector));
         service = new TeamAssignmentService(assignmentMapper, participantMapper, autoAssignmentService, captainSelector,
-                matchNotifier);
+                matchNotifier, paymentLedger);
     }
 
     @Test
@@ -329,5 +333,25 @@ class TeamAssignmentServiceTest {
         participant.setParticipationStatus(status);
         participant.setEntryMmr(new BigDecimal(mmr));
         return participant;
+    }
+
+    @Test
+    void startMatchAutoCancelRefundsActivePaidApplications() {
+        givenStartingMatch(startingMatch(3, 3, NOW.plusHours(2)));
+        givenParticipants();
+        when(assignmentMapper.markCancelled(MATCH_ID, NOW, "취소", "모집 중")).thenReturn(1);
+
+        assertThat(service.startMatch(MATCH_ID, NOW)).isEqualTo(StartResult.CANCELLED);
+
+        verify(paymentLedger).refundActiveApplicationsOfMatch(MATCH_ID, "경기 자동 취소", NOW);
+    }
+
+    @Test
+    void startMatchCancelFailureDoesNotRequestRefund() {
+        givenStartingMatch(startingMatch(2, 2, NOW));
+        when(assignmentMapper.markCancelled(MATCH_ID, NOW, "취소", "모집 중")).thenReturn(0);
+
+        assertThatThrownBy(() -> service.startMatch(MATCH_ID, NOW)).isInstanceOf(IllegalStateException.class);
+        verify(paymentLedger, never()).refundActiveApplicationsOfMatch(anyLong(), anyString(), any());
     }
 }

@@ -8,6 +8,12 @@
   if (!root) return;
 
   const admin = global.PlayOnAdmin;
+
+  /* 실패 안내는 사라지지 않는 모달로 보여 준다. 공통 셸이 없으면 예전처럼 토스트로 알린다. */
+  function showError(title, message) {
+    if (admin?.showErrorModal) admin.showErrorModal(title, message);
+    else admin?.toast(message, true);
+  }
   const escapeHTML = global.PlayOnUI.escapeHTML;
   const baseUrl = root.dataset.assignmentUrl;
   const csrfHeader = root.dataset.csrfHeader;
@@ -211,7 +217,7 @@
       else global.location.reload();
       return;
     }
-    admin?.toast(result.message, true);
+    showError('팀 배정을 처리할 수 없습니다', result.message);
     await load();
   }
 
@@ -220,7 +226,7 @@
     render();
     const result = await request('GET', '/auto-assignment');
     if (!result.ok || !result.data.assignment) {
-      admin?.toast(result.message, true);
+      showError('자동 배정을 불러올 수 없습니다', result.message);
       await load();
       return;
     }
@@ -236,7 +242,7 @@
   function move(participantId, side) {
     if (!editable() || !sides.has(participantId)) return;
     if (side && sides.get(participantId) !== side && membersOf(side).length >= view.teamCapacity) {
-      admin?.toast(`${side}팀은 정원 ${view.teamCapacity}명이 모두 찼습니다.`, true);
+      showError('팀원을 옮길 수 없습니다', `${side}팀은 정원 ${view.teamCapacity}명이 모두 찼습니다.`);
       return;
     }
     sides.set(participantId, side);

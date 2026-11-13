@@ -23,4 +23,6 @@ public class ParticipantRow {
     /** 신청 당시 MMR 스냅샷 */
     private BigDecimal entryMmr;
     private LocalDateTime joinedAt;
+    /** 신청 시점 반영 경기 수. 상세 조회(findDetailParticipants)만 채우고 다른 조회에서는 null */
+    private Integer entryRatedMatchCount;
 }

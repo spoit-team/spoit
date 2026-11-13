@@ -1,9 +1,8 @@
 package co.kr.spoit.mat.service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.text.DecimalFormat;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -18,6 +17,7 @@ import co.kr.spoit.mat.dto.MyRatingRecords;
 import co.kr.spoit.mat.dto.MyRatingRecords.Fact;
 import co.kr.spoit.mat.dto.MyRatingRecords.HistoryItem;
 import co.kr.spoit.mat.dto.MyRatingRecords.SportCard;
+import co.kr.spoit.mat.dto.MyRatingRecords.TierText;
 import co.kr.spoit.mat.mapper.MyRatingRecordMapper;
 import co.kr.spoit.match.domain.ApplicationType;
 
@@ -95,13 +95,14 @@ public class MyRatingRecordService {
                 ? Math.min(TierRank.of(rating.getCurrentMmr()).points(), RatingPolicy.TIER_POINTS_PER_DIVISION)
                 : 0;
         return new SportCard(rating.getSportId(), rating.getSportName(),
-                RatingTier.labelOf(rating.getCurrentMmr(), count), "MMR " + mmrText(rating.getCurrentMmr()),
+                RatingTier.labelOf(rating.getCurrentMmr(), count),
+                placed ? TierRank.of(rating.getCurrentMmr()).tier().cssKey() : null,
                 count, placed, points, selected);
     }
 
     private static HistoryItem historyItem(MyRatingHistoryRow row) {
         Outcome outcome = Outcome.of(row.getActualScore());
-        BigDecimal evaluationScore = row.getEvaluationScore();
+        RatingChange change = RatingChange.of(row);
         return new HistoryItem(
                 row.getHistoryId(),
                 row.getStartAt().format(DATE_FORMAT),
@@ -111,18 +112,29 @@ public class MyRatingRecordService {
                 applicationTypeLabel(row.getApplicationType()),
                 outcome.label,
                 outcome.key,
-                signed(row.getFinalDelta()),
-                deltaKey(row.getFinalDelta()),
-                mmrText(row.getMmrBefore()),
-                mmrText(row.getMmrAfter()),
+                change.deltaText,
+                change.deltaKey,
+                change.ratingFrom,
+                change.ratingTo,
+                change.divisionChange,
                 row.getMatchSide(),
-                mmrText(row.getTeamAvgMmrA()),
-                mmrText(row.getTeamAvgMmrB()),
-                List.of(new Fact("Elo 증감", signed(row.getEloDelta())),
-                        new Fact("평가 보정", signed(row.getEvaluationDelta())),
-                        new Fact("평가 점수", evaluationScore == null ? "없음"
-                                : evaluationScore.setScale(RatingPolicy.EVALUATION_SCORE_SCALE, RatingPolicy.ROUNDING)
-                                        .toPlainString() + "점")));
+                divisionText(TierRank.of(row.getTeamAvgMmrA())),
+                divisionText(TierRank.of(row.getTeamAvgMmrB())),
+                change.facts(evaluationScoreFact(row.getEvaluationScore())));
+    }
+
+    private static TierText divisionText(TierRank rank) {
+        return new TierText(rank.divisionLabel(), rank.tier().cssKey());
+    }
+
+    private static TierText labelText(TierRank rank) {
+        return new TierText(rank.label(), rank.tier().cssKey());
+    }
+
+    private static Fact evaluationScoreFact(BigDecimal evaluationScore) {
+        return new Fact("평가 점수", evaluationScore == null ? "없음"
+                : evaluationScore.setScale(RatingPolicy.EVALUATION_SCORE_SCALE, RatingPolicy.ROUNDING)
+                        .toPlainString() + "점");
     }
 
     // 같은 화면의 신청 내역(MyReservationService)과 같은 문구를 쓴다.
@@ -133,21 +145,61 @@ public class MyRatingRecordService {
         return ApplicationType.INDIVIDUAL.dbValue().equals(applicationType) ? "개인 신청" : "팀 신청";
     }
 
-    private static String mmrText(BigDecimal mmr) {
-        return new DecimalFormat("#,##0").format(mmr.setScale(0, RoundingMode.HALF_UP));
-    }
+    /**
+     * 이력 한 줄의 레이팅 변화. 배치 경기는 마이페이지 종목 카드처럼 티어와 포인트를 감추고 진행 경기 수만 보여 준다.
+     * 배치를 마친 경기는 화살표 뒤에 결과 티어만 보인다. 평가 점수는 배치 경기에도 보인다.
+     */
+    private record RatingChange(String deltaText, String deltaKey, TierText ratingFrom, TierText ratingTo,
+                                String divisionChange, List<Fact> pointFacts) {
 
-    private static String signed(BigDecimal delta) {
-        String text = delta.setScale(RatingPolicy.MMR_SCALE, RatingPolicy.ROUNDING).toPlainString();
-        return delta.signum() > 0 ? "+" + text : text;
-    }
+        private static final String PLACEMENT_KEY = "placement";
 
-    private static String deltaKey(BigDecimal delta) {
-        return switch (delta.signum()) {
-            case 1 -> "up";
-            case -1 -> "down";
-            default -> "zero";
-        };
+        static RatingChange of(MyRatingHistoryRow row) {
+            int countAfter = row.getRatedMatchCountAfter();
+            TierRank after = TierRank.of(row.getMmrAfter());
+            if (countAfter < RatingPolicy.PLACEMENT_MATCHES) {
+                return new RatingChange("배치 %d/%d".formatted(countAfter, RatingPolicy.PLACEMENT_MATCHES), PLACEMENT_KEY,
+                        new TierText("배치 경기 %d/%d".formatted(countAfter, RatingPolicy.PLACEMENT_MATCHES), null), null,
+                        null, List.of());
+            }
+            if (countAfter == RatingPolicy.PLACEMENT_MATCHES) {
+                return new RatingChange("배치 완료", PLACEMENT_KEY, new TierText("배치 완료", null), labelText(after), null,
+                        List.of());
+            }
+            TierRank before = TierRank.of(row.getMmrBefore());
+            int total = after.totalPoints() - before.totalPoints();
+            // 평가 몫만 반올림하고 승패 몫은 나머지로 둬, 두 값의 합이 표시된 총 변동과 항상 같다.
+            int evaluation = TierRank.roundedPoints(row.getEvaluationDelta());
+            return new RatingChange(signedPoints(total), deltaKey(total),
+                    labelText(before), labelText(after), divisionChange(before, after),
+                    List.of(new Fact("승패", signedPoints(total - evaluation)), new Fact("평가", signedPoints(evaluation))));
+        }
+
+        List<Fact> facts(Fact evaluationScore) {
+            List<Fact> facts = new ArrayList<>(pointFacts);
+            facts.add(evaluationScore);
+            return facts;
+        }
+
+        private static String divisionChange(TierRank before, TierRank after) {
+            int compared = Integer.compare(after.stepIndex(), before.stepIndex());
+            if (compared == 0) {
+                return null;
+            }
+            return compared > 0 ? "승급" : "강등";
+        }
+
+        private static String signedPoints(int points) {
+            return (points > 0 ? "+" : "") + points + "P";
+        }
+
+        private static String deltaKey(int points) {
+            return switch (Integer.signum(points)) {
+                case 1 -> "up";
+                case -1 -> "down";
+                default -> "zero";
+            };
+        }
     }
 
     // actual_score에는 승 1, 무 0.5, 패 0만 저장된다.

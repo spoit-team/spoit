@@ -117,6 +117,132 @@
     submitConfirmed(action.form);
   }
 
+  /** 매칭방 저장 요청을 보낸 뒤에는 화면이 넘어갈 때까지 저장 버튼을 잠근다. */
+  function lockRoomEditorSubmit() {
+    if (!roomEditorForm) return;
+    roomEditorForm.dataset.submitting = 'true';
+    const submit = document.getElementById('room-editor-submit');
+    if (!submit) return;
+    submit.disabled = true;
+    submit.textContent = '저장 중…';
+  }
+
+  /** 창을 새로 열거나 뒤로 가기로 돌아왔을 때 저장 버튼을 원래 상태로 되돌린다. */
+  function releaseRoomEditorSubmit() {
+    if (!roomEditorForm) return;
+    delete roomEditorForm.dataset.submitting;
+    const submit = document.getElementById('room-editor-submit');
+    if (!submit) return;
+    submit.disabled = false;
+    submit.textContent = roomEditorForm.dataset.roomMode === 'edit' ? '수정 저장' : '매칭방 생성';
+  }
+
+  /* 뒤로 가기 캐시에서 복원되면 잠긴 버튼이 그대로 남으므로 풀어 준다. */
+  global.addEventListener?.('pageshow', function (event) {
+    if (event.persisted) releaseRoomEditorSubmit();
+  });
+
+  /**
+   * 매칭방 생성·수정이 막힌 이유를 공용 실패 안내 모달로 보여 준다. 생성·수정 창은 입력값을 유지한 채 뒤에 그대로 둔다.
+   * focusTarget은 확인을 누른 뒤 초점을 보낼 칸이다. 서버가 거부한 경우는 flash로 돌아와 공용 안내가 직접 띄운다.
+   */
+  function showRoomError(message, focusTarget) {
+    const editing = roomEditorForm?.dataset.roomMode === 'edit';
+    showError(editing ? '매칭방을 수정할 수 없습니다' : '매칭방을 만들 수 없습니다', message, focusTarget);
+  }
+
+  /* 저장 전 검사에 걸린 이유를 실패 안내 모달로 보여 주고, 닫으면 문제가 된 칸으로 초점을 보낸다. */
+  function showError(title, message, focusTarget) {
+    if (admin && typeof admin.showErrorModal === 'function') {
+      admin.showErrorModal(title, message, focusTarget);
+      return;
+    }
+    if (typeof global.alert === 'function') global.alert(message);
+    focusTarget?.focus?.();
+  }
+
+  /**
+   * 매칭방 생성·수정 폼의 사전 검사. 브라우저 기본 말풍선 대신(form novalidate) 화면 입력 순서대로 확인해
+   * 첫 문제를 { message, field, photo } 로 돌려준다. 문제가 없으면 null. 최종 판단은 서버가 다시 한다.
+   * 신청자가 있어 일정이 잠긴 수정은 시설·종목·날짜·시간을 보내지 않으므로 검사하지 않는다.
+   */
+  function roomEditorProblem(form) {
+    const field = function (id) { return document.getElementById(id); };
+    const fail = function (message, target, photo) { return { message: message, field: target, photo: Boolean(photo) }; };
+    const locked = form.dataset.roomLocked === 'true';
+
+    if (!locked) {
+      const facility = field('room-editor-facility');
+      if (facility && !facility.value) return fail('담당 시설을 선택해 주세요.', facility);
+      const sport = field('room-editor-sport');
+      const sportOption = sport ? sport.options[sport.selectedIndex] : null;
+      if (sport && (!sportOption || sportOption.disabled || !sportOption.value)) return fail('종목을 선택해 주세요.', sport);
+    }
+
+    const title = field('room-editor-title-input');
+    if (title) {
+      const value = title.value.trim();
+      const max = Number(title.getAttribute('maxlength')) || 70;
+      if (!value) return fail('방 이름을 입력해 주세요.', title);
+      if (value.length > max) return fail('방 이름은 ' + max + '자 이하로 입력해 주세요.', title);
+    }
+
+    if (!locked) {
+      const date = field('room-editor-date');
+      if (date && !date.value) return fail('이용 날짜를 선택해 주세요.', date);
+      const grid = field('room-editor-hour-grid');
+      if (grid && !grid.querySelector('input[name="hours"]:checked')) {
+        return fail('예약 시간 블록을 하나 이상 선택해 주세요.', grid.querySelector('input:not(:disabled)'));
+      }
+      /* 한 방은 연속된 시간 하나만 쓴다. 수정 때 기존 블록을 해제하지 않고 새 블록을 더하는 실수도 여기서 막는다. */
+      if (grid && selectedRanges(grid).rangeCount > 1) {
+        return fail('예약 시간은 연속된 블록만 선택할 수 있습니다. 선택한 시간을 확인해 주세요.',
+          grid.querySelector('input[name="hours"]:checked'));
+      }
+      /* 시작 시각이 이미 지났으면 보내지 않는다. 서버도 한국 시간 기준으로 다시 검사한다. */
+      const startAt = roomEditorStartAt(grid);
+      if (startAt && startAt.getTime() <= Date.now()) {
+        return fail('지난 시간에는 매칭방을 만들 수 없습니다. 날짜와 시간을 확인해 주세요.', date);
+      }
+    }
+
+    /* 숫자 칸은 글자를 넣으면 value가 비고 validity.badInput이 켜진다. 범위·단위는 입력의 min·max·step을 따른다. */
+    const team = field('room-editor-team');
+    if (team) {
+      const min = Number(team.min || 1);
+      const max = Number(team.max || 11);
+      const value = Number(team.value);
+      if (team.validity?.badInput || team.value === '') return fail('팀당 정원을 입력해 주세요.', team);
+      if (!Number.isInteger(value) || value < min || value > max) {
+        return fail('팀당 정원은 ' + min + '명 이상 ' + max + '명 이하로 입력해 주세요.', team);
+      }
+    }
+
+    const fee = field('room-editor-fee');
+    if (fee) {
+      const min = Number(fee.min || 0);
+      const max = Number(fee.max || 1000000);
+      const step = Number(fee.step || 1);
+      const value = Number(fee.value);
+      if (fee.validity?.badInput || fee.value === '') return fail('참가비를 입력해 주세요.', fee);
+      if (!Number.isInteger(value) || value < min || value > max) {
+        return fail('참가비는 ' + min.toLocaleString('ko-KR') + '원 이상 ' + max.toLocaleString('ko-KR')
+          + '원 이하로 입력해 주세요.', fee);
+      }
+      if (step > 1 && (value - min) % step !== 0) {
+        return fail('참가비는 ' + step.toLocaleString('ko-KR') + '원 단위로 입력해 주세요.', fee);
+      }
+    }
+
+    const level = field('room-editor-level');
+    if (level && !level.value) return fail('실력 수준을 선택해 주세요.', level);
+
+    /* 사진 형식·크기는 서버도 다시 검사한다. 여기서는 큰 파일을 보내기 전에 막는다. */
+    const photoProblem = roomPhotoProblem();
+    if (photoProblem) return fail(photoProblem, roomPhotoInput, true);
+    return null;
+  }
+
   function hourToMinutes(value) {
     const match = String(value || '').match(/^(\d{2}):(\d{2})$/);
     return match ? Number(match[1]) * 60 + Number(match[2]) : null;
@@ -201,12 +327,29 @@
       if (visible && !firstVisible) firstVisible = option;
     });
     const selected = sport.options[sport.selectedIndex];
-    if (!selected || selected.disabled) sport.value = firstVisible ? firstVisible.value : '';
+    if (!selected || selected.disabled) {
+      /* 같은 종목은 시설마다 옵션이 하나씩 있어 value가 겹친다. sport.value = '5'로 고르면 DOM에서 먼저 나온
+         다른 시설의 비활성 옵션이 선택돼, 화면에는 종목이 보여도 값이 전송되지 않는다. 옵션을 직접 고른다. */
+      if (firstVisible) firstVisible.selected = true;
+      else sport.selectedIndex = -1;
+    }
+  }
+
+  /* 지금 고른 시설의 옵션 중에서 종목을 고른다. 없으면 그 시설의 첫 종목을 그대로 둔다. */
+  function selectRoomEditorSport(sportId) {
+    const facility = document.getElementById('room-editor-facility');
+    const sport = document.getElementById('room-editor-sport');
+    if (!facility || !sport) return;
+    const option = Array.from(sport.options).find(function (candidate) {
+      return candidate.dataset.facilityId === facility.value && candidate.value === String(sportId || '');
+    });
+    if (option) option.selected = true;
   }
 
   /**
    * 생성·수정 모드에 맞춰 폼 주소와 문구를 바꾼다. 신청자가 있는 방(locked)은 시설·종목·날짜·시간을
-   * 잠그고 안내를 보여 준다.
+   * 잠그고 안내를 보여 준다. 참가비는 신청자가 결제한 금액과 어긋나지 않도록 읽기 전용으로 둔다
+   * (disabled면 값이 전송되지 않아 서버 검증이 실패하므로 readOnly를 쓴다).
    */
   function setRoomEditorMode(mode, room) {
     if (!roomEditorForm) return;
@@ -226,8 +369,7 @@
         ? room.id + '번 매칭방의 정보를 수정합니다.'
         : '담당 시설의 운영 시간에 맞춰 매칭방을 개설합니다. 연속된 1시간 블록을 선택하세요.';
     }
-    const submit = document.getElementById('room-editor-submit');
-    if (submit) submit.textContent = editing ? '수정 저장' : '매칭방 생성';
+    releaseRoomEditorSubmit();
     const lockedNote = document.getElementById('room-editor-locked-note');
     if (lockedNote) lockedNote.hidden = !locked;
 
@@ -238,6 +380,8 @@
     roomEditorHourInputs.forEach(function (input) {
       input.disabled = locked || input.dataset.slotUnavailable === 'true';
     });
+    const fee = document.getElementById('room-editor-fee');
+    if (fee) fee.readOnly = locked;
   }
 
   /* 선택한 날짜와 가장 이른 시간 블록으로 만든 시작 시각. 값이 비어 있으면 null */
@@ -262,7 +406,7 @@
     };
     setValue('room-editor-facility', dataset.roomFacility);
     filterRoomEditorSports();
-    setValue('room-editor-sport', dataset.roomSport);
+    selectRoomEditorSport(dataset.roomSport);
     setValue('room-editor-title-input', dataset.roomTitle);
     setValue('room-editor-date', dataset.roomDate);
     setValue('room-editor-team', dataset.roomTeam);
@@ -279,6 +423,43 @@
     updateRoomEditorSummary();
     updateRoomEditorCapacity();
   }
+
+  /* ---------------- 예약 통계 기간 ---------------- */
+
+  /* 기간 드롭다운이 7/30/90일이면 오늘 기준 날짜를 채워 잠그고,
+     '직접 입력'을 고를 때만 사용자가 날짜를 고칠 수 있다. 최종 기간 판정은 서버가 한다. */
+  const statsPeriodSelect = document.querySelector('[data-stats-period]');
+  const statsPeriodFrom = document.querySelector('[data-stats-period-from]');
+  const statsPeriodTo = document.querySelector('[data-stats-period-to]');
+
+  function formatDateInput(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return year + '-' + month + '-' + day;
+  }
+
+  function syncStatsPeriod() {
+    if (!statsPeriodSelect || !statsPeriodFrom || !statsPeriodTo) return;
+    const days = Number(statsPeriodSelect.value);
+    const custom = statsPeriodSelect.value === 'custom';
+    statsPeriodFrom.disabled = !custom;
+    statsPeriodTo.disabled = !custom;
+    if (custom || !days) return;
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1));
+    statsPeriodFrom.value = formatDateInput(start);
+    statsPeriodTo.value = formatDateInput(today);
+  }
+
+  statsPeriodSelect?.addEventListener('change', syncStatsPeriod);
+  syncStatsPeriod();
+
+  /* 통계 조회는 시설을 골라야 의미가 있다. 시설 미선택(-시설 선택-)으로 제출하면
+     서버는 빈 통계를 돌려주므로, 보내기 전에 화면에서 먼저 알린다.
+     판정의 최종 책임은 서버에 있지만 여기서는 불필요한 요청을 막는다. */
+  const statsFilterForm = document.querySelector('#facility-stats form');
+  const statsFacilitySelect = document.getElementById('facility-stats-facility');
 
   /* ---------------- 매칭방 시설 사진 ---------------- */
 
@@ -541,6 +722,16 @@
     const form = event.target;
     if (!(form instanceof HTMLFormElement)) return;
 
+    if (form === statsFilterForm) {
+      /* 시설 미선택이면 서버로 보내지 않는다. 경고 방식은 다른 검증과 같은 실패 안내 모달을 쓴다. */
+      if (statsFacilitySelect && !statsFacilitySelect.value) {
+        event.preventDefault();
+        const warning = '통계를 조회할 시설을 선택해 주세요.';
+        showError('통계를 조회할 수 없습니다', warning, statsFacilitySelect);
+      }
+      return;
+    }
+
     if (form.matches('.facility-delete-form')) {
       /* 확인을 마친 제출은 그대로 서버로 보낸다. */
       if (confirmedSubmitForm === form) {
@@ -566,8 +757,7 @@
       if (!selectedSports.length) {
         event.preventDefault();
         confirmedSubmitForm = null;
-        admin?.toast('시설 이용 종목을 하나 이상 선택해 주세요.', true);
-        facilitySportOptions[0]?.focus();
+        showError('시설을 저장할 수 없습니다', '시설 이용 종목을 하나 이상 선택해 주세요.', facilitySportOptions[0]);
         return;
       }
       const sportsValue = document.getElementById('facility-sports-value');
@@ -615,38 +805,19 @@
     }
 
     if (form === roomEditorForm) {
-      /* 사진 형식·크기는 서버도 다시 검사한다. 여기서는 큰 파일을 보내기 전에 막는다. */
-      const photoProblem = roomPhotoProblem();
-      if (photoProblem) {
+      /* 이미 서버로 보낸 뒤 다시 누르거나 Enter를 쳐도 같은 매칭방이 두 번 저장되지 않게 막는다. */
+      if (form.dataset.submitting === 'true') {
         event.preventDefault();
-        setRoomPhotoError(photoProblem);
-        admin?.toast(photoProblem, true);
-        roomPhotoInput?.focus();
         return;
       }
-      /* 일정이 잠긴 수정은 시간 블록을 보내지 않는다. */
-      if (form.dataset.roomLocked === 'true') return;
-      const grid = document.getElementById('room-editor-hour-grid');
-      if (grid && !grid.querySelector('input[name="hours"]:checked')) {
+      const problem = roomEditorProblem(form);
+      if (problem) {
         event.preventDefault();
-        admin?.toast('예약 시간 블록을 하나 이상 선택해 주세요.', true);
-        grid.querySelector('input:not(:disabled)')?.focus();
+        if (problem.photo) setRoomPhotoError(problem.message);
+        showRoomError(problem.message, problem.field);
         return;
       }
-      /* 한 방은 연속된 시간 하나만 쓴다. 수정 때 기존 블록을 해제하지 않고 새 블록을 더하는 실수도 여기서 막는다. */
-      if (grid && selectedRanges(grid).rangeCount > 1) {
-        event.preventDefault();
-        admin?.toast('예약 시간은 연속된 블록만 선택할 수 있습니다. 선택한 시간을 확인해 주세요.', true);
-        grid.querySelector('input[name="hours"]:checked')?.focus();
-        return;
-      }
-      /* 시작 시각이 이미 지났으면 보내지 않는다. 서버도 한국 시간 기준으로 다시 검사한다. */
-      const startAt = roomEditorStartAt(grid);
-      if (startAt && startAt.getTime() <= Date.now()) {
-        event.preventDefault();
-        admin?.toast('지난 시간에는 매칭방을 만들 수 없습니다. 날짜와 시간을 확인해 주세요.', true);
-        document.getElementById('room-editor-date')?.focus();
-      }
+      lockRoomEditorSubmit();
       return;
     }
 
@@ -656,8 +827,8 @@
       const invalidRow = findInvalidWeeklyRow();
       if (invalidRow) {
         event.preventDefault();
-        admin?.toast('시작과 종료 시간이 같은 요일이 있습니다. 시간을 다시 선택해 주세요.', true);
-        invalidRow.querySelector('select[name^="end-"]')?.focus();
+        showError('운영 시간을 저장할 수 없습니다', '시작과 종료 시간이 같은 요일이 있습니다. 시간을 다시 선택해 주세요.',
+          invalidRow.querySelector('select[name^="end-"]'));
       }
       return;
     }
@@ -680,8 +851,8 @@
       /* 서버가 다시 검증하지만, 명백히 같은 시각이면 요청을 보내지 않는다. */
       if (start && end && hourToMinutes(start) === hourToMinutes(end)) {
         event.preventDefault();
-        admin?.toast('휴관 시작과 종료 시간이 같습니다. 다른 시간을 선택해 주세요.', true);
-        document.getElementById('closure-end')?.focus();
+        showError('휴관 일정을 등록할 수 없습니다', '휴관 시작과 종료 시간이 같습니다. 다른 시간을 선택해 주세요.',
+          document.getElementById('closure-end'));
       }
       return;
     }

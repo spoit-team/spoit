@@ -5,10 +5,14 @@ import static co.kr.spoit.member.domain.MemberPrincipalFixture.facilityManager;
 import static co.kr.spoit.member.domain.MemberPrincipalFixture.member;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,6 +23,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import co.kr.spoit.club.controller.ClubController;
+import co.kr.spoit.club.dto.ClubPageResponse;
+import co.kr.spoit.club.dto.ClubSearchForm;
 import co.kr.spoit.club.service.ClubService;
 import co.kr.spoit.global.config.SecurityConfig;
 import co.kr.spoit.member.security.MemberLoginFailureHandler;
@@ -55,6 +61,9 @@ class HeaderNavigationRenderTest {
     @Test
     @DisplayName("비로그인 사용자 헤더에는 로그인 링크만 있고 관리자 메뉴는 없다")
     void anonymousHeaderHasNoAdminLinks() throws Exception {
+        // 가짜 서비스는 새 클래스에 null을 돌려줘서, 빈 목록 결과를 정해 줌
+        when(clubService.findClubPage(any(ClubSearchForm.class)))
+                .thenReturn(new ClubPageResponse(new ClubSearchForm(), List.of(), 0));
         mockMvc.perform(get("/teams"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("data-auth-guest")))

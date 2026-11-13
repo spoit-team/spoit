@@ -90,6 +90,26 @@ class NotificationMapperXmlBindingTest {
     }
 
     @Test
+    @DisplayName("신고 알림용 report_id를 저장·조회하고 후보 조회는 탈퇴 회원을 제외한다")
+    void persistsAndReadsReportId() throws Exception {
+        String insert = statement("insert").getTextContent();
+        assertThat(insert).contains("report_id");
+        assertThat(insert).contains("#{reportId}");
+
+        // 목록 조회도 report_id를 읽어 표시 모델이 경로를 만들 수 있게 한다.
+        assertThat(statement("findByRecipient").getTextContent()).contains("n.report_id AS reportId");
+
+        String candidates = statement("findActiveAdminCandidates").getTextContent();
+        assertThat(candidates).contains("FROM app_user");
+        assertThat(candidates).contains("deleted_at IS NULL");
+        // 실제 판정은 서비스가 MemberRole.from으로 다시 한다. SQL은 후보만 좁힌다.
+        assertThat(candidates).contains("user_id AS userId");
+        assertThat(candidates).contains("role");
+        // 역할 해석 로직(정확 일치 판정)을 SQL에 복제하지 않는다.
+        assertThat(candidates).doesNotContain("role =");
+    }
+
+    @Test
     @DisplayName("모든 변경 문장은 수신자 조건으로 소유권을 강제한다")
     void everyMutationRequiresRecipient() throws Exception {
         Document document = readDocument();

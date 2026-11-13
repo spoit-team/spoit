@@ -265,8 +265,8 @@ class RoomManagementServiceTest {
     }
 
     @Test
-    @DisplayName("팀 배정 후 상세는 확정 신청을 참가자 표로 옮기고 반려·취소 신청은 기록으로 남긴다")
-    void movesConfirmedToParticipantsAfterAssignment() {
+    @DisplayName("팀 배정 후에도 신청 내역은 확정 신청까지 모두 남기고, 참가자 표를 함께 채운다")
+    void keepsAllApplicationsAfterAssignment() {
         RoomManagementRow room = row(9401L, "매칭 완료", 2, 8);
         given(mapper.findRoom(any())).willReturn(room);
         given(mapper.findApplications(any())).willReturn(List.of(
@@ -282,7 +282,7 @@ class RoomManagementServiceTest {
 
         assertThat(detail.isTeamAssigned()).isTrue();
         assertThat(detail.getApplications()).extracting(RoomManagementDetail.Application::getStatusLabel)
-                .containsExactly("신청 반려", "신청 취소");
+                .containsExactly("신청 반려", "참가 확정", "신청 취소");
         assertThat(detail.getApplications()).extracting(RoomManagementDetail.Application::isDecidable)
                 .containsOnly(false);
         assertThat(detail.getParticipants()).extracting(RoomManagementDetail.Participant::getTeamLabel)
@@ -622,5 +622,13 @@ class RoomManagementServiceTest {
         row.setClubName(clubName);
         row.setCreatedAt(LocalDateTime.of(2026, 11, 1, 10, 0));
         return row;
+    }
+
+    @Test
+    @DisplayName("운영 화면 결제 열은 신청 행 한 명 몫의 결제·환불 상태를 보여 준다")
+    void paymentLabelShowsPerRowStatus() {
+        assertThat(RoomManagementService.paymentLabel(false, 0, false)).isEqualTo("무료");
+        assertThat(RoomManagementService.paymentLabel(true, 9000, false)).isEqualTo("결제 완료 9,000원");
+        assertThat(RoomManagementService.paymentLabel(true, 9000, true)).isEqualTo("환불 완료 9,000원");
     }
 }

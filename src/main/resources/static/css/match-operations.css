@@ -1,23 +1,6 @@
 /* 매치 운영(매칭방 상세) 화면: 요약·팀 배정·신청 내역·참가자 목록을 스타일링합니다.
    참가 신청 확정·반려 같은 변경 조작은 이 화면에 없으므로 관련 스타일도 두지 않습니다. */
 
-.ops-message {
-  margin: 0 0 16px;
-  padding: 11px 14px;
-  border: 1px solid #c9ead5;
-  border-radius: 9px;
-  background: var(--admin-green-soft);
-  color: var(--admin-green-ink);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.ops-message.is-error {
-  border-color: #f0cbc8;
-  background: var(--admin-red-soft);
-  color: var(--admin-red);
-}
-
 /* ── 매칭방 요약 ─────────────────────────────────────────── */
 .ops-room-summary {
   margin: 0 0 4px;
@@ -442,6 +425,15 @@
   color: var(--admin-faint);
   font-size: 10px;
   line-height: 1.55;
+}
+
+/* 참가자 표의 신고 열: 이용 완료 경기의 확정 참가자만 신고 접수 화면으로 이어집니다.
+   그 전에는 이동할 수 없다는 사실을 짧게 표시해, 눌러도 아무 일이 없는 링크를 만들지 않습니다. */
+.ops-report-unavailable {
+  color: var(--admin-muted);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 @media (max-width: 1000px) {

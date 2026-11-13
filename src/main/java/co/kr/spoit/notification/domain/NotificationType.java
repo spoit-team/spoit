@@ -16,21 +16,20 @@ public enum NotificationType {
     MATCH_APPLICATION_RECEIVED("매칭 신청 접수"),
     MATCH_APPLICATION_CONFIRMED("매칭 신청 확정"),
     MATCH_APPLICATION_CANCELLED("매칭 신청 취소"),
+    MATCH_APPLICATION_REJECTED("매칭 신청 반려"),
     MATCH_ROOM_CANCELLED("매칭방 취소"),
     CLUB_JOIN_REQUESTED("가입 신청 접수"),
     CLUB_JOIN_APPROVED("가입 승인"),
     CLUB_JOIN_REJECTED("가입 거절"),
     CLUB_MEMBER_KICKED("팀원 추방"),
-    CLUB_LEADER_TRANSFERRED("회장 위임");
+    CLUB_LEADER_TRANSFERRED("회장 위임"),
+    REPORT_SUBMITTED("신고 접수"),
+    REPORT_RESOLVED("신고 처리 결과");
 
     private final String label;
 
     NotificationType(String label) {
         this.label = label;
-    }
-
-    public String label() {
-        return label;
     }
 
     /**

@@ -262,18 +262,15 @@ public class RoomManagementService {
             return null;
         }
 
-        // 팀 배정이 끝나면 확정 신청은 참가자 표로 옮겨 보여 주고, 되돌리면 다시 신청 내역으로 돌아온다.
-        // 반려·취소 신청은 기록으로 계속 신청 내역에 남긴다.
+        // 신청 내역은 기록이라 팀 배정 뒤에도 상태와 관계없이 모두 남긴다. 배정 뒤에는 참가자 표가 함께 보인다.
         boolean teamAssigned = isTeamAssigned(row.getStatus());
         boolean decisionOpen = MatchStatus.RECRUITING.dbValue().equals(row.getStatus())
                 && row.getStartAt() != null && row.getStartAt().isAfter(LocalDateTime.now(clock));
         List<RoomManagementDetail.Application> applications = new ArrayList<>();
         for (RoomManagementApplicationRow application : nullSafe(roomManagementMapper.findApplications(query))) {
-            if (application == null
-                    || (teamAssigned && ApplicationStatus.CONFIRMED.dbValue().equals(application.getStatus()))) {
-                continue;
+            if (application != null) {
+                applications.add(toApplication(application, decisionOpen));
             }
-            applications.add(toApplication(application, decisionOpen));
         }
 
         List<RoomManagementDetail.Participant> participants = new ArrayList<>();
@@ -460,6 +457,8 @@ public class RoomManagementService {
 
     private RoomManagementDetail.Application toApplication(RoomManagementApplicationRow row, boolean decisionOpen) {
         boolean club = ApplicationType.CLUB.dbValue().equals(row.getApplicationType());
+        boolean paid = row.getPaymentId() != null && row.getUnitAmount() != null;
+        long unit = paid ? row.getUnitAmount().longValue() : 0L;
         return new RoomManagementDetail.Application(
                 row.getApplicationId(),
                 label(row.getApplicantName(), "신청자 미상"),
@@ -469,7 +468,18 @@ public class RoomManagementService {
                 createdAtLabel(row.getCreatedAt()),
                 row.getApplicantUserId(),
                 decisionOpen && row.getApplicationId() != null
-                        && ApplicationStatus.WAITING.dbValue().equals(row.getStatus()));
+                        && ApplicationStatus.WAITING.dbValue().equals(row.getStatus()),
+                paymentLabel(paid, unit, row.getRefundedAt() != null),
+                paid && row.getRefundedAt() == null ? unit : 0L);
+    }
+
+    /** 신청 행 한 명 몫의 결제·환불 상태. 팀 신청은 대표가 인원만큼 결제했으므로 1인 참가비로 보여 준다. */
+    static String paymentLabel(boolean paid, long unitAmount, boolean refunded) {
+        if (!paid) {
+            return "무료";
+        }
+        String amount = new java.text.DecimalFormat("#,##0").format(unitAmount) + "원";
+        return (refunded ? "환불 완료 " : "결제 완료 ") + amount;
     }
 
     private RoomManagementDetail.Participant toParticipant(RoomManagementParticipantRow row) {

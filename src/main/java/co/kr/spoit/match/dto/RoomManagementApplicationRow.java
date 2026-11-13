@@ -23,4 +23,10 @@ public class RoomManagementApplicationRow {
     private String clubName;
     /** 참가자 이력 모달을 열 때 쓰는 신청 회원 ID */
     private Long applicantUserId;
+    /** 참가비 결제 (팀 신청은 대표 결제), 무료 신청이면 null */
+    private String paymentId;
+    /** 결제 시점 1인 참가비 (이 행 몫의 환불 금액) */
+    private java.math.BigDecimal unitAmount;
+    /** 이 행 몫을 환불한 시각, 환불 전이면 null */
+    private java.time.LocalDateTime refundedAt;
 }

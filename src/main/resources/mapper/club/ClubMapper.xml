@@ -13,36 +13,19 @@
             AND sr.rated_match_count &gt;= #{placementMatches})
     </sql>
 
-    <!-- 최근 활동(레이팅 반영 시각 기준)-->
+    <!-- 최근 활동: 지난 일정 탭과 같은 조건의 마지막 경기 시작 시각 -->
     <sql id="lastActivityAt">
-        (SELECT MAX(h.calculated_at)
-        FROM sport_rating_history h
-        JOIN match_participant p ON h.participant_id = p.participant_id
-        JOIN match_application a ON p.application_id = a.application_id
-        WHERE a.club_id = c.club_id)
+        (SELECT MAX(sm.start_at)
+        FROM match_application ma
+        JOIN social_match sm ON sm.match_id = ma.match_id
+        WHERE ma.club_id = c.club_id
+            AND ma.status = '확정'
+            AND sm.status IN ('매칭 완료', '종료')
+            AND sm.end_at &lt; #{now})
     </sql>
 
-    <!-- 동호회 목록: 해체되지 않은 동호회만 -->
-    <select id="selectClubs" resultType="co.kr.spoit.club.domain.ClubSummary">
-        SELECT club_id AS clubId
-              ,club_name AS clubName
-              ,c.sport_id AS sportId
-              ,c.recruit_status AS recruitStatus
-              ,c.max_members AS maxMembers
-              ,c.activity_days AS activityDays
-              ,c.activity_start_time AS activityStartTime
-              ,c.activity_end_time AS activityEndTime
-              ,c.created_at AS createdAt
-              ,s.name AS sportName
-              ,(SELECT COUNT(*) FROM club_member m where m.club_id = c.club_id
-              AND m.left_at IS NULL) AS memberCount
-              ,<include refid="averageMmr" /> AS averageMmr
-              ,(SELECT GROUP_CONCAT(rg.name ORDER BY rg.region_id SEPARATOR ', ')
-                FROM club_region cr
-                JOIN region rg ON cr.region_id = rg.region_id
-                WHERE cr.club_id = c.club_id) AS areaLabel
-        FROM club c
-    JOIN sport s ON c.sport_id = s.sport_id
+    <!-- 동호회 목록 조건: 목록과 전체 개수가 같이 씀 -->
+    <sql id="clubFilters">
     WHERE c.deleted_at IS NULL
         <if test="query != null">
             AND (c.club_name LIKE CONCAT('%', #{likeQuery}, '%') ESCAPE '!'
@@ -69,6 +52,30 @@
         <if test="maxMmr != null">
             AND <include refid="averageMmr"/> &lt; #{maxMmr}
         </if>
+    </sql>
+
+    <!-- 동호회 목록: 해체되지 않은 동호회만 -->
+    <select id="selectClubs" resultType="co.kr.spoit.club.domain.ClubSummary">
+        SELECT club_id AS clubId
+              ,club_name AS clubName
+              ,c.sport_id AS sportId
+              ,c.recruit_status AS recruitStatus
+              ,c.max_members AS maxMembers
+              ,c.activity_days AS activityDays
+              ,c.activity_start_time AS activityStartTime
+              ,c.activity_end_time AS activityEndTime
+              ,c.created_at AS createdAt
+              ,s.name AS sportName
+              ,(SELECT COUNT(*) FROM club_member m where m.club_id = c.club_id
+              AND m.left_at IS NULL) AS memberCount
+              ,<include refid="averageMmr" /> AS averageMmr
+              ,(SELECT GROUP_CONCAT(rg.name ORDER BY rg.region_id SEPARATOR ', ')
+                FROM club_region cr
+                JOIN region rg ON cr.region_id = rg.region_id
+                WHERE cr.club_id = c.club_id) AS areaLabel
+        FROM club c
+    JOIN sport s ON c.sport_id = s.sport_id
+    <include refid="clubFilters"/>
     <!-- 정렬: newest-최신순(기본) -->
     <choose>
     <when test="sort == 'rating'">
@@ -87,6 +94,16 @@
             ,c.club_id DESC
     </otherwise>
     </choose>
+    <!-- 앞 장들은 건너뛰고 필요한 개수만(첫 화면은 여러 장, 다음 장은 12개) -->
+    LIMIT #{size} OFFSET #{skip}
+    </select>
+
+    <!-- 동호회 목록 전체 개수: 개수 문구와 마지막 장 계산 -->
+    <select id="countClubs" resultType="int">
+        SELECT COUNT(*)
+        FROM club c
+    JOIN sport s ON c.sport_id = s.sport_id
+    <include refid="clubFilters"/>
     </select>
 
     <!-- 동호회 상세: 목록에 intro만 추가 -->
@@ -312,6 +329,7 @@
             </if>
     </select>
 
+    <!-- 예정 일정: 아직 안 끝난 경기(경기 중 포함) -->
     <select id="selectUpcomingSchedules" resultType="co.kr.spoit.club.domain.ClubSchedule">
         SELECT sm.match_id AS matchId
                 ,sm.title AS title
@@ -325,10 +343,11 @@
                             AND ma.club_id = #{clubId}
                             AND ma.status IN ('대기', '확정'))
             AND sm.status IN ('모집 중', '매칭 완료')
-            AND sm.start_at &gt; #{now}
+            AND sm.end_at &gt; #{now}
             ORDER BY sm.start_at, sm.match_id
     </select>
     
+    <!-- 지난 일정: 끝난 경기 중 최근 limit-->
     <select id="selectRecentSchedules" resultType="co.kr.spoit.club.domain.ClubSchedule">
         SELECT sm.match_id AS matchId
                 ,sm.title AS title
@@ -344,6 +363,7 @@
             AND sm.status IN ('매칭 완료', '종료')
             AND sm.end_at &lt; #{now}
             ORDER BY sm.start_at DESC, sm.match_id DESC
+            LIMIT #{limit}
     </select>
 
     <!-- 이력 대상 동호회원 조회: 동호회장도 포함 (selectActiveMemberById는 동호회원만) -->
@@ -433,18 +453,13 @@
             AND role = '동호회원' AND left_at IS NULL
     </select>
 
-    <select id="selectActiveMemberUserId" resultType="java.lang.Long">
-        SELECT user_id FROM club_member
-        WHERE club_id = #{clubId} AND club_member_id = #{clubMemberId} AND left_at IS NULL
-    </select>
-
     <update id="updateMemberKick">
         UPDATE club_member
         SET left_at = NOW(), leave_type = '내보내기', kick_reason = #{kickReason}
-        WHERE club_id = #{clubId} AND club_member_id = #{clubMemberId} 
+        WHERE club_id = #{clubId} AND club_member_id = #{clubMemberId}
             AND left_at IS NULL
     </update>
-        
+
     <update id="cancelPendingJoinRequests">
         UPDATE club_join_request
         SET status = '취소', processed_at = NOW()
@@ -461,6 +476,12 @@
     <update id="updateClubDisband">
         UPDATE club
         SET deleted_at = NOW()
+        WHERE club_id = #{clubId} AND deleted_at IS NULL
+    </update>
+
+    <update id="updateClubRecruitClosed">
+        UPDATE club
+        SET recruit_status = '마감'
         WHERE club_id = #{clubId} AND deleted_at IS NULL
     </update>
 

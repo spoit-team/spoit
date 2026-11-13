@@ -108,6 +108,9 @@ button { color: inherit; }
 .page-heading h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -.045em; line-height: 1.3; }
 .page-heading p { margin: 6px 0 0; color: var(--admin-muted); font-size: 13.5px; font-weight: 500; }
 .heading-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* 화면이 좁아져도 제목 옆 버튼(매칭방 생성 등)은 줄지 않고, 글자가 두 줄로 꺾이지 않게 한다. 줄어드는 쪽은 제목 묶음이다. */
+.page-heading > .heading-actions { flex: 0 0 auto; }
+.heading-actions .admin-button { white-space: nowrap; }
 .heading-date { margin-right: 4px; color: var(--admin-muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
 .admin-button { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; border: 1px solid var(--admin-line-strong); border-radius: 9px; background: var(--admin-paper); color: var(--admin-ink-2); font-size: 12.5px; font-weight: 700; transition: background .14s, border-color .14s, color .14s; }
 .admin-button:hover { border-color: var(--admin-faint); background: var(--admin-soft); color: var(--admin-ink); }
@@ -348,11 +351,162 @@ button { color: inherit; }
 .facility-map-preview span, .facility-map-preview small { color: var(--admin-muted); }
 .facility-map-preview small { font-size: 10px; }
 .stats-metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.stats-metrics > .metric-card:first-child::before, .stats-metric-divider + .metric-card::before { position: absolute; top: 18px; bottom: 18px; left: 0; width: 1px; background: var(--metric-divider-color); content: ""; }
+.stats-metric-divider { grid-column: 1/-1; height: 1px; background: var(--metric-divider-color); }
+.stats-metrics .metric-card:last-child::after { position: absolute; top: 18px; right: 0; bottom: 18px; width: 1px; background: var(--metric-divider-color); content: ""; }
+/* 3칸씩 두 줄로 놓이므로 각 줄의 오른쪽 끝(3·6번째 카드)에도 바깥선을 그린다.
+   마지막 카드 규칙만으로는 첫 줄 오른쪽이 비어 두 묶음의 테두리가 어긋난다. */
+.stats-metrics > .metric-card:nth-of-type(3n)::after { position: absolute; top: 18px; right: 0; bottom: 18px; width: 1px; background: var(--metric-divider-color); content: ""; }
+/* 예약 통계 기간 직접 입력: 드롭다운(.field-control 40px)과 같은 줄에 나란히 놓는다. */
+.heading-actions input[type="date"].field-control { min-width: 130px; }
+.heading-actions input[type="date"].field-control:disabled { background: var(--admin-paper); color: var(--admin-muted); }
 .metric-grid.three-metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
 .metric-grid.two-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
-.weekday-chart { display: grid; gap: 13px; padding: 18px 20px 20px; }
-.weekday-row { display: grid; grid-template-columns: 24px minmax(0,1fr) 40px; align-items: center; gap: 10px; color: var(--admin-muted); font-size: 10.5px; font-weight: 700; }
-.weekday-row b { color: var(--admin-ink-2); font-family: Archivo, sans-serif; font-size: 10.5px; text-align: right; }
+/* 예약 통계 상세: 요일·시간대별 확정 참가 인원(명)과 '전체 확정 참가 인원 대비' 비중(%).
+   막대 길이·숫자 모두 같은 분모(확정 참가 인원 합계)를 쓰는 share로 통일했다.
+   값은 종료된 매칭의 시작 시각 기준이며, 그 시간에 이용 중인 전체 인원이 아니다. */
+.page-heading p.stats-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 9px; margin-top: 7px; color: var(--admin-muted); font-size: 11px; font-weight: 500; }
+.stats-scope b { color: var(--admin-ink-2); font-weight: 800; }
+.stats-scope span + span::before { margin-right: 8px; color: var(--admin-line-strong); content: "|"; }
+.stats-empty-note { margin: 12px 0 0; padding: 10px 12px; border: 1px dashed var(--admin-line-strong); border-radius: 10px; color: var(--admin-muted); font-size: 11px; line-height: 1.65; }
+.dashboard-grid.stats-detail-grid { grid-template-columns: minmax(0,.8fr) minmax(0,1.6fr); }
+.stats-panel { min-width: 0; }
+.stats-day-list, .stats-hour-list { margin: 0; padding: 14px 20px 18px; list-style: none; }
+.stats-day-list { display: grid; }
+/* 24칸 시간대는 오른쪽 카드에서 세로로 길어지므로 12행×2단으로 놓는다. 왼쪽 단 00~11시, 오른쪽 단 12~23시. */
+.stats-hour-list { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); grid-template-rows: repeat(12, auto); grid-auto-flow: column; column-gap: 26px; }
+.stats-day-row, .stats-hour-row { display: grid; grid-template-columns: 34px minmax(0,1fr) 44px 62px; align-items: center; gap: 9px; padding: 5px 0; border-bottom: 1px solid var(--admin-line); }
+.stats-hour-row { grid-template-columns: 40px minmax(0,1fr) 38px 58px; gap: 8px; }
+.stats-day-row:last-child { border-bottom: 0; }
+/* 두 단 각각의 마지막 행(12·24번째)은 아래 행이 없으므로 구분선을 그리지 않는다. */
+.stats-hour-row:nth-child(12n) { border-bottom: 0; }
+.stats-row-label { color: var(--admin-ink-2); font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stats-bar { display: block; height: 6px; overflow: hidden; border-radius: 99px; background: #eef0f3; }
+.stats-bar i { display: block; height: 100%; border-radius: inherit; background: var(--admin-blue); transition: width .2s ease; }
+.stats-day-row.is-zero .stats-count, .stats-day-row.is-zero .stats-share,
+.stats-hour-row.is-zero .stats-count, .stats-hour-row.is-zero .stats-share { color: var(--admin-faint); font-weight: 600; }
+.stats-count, .stats-share { color: var(--admin-ink-2); font-family: Archivo, "Pretendard Variable", sans-serif; font-size: 10.5px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stats-share { color: var(--admin-muted); }
+.stats-panel-empty { margin: 0; padding: 14px 20px 16px; color: var(--admin-muted); font-size: 10.5px; line-height: 1.65; }
+/* 요일 × 시작 시각: 7×24칸을 접지 않고 그대로 보여 주되, 좁은 화면에서는 가로 스크롤과
+   첫 열 고정으로 요일을 잃지 않게 한다. 0명 칸도 지우지 않고 옅은 바탕으로 남긴다. */
+.stats-heatmap-card { margin-top: 14px; padding-bottom: 0; }
+.stats-heatmap-scroll { margin-top: 13px; padding: 0 20px 5px; overflow-x: auto; }
+.stats-heatmap-scroll:focus-visible { outline: 2px solid var(--admin-blue); outline-offset: -2px; }
+.stats-heatmap { width: 100%; min-width: 840px; table-layout: fixed; border-collapse: separate; border-spacing: 2px; font-variant-numeric: tabular-nums; }
+.stats-heatmap th, .stats-heatmap td { min-width: 0; padding: 5px 2px; border-radius: 4px; text-align: center; font-size: 9.5px; font-weight: 700; white-space: nowrap; }
+.stats-heatmap thead th { color: var(--admin-faint); font-weight: 700; }
+/* 가로로 스크롤해도 요일 열은 왼쪽에 남겨 어느 행인지 잃지 않게 한다. */
+.stats-heatmap thead th:first-child, .stats-heatmap tbody th { position: sticky; left: 0; z-index: 1; width: 46px; background: var(--admin-canvas); }
+.stats-heatmap thead th:first-child { z-index: 2; }
+.stats-heatmap tbody th { padding-left: 6px; color: var(--admin-ink-2); font-weight: 800; text-align: left; }
+.stats-heatmap td { background: #f2f4f7; color: var(--admin-muted); }
+/* 0명 칸은 배경만 옅게 낮추고 숫자는 읽을 수 있는 대비를 유지한다(인원 0도 정보이므로 숨기지 않는다). */
+.stats-heatmap td.is-zero { background: #f8f9fb; color: var(--admin-muted); font-weight: 600; }
+.stats-heatmap td[data-heat-level="1"] { background: #e2edfa; color: #2f5d92; }
+.stats-heatmap td[data-heat-level="2"] { background: #c8ddf5; color: #234f80; }
+.stats-heatmap td[data-heat-level="3"] { background: #9cc4ec; color: #17395f; }
+.stats-heatmap td[data-heat-level="4"] { background: var(--admin-blue); color: #fff; }
+.stats-heat-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 4px 20px 15px; color: var(--admin-faint); font-size: 9.5px; font-weight: 600; }
+.stats-heat-legend-item { display: inline-flex; align-items: center; gap: 4px; }
+.stats-heat-legend i { width: 14px; height: 10px; flex: 0 0 14px; border-radius: 3px; background: #f2f4f7; }
+.stats-heat-legend i[data-heat-level="1"] { background: #e2edfa; }
+.stats-heat-legend i[data-heat-level="2"] { background: #c8ddf5; }
+.stats-heat-legend i[data-heat-level="3"] { background: #9cc4ec; }
+.stats-heat-legend i[data-heat-level="4"] { background: var(--admin-blue); }
+.stats-heat-legend-note { flex: 1 0 auto; margin-left: auto; font-weight: 500; }
+/* 신청 상태 분포: 요일 7칸·시간대 24칸·요일×시간대 7행을 모두 세로 누적 막대로 그린다.
+   확정은 단색, 반려·취소는 빗금이라 색을 구분하기 어려워도 두 상태가 나뉜다.
+   막대 높이는 각 그래프의 최대 처리 건수(확정+반려·취소)를 100%로 삼는 공통 눈금이고,
+   값이 0인 칸도 지우지 않고 바닥선과 0을 남긴다. */
+.stats-apply-grid { grid-template-columns: minmax(0,.8fr) minmax(0,1.6fr); margin-top: 12px; }
+.stats-section-heading { margin-top: 26px; flex-wrap: wrap; }
+.stats-apply-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 0; padding: 0; list-style: none; color: var(--admin-muted); font-size: 10px; font-weight: 600; }
+.stats-apply-legend li { display: inline-flex; align-items: center; gap: 5px; }
+.stats-apply-legend i { width: 14px; height: 10px; flex: 0 0 14px; border-radius: 2px; }
+.stats-apply-legend i.is-approved { background: var(--admin-blue); }
+.stats-apply-legend i.is-cancelled { background: repeating-linear-gradient(135deg,#d74745 0 2px,#f6c9c6 2px 4px); }
+.stats-apply-scale { flex: 0 0 auto; align-self: flex-start; color: var(--admin-muted); font-size: 9.5px; font-weight: 600; white-space: nowrap; }
+.stats-apply-scale b { color: var(--admin-ink-2); font-family: Archivo,"Pretendard Variable",sans-serif; font-variant-numeric: tabular-nums; }
+.stats-heading-meta { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 12px; }
+.stats-heading-meta .stats-apply-scale { align-self: center; }
+.stats-stack-chart { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0,1fr); align-items: end; gap: 6px; margin: 16px 20px 0; padding: 12px 0 0; list-style: none; }
+.stats-stack-col { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 5px; }
+.stats-stack-sum { color: var(--admin-ink-2); font-family: Archivo,"Pretendard Variable",sans-serif; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stats-stack-track { display: flex; width: 100%; max-width: 40px; height: 104px; flex-direction: column-reverse; justify-content: flex-start; overflow: hidden; border-bottom: 1px solid var(--admin-line-strong); border-radius: 3px 3px 0 0; }
+/* 0건 칸은 회색 트랙을 채우지 않고 바닥선만 남긴다. 값이 있는 칸만 옅은 눈금 트랙을 보여 준다. */
+.stats-stack-col:not(.is-zero) .stats-stack-track,
+.stats-mini-cell:not(.is-zero) { background: #eef0f3; }
+.stats-stack-track > i, .stats-mini-cell > i { display: block; width: 100%; flex: 0 0 auto; transition: height .2s ease; }
+.stats-stack-approved { background: var(--admin-blue); }
+.stats-stack-cancelled { background: repeating-linear-gradient(135deg,#d74745 0 2px,#f6c9c6 2px 4px); }
+.stats-stack-track > i.is-positive, .stats-mini-cell > i.is-positive { min-height: 2px; }
+.stats-stack-col.is-zero .stats-stack-sum { color: var(--admin-faint); font-weight: 600; }
+.stats-stack-label { min-height: 13px; color: var(--admin-muted); font-size: 10px; font-weight: 700; }
+.stats-chart-scroll { margin: 14px 20px 6px; overflow-x: auto; }
+.stats-chart-scroll:focus-visible { outline: 2px solid var(--admin-blue); outline-offset: -2px; }
+.stats-stack-chart.is-hour { grid-auto-columns: minmax(22px,1fr); gap: 4px; min-width: 680px; margin: 0; }
+.stats-stack-chart.is-hour .stats-stack-label { font-size: 8.5px; letter-spacing: -.03em; }
+/* 요일×시간대: 7행 × 24칸 미니 막대. 가로 스크롤에서도 요일 열은 왼쪽에 남긴다. */
+.stats-apply-matrix { margin-top: 14px; }
+.stats-mini-scroll { margin-top: 12px; padding: 0 20px; overflow-x: auto; }
+.stats-mini-scroll:focus-visible { outline: 2px solid var(--admin-blue); outline-offset: -2px; }
+.stats-mini-chart { display: grid; grid-template-columns: 30px repeat(24,minmax(16px,1fr)); align-items: end; gap: 6px 4px; min-width: 700px; padding: 6px 0 2px; }
+.stats-mini-hour { color: var(--admin-faint); font-family: Archivo,"Pretendard Variable",sans-serif; font-size: 8px; font-weight: 700; text-align: center; }
+.stats-mini-label { position: sticky; left: 0; z-index: 1; align-self: center; background: var(--admin-canvas); color: var(--admin-ink-2); font-size: 10px; font-weight: 800; }
+.stats-mini-cell { position: relative; display: flex; height: 34px; flex-direction: column-reverse; justify-content: flex-start; overflow: hidden; border-bottom: 1px solid var(--admin-line-strong); border-radius: 2px 2px 0 0; }
+.stats-mini-note { margin: 8px 0 0; color: var(--admin-muted); font-size: 9.5px; line-height: 1.55; }
+.stats-mini-note b { color: var(--admin-ink-2); font-weight: 700; }
+/* 정확한 값 표: 막대와 같은 숫자를 글자로도 제공한다. details로 접어 두어 화면을 가리지 않는다. */
+.stats-exact { margin: 0 20px 16px; }
+.stats-exact > summary { margin-top: 12px; padding: 4px 0; color: var(--admin-blue-ink); font-size: 10.5px; font-weight: 700; cursor: pointer; }
+.stats-exact > summary:hover { text-decoration: underline; }
+.stats-exact > summary:focus-visible { border-radius: 4px; outline: 2px solid var(--admin-blue); outline-offset: 2px; }
+.stats-exact-scroll { overflow-x: auto; }
+.stats-exact-table { width: 100%; margin-top: 6px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.stats-exact-table caption { margin-bottom: 6px; color: var(--admin-muted); font-size: 9.5px; text-align: left; }
+.stats-exact-table th, .stats-exact-table td { padding: 5px 8px; border-bottom: 1px solid var(--admin-line); font-size: 10px; white-space: nowrap; }
+.stats-exact-table thead th { color: var(--admin-faint); font-size: 9px; font-weight: 700; text-align: right; }
+.stats-exact-table thead th:first-child, .stats-exact-table tbody th { text-align: left; }
+.stats-exact-table tbody th { color: var(--admin-ink-2); font-weight: 700; }
+.stats-exact-table td { color: var(--admin-muted); text-align: right; }
+.stats-exact-table td b { color: var(--admin-ink-2); font-weight: 700; }
+.stats-exact-table tr.is-zero td, .stats-exact-table tr.is-zero td b { color: var(--admin-faint); font-weight: 600; }
+.stats-matrix-scroll { margin-top: 14px; padding: 0 20px 4px; overflow-x: auto; }
+.stats-matrix-scroll:focus-visible { outline: 2px solid var(--admin-blue); outline-offset: -2px; }
+.stats-matrix-table { width: 100%; min-width: 880px; table-layout: fixed; border-collapse: separate; border-spacing: 2px; font-variant-numeric: tabular-nums; }
+.stats-matrix-table th, .stats-matrix-table td { min-width: 0; padding: 4px 1px; border-radius: 4px; text-align: center; font-size: 9px; white-space: nowrap; }
+.stats-matrix-table thead th { color: var(--admin-faint); font-weight: 700; }
+.stats-matrix-table thead th:first-child, .stats-matrix-table tbody th { position: sticky; left: 0; z-index: 1; width: 44px; background: var(--admin-canvas); }
+.stats-matrix-table thead th:first-child { z-index: 2; }
+.stats-matrix-table tbody th { color: var(--admin-ink-2); font-weight: 800; text-align: left; }
+.stats-matrix-table td { background: #f3f5f8; color: var(--admin-muted); }
+.stats-matrix-table td b { display: block; color: var(--admin-ink-2); font-size: 9.5px; }
+.stats-matrix-table td small { display: block; color: var(--admin-muted); font-size: 8px; }
+.stats-matrix-table td.is-zero { background: #f8f9fb; }
+.stats-matrix-table td.is-zero b, .stats-matrix-table td.is-zero small { color: var(--admin-faint); font-weight: 600; }
+@media (max-width: 600px) {
+  .stats-apply-legend { font-size: 9px; }
+  .stats-stack-chart { margin-right: 15px; margin-left: 15px; gap: 4px; }
+  .stats-stack-track { height: 84px; }
+  .stats-chart-scroll { margin-right: 15px; margin-left: 15px; }
+  .stats-mini-scroll { padding: 0 15px; }
+  .stats-exact { margin-right: 15px; margin-left: 15px; }
+  .stats-exact-table th, .stats-exact-table td { padding: 4px 6px; }
+  .stats-matrix-scroll { padding: 0 15px 4px; }
+}
+@media (max-width: 1000px) {
+  /* 좁아지면 요일 카드와 시간대 카드를 쌓는다. 남아 있던 세로 구분선을 가로선으로 바꾼다. */
+  .dashboard-grid.stats-detail-grid { grid-template-columns: minmax(0,1fr); }
+  .dashboard-grid.stats-detail-grid > .card + .card { border-top: 1px solid var(--admin-line); border-left: 0; }
+  .admin-body[data-admin-role="facility"] .admin-content .dashboard-grid.stats-detail-grid > .card + .card { border-top: 1px solid var(--admin-line-strong); border-left: 0; }
+  .admin-body[data-admin-role="facility"] .admin-content .dashboard-grid.stats-detail-grid > .card + .card::before { display: none; }
+  /* 신청 상태 카드도 같은 기준으로 쌓는다. */
+  .dashboard-grid.stats-apply-grid { grid-template-columns: minmax(0,1fr); }
+  .dashboard-grid.stats-apply-grid > .card + .card { border-top: 1px solid var(--admin-line); border-left: 0; }
+  .admin-body[data-admin-role="facility"] .admin-content .dashboard-grid.stats-apply-grid > .card + .card { border-top: 1px solid var(--admin-line-strong); border-left: 0; }
+  .admin-body[data-admin-role="facility"] .admin-content .dashboard-grid.stats-apply-grid > .card + .card::before { display: none; }
+}
 .wrap-content { max-width: 320px; white-space: normal; line-height: 1.5; }
 .wrap-content .cell-secondary { overflow: visible; white-space: normal; }
 .form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
@@ -387,6 +541,15 @@ button { color: inherit; }
 .facility-confirm-target span { flex: 0 0 auto; color: var(--admin-muted); font-size: 10.5px; font-weight: 700; }
 .facility-confirm-target strong { min-width: 0; color: var(--admin-ink); font-size: 12px; font-weight: 800; overflow-wrap: anywhere; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 0 23px 22px; }
+.modal-footer .admin-button { white-space: nowrap; }
+/* 모달이 열려 있는 동안 뒤 페이지는 스크롤되지 않게 한다. */
+body.has-admin-modal { overflow: hidden; }
+/* 매칭방 생성·수정 모달: 제목과 버튼은 고정하고 본문만 스크롤한다.
+   모달 전체를 스크롤하면 스크롤바가 둥근 모서리 밖으로 삐져나와 보이고, 끝까지 내리면 뒤 페이지로 스크롤이 넘어간다. */
+#room-editor-modal .admin-modal { display: flex; flex-direction: column; overflow: hidden; }
+#room-editor-form { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; }
+#room-editor-form .modal-body { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; }
+#room-editor-form .modal-footer { flex: 0 0 auto; padding-top: 14px; border-top: 1px solid var(--admin-line); }
 .notification-modal .modal-footer { align-items: center; justify-content: space-between; border-top: 1px solid var(--admin-line); padding-top: 12px; }
 .admin-notification-summary { margin: 0 0 7px; color: var(--admin-muted); font-size: 10px; font-weight: 700; }
 .admin-notification-list { min-height: 100px; flex: 1; overflow: auto; border-top: 1px solid var(--admin-line); border-bottom: 1px solid var(--admin-line); }
@@ -408,47 +571,15 @@ button { color: inherit; }
 .admin-notification-actions .admin-button { min-height: 30px; padding: 0 9px; font-size: 10px; }
 .admin-notification-empty { padding: 26px 10px; color: var(--admin-muted); font-size: 11px; text-align: center; }
 .admin-notifications-open { overflow: hidden; }
-.report-modal .modal-body { padding-top: 15px; }
 .report-modal-kicker { margin-bottom: 2px; color: var(--admin-blue-ink); font-size: 10px; font-weight: 800; letter-spacing: .04em; }
-.report-detail-grid { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(250px,.8fr); align-items: start; gap: 16px; }
-.report-evidence-column { min-width: 0; }
-.report-summary-card { padding: 0 0 13px; border: 0; border-bottom: 1px solid var(--admin-line); border-radius: 0; background: transparent; }
-.report-summary-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.report-summary-top b { color: var(--admin-ink); font-size: 12px; font-weight: 800; }
-.report-summary-copy { margin: 10px 0 12px; color: var(--admin-ink-2); font-size: 11.5px; line-height: 1.7; }
 .report-kv-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px 12px; }
 .report-kv { min-width: 0; }
 .report-kv small { display: block; color: var(--admin-faint); font-size: 9.5px; font-weight: 700; }
 .report-kv b { display: block; overflow: hidden; margin-top: 2px; color: var(--admin-ink-2); font-size: 10.5px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.report-evidence-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 17px 0 7px; }
-.report-evidence-heading h3 { margin: 0; font-size: 12px; font-weight: 800; }
-.report-evidence-heading p { margin: 2px 0 0; color: var(--admin-muted); font-size: 10px; }
 .report-log-count { padding: 3px 7px; border-radius: 99px; background: var(--admin-blue-soft); color: var(--admin-blue-ink); font-size: 9.5px; font-weight: 800; }
-.report-evidence-list { display: grid; border-top: 1px solid var(--admin-line); border-bottom: 1px solid var(--admin-line); background: transparent; }
-.report-evidence-item { display: grid; grid-template-columns: 60px 9px minmax(0,1fr); gap: 8px; padding: 10px 11px; border-bottom: 1px solid var(--admin-line); }
-.report-evidence-item:last-child { border-bottom: 0; }
-.report-evidence-item time { padding-top: 1px; color: var(--admin-faint); font-family: Archivo, sans-serif; font-size: 9px; font-weight: 600; }
-.evidence-marker { width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: var(--admin-blue); }
-.evidence-marker.warn { background: var(--admin-amber); }
-.evidence-marker.bad { background: var(--admin-red); }
-.evidence-copy { min-width: 0; }
-.evidence-copy b { display: block; color: var(--admin-ink-2); font-size: 10.5px; font-weight: 800; }
-.evidence-copy p { margin: 2px 0 0; color: var(--admin-muted); font-size: 10px; line-height: 1.55; }
-.evidence-copy a { display: inline-block; margin-top: 3px; color: var(--admin-blue-ink); font-family: Archivo, sans-serif; font-size: 9px; font-weight: 700; }
-.report-history { margin-top: 10px; padding: 10px 12px; border: 1px solid #f0dfb6; border-radius: 9px; background: #fffaf0; color: #754b0d; font-size: 10px; line-height: 1.6; }
-.report-history strong { font-weight: 800; }
 .report-decision-card { position: sticky; top: 0; display: grid; gap: 12px; padding: 0 0 0 16px; border: 0; border-left: 1px solid var(--admin-line); border-radius: 0; background: transparent; }
-.report-decision-label { color: var(--admin-blue-ink); font-size: 10px; font-weight: 800; }
 .report-decision-card .form-field small { color: var(--admin-muted); font-size: 9.5px; line-height: 1.5; }
 .report-decision-card textarea { min-height: 118px; }
-.report-notify-option { display: flex; align-items: flex-start; gap: 7px; color: var(--admin-ink-2); font-size: 10px; font-weight: 600; }
-.report-notify-option input { width: 14px; height: 14px; flex: 0 0 14px; margin: 1px 0 0; accent-color: var(--admin-blue); }
-.report-action-note { padding: 9px 10px; border-radius: 8px; background: var(--admin-blue-soft); color: var(--admin-blue-ink); font-size: 10px; line-height: 1.55; }
-.report-action-note.is-danger { background: var(--admin-red-soft); color: #a62e2c; }
-.toast { position: fixed; right: 24px; bottom: 22px; z-index: 90; max-width: min(420px,calc(100vw - 32px)); padding: 12px 16px; border-radius: 10px; background: rgba(19,21,25,.94); color: white; box-shadow: 0 8px 24px #0002; font-size: 12px; font-weight: 600; opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .18s, transform .18s; }
-.toast.show { opacity: 1; transform: translateY(0); }
-.toast[data-kind="success"] { background: #145c3b; }
-.toast[data-kind="error"] { background: #8e302e; }
 .empty-state { padding: 38px 18px; color: var(--admin-muted); text-align: center; }
 .empty-state b { display: block; color: var(--admin-ink-2); font-size: 13px; }
 .empty-state p { margin: 4px 0 0; font-size: 11px; }
@@ -472,12 +603,21 @@ button { color: inherit; }
 @media (max-width: 1120px) {
   .metric-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .stats-metrics .metric-card:last-child, .metric-grid.three-metrics .metric-card:last-child { grid-column: 1/-1; }
+  .stats-metrics .metric-card:last-child { grid-column: auto; }
   .metric-card + .metric-card { border-left: 0; }
   .metric-card + .metric-card::before { display: none; }
   .metric-card:nth-child(even)::before { display: block; }
   .metric-card:nth-child(-n+2) { border-bottom: 1px solid var(--metric-divider-color); }
   /* 지표가 두 칸뿐이면 한 줄로 끝나므로 줄 사이 구분선을 그리지 않는다. */
   .metric-grid.two-metrics .metric-card:nth-child(-n+2) { border-bottom: 0; }
+  /* 통계 지표는 확정 인원 3칸 + 신청 3칸 구성이다. 2열로 접으면 사용자가 넣은
+     .stats-metric-divider가 행 사이에 끼어 배치를 밀어내므로 숨기고, 기사(article) 기준으로
+     세로선(오른쪽 열)과 가로선(앞 두 행)을 직접 그린다. 구분선 div 때문에 :nth-of-type을 쓴다. */
+  .stats-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .stats-metric-divider { display: none; }
+  .stats-metrics .metric-card::before { display: none; }
+  .stats-metrics .metric-card:nth-of-type(even)::before { display: block; top: 18px; bottom: 18px; left: 0; width: 1px; background: var(--metric-divider-color); content: ""; }
+  .stats-metrics .metric-card:nth-of-type(-n+4) { border-bottom: 1px solid var(--metric-divider-color); }
   .admin-content { padding-right: 22px; padding-left: 22px; }
   .admin-topbar { padding-right: 22px; padding-left: 22px; }
   .dashboard-grid { grid-template-columns: minmax(0,1.35fr) minmax(270px,1fr); }
@@ -535,6 +675,15 @@ button { color: inherit; }
   .metric-grid.two-metrics { grid-template-columns: 1fr; }
   .metric-grid.two-metrics .metric-card:nth-child(even)::before { display: none; }
   .metric-grid.two-metrics .metric-card + .metric-card { border-top: 1px solid var(--metric-divider-color); }
+  /* 좁은 화면에서 6칸 지표는 2열에서도 한 칸이 160px 아래로 좁아 기준 문구가 끊긴다.
+     한 칸씩 쌓고 세로·가로 구분선(의사 요소)은 모두 지운 뒤 카드 아래 테두리로만 나눈다.
+     1120px 블록의 :nth-of-type(even) 세로선 규칙과 명시도를 맞춰 덮어야 하므로 같은 형태를 쓴다. */
+  .stats-metrics { grid-template-columns: 1fr; }
+  .stats-metrics .metric-card { border: 0; border-bottom: 1px solid var(--metric-divider-color); }
+  .stats-metrics .metric-card:last-child { border-bottom: 0; }
+  .stats-metrics .metric-card:nth-of-type(n)::before,
+  .stats-metrics .metric-card:nth-of-type(n)::after { display: none; }
+  .stats-metrics .metric-foot { flex-wrap: wrap; row-gap: 2px; }
   .toolbar { align-items: stretch; padding: 11px; }
   .field-control, .search-control { min-width: calc(50% - 5px); flex: 1; }
   .toolbar-spacer { display: none; }
@@ -559,10 +708,8 @@ button { color: inherit; }
   .setting-card:nth-child(even) { border-left: 0; }
   .setting-card + .setting-card { border-top: 1px solid var(--admin-line); }
   .form-field.full { grid-column: auto; }
-  .report-detail-grid { grid-template-columns: 1fr; }
   .report-decision-card { position: static; padding: 14px 0 0; border-top: 1px solid var(--admin-line); border-left: 0; }
   .table-footer { align-items: flex-start; flex-direction: column; }
-  .toast { right: 14px; bottom: 14px; }
 }
 
 .date-schedule-section { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--admin-line-strong); }
@@ -622,15 +769,7 @@ button { color: inherit; }
 .closure-impact-lines strong { color: var(--admin-blue-ink); font-weight: 700; }
 .closure-impact-lines .blocked strong { color: #95620d; }
 .booking-impact-note { display: block; margin-top: 3px; color: #95620d; font-size: 9px; line-height: 1.35; }
-.popular-hours-chart { display: grid; gap: 15px; padding: 18px 20px 20px; }
-.popular-hour-row { display: grid; gap: 5px; }
-.popular-hour-header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.popular-hour-header span { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
-.popular-hour-header b { color: var(--admin-ink-2); font-size: 10.5px; }
-.popular-hour-header small, .popular-hour-header strong { color: var(--admin-muted); font-size: 9.5px; }
-.popular-hour-header strong { font-family: Archivo,sans-serif; font-weight: 700; white-space: nowrap; }
-.popular-hour-track { height: 6px; overflow: hidden; border-radius: 99px; background: #edf0f4; }
-.popular-hour-track i { display: block; height: 100%; border-radius: inherit; background: var(--admin-blue); }
+/* (예약 통계의 인기 시간대 막대는 전체 대비 비중을 보여 주는 .stats-hour-list로 대체되었습니다.) */
 .room-detail-summary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); border-block: 1px solid var(--admin-line); }
 .room-detail-summary > div { display: grid; gap: 4px; min-width: 0; padding: 11px 12px 11px 0; }
 .room-detail-summary > div:nth-child(even) { padding-left: 14px; border-left: 1px solid var(--admin-line); }
@@ -730,7 +869,16 @@ button { color: inherit; }
   .date-calendar-day small { font-size: 8px; }
   .date-hour-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .hour-slot { font-size: 9px; }
-  .popular-hours-chart { padding: 15px; }
+  /* 통계 상세: 24칸 시간대는 두 열이면 한 칸이 40px 아래로 줄어 숫자가 붙는다. 한 열로 쌓는다. */
+  .stats-day-list, .stats-hour-list { padding: 12px 15px 15px; }
+  .stats-hour-list { grid-template-columns: minmax(0,1fr); grid-template-rows: none; grid-auto-flow: row; column-gap: 0; }
+  .stats-hour-row:nth-child(12n) { border-bottom: 1px solid var(--admin-line); }
+  .stats-hour-row:last-child { border-bottom: 0; }
+  .stats-day-row { grid-template-columns: 28px minmax(0,1fr) 40px 58px; gap: 7px; }
+  .stats-hour-row { grid-template-columns: 36px minmax(0,1fr) 36px 54px; gap: 7px; }
+  .stats-heatmap-scroll { padding: 0 15px 5px; }
+  .stats-heat-legend { padding: 4px 15px 15px; }
+  .stats-heat-legend-note { flex: 1 0 100%; margin-left: 0; }
 }
 
 @media (max-width: 400px) {

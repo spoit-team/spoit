@@ -3,6 +3,7 @@ package co.kr.spoit.web;
 import static co.kr.spoit.member.domain.MemberPrincipalFixture.facilityManager;
 import static co.kr.spoit.member.domain.MemberPrincipalFixture.member;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -53,6 +54,9 @@ class AdminFacilityPageTest {
     private RoomManagementService roomManagementService;
 
     @MockitoBean
+    private co.kr.spoit.facility.service.FacilityStatsService facilityStatsService;
+
+    @MockitoBean
     private MemberLoginSuccessHandler loginSuccessHandler;
 
     @MockitoBean
@@ -91,6 +95,25 @@ class AdminFacilityPageTest {
                 .andExpect(content().string(not(containsString("/admin/system"))));
 
         verify(facilityService).findManagedFacilities(7L);
+    }
+
+    @Test
+    @DisplayName("매칭방 생성·수정 실패 flash는 공용 실패 안내로 넘기고, 없으면 안내 요소를 비워 둔다")
+    void rendersRoomErrorAlertFromFlash() throws Exception {
+        when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
+        when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/facility").param("view", "bookings").with(user(facilityManager()))
+                        .flashAttr("errorTitle", "매칭방을 만들 수 없습니다")
+                        .flashAttr("error", "동시 대관 한도를 넘었습니다."))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("data-error=\"동시 대관 한도를 넘었습니다.\"")))
+                .andExpect(content().string(containsString("data-error-title=\"매칭방을 만들 수 없습니다\"")))
+                .andExpect(content().string(not(containsString("room-error-modal"))));
+
+        mockMvc.perform(get("/admin/facility").param("view", "bookings").with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(matchesRegex("(?s).*id=\"ui-feedback-flash\"\s+hidden\s*>.*")));
     }
 
     @Test
@@ -332,31 +355,33 @@ class AdminFacilityPageTest {
     }
 
     @Test
-    @DisplayName("변경 성공 메시지를 시설 화면에 렌더링한다")
-    void rendersSuccessMessageFromQuery() throws Exception {
+    @DisplayName("변경 성공 메시지를 공용 안내(토스트)로 넘긴다")
+    void rendersSuccessMessageAsToast() throws Exception {
         when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
         when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
 
-        mockMvc.perform(get("/admin/facility").param("message", "시설 정보를 수정했습니다.")
+        mockMvc.perform(get("/admin/facility").flashAttr("message", "시설 정보를 수정했습니다.")
                         .with(user(facilityManager())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("시설 정보를 수정했습니다.")))
-                .andExpect(content().string(containsString("admin-flash")))
-                .andExpect(content().string(not(containsString("admin-flash is-error"))));
+                .andExpect(content().string(containsString("id=\"ui-feedback-flash\"")))
+                .andExpect(content().string(containsString("data-toast=\"시설 정보를 수정했습니다.\"")))
+                .andExpect(content().string(not(containsString("data-error="))));
     }
 
     @Test
-    @DisplayName("변경 실패 메시지를 시설 화면에 오류 안내로 렌더링한다")
-    void rendersErrorMessageFromQuery() throws Exception {
+    @DisplayName("변경 실패 메시지를 공용 안내(제목 + 원인 모달)로 넘긴다")
+    void rendersErrorMessageAsAlert() throws Exception {
         when(roomManagementService.findRooms(7L, null, null, null, null)).thenReturn(emptyRooms());
         when(facilityService.findManagedFacilities(7L)).thenReturn(List.of());
 
-        mockMvc.perform(get("/admin/facility").param("error", "담당 시설만 관리할 수 있습니다.")
+        mockMvc.perform(get("/admin/facility")
+                        .flashAttr("errorTitle", "시설 정보를 수정할 수 없습니다")
+                        .flashAttr("error", "담당 시설만 관리할 수 있습니다.")
                         .with(user(facilityManager())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("담당 시설만 관리할 수 있습니다.")))
-                .andExpect(content().string(containsString("admin-flash is-error")))
-                .andExpect(content().string(containsString("role=\"alert\"")));
+                .andExpect(content().string(containsString("data-error=\"담당 시설만 관리할 수 있습니다.\"")))
+                .andExpect(content().string(containsString("data-error-title=\"시설 정보를 수정할 수 없습니다\"")))
+                .andExpect(content().string(not(containsString("data-toast="))));
     }
 
     @Test

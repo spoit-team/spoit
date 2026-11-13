@@ -62,6 +62,9 @@ class FacilityManageRouteTest {
     private co.kr.spoit.match.service.RoomManagementService roomManagementService;
 
     @MockitoBean
+    private co.kr.spoit.facility.service.FacilityStatsService facilityStatsService;
+
+    @MockitoBean
     private MemberLoginSuccessHandler loginSuccessHandler;
 
     @MockitoBean
@@ -82,8 +85,8 @@ class FacilityManageRouteTest {
                         .param("concurrentMatchLimit", "3")
                         .param("status", "운영 중"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl(ASSETS_REDIRECT + "?message="
-                        + encoded("시설을 등록했습니다.") + ASSETS_FRAGMENT));
+                .andExpect(redirectedUrl(ASSETS_REDIRECT + ASSETS_FRAGMENT))
+                .andExpect(flash().attribute("message", "시설을 등록했습니다."));
 
         verify(facilityService).registerFacility(eq(7L), any(FacilityForm.class));
     }
@@ -98,8 +101,8 @@ class FacilityManageRouteTest {
                         .param("concurrentMatchLimit", "5")
                         .param("status", "점검 중"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl(ASSETS_REDIRECT + "?message="
-                        + encoded("시설 정보를 수정했습니다.") + ASSETS_FRAGMENT));
+                .andExpect(redirectedUrl(ASSETS_REDIRECT + ASSETS_FRAGMENT))
+                .andExpect(flash().attribute("message", "시설 정보를 수정했습니다."));
 
         verify(facilityService).updateFacility(eq(7L), eq(10L), any(FacilityForm.class));
     }
@@ -109,8 +112,8 @@ class FacilityManageRouteTest {
     void facilityManagerCanDelete() throws Exception {
         mockMvc.perform(post("/admin/facilities/10/delete").with(user(facilityManager())).with(csrf()))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl(ASSETS_REDIRECT + "?message="
-                        + encoded("시설을 삭제했습니다.") + ASSETS_FRAGMENT));
+                .andExpect(redirectedUrl(ASSETS_REDIRECT + ASSETS_FRAGMENT))
+                .andExpect(flash().attribute("message", "시설을 삭제했습니다."));
 
         verify(facilityService).deleteFacility(7L, 10L);
     }
@@ -125,8 +128,8 @@ class FacilityManageRouteTest {
                         .param("concurrentMatchLimit", "구역수아님")
                         .param("status", "운영 중"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl(ASSETS_REDIRECT + "?error="
-                        + encoded("입력 정보를 확인해 주세요.") + ASSETS_FRAGMENT));
+                .andExpect(redirectedUrl(ASSETS_REDIRECT + ASSETS_FRAGMENT))
+                .andExpect(flash().attribute("error", "입력 정보를 확인해 주세요."));
 
         verifyNoInteractions(facilityService);
     }
@@ -139,8 +142,8 @@ class FacilityManageRouteTest {
 
         mockMvc.perform(post("/admin/facilities/10/delete").with(user(facilityManager())).with(csrf()))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl(ASSETS_REDIRECT + "?error="
-                        + encoded("담당 시설만 관리할 수 있습니다.") + ASSETS_FRAGMENT));
+                .andExpect(redirectedUrl(ASSETS_REDIRECT + ASSETS_FRAGMENT))
+                .andExpect(flash().attribute("error", "담당 시설만 관리할 수 있습니다."));
     }
 
     @Test
@@ -216,12 +219,8 @@ class FacilityManageRouteTest {
                         .param("concurrentMatchLimit", "3")
                         .param("status", "운영 중"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl(ASSETS_REDIRECT + "?error="
-                        + encoded("수정할 시설을 찾을 수 없습니다.") + ASSETS_FRAGMENT));
-    }
-
-    private static String encoded(String value) {
-        return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
+                .andExpect(redirectedUrl(ASSETS_REDIRECT + ASSETS_FRAGMENT))
+                .andExpect(flash().attribute("error", "수정할 시설을 찾을 수 없습니다."));
     }
 
     private static MatchPeriod match(long matchId, String title) {

@@ -36,10 +36,9 @@
     <ol class="match-result-steps" data-result-steps hidden aria-label="결과 반영 단계"></ol>
 
     <section class="match-result-summary" aria-labelledby="match-result-match-title" hidden data-result-summary>
-      <p class="match-result-sport" data-field="sport">SPO:IT MATCH</p>
+      <p class="match-result-sport"><span data-field="sport">SPO:IT MATCH</span><span aria-hidden="true"> · </span><span data-field="matchId">—</span></p>
       <h2 id="match-result-match-title" data-field="title">경기 결과</h2>
       <dl class="match-result-facts">
-        <div><dt>경기 번호</dt><dd data-field="matchId">—</dd></div>
         <div><dt>일시</dt><dd data-field="schedule">—</dd></div>
         <div><dt>시설</dt><dd data-field="facility">—</dd></div>
         <div><dt>내 진영</dt><dd data-field="side" th:text="${page != null and page.mySide != null ? page.mySide + '팀' : '—'}">—</dd></div>
@@ -56,7 +55,6 @@
         <span class="mypage-section-index" aria-hidden="true">01</span>
         <div>
           <h2 id="match-result-heading">경기 결과</h2>
-          <p>본인 경기의 확정 결과와 레이팅 반영 상태입니다.</p>
         </div>
       </div>
       <p class="auth-message match-result-message" data-result-message role="status" aria-live="polite" hidden></p>
@@ -90,7 +88,7 @@
         <span class="mypage-section-index" aria-hidden="true">03</span>
         <div>
           <h2 id="match-evaluation-heading">선수 평가</h2>
-          <p>모든 칸을 0~10점이나 관찰 불가로 고르고, 제출한 평가는 고칠 수 없습니다.</p>
+          <p>모든 칸을 슬라이더로 0~10점을 고르거나 못 봄으로 두고, 제출한 평가는 고칠 수 없습니다.</p>
         </div>
       </div>
       <p class="auth-message match-result-message" data-evaluation-message role="status" aria-live="polite" hidden></p>

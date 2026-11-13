@@ -6,14 +6,12 @@
 
 <main class="team-page-main wrap">
   <div th:if="${club == null}">
-    <a class="team-detail-back" th:href="@{/teams}"><span aria-hidden="true">←</span> 동호회 목록으로 돌아가기</a>
-    <div class="team-empty-state"><h2>동호회 정보를 찾을 수 없습니다</h2><p>삭제되었거나 주소가 올바르지 않습니다.</p><a class="team-button team-button-primary" th:href="@{/teams}">동호회 목록으로 돌아가기</a></div>
+    <a class="team-detail-back" th:href="@{/teams}" data-back-to-list><span aria-hidden="true">←</span> 동호회 목록으로 돌아가기</a>
+    <div class="team-empty-state"><h2>동호회 정보를 찾을 수 없습니다</h2><p>삭제되었거나 주소가 올바르지 않습니다.</p><a class="team-button team-button-primary" th:href="@{/teams}" data-back-to-list>동호회 목록으로 돌아가기</a></div>
   </div>
 
   <div th:if="${club != null}" id="team-detail" aria-live="polite">
-    <a class="team-detail-back" th:href="@{/teams}"><span aria-hidden="true">←</span> 동호회 목록으로 돌아가기</a>
-    <p th:if="${message != null}" id="team-status-message" class="team-status-message" role="status" th:text="${message}">동호회 안내</p>
-    <p th:if="${error != null}" id="team-status-error" class="team-status-message is-error" role="alert" th:text="${error}">동호회 요청을 처리하지 못했습니다.</p>
+    <a class="team-detail-back" th:href="@{/teams}" data-back-to-list><span aria-hidden="true">←</span> 동호회 목록으로 돌아가기</a>
     <article class="team-detail-card" th:attr="aria-label=${club.clubName + ' 동호회 상세 정보'}">
       <section class="team-detail-hero">
         <div class="team-detail-heading">
@@ -71,7 +69,6 @@
     <div class="team-dialog-body">
       <p id="team-application-summary" class="team-dialog-summary" th:text="${club != null ? club.clubName + ' · ' + club.sportName + ' · ' + club.areaLabel : ''}">동호회 정보</p>
       <label class="team-form-field"><span>자기소개</span><textarea id="team-application-message" name="message" rows="4" maxlength="200" placeholder="운동 경험이나 참여 가능한 시간을 적어 주세요."></textarea><small><span id="team-application-count">0</span> / 200자</small></label>
-      <p th:if="${applicationError != null}" id="team-application-error" class="team-form-error" role="alert" th:text="${applicationError}">신청을 처리하지 못했습니다.</p>
     </div>
     <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-primary" type="submit">가입 신청 보내기</button></div>
   </form>
@@ -83,7 +80,7 @@
   <div class="team-history-footer"><button class="team-history-button" type="button" data-history-close>닫기</button></div>
 </dialog>
 
-<div id="team-toast" class="team-toast" role="status" aria-live="polite" hidden></div>
+<div th:replace="~{fragments/feedback :: flash}"></div>
 
 <!-- 헤더 종 아이콘에서 여는 통합 알림 창 -->
 <div th:replace="~{fragments/notification :: center(${currentMember != null})}"></div>

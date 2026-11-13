@@ -9,6 +9,9 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
   <link rel="stylesheet" th:href="@{/css/admin.css(v=${cssVersion})}" />
   <link rel="stylesheet" th:each="style : ${styles}" th:href="@{/css/{name}(name=${style}, v=${cssVersion})}" />
+  <link rel="stylesheet" th:href="@{/css/ui-feedback.css(v=${cssVersion})}" />
+  <!-- 공용 결과 안내(성공 토스트·실패 모달): 화면 스크립트가 바로 쓸 수 있게 defer 없이 먼저 불러옵니다. -->
+  <script th:src="@{/js/ui-feedback.js(v=${cssVersion})}"></script>
   <!-- 통합 알림: 관리자 상단바 배지와 알림 목록을 실제 데이터로 갱신합니다. -->
   <script th:src="@{/js/notification-center.js(v=${cssVersion})}" defer></script>
 </head>
@@ -32,6 +35,12 @@
       <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-schedule'" data-view-target="facility-schedule"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M14 14h2M8 17h3"/></svg></span>예약 운영 일정</a>
       <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-bookings'" data-view-target="facility-bookings"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M8 17h7"/></svg></span>매칭방 관리</a>
       <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-stats'" data-view-target="facility-stats"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M4 20V11M10 20V5M16 20v-8M22 20V8"/></svg></span>예약 통계</a>
+    </div>
+    <div class="admin-nav-group">
+      <span class="admin-nav-label">이용자 보호</span>
+      <!-- 신고 화면은 별도 URL이다. data-view-target을 붙이면 admin-shell.js가 같은 경로 안의
+           화면 전환으로 가로채므로, URL 링크로 그대로 이동하도록 두지 않는다. -->
+      <a class="admin-nav-link" th:href="@{/admin/facility/reports}" th:aria-current="${active == 'facility-reports' ? 'page' : null}"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 7.6 7.5 9.5 4.3-1.9 7.5-5 7.5-9.5V6L12 3Z"/><path d="M12 9v4M12 16h.01"/></svg></span>신고 관리</a>
     </div>
     <div class="admin-nav-group">
       <span class="admin-nav-label">콘텐츠</span>
@@ -63,17 +72,14 @@
     <div class="admin-nav-group">
       <span class="admin-nav-label">사용자 관리</span>
       <a class="admin-nav-link" th:href="@{/admin/system} + '#system-users'" data-view-target="system-users"><span class="nav-symbol"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0M16 5.5a3.5 3.5 0 0 1 0 6.8M17.5 14.5a5.7 5.7 0 0 1 3.7 5.5"/></svg></span>사용자 관리</a>
-      <a class="admin-nav-link" th:href="@{/admin/system} + '#system-reports'" data-view-target="system-reports"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg></span>신고·제재<span class="nav-count" th:if="${reportMetrics != null and reportMetrics.openCount > 0}" th:text="${reportMetrics.openCount}">0</span></a>
+      <!-- 신고 접수함은 별도 URL 화면이다. data-view-target을 붙이면 같은 경로 안의 화면 전환으로
+           가로채이므로 URL 링크로 그대로 이동하도록 두지 않는다. -->
+      <a class="admin-nav-link" th:href="@{/admin/system/reports}" th:aria-current="${active == 'system-reports' ? 'page' : null}"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 7.6 7.5 9.5 4.3-1.9 7.5-5 7.5-9.5V6L12 3Z"/><path d="M9 12h6M12 9v6"/></svg></span>신고 접수함</a>
       <a class="admin-nav-link" th:href="@{/admin/system} + '#system-penalties'" data-view-target="system-penalties"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 7.6 7.5 9.5 4.3-1.9 7.5-5 7.5-9.5V6L12 3Z"/><path d="M9 12h6M12 9v6"/></svg></span>페널티 관리</a>
-    </div>
-    <div class="admin-nav-group">
-      <span class="admin-nav-label">콘텐츠 관리</span>
-      <a class="admin-nav-link" th:href="@{/admin/system} + '#system-cms'" data-view-target="system-cms"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M5 4.5h14v15H5zM8 8h8M8 11.5h8M8 15h5"/><path d="M8 2.5v4M16 2.5v4"/></svg></span>공지·FAQ·약관</a>
     </div>
     <div class="admin-nav-group">
       <span class="admin-nav-label">운영 설정</span>
       <a class="admin-nav-link" th:href="@{/admin/system} + '#system-settings'" data-view-target="system-settings"><span class="nav-symbol"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.1 1.9-1.7 2.9-2.1-.4-.1.1-1.4 1.3h-3.4l-1.4-1.3-.1-.1-2.1.4-1.7-2.9 1.1-1.9L6.8 13l-.3-2.1-1-1.9 1.7-2.9 2.1.4.1-.1 1.4-1.3h3.4l1.4 1.3.1.1 2.1-.4 1.7 2.9-1 1.9.3 2.1Z"/></svg></span>환경 설정</a>
-      <a class="admin-nav-link" th:href="@{/admin/system} + '#system-audit'" data-view-target="system-audit"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h4"/><circle cx="18" cy="18" r="3" fill="white"/></svg></span>감사 로그</a>
     </div>
   </nav>
   <div class="sidebar-spacer"></div>
@@ -134,8 +140,6 @@
     <p class="sr-only" data-notification-status role="status" aria-live="polite"></p>
   </section>
 </div>
-
-<div th:fragment="toast" class="toast" id="admin-toast" role="status" aria-live="polite"></div>
 
 </body>
 </html>

@@ -14,12 +14,7 @@
     <a th:href="@{/mypage}" class="mypage-edit-link profile-edit-back">마이페이지로 <span aria-hidden="true">↗</span></a>
   </section>
 
-  <p th:if="${error != null}" id="profile-edit-error" class="auth-message is-error mypage-message" role="alert" th:text="${error}">프로필을 저장하지 못했습니다.</p>
-  <p th:if="${message != null}" id="profile-edit-message" class="auth-message is-success mypage-message" role="status" th:text="${message}">프로필 저장 결과</p>
-  <aside class="mypage-notice profile-edit-notice" aria-label="프로필 안내">
-    <span class="mypage-notice-mark" aria-hidden="true">i</span>
-    <p>프로필은 서버에 저장됩니다. 레이팅은 확정 매치 기록을 기준으로 서버가 계산하며 이 화면에서 직접 설정할 수 없습니다.</p>
-  </aside>
+  <div th:replace="~{fragments/feedback :: flash}"></div>
 
   <form id="profile-form" class="profile-edit-form" method="post" th:action="@{/mypage/profile}">
     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
@@ -32,13 +27,13 @@
         <label for="profile-representative-sport">대표 종목</label>
         <select id="profile-representative-sport" name="representativeSportId" class="auth-input" aria-describedby="representative-help">
           <option value="">대표 종목 선택 안 함</option>
-          <option th:each="sport : ${sports}" th:value="${sport.sportId}" th:text="${sport.name}" th:selected="${profile != null and profile.representativeSportId == sport.sportId}" th:data-rating="${sportRatings[sport.sportId] ?: '기록 없음'}">종목</option>
+          <option th:each="sport : ${sports}" th:value="${sport.sportId}" th:text="${sport.name}" th:selected="${profile != null and profile.representativeSportId == sport.sportId}" th:data-rating="${sportRatings[sport.sportId] ?: '기록 없음'}" th:data-tier="${sportTierKeys[sport.sportId]}">종목</option>
         </select>
-        <p id="representative-help">종목을 선택하면 해당 종목의 개인 레이팅 평균을 마이페이지에 표시합니다.</p>
+        <p id="representative-help">선택한 종목의 티어를 마이페이지 맨 위에 보여 줍니다.</p>
       </div>
       <div class="profile-edit-preview" aria-live="polite" aria-atomic="true">
         <span class="profile-edit-preview-label">현재 표시 레이팅</span>
-        <strong id="representative-level-preview" th:text="${profile != null and profile.representativeRatingText != null ? profile.representativeRatingText : '기록 없음'}">기록 없음</strong>
+        <strong id="representative-level-preview" th:classappend="${profile != null and profile.representativeTierKey != null ? 'is-tier-' + profile.representativeTierKey : ''}" th:text="${profile != null and profile.representativeRatingText != null ? profile.representativeRatingText : '기록 없음'}">기록 없음</strong>
         <p id="representative-level-note" th:text="${profile != null and profile.representativeRatingNote != null ? profile.representativeRatingNote : '확정 매치 기록이 없으면 기록 없음으로 표시합니다.'}">확정 매치 기록에 따라 표시하며 직접 수정할 수 없습니다.</p>
       </div>
     </section>

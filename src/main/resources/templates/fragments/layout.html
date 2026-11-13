@@ -11,6 +11,9 @@
   <link rel="stylesheet" th:href="@{/css/styles.css}" />
   <link rel="stylesheet" th:each="style : ${styles}" th:href="@{/css/{name}(name=${style})}" />
   <link rel="stylesheet" th:href="@{/css/notification-center.css}" />
+  <link rel="stylesheet" th:href="@{/css/ui-feedback.css(v=${cssVersion})}" />
+  <!-- 공용 결과 안내(성공 토스트·실패 모달): 화면 스크립트가 바로 쓸 수 있게 defer 없이 먼저 불러옵니다. -->
+  <script th:src="@{/js/ui-feedback.js(v=${cssVersion})}"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <!-- 통합 알림: 헤더에 알림 설정 요소가 있는 화면에서만 배지·목록을 실제 데이터로 갱신합니다. -->
   <script th:src="@{/js/notification-center.js}" defer></script>

@@ -31,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import co.kr.spoit.facility.domain.FacilityClosure;
+import co.kr.spoit.facility.domain.DateOverrideSlot;
 import co.kr.spoit.facility.domain.MatchPeriod;
 import co.kr.spoit.facility.dto.CalendarView;
 import co.kr.spoit.facility.dto.ClosureForm;
@@ -108,6 +109,9 @@ class FacilityScheduleRoundTripIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
+    private FacilityScheduleMapper scheduleMapper;
+
+    @Autowired
     private PlatformTransactionManager transactionManager;
 
     @DynamicPropertySource
@@ -128,6 +132,17 @@ class FacilityScheduleRoundTripIntegrationTest {
         if (!"spoit_mat_test".equals(database)) {
             throw new IllegalStateException("전용 테스트 DB가 아니므로 fixture 실행을 중단합니다.");
         }
+    }
+
+    @Test
+    @DisplayName("슬롯 일괄 조회는 선택 시설만 포함하며 예외와 시간 순서를 지킨다")
+    void bulkSlotReadIsScopedAndSorted() {
+        jdbcTemplate.update("INSERT INTO facility_date_override (facility_date_override_id, facility_id, override_date) VALUES (95001, 9101, '2026-11-10'), (95002, 9101, '2026-11-11'), (95003, 9103, '2026-11-10')");
+        jdbcTemplate.update("INSERT INTO facility_date_override_slot (facility_date_override_id, slot_hour) VALUES (95001, 20), (95001, 8), (95003, 12)");
+
+        assertThat(scheduleMapper.selectDateOverrideSlots(FACILITY_ID))
+                .extracting(DateOverrideSlot::getOverrideId, DateOverrideSlot::getSlotHour)
+                .containsExactly(tuple(95001L, 8), tuple(95001L, 20));
     }
 
     @Test

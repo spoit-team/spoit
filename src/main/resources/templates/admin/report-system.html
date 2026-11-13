@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/admin :: head('신고 접수함 · SPO:IT 시스템 관리', '접수된 신고를 한 건씩 열어 확인하고 검토 중·처리 완료·기각으로 처리합니다.', ${ {'admin-system.css', 'admin-schedule.css', 'report-center.css'} })}"></head>
+<body class="admin-body" data-admin-role="system">
+<div class="admin-layout">
+  <aside th:replace="~{fragments/admin :: systemSidebar('system-reports')}"></aside>
+
+  <main class="admin-main">
+    <header th:replace="~{fragments/admin :: topbar('신고 접수함', '시스템 관리자')}"></header>
+
+    <div class="admin-content">
+      <!-- 처리 결과는 PRG로 되돌아올 때 서버가 넘긴 flash로만 표시합니다(성공 토스트·실패 안내 모달). -->
+      <div th:replace="~{fragments/feedback :: flash}"></div>
+
+      <div class="page-heading">
+        <div class="page-heading-copy">
+          <div class="page-eyebrow">서비스 운영 / 신고 접수함</div>
+          <h1>신고 접수함</h1>
+          <p>접수된 신고를 한 건씩 모달로 열어 내용을 확인하고, 검토 중·처리 완료·기각으로 처리합니다. 목록은 페이지 단위로 나뉘어 표시됩니다.</p>
+        </div>
+        <div class="heading-actions">
+          <span class="status-badge neutral" th:text="${'이 페이지 ' + (reports != null ? #lists.size(reports) : 0) + '건 · ' + ((reportPage != null ? reportPage : 0) + 1) + '페이지'}">이 페이지 0건</span>
+        </div>
+      </div>
+
+      <div class="notice-strip notice-policy">
+        <strong>검토 원칙</strong>
+        <p>신고 내용은 접수된 진술이며 사실로 확정된 것이 아닙니다. 신고만으로 자동 제재하지 않고, 내용과 관련 기록을 확인한 뒤 처리 방향과 사유를 기록합니다.</p>
+      </div>
+
+      <form class="report-toolbar" method="get" th:action="@{/admin/system/reports}" aria-label="신고 상태 필터">
+        <!-- 필터를 바꾸면 첫 페이지부터 봅니다. page를 보내지 않아 이전 페이지 번호가 남지 않습니다. -->
+        <select class="field-control" id="report-status-filter" name="status" aria-label="신고 처리 상태">
+          <option value="" th:selected="${statusFilter == null or statusFilter == '' or statusFilter == 'all'}">전체 상태</option>
+          <option value="접수" th:selected="${statusFilter == '접수'}">접수</option>
+          <option value="검토 중" th:selected="${statusFilter == '검토 중'}">검토 중</option>
+          <option value="처리 완료" th:selected="${statusFilter == '처리 완료'}">처리 완료</option>
+          <option value="기각" th:selected="${statusFilter == '기각'}">기각</option>
+        </select>
+        <button class="admin-button small" type="submit">검색</button>
+        <a class="admin-button small" th:href="@{/admin/system/reports}">초기화</a>
+        <span class="toolbar-spacer"></span>
+        <span class="report-toolbar-note">신고 원문은 상세를 열 때 한 건만 표시됩니다.</span>
+      </form>
+
+      <div class="report-ledger" id="report-ledger" th:if="${reports != null and !#lists.isEmpty(reports)}">
+        <div class="table-scroll">
+          <table class="admin-table report-table">
+            <caption class="sr-only">접수된 신고 목록</caption>
+            <thead>
+              <tr>
+                <th scope="col">접수 번호</th>
+                <th scope="col">경기</th>
+                <th scope="col">신고 대상</th>
+                <th scope="col">신고자</th>
+                <th scope="col">유형</th>
+                <th scope="col">접수 일시</th>
+                <th scope="col">상태</th>
+                <th scope="col">관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr th:each="report : ${reports}"
+                  th:classappend="${(selectedReport != null and selectedReport.reportId == report.reportId) ? 'is-selected' : ''}">
+                <td><span class="report-id" th:text="${'#' + report.reportId}">#0</span></td>
+                <td class="report-table-match">
+                  <span class="cell-primary" th:text="${report.matchTitle != null ? report.matchTitle : '경기 연결 없음'}">경기</span>
+                  <span class="cell-secondary"
+                        th:text="${(report.facilityName != null ? report.facilityName : '시설 미설정') + (report.matchId != null ? ' · 경기 #' + report.matchId : '')}">시설 · 경기 번호</span>
+                </td>
+                <td><span class="cell-primary" th:text="${report.targetName != null ? report.targetName : '이름 없음'}">신고 대상</span></td>
+                <td th:text="${report.reporterName != null ? report.reporterName : '—'}">신고자</td>
+                <td><span class="report-category" th:text="${report.category}">유형</span></td>
+                <td><span class="report-time" th:text="${report.createdAt}">접수 일시</span></td>
+                <td>
+                  <span th:replace="~{admin/report-fragments :: statusBadge(${report.status})}">상태</span>
+                </td>
+                <td>
+                  <a class="admin-button small"
+                     th:href="@{/admin/system/reports(reportId=${report.reportId}, status=${statusFilter}, page=${reportPage != null ? reportPage : 0})} + '#report-case'"
+                     th:aria-label="${'신고 ' + report.reportId + ' 상세 보기'}">상세 보기</a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 접수함 페이지: 첫 페이지에는 이전이, 마지막 페이지에는 다음이 없습니다.
+           링크는 query param만 쓰는 GET 이동이며 스크립트로 가로채지 않습니다. -->
+      <nav class="report-pager" aria-label="신고 접수함 페이지"
+           th:if="${(reports != null and !#lists.isEmpty(reports)) or (reportPage != null and reportPage > 0)}">
+        <span class="report-pager-label" th:text="${'신고 ' + ((reportPage != null ? reportPage : 0) + 1) + '페이지 · 이 페이지 ' + (reports != null ? #lists.size(reports) : 0) + '건'}">신고 1페이지</span>
+        <a class="report-page-link" rel="prev" th:if="${reportPage != null and reportPage > 0}"
+           th:href="@{/admin/system/reports(page=${reportPage - 1}, status=${statusFilter}, reportId=${selectedReport != null ? selectedReport.reportId : null})} + '#report-ledger'"
+           aria-label="이전 신고 페이지">← 이전</a>
+        <span class="report-page-current" aria-current="page" th:text="${(reportPage != null ? reportPage : 0) + 1} + '페이지'">1페이지</span>
+        <a class="report-page-link" rel="next" th:if="${hasNextReports}"
+           th:href="@{/admin/system/reports(page=${(reportPage != null ? reportPage : 0) + 1}, status=${statusFilter}, reportId=${selectedReport != null ? selectedReport.reportId : null})} + '#report-ledger'"
+           aria-label="다음 신고 페이지">다음 →</a>
+      </nav>
+
+      <div class="empty-state report-ledger-empty" th:if="${reports == null or #lists.isEmpty(reports)}">
+        <b>이 페이지에 표시할 신고가 없습니다.</b>
+        <p th:text="${(reportPage != null and reportPage > 0) ? '이전 페이지로 돌아가거나 상태 필터를 바꿔 주세요.' : '상태 필터를 바꾸거나, 아직 접수된 신고가 없다면 접수 알림을 기다려 주세요.'}">상태 필터를 바꾸거나, 아직 접수된 신고가 없다면 접수 알림을 기다려 주세요.</p>
+      </div>
+
+      <!-- 선택한 신고 한 건만 서버가 내려주며, 원문은 th:text로만 표시합니다.
+           상세는 페이지 아래가 아니라 모달로 열립니다. data-auto-open 같은 별도 프레임워크는 없고
+           admin-report.js가 hidden 상태의 이 모달을 열어 초점을 옮깁니다. -->
+      <div class="modal-backdrop report-modal" id="report-case" th:if="${selectedReport != null}" hidden
+           th:attr="data-report-list-url=@{/admin/system/reports},data-report-status=${statusFilter},data-report-page=${reportPage != null ? reportPage : 0}">
+        <section class="admin-modal wide report-selected" role="dialog" aria-modal="true"
+                 aria-labelledby="report-case-title">
+          <div class="modal-header">
+            <div>
+              <p class="report-kicker">접수 상세</p>
+              <h2 id="report-case-title" th:text="${'신고 #' + selectedReport.reportId}">신고 #0</h2>
+              <p class="report-case-target" th:text="${'대상 ' + (selectedReport.targetName != null ? selectedReport.targetName : '이름 없음') + ' · ' + selectedReport.category}">대상 · 유형</p>
+            </div>
+            <span th:replace="~{admin/report-fragments :: statusBadge(${selectedReport.status})}">상태</span>
+            <button class="modal-close" type="button" data-close-report aria-label="신고 상세 닫기">×</button>
+          </div>
+          <div class="modal-body report-selected-main">
+            <dl class="report-selected-facts report-modal-facts">
+              <div>
+                <dt>경기</dt>
+                <dd>
+                  <span th:text="${selectedReport.matchTitle != null ? selectedReport.matchTitle : '경기 연결 없음'}">경기</span>
+                  <small th:if="${selectedReport.matchId != null}" th:text="${'경기 #' + selectedReport.matchId}">경기 #0</small>
+                </dd>
+              </div>
+              <div>
+                <dt>시설</dt>
+                <dd th:text="${selectedReport.facilityName != null ? selectedReport.facilityName : '—'}">시설</dd>
+              </div>
+              <div>
+                <dt>신고자</dt>
+                <dd th:text="${selectedReport.reporterName != null ? selectedReport.reporterName : '—'}">신고자</dd>
+              </div>
+              <div>
+                <dt>접수 일시</dt>
+                <dd th:text="${selectedReport.createdAt}">접수 일시</dd>
+              </div>
+            </dl>
+            <div class="report-case-summary">
+              <h3>신고 내용</h3>
+              <p class="report-statement" th:text="${selectedReport.summary != null and !#strings.isEmpty(selectedReport.summary) ? selectedReport.summary : '작성된 신고 내용이 없습니다.'}">신고 내용</p>
+              <p class="report-statement-caption">신고자가 접수한 진술이며, 사실로 확정된 내용이 아닙니다.</p>
+            </div>
+            <div class="report-case-result" th:if="${selectedReport.resolution != null and !#strings.isEmpty(selectedReport.resolution)}">
+              <h3>기록된 처리 결과</h3>
+              <p class="report-selected-resolution" th:text="${selectedReport.resolution}">처리 결과</p>
+            </div>
+          </div>
+
+          <div class="modal-footer report-decision report-modal-panel"
+               aria-labelledby="report-decision-title"
+               th:with="reportOpen=${selectedReport.status == '접수' or selectedReport.status == '검토 중'}">
+            <form id="report-decision-form" method="post" class="report-decision-form"
+                  th:action="@{/admin/system/reports/{reportId}/decision(reportId=${selectedReport.reportId})}">
+              <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+              <input type="hidden" name="expectedStatus" th:value="${selectedReport.status}" />
+              <!-- 처리 후에도 보던 상태 필터와 페이지로 돌아오게 함께 보냅니다. -->
+              <input type="hidden" name="status" th:value="${statusFilter}" />
+              <input type="hidden" name="page" th:value="${reportPage != null ? reportPage : 0}" />
+              <h3 id="report-decision-title">처리 방향 선택</h3>
+              <p class="report-decision-help">내용을 확인한 뒤 검토 중으로 두거나, 처리 완료·기각으로 마무리합니다.</p>
+              <p class="report-decision-lock" th:unless="${reportOpen}">이미 처리가 끝난 신고입니다. 내용과 기록된 처리 결과만 확인할 수 있습니다.</p>
+              <div class="form-field">
+                <label for="report-decision-resolution">처리 사유</label>
+                <textarea id="report-decision-resolution" name="resolution" maxlength="255"
+                          aria-describedby="report-decision-help"
+                          th:disabled="${!reportOpen}"
+                          placeholder="확인한 내용과 판단 근거를 적어 주세요."></textarea>
+              </div>
+              <p class="report-decision-help" id="report-decision-help"
+                 th:text="${reportOpen} ? '처리 완료·기각에는 사유가 필요합니다. 사유는 신고 기록에 남습니다.' : '처리가 끝난 신고는 처리 방향을 다시 저장할 수 없습니다.'">처리 완료·기각에는 사유가 필요합니다. 사유는 신고 기록에 남습니다.</p>
+              <p class="report-decision-error" id="report-decision-error" role="alert" hidden>처리 완료 또는 기각에는 사유를 입력해 주세요.</p>
+              <div class="report-decision-actions">
+                <!-- 상태 전이는 서버가 다시 판정합니다. 화면은 현재 상태에서 불가능한 동작만 미리 잠급니다. -->
+                <button class="admin-button small" type="submit" name="action" value="review"
+                        th:disabled="${selectedReport.status != '접수'}"
+                        th:title="${selectedReport.status != '접수' ? '접수 상태에서만 검토 중으로 옮길 수 있습니다.' : null}">검토 중으로</button>
+                <button class="admin-button small primary" type="submit" name="action" value="complete"
+                        th:disabled="${!reportOpen}"
+                        th:title="${!reportOpen ? '이미 처리가 끝난 신고입니다.' : null}">처리 완료</button>
+                <button class="admin-button small danger-ghost" type="submit" name="action" value="dismiss"
+                        th:disabled="${!reportOpen}"
+                        th:title="${!reportOpen ? '이미 처리가 끝난 신고입니다.' : null}">기각</button>
+              </div>
+              <p class="report-decision-note">현재 상태는 <b th:text="${selectedReport.status}">접수</b>입니다. 다른 관리자가 먼저 처리해 상태가 바뀌면 저장되지 않습니다.</p>
+            </form>
+
+            <div class="report-penalty" th:if="${reportOpen}">
+              <h4>페널티 적용</h4>
+              <p class="report-penalty-help">신고 대상 계정에 경고 또는 기간 제한을 적용합니다. 처리 방향과 별도로 전송되며, 사유는 제재 기록에 남습니다.</p>
+              <!-- 페널티는 신고 대상 계정에만 적용합니다. 대상 사용자를 클라이언트로 보내지 않고
+                   서버가 신고 번호로 대상을 찾습니다. -->
+              <form id="report-penalty-form" class="report-penalty-form" method="post"
+                    th:action="@{/admin/system/reports/{reportId}/penalty(reportId=${selectedReport.reportId})}"
+                    data-confirm="이 신고 대상에게 페널티를 적용할까요?">
+                <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                <!-- 페널티 적용은 처리 완료를 동반하므로, 화면이 본 상태를 함께 보낸다. -->
+                <input type="hidden" name="expectedStatus" th:value="${selectedReport.status}" />
+                <input type="hidden" name="status" th:value="${statusFilter}" />
+                <input type="hidden" name="page" th:value="${reportPage != null ? reportPage : 0}" />
+                <div class="form-grid">
+                  <div class="form-field">
+                    <label for="report-penalty-type">페널티 종류</label>
+                    <select id="report-penalty-type" name="penaltyType" required>
+                      <option value="경고">경고</option>
+                      <option value="이용 제한">이용 제한</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="report-penalty-days">제한 기간</label>
+                    <select id="report-penalty-days" name="durationDays" aria-label="이용 제한 기간 (일)">
+                      <option value="1">1일</option>
+                      <option value="3">3일</option>
+                      <option value="7" selected>7일</option>
+                      <option value="14">14일</option>
+                      <option value="30">30일</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-field report-penalty-reason">
+                  <label for="report-penalty-reason">페널티 사유</label>
+                  <textarea id="report-penalty-reason" name="reason" maxlength="255" required
+                            aria-describedby="report-penalty-reason-help"
+                            placeholder="예: 노쇼 확인, 동일 유형 반복 등 판단 근거를 적어 주세요."></textarea>
+                  <p class="report-penalty-help" id="report-penalty-reason-help">경고를 선택하면 제한 기간은 기록에만 남습니다.</p>
+                </div>
+                <div class="report-decision-actions">
+                  <button class="admin-button small danger-solid" type="submit">페널티 적용</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <p class="report-inline-empty" th:if="${selectedReport == null and reports != null and !#lists.isEmpty(reports)}">목록에서 상세 보기를 누르면 신고 내용과 처리 양식이 모달로 열립니다. 선택한 신고가 이 페이지에 없어도 서버가 단건으로 확인해 상세를 엽니다.</p>
+    </div>
+  </main>
+</div>
+
+<div th:replace="~{fragments/admin :: notificationModal('시스템 알림', '서비스 상태와 신고 접수 알림을 확인합니다.')}"></div>
+
+<script th:src="@{/js/ui-utils.js}"></script>
+<script th:src="@{/js/admin-shell.js}"></script>
+<script th:src="@{/js/admin-report.js}"></script>
+</body>
+</html>

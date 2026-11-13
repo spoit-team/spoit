@@ -31,4 +31,6 @@ public class MyRatingHistoryRow {
     private BigDecimal teamAvgMmrA;
     private BigDecimal teamAvgMmrB;
     private LocalDateTime calculatedAt;
+    /** 이 경기까지 반영한 경기 수. 배치 경기인지 판단한다. */
+    private int ratedMatchCountAfter;
 }

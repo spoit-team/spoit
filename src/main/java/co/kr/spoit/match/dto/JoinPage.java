@@ -17,6 +17,12 @@ public class JoinPage {
     private final String capacityNotice;
     private final String feeTotalText;
     private final String feeSummaryNote;
+    /** 참가비가 있어 결제 단계를 거치는 매치인지 (완료 화면에서는 결제한 신청인지) */
+    private final boolean paid;
+    /** 1인 참가비(원). 무료면 0 */
+    private final long unitAmount;
+    /** 결제 금액(원) = 1인 참가비 × 신청 인원 */
+    private final long totalAmount;
     /** 완료 화면에서만 채운다 */
     private final Completion completion;
     /** 이미 신청한 다른 매치와 시간이 겹치는 회원 (겹치면 신청 화면에서 모달로 막는다) */
@@ -98,6 +104,8 @@ public class JoinPage {
         private final String stateLabel;
         private final String paymentGuidance;
         private final String totalText;
+        /** 결제한 신청이면 true */
+        private final boolean paid;
         private final boolean teamAssigned;
         private final int teamACount;
         private final int teamBCount;

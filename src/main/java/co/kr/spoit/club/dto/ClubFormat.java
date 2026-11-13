@@ -19,15 +19,9 @@ class ClubFormat {
                 && club.getMemberCount() < club.getMaxMembers();
     }
 
-    // 관리 화면 모집 문구: 동호회장이 닫음 / 정원 참 구분
+    // 관리 화면 모집 문구: 동호회장이 닫았거나 정원이 찼으면 모집 마감
     static String manageRecruitLabel(ClubSummary club) {
-        if (isRecruiting(club)) {
-            return "모집 중";
-        }
-        if ("마감".equals(club.getRecruitStatus())) {
-            return "모집 마감";
-        }
-        return "모집 마감 (정원이 찼어요)";
+        return isRecruiting(club) ? "모집 중" : "모집 마감";
     }
 
     static String areaLabel(String areaLabel) {

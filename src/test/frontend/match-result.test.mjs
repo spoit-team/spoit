@@ -186,14 +186,32 @@ function stepStates(page) {
   assert.equal(page.fields.side.textContent, 'A팀');
   assert.equal(page.fields.title.textContent, '토요 풋살');
   assert.equal(page.fields.sport.textContent, '풋살');
-  assert.equal(page.fields.schedule.textContent, '2026년 10월 30일 (금) 18:00 ~ 20:00');
+  // 일시는 날짜와 시간 범위를 두 줄 요소로 나눠 textContent로 넣는다.
+  assert.deepEqual(page.fields.schedule.children.map(node => [node.className, node.textContent]), [
+    ['match-result-schedule-line', '2026년 10월 30일 (금)'],
+    ['match-result-schedule-line is-time', '18:00 ~ 20:00']
+  ]);
   assert.equal(page.fields.facility.textContent, 'MAT 테스트 시설');
   assert.equal(page.fields.deadline.textContent, '2026년 10월 31일 (토) 20:00');
   assert.equal(page.submitSection.hidden, true, '팀장이 아니면 제출 영역을 감춰야 합니다.');
   assert.equal(page.steps.hidden, true, '팀장이 아니면 단계 바를 보여 주지 않습니다.');
   assert.equal(page.steps.children.length, 0);
   assert.equal(page.stateMessage.hidden, true, '팀장이 아닌 것은 오류가 아니므로 안내를 띄우지 않습니다.');
-  assert.match(textOf(page.stateBody), /최종 결과/);
+  // 확정 결과는 점수판으로 그린다: 두 팀 승패, 우리 팀 배지, 레이팅 상태 한 줄. 작은 라벨과 보조 문장은 없다.
+  const [scoreCard] = page.stateBody.children;
+  assert.ok(hasClass(scoreCard, 'match-result-score'));
+  const [scoreRows, scoreBadge, scoreRating] = scoreCard.children;
+  assert.deepEqual(scoreRows.children.map(row => [row.className, textOf(row.children[1])]), [
+    ['match-result-score-row is-win', '승리'],
+    ['match-result-score-row is-loss', '패배']
+  ]);
+  assert.equal(scoreBadge.textContent, '우리 팀 승리');
+  assert.ok(hasClass(scoreBadge, 'is-win'), '우리 팀이 이기면 배지를 초록으로 표시합니다.');
+  assert.equal(scoreRating.textContent, '레이팅 반영 완료');
+  assert.doesNotMatch(textOf(page.stateBody), /레이팅에 반영되었습니다|최종 결과/);
+  // 내 진영·결과 상태·레이팅은 위쪽 경기 정보 표에만 두고 결과 섹션에서는 다시 그리지 않는다.
+  assert.ok(!page.stateBody.children.some(child => child.tagName === 'DL'), '결과 섹션에 경기 정보 표를 다시 그리면 안 됩니다.');
+  assert.doesNotMatch(textOf(page.stateBody), /내 진영/);
 
   // A/B팀 로스터는 요약 API의 확정 참가자 닉네임으로만 그린다.
   assert.equal(page.teamsContainer.children.length, 2, 'A/B 두 팀 로스터를 그려야 합니다.');
@@ -214,7 +232,8 @@ function stepStates(page) {
   const page = resultPage({
     summary: {
       matchId: 42, status: 'MATCHED', resultStatus: 'SUBMITTED', ratingStatus: 'WAITING',
-      finalResult: null, mySide: 'B', myResult: 'B_WIN'
+      finalResult: null, mySide: 'B', myResult: 'B_WIN',
+      scheduleLabel: '2026년 10월 30일 (금) 23:00 ~ 2026년 10월 31일 (토) 01:00'
     },
     captain: {
       matchId: 42, mySide: 'B', myResult: null, opponentSubmitted: true, conflict: false,
@@ -232,6 +251,11 @@ function stepStates(page) {
 
   assert.equal(page.submitSection.hidden, false, '팀장에게는 제출 영역을 열어야 합니다.');
   assert.equal(page.steps.hidden, false, '팀장에게는 단계 바를 보여 줘야 합니다.');
+  // 자정을 넘기는 일정은 시작과 끝 일시를 두 줄로 나누고, 날짜가 붙은 줄은 좁으면 접히게 둔다.
+  assert.deepEqual(page.fields.schedule.children.map(node => [node.className, node.textContent]), [
+    ['match-result-schedule-line', '2026년 10월 30일 (금) 23:00 ~'],
+    ['match-result-schedule-line', '2026년 10월 31일 (토) 01:00']
+  ]);
 
   const choices = page.submitBody.children.find(child => hasClass(child, 'match-result-choices'));
   assert.ok(choices, '제출 가능한 팀장에게 결과 선택지를 보여 줘야 합니다.');
@@ -394,6 +418,32 @@ function stepStates(page) {
 
   assert.match(textOf(page.stateBody), /레이팅 반영에서 제외된 경기/);
   assert.doesNotMatch(textOf(page.stateBody), /마감/);
+  // 확정 결과가 없으면 승패 줄 없이 지금 상태 한 문장만 보인다.
+  assert.ok(hasClass(page.stateBody.children[0], 'is-pending'));
+  assert.equal(page.stateBody.children[0].children.length, 1);
+}
+
+/* 점수판: 진 팀 배지는 중립색이고, 무승부는 두 줄 모두 무승부다. */
+for (const [finalResult, ratingStatus, rows, badge, rating] of [
+  ['B_WIN', 'EXCLUDED', ['패배', '승리'], '우리 팀 패배', '레이팅 제외'],
+  ['DRAW', 'WAITING', ['무승부', '무승부'], '무승부', '레이팅 반영 대기']
+]) {
+  const page = resultPage({
+    summary: { matchId: 42, resultStatus: 'CONFIRMED', ratingStatus, finalResult, mySide: 'A' },
+    captainStatus: 403
+  });
+  globalThis.document = page.document;
+  globalThis.window = page.window;
+
+  await import('../../main/resources/static/js/match-result.js?score-' + finalResult);
+  await flush();
+
+  const [card] = page.stateBody.children;
+  const [rowList, badgeNode, ratingNode] = card.children;
+  assert.deepEqual(rowList.children.map(row => textOf(row.children[1])), rows);
+  assert.equal(badgeNode.textContent, badge);
+  assert.ok(!hasClass(badgeNode, 'is-win'), '승리가 아니면 배지는 중립색입니다.');
+  assert.equal(ratingNode.textContent, rating);
 }
 
 console.log('PASS: result screen keeps the summary read-only for participants and gates submission to captains.');

@@ -567,12 +567,9 @@ INSERT INTO club (club_id, sport_id, club_name, intro, max_members, recruit_stat
   (20, 4, '잠실 농구회', '잠실 지역 농구 동호회입니다.', 10, '마감', NULL, '1,3', '20:00:00', '22:00:00', NULL, '2026-06-14 10:00:00');
 
 INSERT INTO club_region (club_id, region_id) VALUES
-  (1, 28),
   (1, 8),
   (2, 15),
-  (2, 18),
   (3, 28),
-  (3, 9),
   (4, 18),
   (5, 26),
   (6, 8),
@@ -583,7 +580,6 @@ INSERT INTO club_region (club_id, region_id) VALUES
   (11, 28),
   (12, 16),
   (13, 9),
-  (13, 15),
   (14, 20),
   (15, 23),
   (16, 15),
@@ -2066,25 +2062,27 @@ INSERT INTO match_result_submission (submission_id, match_id, captain_participan
   (22, 11, 54, 'A_WIN', '확정', '2026-10-17 12:25:00');
 
 -- 5. 평가·레이팅
+-- 활성 항목은 종목마다 공격·연결·수비 3개이고 가중치가 같다. 꺼진 항목은 저장된 평가 점수가 참조하므로 지우지 않는다.
 INSERT INTO sport_evaluation_item (item_id, sport_id, item_code, item_name, weight, scale_max, display_order, is_active) VALUES
-  (1, 2, 'SOCCER_TECH', '개인 기술', 0.40, 10, 1, TRUE),
-  (2, 2, 'SOCCER_STAMINA', '체력', 0.30, 10, 2, TRUE),
-  (3, 2, 'SOCCER_TEAMWORK', '협동심', 0.30, 10, 3, TRUE),
-  (4, 2, 'FUTSAL_TOUCH', '볼 터치', 0.35, 10, 4, TRUE),
-  (5, 2, 'FUTSAL_PASS', '패스', 0.35, 10, 5, TRUE),
-  (6, 2, 'FUTSAL_POSITION', '수비 위치', 0.30, 10, 6, TRUE),
-  (7, 4, 'BASKET_SHOOT', '슈팅', 0.40, 10, 1, TRUE),
-  (8, 4, 'BASKET_DEFENSE', '수비', 0.30, 10, 2, TRUE),
-  (9, 4, 'BASKET_PASS', '패스', 0.30, 10, 3, TRUE),
-  (10, 5, 'BADMINTON_SMASH', '스매시', 0.40, 10, 1, TRUE),
-  (11, 5, 'BADMINTON_FOOTWORK', '풋워크', 0.30, 10, 2, TRUE),
-  (12, 5, 'BADMINTON_SERVE', '서브', 0.30, 10, 3, TRUE),
-  (13, 1, 'TENNIS_SERVE', '서브', 0.40, 10, 1, TRUE),
-  (14, 1, 'TENNIS_RALLY', '랠리', 0.30, 10, 2, TRUE),
-  (15, 1, 'TENNIS_POSITION', '포지셔닝', 0.30, 10, 3, TRUE),
-  (22, 3, 'JOKGU_KICK', '발기술', 0.40, 10, 1, TRUE),
-  (23, 3, 'JOKGU_TEAMWORK', '협동심', 0.30, 10, 2, TRUE),
-  (24, 3, 'JOKGU_DEFENSE', '수비', 0.30, 10, 3, TRUE);
+  (1, 2, 'SOCCER_TECH', '개인 기술', 1.00, 10, 1, TRUE),
+  (2, 2, 'SOCCER_STAMINA', '체력', 0.30, 10, 2, FALSE),
+  (3, 2, 'SOCCER_TEAMWORK', '협동심', 0.30, 10, 3, FALSE),
+  (4, 2, 'FUTSAL_TOUCH', '볼 터치', 0.35, 10, 4, FALSE),
+  (5, 2, 'FUTSAL_PASS', '패스', 1.00, 10, 2, TRUE),
+  (6, 2, 'FUTSAL_POSITION', '수비 위치', 1.00, 10, 3, TRUE),
+  (7, 4, 'BASKET_SHOOT', '슈팅', 1.00, 10, 1, TRUE),
+  (8, 4, 'BASKET_DEFENSE', '수비·리바운드', 1.00, 10, 3, TRUE),
+  (9, 4, 'BASKET_PASS', '패스', 1.00, 10, 2, TRUE),
+  (10, 5, 'BADMINTON_SMASH', '스매시', 1.00, 10, 1, TRUE),
+  (11, 5, 'BADMINTON_FOOTWORK', '풋워크', 1.00, 10, 2, TRUE),
+  (12, 5, 'BADMINTON_SERVE', '서브', 1.00, 10, 3, TRUE),
+  (13, 1, 'TENNIS_SERVE', '서브', 1.00, 10, 1, TRUE),
+  (14, 1, 'TENNIS_RALLY', '랠리', 1.00, 10, 2, TRUE),
+  (15, 1, 'TENNIS_POSITION', '포지셔닝', 1.00, 10, 3, TRUE),
+  (22, 3, 'JOKGU_KICK', '발기술', 1.00, 10, 1, TRUE),
+  (23, 3, 'JOKGU_TEAMWORK', '협동심', 0.30, 10, 2, FALSE),
+  (24, 3, 'JOKGU_DEFENSE', '수비', 1.00, 10, 3, TRUE),
+  (25, 3, 'JOKGU_TOSS', '토스·연결', 1.00, 10, 2, TRUE);
 
 INSERT INTO match_evaluation (evaluation_id, match_id, sport_id, evaluator_participant_id, target_participant_id, overall_score, scale_max, status, submitted_at) VALUES
   (1, 1, 2, 1, 4, 7.35, 10, '제출 완료', '2026-09-05 15:00:00'),

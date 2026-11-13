@@ -66,6 +66,9 @@ class FacilityScheduleRouteTest {
     private co.kr.spoit.match.service.RoomManagementService roomManagementService;
 
     @MockitoBean
+    private co.kr.spoit.facility.service.FacilityStatsService facilityStatsService;
+
+    @MockitoBean
     private MemberLoginSuccessHandler loginSuccessHandler;
 
     @MockitoBean
@@ -239,8 +242,8 @@ class FacilityScheduleRouteTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attribute("scheduleConflicts", conflicts))
                 .andExpect(flash().attribute("scheduleConflictRange", "휴관 2026년 11월 3일 (화) 10:00 ~ 12:00"))
-                .andExpect(flash().attribute("error",
-                        "입력한 휴관 기간과 겹치는 모집 중·매칭 완료 매칭방이 있어 휴관을 등록하지 않았습니다."))
+                // 충돌은 전용 경고창만 띄우고 공용 실패 안내로 한 번 더 띄우지 않는다.
+                .andExpect(flash().attribute("error", org.hamcrest.Matchers.nullValue()))
                 .andExpect(redirectedUrl(
                         "/admin/facility?view=schedule&facilityId=10&date=2026-11-03&tab=schedule-changes"
                                 + "#facility-schedule"));

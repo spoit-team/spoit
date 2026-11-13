@@ -1,5 +1,7 @@
 package co.kr.spoit.match.dto;
 
+import java.math.BigDecimal;
+
 import java.util.List;
 
 import lombok.AllArgsConstructor;
@@ -20,6 +22,8 @@ public class MatchDetailPage {
     private final String dateLabel;
     private final String time;
     private final String feeText;
+    /** 1인 참가비 금액. 신청 화면이 결제 단계를 열지 정한다 (null이면 무료) */
+    private final BigDecimal feeAmount;
     /** 요구 실력 조건 (신청 화면 요약에 쓴다) */
     private final String levelLabel;
     private final List<Fact> facts;

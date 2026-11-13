@@ -15,21 +15,25 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import co.kr.spoit.global.common.FlashFeedback;
 import co.kr.spoit.match.dto.JoinPage;
+import co.kr.spoit.match.dto.MatchCardPage;
 import co.kr.spoit.match.dto.MatchListView;
 import co.kr.spoit.match.dto.MatchSearchCondition;
 import co.kr.spoit.match.service.MatchApplicationService;
 import co.kr.spoit.match.service.MatchApplyException;
 import co.kr.spoit.match.service.MatchService;
 import co.kr.spoit.member.domain.MemberPrincipal;
+import co.kr.spoit.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 
 /**
  * 매칭(=시설 예약) 화면 컨트롤러.
  *
  * <p>SystemAdminController에서 분리했다. RES-01 검색(카드형)·RES-02 상세·RES-03 개인 신청·RES-04 팀 신청.
- * 신청 흐름: 상세 다이얼로그 → 신청 내용(STEP 1) → 신청 완료(STEP 3). 결제 안내(STEP 2)는
- * 무료 결제만 지원하는 동안 건너뛴다.</p>
+ * 신청 흐름: 상세 다이얼로그 → 신청 내용(STEP 1) → 결제(STEP 2) → 신청 완료(STEP 3).
+ * 참가비가 없는 매치는 결제 단계를 건너뛰고 이 컨트롤러의 POST로 바로 접수한다. 유료 매치 결제는
+ * {@code payment.controller.MatchPaymentController}가 맡는다.</p>
  */
 @Controller
 @RequestMapping("/matches")
@@ -37,9 +41,12 @@ import lombok.RequiredArgsConstructor;
 public class MatchController {
 
     private static final String LIST_PATH = "/matches";
+    /** 참가 신청이 막혔을 때 실패 안내 모달의 제목 */
+    static final String APPLY_ERROR_TITLE = "참가 신청을 할 수 없습니다";
 
     private final MatchService matchService;
     private final MatchApplicationService applicationService;
+    private final PaymentService paymentService;
 
     /** RES-01 매칭방 검색 (카드형으로 고정, 목록형은 쓰지 않는다) */
     @GetMapping
@@ -48,6 +55,21 @@ public class MatchController {
                        Model model) {
         addListModel(search, LIST_PATH, model);
         return "matches/cards";
+    }
+
+    /**
+     * RES-01 무한 스크롤: 커서 다음 카드 조각. 첫 화면과 같은 검색 조건을 받는다.
+     * 조각 끝의 #match-more에 다음 페이지 주소가 들어 있고, 마지막 페이지면 #match-more가 없다.
+     */
+    @GetMapping("/cards")
+    public String more(@ModelAttribute("search") MatchSearchCondition search,
+                       BindingResult bindingResult,
+                       @RequestParam(required = false) String cursor,
+                       Model model) {
+        MatchCardPage page = matchService.searchMore(search, cursor);
+        model.addAttribute("matches", page.matches());
+        model.addAttribute("nextCursor", page.nextCursor());
+        return "matches/cards :: moreCards";
     }
 
     /** RES-02 상세 (매치 참가하기 → 이 화면에서 참가 방식 선택) */
@@ -106,14 +128,14 @@ public class MatchController {
         return "matches/join";
     }
 
-    /** RES-03 신청 접수. 무료 결제만 지원하므로 결제 동의 없이 운영 규칙 동의만 확인한다. */
+    /** RES-03 무료 매치 신청 접수. 운영 규칙 동의만 확인한다. 유료 매치는 서비스가 결제 없이 받지 않는다. */
     @PostMapping("/{matchId}/apply")
     public String submit(@PathVariable long matchId,
                          @AuthenticationPrincipal MemberPrincipal principal,
                          @RequestParam(defaultValue = "false") boolean agreeRules,
                          RedirectAttributes redirect) {
         if (!agreeRules) {
-            redirect.addFlashAttribute("error", "매치 운영 규칙과 취소·노쇼 안내에 동의해 주세요.");
+            FlashFeedback.failure(redirect, APPLY_ERROR_TITLE, "매치 운영 규칙과 취소·노쇼 안내에 동의해 주세요.");
             return "redirect:/matches/{matchId}/apply";
         }
         try {
@@ -121,7 +143,7 @@ public class MatchController {
             redirect.addAttribute("receiptNo", receiptNo);
             return "redirect:/matches/{matchId}/apply/complete";
         } catch (MatchApplyException e) {
-            redirect.addFlashAttribute("error", e.getMessage());
+            FlashFeedback.failure(redirect, APPLY_ERROR_TITLE, e.getMessage());
             return "redirect:/matches/{matchId}/apply";
         }
     }
@@ -154,7 +176,7 @@ public class MatchController {
                              RedirectAttributes redirect) {
         List<Long> memberIds = nullToEmpty(clubMemberIds);
         if (!agreeRules) {
-            redirect.addFlashAttribute("error", "매치 운영 규칙과 취소·노쇼 안내에 동의해 주세요.");
+            FlashFeedback.failure(redirect, APPLY_ERROR_TITLE, "매치 운영 규칙과 취소·노쇼 안내에 동의해 주세요.");
             addTeamSelection(redirect, clubId, memberIds);
             return "redirect:/matches/{matchId}/apply/team";
         }
@@ -163,7 +185,7 @@ public class MatchController {
             redirect.addAttribute("receiptNo", receiptNo);
             return "redirect:/matches/{matchId}/apply/complete";
         } catch (MatchApplyException e) {
-            redirect.addFlashAttribute("error", e.getMessage());
+            FlashFeedback.failure(redirect, APPLY_ERROR_TITLE, e.getMessage());
             addTeamSelection(redirect, clubId, memberIds);
             return "redirect:/matches/{matchId}/apply/team";
         }
@@ -208,6 +230,11 @@ public class MatchController {
         model.addAttribute("capacityNotice", page.getCapacityNotice());
         model.addAttribute("feeTotalText", page.getFeeTotalText());
         model.addAttribute("feeSummaryNote", page.getFeeSummaryNote());
+        model.addAttribute("paid", page.isPaid());
+        model.addAttribute("unitAmount", page.getUnitAmount());
+        model.addAttribute("totalAmount", page.getTotalAmount());
+        model.addAttribute("paymentAvailable", paymentService.isAvailable());
+        model.addAttribute("paymentTestMode", paymentService.isTestMode());
         model.addAttribute("completion", page.getCompletion());
         model.addAttribute("timeConflicts", page.getTimeConflicts());
     }
@@ -220,6 +247,11 @@ public class MatchController {
         model.addAttribute("capacityNotice", "");
         model.addAttribute("feeTotalText", "");
         model.addAttribute("feeSummaryNote", "");
+        model.addAttribute("paid", false);
+        model.addAttribute("unitAmount", 0L);
+        model.addAttribute("totalAmount", 0L);
+        model.addAttribute("paymentAvailable", false);
+        model.addAttribute("paymentTestMode", false);
         model.addAttribute("completion", null);
         model.addAttribute("timeConflicts", List.of());
     }
@@ -245,5 +277,6 @@ public class MatchController {
         model.addAttribute("matchedCount", view.getMatchedCount());
         model.addAttribute("activeFilters", view.getActiveFilters());
         model.addAttribute("matches", view.getMatches());
+        model.addAttribute("nextCursor", view.getNextCursor());
     }
 }

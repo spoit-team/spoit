@@ -1,0 +1,1072 @@
+/* 신고 접수·처리 화면: 시설 관리자(접수)와 시스템 관리자(접수함)가 같은 결을 쓰되
+   화면 목적에 따라 배치를 나눕니다. 새 팔레트를 만들지 않고 관리자 공통 변수만 사용합니다. */
+
+/* ── 공통: 접수 양식·장부 ─────────────────────────────── */
+.report-kicker {
+  margin: 0 0 4px;
+  color: var(--admin-blue-ink);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.report-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(260px, .78fr);
+  align-items: start;
+  gap: 34px;
+  margin-top: 20px;
+}
+
+.report-sheet {
+  min-width: 0;
+  padding: 22px 24px 24px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 14px;
+  background: var(--admin-paper);
+  box-shadow: 0 1px 0 rgba(19, 21, 25, .03);
+}
+
+.report-sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.report-sheet-head h2 {
+  margin: 0;
+  color: var(--admin-ink);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -.035em;
+}
+
+.report-sheet-head p:not(.report-kicker) {
+  max-width: 540px;
+  margin: 5px 0 0;
+  color: var(--admin-muted);
+  font-size: 11.5px;
+  line-height: 1.65;
+}
+
+/* 종이 접수증의 스탬프처럼 화면 목적을 표시하는 장식입니다(스크린리더에서는 숨김). */
+.report-sheet-stamp {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 4px;
+  color: var(--admin-faint);
+  font-family: Archivo, "Pretendard Variable", sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  white-space: nowrap;
+}
+
+.report-step {
+  padding: 18px 0 2px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.report-step:last-of-type {
+  border-bottom: 0;
+}
+
+.report-step-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.report-step-index {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--admin-ink);
+  color: white;
+  font-family: Archivo, "Pretendard Variable", sans-serif;
+  font-size: 9.5px;
+  font-weight: 800;
+}
+
+.report-step-head h3 {
+  margin: 1px 0 0;
+  color: var(--admin-ink);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+.report-step-head p {
+  margin: 3px 0 0;
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
+.report-match-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.report-match-field {
+  min-width: 0;
+  flex: 1;
+}
+
+.report-match-form .admin-button {
+  flex: 0 0 auto;
+}
+
+.report-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.report-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 8px;
+}
+
+.report-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* 라디오 입력은 카드 전체를 덮는 투명 입력으로 두고, 선택·초점 상태를 카드 테두리로 보여 줍니다.
+   키보드 사용자는 화살표 키로 유형을 바꾸고, 초점은 :focus-visible 카드 테두리로 확인합니다. */
+.report-choice {
+  position: relative;
+  display: block;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 10px;
+  background: var(--admin-paper);
+  cursor: pointer;
+  transition: border-color .14s, background .14s, box-shadow .14s;
+}
+
+.report-choice:hover {
+  border-color: var(--admin-faint);
+  background: var(--admin-soft);
+}
+
+.report-choice input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.report-choice:has(input:checked) {
+  border-color: var(--admin-blue);
+  background: var(--admin-blue-soft);
+  box-shadow: inset 0 0 0 1px var(--admin-blue);
+}
+
+.report-choice:has(input:focus-visible) {
+  outline: 2px solid var(--admin-blue);
+  outline-offset: 2px;
+}
+
+.report-choice-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.report-choice-copy strong {
+  overflow: hidden;
+  color: var(--admin-ink);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-choice-copy small {
+  color: var(--admin-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.report-category-choice .report-choice-copy small {
+  white-space: normal;
+}
+
+.report-summary-field {
+  margin-bottom: 6px;
+}
+
+.report-summary-field textarea {
+  min-height: 118px;
+}
+
+.report-field-help {
+  color: var(--admin-muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.report-submit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--admin-line-strong);
+}
+
+.report-submit-row p {
+  margin: 0;
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+
+.report-inline-empty {
+  margin: 10px 0 0;
+  padding: 11px 13px;
+  border: 1px dashed var(--admin-line-strong);
+  border-radius: 9px;
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  line-height: 1.65;
+}
+
+/* ── 접수 안내 ─────────────────────────────────────────── */
+.report-guide {
+  position: sticky;
+  top: 84px;
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.report-guide h2 {
+  margin: 0 0 14px;
+  color: var(--admin-ink);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -.025em;
+}
+
+.report-guide-steps {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.report-guide-steps li {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  padding: 0 0 16px 22px;
+  border-left: 1px solid var(--admin-line-strong);
+  margin-left: 5px;
+}
+
+.report-guide-steps li::before {
+  position: absolute;
+  top: 2px;
+  left: -5px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--admin-paper);
+  border-radius: 50%;
+  background: var(--admin-blue);
+  box-shadow: 0 0 0 1px var(--admin-blue);
+  content: "";
+}
+
+.report-guide-steps li:last-child {
+  padding-bottom: 4px;
+  border-left-color: transparent;
+}
+
+.report-guide-steps b {
+  color: var(--admin-ink);
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+.report-guide-steps span {
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  line-height: 1.65;
+}
+
+.report-guide-note {
+  margin-top: 16px;
+  padding: 13px 14px;
+  border-left: 2px solid var(--admin-amber);
+  background: #fffaf0;
+}
+
+.report-guide-note strong {
+  display: block;
+  color: #754b0d;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.report-guide-note p {
+  margin: 4px 0 0;
+  color: #7c5a1c;
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+/* ── 접수 장부(목록) ───────────────────────────────────── */
+.report-ledger-heading {
+  margin-top: 34px;
+}
+
+.report-ledger {
+  border-block: 1px solid var(--admin-line-strong);
+}
+
+/* 시설 관리자 화면은 카드 대신 문서형 경계를 쓰는 기존 결을 따릅니다. */
+.admin-body[data-admin-role="facility"] .report-sheet {
+  padding: 20px 2px 22px;
+  border: 0;
+  border-block: 1px solid var(--admin-line-strong);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-body[data-admin-role="facility"] .report-selected {
+  border-radius: 0;
+  border-inline: 0;
+}
+
+.report-table {
+  border-top: 0;
+}
+
+.report-table th:first-child,
+.report-table td:first-child {
+  padding-left: 2px;
+}
+
+.report-table tbody tr.is-selected {
+  background: var(--admin-blue-soft);
+}
+
+.report-table tbody tr.is-selected td {
+  border-bottom-color: #cfe3f8;
+}
+
+.report-table-match {
+  min-width: 180px;
+  max-width: 280px;
+  white-space: normal;
+}
+
+.report-id {
+  color: var(--admin-muted);
+  font-family: Archivo, "Pretendard Variable", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-time {
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.report-category {
+  display: inline-block;
+  padding: 2px 7px;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  background: var(--admin-soft);
+  color: var(--admin-ink-2);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.report-resolution {
+  display: block;
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  line-height: 1.55;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-status.is-received {
+  background: var(--admin-blue-soft);
+  color: var(--admin-blue-ink);
+}
+
+.report-status.is-reviewing {
+  background: var(--admin-amber-soft);
+  color: #754b0d;
+}
+
+.report-status.is-done {
+  background: var(--admin-green-soft);
+  color: var(--admin-green-ink);
+}
+
+.report-status.is-dismissed {
+  background: var(--admin-soft);
+  color: var(--admin-muted);
+}
+
+.report-ledger-empty {
+  border-bottom: 1px solid var(--admin-line-strong);
+}
+
+/* 페이지 이동: 첫 페이지에 이전이, 마지막 페이지에 다음이 없습니다.
+   현재 페이지는 1-based 숫자로 보여 주고, 링크는 query param만 쓰는 GET 이동입니다. */
+.report-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 2px 13px;
+  border-bottom: 1px solid var(--admin-line-strong);
+}
+
+.report-pager-label {
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-pager-label + .report-page-link,
+.report-pager-label + .report-page-current {
+  margin-left: auto;
+}
+
+.report-page-link {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 8px;
+  background: var(--admin-paper);
+  color: var(--admin-blue-ink);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background .14s, border-color .14s;
+}
+
+.report-page-link:hover {
+  border-color: var(--admin-faint);
+  background: var(--admin-soft);
+}
+
+.report-page-current {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--admin-blue-soft);
+  border-radius: 8px;
+  background: var(--admin-blue-soft);
+  color: var(--admin-blue-ink);
+  font-family: Archivo, "Pretendard Variable", sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── 선택한 신고 상세 ───────────────────────────────────── */
+.report-selected {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(260px, .85fr);
+  gap: 0;
+  margin-top: 26px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 14px;
+  background: var(--admin-paper);
+  overflow: hidden;
+  scroll-margin-top: 84px;
+}
+
+.report-selected-main {
+  min-width: 0;
+  padding: 20px 22px 22px;
+}
+
+.report-selected-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.report-selected-head h2 {
+  margin: 0;
+  color: var(--admin-ink);
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -.035em;
+}
+
+.report-case-target {
+  margin: 5px 0 0;
+  color: var(--admin-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.report-selected-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  border-bottom: 1px solid var(--admin-line);
+  padding: 0;
+}
+
+.report-selected-facts > div {
+  min-width: 0;
+  padding: 12px 14px 13px;
+}
+
+.report-selected-facts > div:first-child {
+  padding-left: 0;
+}
+
+.report-selected-facts > div + div {
+  border-left: 1px solid var(--admin-line);
+}
+
+.report-selected-facts dt {
+  margin-bottom: 3px;
+  color: var(--admin-muted);
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.report-selected-facts dd {
+  margin: 0;
+  color: var(--admin-ink);
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.report-selected-facts dd small {
+  display: block;
+  margin-top: 2px;
+  color: var(--admin-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* 신고 원문은 인용 블록으로 보여 주되, 확정된 사실이 아님을 캡션으로 함께 남깁니다. */
+.report-case-summary {
+  padding-top: 16px;
+}
+
+/* 접수함 모달에서는 진술이 화면의 주인공입니다. 목록 화면과 같은 인용 블록 결을
+   유지하되, 모달 안에서만 글자와 줄 간격을 키워 읽기 좋게 만듭니다. */
+.report-modal .report-statement {
+  padding: 16px 18px;
+  font-size: 13.5px;
+  line-height: 1.85;
+}
+
+.report-case-summary h3,
+.report-case-result h3 {
+  margin: 0 0 7px;
+  color: var(--admin-ink-2);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.report-statement {
+  margin: 0;
+  padding: 13px 15px;
+  border-left: 3px solid var(--admin-line-strong);
+  background: var(--admin-soft);
+  color: var(--admin-ink);
+  font-size: 12.5px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.report-status-note {
+  margin: 0 0 9px;
+  padding: 11px 13px;
+  border-left: 2px solid var(--admin-blue);
+  background: var(--admin-blue-soft);
+  color: var(--admin-blue-ink);
+  font-size: 11.5px;
+  line-height: 1.65;
+}
+
+.report-statement-caption {
+  margin: 7px 0 0;
+  color: var(--admin-muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.report-case-result {
+  margin-top: 16px;
+  padding: 13px 15px;
+  border: 1px solid #c9ead5;
+  border-radius: 10px;
+  background: var(--admin-green-soft);
+}
+
+.report-case-result h3 {
+  color: var(--admin-green-ink);
+}
+
+.report-case-result p {
+  margin: 0;
+  color: #14542f;
+  font-size: 11.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.report-selected-close {
+  margin-top: 16px;
+}
+
+/* 시설 관리자 화면의 상세는 처리 결과를 오른쪽에 붙입니다. */
+.report-selected-result {
+  min-width: 0;
+  padding: 20px 22px 22px;
+  border-left: 1px solid var(--admin-line);
+  background: var(--admin-soft);
+}
+
+.report-selected-result .report-kicker {
+  color: var(--admin-muted);
+}
+
+.report-selected-resolution {
+  margin: 10px 0 0;
+  color: var(--admin-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.report-selected-note {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--admin-line);
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  line-height: 1.7;
+}
+
+/* ── 시스템 관리자: 필터·처리 패널 ─────────────────────── */
+.report-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 10px;
+  background: var(--admin-paper);
+}
+
+.report-toolbar .field-control {
+  min-width: 150px;
+}
+
+.report-toolbar-note {
+  color: var(--admin-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.report-case {
+  margin-top: 20px;
+}
+
+/* ── 신고 상세 모달 ──────────────────────────────────────
+   페이지 하단 상세 패널 대신 모달로 상세를 엽니다. .admin-modal.wide 위에
+   신고 접수함의 문서형 결을 얹고, 처리·페널티 패널은 footer 영역에 둡니다.
+   모달 전체가 하나의 스크롤 영역입니다. 진술·처리·페널티를 각자의 스크롤에
+   가두면 높이 상한(90vh·760px) 안에서 처리 패널 아래쪽, 즉 페널티 적용
+   버튼이 잘려 보이므로, 콘텐츠가 길면 모달이 통째로 스크롤됩니다. */
+.report-modal .admin-modal {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.report-modal .modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--admin-line);
+  background: var(--admin-paper);
+}
+
+.report-modal .modal-header .report-kicker {
+  margin: 0 0 2px;
+}
+
+.report-modal .modal-header h2 {
+  margin: 0;
+}
+
+.report-modal .report-case-target {
+  margin: 4px 0 0;
+}
+
+.report-modal .modal-header .status-badge {
+  flex: 0 0 auto;
+  margin-right: 6px;
+}
+
+.report-modal .modal-header .modal-close {
+  margin-left: auto;
+}
+
+.report-modal .report-selected-main {
+  flex: 1 1 auto;
+  padding: 18px 23px 20px;
+}
+
+/* 모달에서는 4칸 facts가 좁아질 수 있으므로 2×2로 쌓습니다. */
+.report-modal .report-selected-facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--admin-line);
+  border-bottom: 0;
+}
+
+.report-modal .report-selected-facts > div {
+  border-top: 1px solid var(--admin-line);
+  padding: 10px 12px 11px;
+}
+
+.report-modal .report-selected-facts > div:first-child {
+  padding-left: 0;
+  border-top: 0;
+}
+
+.report-modal .report-selected-facts > div:nth-child(2) {
+  padding-right: 0;
+  border-top: 0;
+}
+
+.report-modal .report-selected-facts > div + div {
+  border-left: 1px solid var(--admin-line);
+}
+
+.report-modal .report-selected-facts > div:nth-child(3) {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.report-modal .report-case-summary {
+  padding-top: 16px;
+}
+
+.report-modal .report-case-result {
+  margin-top: 16px;
+}
+
+.report-decision.report-modal-panel {
+  display: block;
+  flex: 0 0 auto;
+  padding: 16px 23px 20px;
+  border-top: 1px solid var(--admin-line);
+  background: var(--admin-soft);
+}
+
+.report-decision-form h3 {
+  margin: 0;
+  color: var(--admin-ink);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+.report-decision-form .report-decision-help {
+  margin: 5px 0 10px;
+}
+
+.report-decision-form textarea {
+  min-height: 74px;
+}
+
+.report-decision-form .report-decision-actions {
+  margin-top: 11px;
+}
+
+.report-decision-form .report-decision-note {
+  margin-top: 11px;
+}
+
+/* 페널티 적용: 처리 방향 아래에 붙는 별도 전송 폼입니다. */
+.report-penalty {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--admin-line);
+}
+
+.report-penalty h4 {
+  margin: 0;
+  color: var(--admin-ink);
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+.report-penalty .report-penalty-help {
+  margin: 4px 0 10px;
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+
+.report-penalty-form .form-grid {
+  gap: 10px;
+}
+
+.report-penalty-reason {
+  margin-top: 10px;
+}
+
+.report-penalty-reason textarea {
+  min-height: 64px;
+}
+
+.report-penalty-form .report-decision-actions {
+  margin-top: 11px;
+}
+
+.report-decision {
+  min-width: 0;
+  padding: 20px 22px 22px;
+  border-left: 1px solid var(--admin-line);
+  background: var(--admin-soft);
+}
+
+.report-decision h3 {
+  margin: 0;
+  color: var(--admin-ink);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+.report-decision-help {
+  margin: 5px 0 10px;
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  line-height: 1.65;
+}
+
+.report-decision textarea {
+  min-height: 104px;
+}
+
+.report-decision textarea:disabled {
+  background: var(--admin-paper);
+  color: var(--admin-muted);
+}
+
+.report-decision-lock {
+  margin: 5px 0 10px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--admin-line-strong);
+  background: var(--admin-paper);
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  line-height: 1.65;
+}
+
+.report-decision-error {
+  margin: 8px 0 0;
+  padding: 7px 9px;
+  border: 1px solid #f0cbc8;
+  border-radius: 7px;
+  background: var(--admin-red-soft);
+  color: #8a2f25;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.report-decision-error[hidden] {
+  display: none;
+}
+
+.report-decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 13px;
+}
+
+.report-decision-note {
+  margin: 12px 0 0;
+  padding-top: 11px;
+  border-top: 1px solid var(--admin-line);
+  color: var(--admin-muted);
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.report-decision-note b {
+  color: var(--admin-ink-2);
+  font-weight: 800;
+}
+
+@media (max-width: 1080px) {
+  .report-workbench,
+  .report-selected {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .report-guide {
+    position: static;
+    order: 2;
+  }
+
+  .report-selected-result,
+  .report-decision:not(.report-modal-panel) {
+    border-top: 1px solid var(--admin-line);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .report-sheet {
+    padding: 18px 15px 20px;
+  }
+
+  .report-sheet-head {
+    flex-direction: column;
+  }
+
+  .report-sheet-stamp {
+    display: none;
+  }
+
+  .report-match-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .report-category-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .report-submit-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .report-submit-row .admin-button {
+    width: 100%;
+  }
+
+  .report-selected-main,
+  .report-selected-result,
+  .report-decision {
+    padding: 16px 15px;
+  }
+
+  .report-modal .report-selected-main,
+  .report-decision.report-modal-panel {
+    padding: 14px 16px 16px;
+  }
+
+  .report-modal .report-selected-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .report-modal .report-selected-facts > div {
+    border-left: 0;
+    padding-left: 0;
+  }
+
+  .report-modal .report-selected-facts > div:first-child,
+  .report-modal .report-selected-facts > div:nth-child(2) {
+    border-top: 0;
+  }
+
+  .report-modal .report-selected-facts > div:nth-child(n + 3) {
+    border-top: 1px solid var(--admin-line);
+  }
+
+  .report-selected-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-selected-facts > div:nth-child(3) {
+    border-left: 0;
+    padding-left: 0;
+  }
+
+  .report-selected-facts > div:nth-child(n + 3) {
+    border-top: 1px solid var(--admin-line);
+  }
+
+  .report-toolbar {
+    align-items: stretch;
+  }
+
+  .report-toolbar .field-control,
+  .report-toolbar .admin-button {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .report-toolbar-note {
+    flex: 1 0 100%;
+  }
+
+  .report-decision-actions .admin-button {
+    flex: 1;
+  }
+}

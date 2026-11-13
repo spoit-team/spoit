@@ -10,6 +10,12 @@
   if (!root || !modal) return;
 
   const admin = global.PlayOnAdmin;
+
+  /* 실패 안내는 사라지지 않는 모달로 보여 준다. 공통 셸이 없으면 예전처럼 토스트로 알린다. */
+  function showError(title, message) {
+    if (admin?.showErrorModal) admin.showErrorModal(title, message);
+    else admin?.toast(message, true);
+  }
   const baseUrl = root.dataset.decisionUrl;
   const csrfHeader = root.dataset.csrfHeader;
   const csrfToken = root.dataset.csrfToken;
@@ -44,7 +50,10 @@
     if (!label) return;
     pending = { applicationId: button.dataset.applicationId, decision };
     title.textContent = label.title;
-    message.textContent = `${targetName(button)} 님의 참가 신청을 ${label.action}할까요? ${label.result}`;
+    // 결제한 신청을 반려하면 1인 참가비가 결제 수단으로 환불된다(팀 신청은 대표 결제에서 부분 환불).
+    const refund = decision === 'reject' ? Number(button.dataset.refundAmount || 0) : 0;
+    const refundText = refund > 0 ? ` ${refund.toLocaleString('ko-KR')}원이 결제 수단으로 환불됩니다.` : '';
+    message.textContent = `${targetName(button)} 님의 참가 신청을 ${label.action}할까요? ${label.result}${refundText}`;
     submit.textContent = label.action;
     submit.classList.toggle('primary', decision === 'confirm');
     submit.classList.toggle('danger-solid', decision === 'reject');
@@ -78,9 +87,9 @@
       reloadWithToast(text);
       return;
     }
-    admin?.toast(text, true);
     busy = false;
     close();
+    showError('신청을 처리할 수 없습니다', text);
   }
 
   root.addEventListener('click', function (event) {

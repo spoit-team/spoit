@@ -3,6 +3,7 @@ package co.kr.spoit.member.mapper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +20,7 @@ import org.springframework.test.context.jdbc.SqlConfig;
 import org.springframework.test.context.transaction.BeforeTransaction;
 
 import co.kr.spoit.member.domain.Member;
+import co.kr.spoit.member.domain.AdminUserRow;
 
 /**
  * 명시적으로 지정한 전용 MySQL DB에서만 회원 탈퇴 SQL과 deleted_at 매핑을 검증한다.
@@ -63,6 +65,33 @@ class MemberMapperIntegrationTest {
         if (!"spoit_mat_test".equals(database)) {
             throw new IllegalStateException("전용 테스트 DB가 아니므로 fixture 실행을 중단합니다.");
         }
+    }
+
+    @Test
+    @DisplayName("관리자 목록과 건수는 검색·역할·상태 필터에 같은 사용자를 반환한다")
+    void adminListAndCountUseTheSameFilters() {
+        jdbcTemplate.update("INSERT INTO admin_request (user_id, requested_role, status) VALUES (1, ?, ?)",
+                "FACILITY_MANAGER", "대기");
+        jdbcTemplate.update("INSERT INTO app_user (user_id, email, password_hash, nickname, phone, role) "
+                + "VALUES (4, 'admin-code@example.invalid', 'TEST_ONLY', '관리자 코드', '010-0000-0004', 'ADMIN'), "
+                + "(5, 'admin-label@example.invalid', 'TEST_ONLY', '관리자 라벨', '010-0000-0005', '시스템 관리자')");
+        LocalDateTime now = LocalDateTime.of(2026, 10, 26, 12, 0);
+
+        assertAdminUsers(null, null, null, null, now, List.of(1L, 2L, 4L, 5L));
+        assertAdminUsers(null, null, null, "pending", now, List.of(1L));
+        assertAdminUsers(null, null, null, "active", now, List.of(4L, 5L));
+        assertAdminUsers(null, null, null, "suspended", now, List.of(2L));
+        assertAdminUsers("member-suspended", null, null, null, now, List.of(2L));
+        assertAdminUsers(null, "ADMIN", "시스템 관리자", "active", now, List.of(4L, 5L));
+        assertAdminUsers("admin-code", "ADMIN", "시스템 관리자", "active", now, List.of(4L));
+    }
+
+    private void assertAdminUsers(String keyword, String roleCode, String roleLabel, String status,
+            LocalDateTime now, List<Long> expectedIds) {
+        List<AdminUserRow> users = memberMapper.findAdminUsers(keyword, roleCode, roleLabel, status, now, 100, 0);
+        assertThat(users).extracting(AdminUserRow::getUserId).containsExactlyInAnyOrderElementsOf(expectedIds);
+        assertThat(memberMapper.countAdminUsers(keyword, roleCode, roleLabel, status, now))
+                .isEqualTo(expectedIds.size());
     }
 
     @Test

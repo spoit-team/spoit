@@ -17,9 +17,9 @@
 
   <ol class="match-join-stepper" aria-label="신청 진행 단계">
     <li data-step-indicator="1" th:classappend="${completed} ? 'is-done' : 'is-current'" th:aria-current="${completed ? null : 'step'}"><span class="step-number" th:text="${completed} ? '✓' : '1'">1</span><span><b>신청 내용</b><small>참가자 확인</small></span></li>
-    <!-- 결제 안내 단계: 무료 결제만 지원하는 동안 숨긴다. 결제 연동 시 hidden을 지우고 신청 완료 번호를 3으로 되돌린다. -->
-    <li data-step-indicator="2" hidden th:classappend="${completed} ? 'is-done' : ''"><span class="step-number" th:text="${completed} ? '✓' : '2'">2</span><span><b>결제 안내</b><small>비용 확인</small></span></li>
-    <li data-step-indicator="3" th:classappend="${completed} ? 'is-current' : ''" th:aria-current="${completed ? 'step' : null}"><span class="step-number" th:text="${completed} ? '✓' : '2'">2</span><span><b>신청 완료</b><small>접수 결과</small></span></li>
+    <!-- 결제 단계: 참가비가 있는 매치(완료 화면은 결제한 신청)에서만 보인다. 무료 매치는 신청 내용에서 바로 접수한다. -->
+    <li data-step-indicator="2" th:hidden="${!paid}" th:classappend="${completed} ? 'is-done' : ''"><span class="step-number" th:text="${completed} ? '✓' : '2'">2</span><span><b>결제</b><small>참가비 결제</small></span></li>
+    <li data-step-indicator="3" th:classappend="${completed} ? 'is-current' : ''" th:aria-current="${completed ? 'step' : null}"><span class="step-number" th:text="${completed} ? '✓' : (${paid} ? '3' : '2')">2</span><span><b>신청 완료</b><small>접수 결과</small></span></li>
   </ol>
 
   <div th:if="${unavailableMessage != null}" class="join-unavailable">
@@ -30,7 +30,12 @@
   </div>
 
   <div th:unless="${unavailableMessage != null}" id="join-layout" class="match-join-layout">
-    <form th:unless="${completed}" id="join-form" class="join-workflow" novalidate method="post" th:action="${selection.applicationType == 'team'} ? @{/matches/{matchId}/apply/team(matchId=${match.matchId})} : @{/matches/{matchId}/apply(matchId=${match.matchId})}">
+    <!-- 유료 매치: match-join-page.js가 STEP 2에서 결제 준비(prepare)를 fetch로 보내고, 받은 카카오페이 결제 페이지로 이동한다.
+         결제 뒤 카카오페이가 서버의 승인 주소로 돌려보내면 서버가 최종 승인하고 신청 완료 화면으로 보낸다. -->
+    <form th:unless="${completed}" id="join-form" class="join-workflow" novalidate method="post" th:action="${selection.applicationType == 'team'} ? @{/matches/{matchId}/apply/team(matchId=${match.matchId})} : @{/matches/{matchId}/apply(matchId=${match.matchId})}"
+          th:data-paid="${paid ? 'true' : 'false'}" th:data-application-type="${selection.applicationType}"
+          th:data-payment-prepare-url="${paid} ? @{/matches/{matchId}/apply/payment/prepare(matchId=${match.matchId})} : null"
+          th:data-csrf-header="${_csrf != null ? _csrf.headerName : null}" th:data-csrf-token="${_csrf != null ? _csrf.token : null}">
       <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
       <!-- RES-04 팀 신청: 상세에서 고른 동호회·팀원을 접수 때 서버가 다시 검증한다 -->
       <th:block th:if="${selection.applicationType == 'team'}">
@@ -39,7 +44,7 @@
       </th:block>
       <div class="join-workflow-topline">
         <div><span class="join-workflow-kicker">MATCH APPLICATION</span><h2 id="stage-heading" tabindex="-1">신청 내용을 확인해 주세요</h2></div>
-        <span id="stage-index" class="join-stage-index">STEP 01 / 02</span>
+        <span id="stage-index" class="join-stage-index" th:text="${paid} ? 'STEP 01 / 03' : 'STEP 01 / 02'">STEP 01 / 02</span>
       </div>
 
       <section class="join-stage" data-step-panel="1" aria-labelledby="apply-heading">
@@ -60,29 +65,30 @@
         <div th:if="${!canReserve}" id="capacity-notice" class="join-inline-notice">
           <span aria-hidden="true">ℹ</span><span><b>현재 선택으로 예약할 수 없습니다.</b> <span th:text="${capacityNotice}">현재 남은 자리를 확인해 주세요.</span></span>
         </div>
-        <p th:if="${error != null and #lists.isEmpty(timeConflicts)}" class="join-error" role="alert" th:text="${error}">신청을 처리하지 못했습니다.</p>
+        <!--/* 카카오페이에서 직접 취소하고 돌아온 경우의 안내. 실패가 아니므로 모달 대신 이 자리에 보여 줍니다. */-->
+        <p th:if="${paymentNotice != null}" class="join-error" role="status" th:text="${paymentNotice}">결제를 취소했습니다.</p>
         <label class="join-agreement"><input id="rules-agree" name="agreeRules" type="checkbox" value="true" aria-describedby="rules-guide-hint" /><span><b>매치 운영 규칙과 취소·노쇼 안내를 확인했습니다. <button id="rules-guide-open" type="button" class="join-rules-link" aria-haspopup="dialog">안내 보기</button></b><small id="rules-guide-hint">참가 신청 후 취소는 마이페이지의 신청 내역에서 진행할 수 있습니다.</small></span></label>
         <p id="join-error" class="join-error" role="alert" hidden></p>
         <div class="join-stage-actions">
           <a th:href="@{/matches/{matchId}(matchId=${match.matchId})}" class="join-button join-button-quiet">참가 인원 다시 선택</a>
-          <button id="continue-button" type="submit" class="join-button join-button-primary" th:disabled="${!canReserve}">참가 신청하기</button>
+          <button id="continue-button" type="submit" class="join-button join-button-primary" th:disabled="${!canReserve}" th:text="${paid} ? '다음: 참가비 결제' : '참가 신청하기'">참가 신청하기</button>
         </div>
       </section>
 
-      <section class="join-stage" data-step-panel="2" aria-labelledby="payment-heading" hidden>
-        <div class="join-stage-intro"><h3 id="payment-heading">참가비와 결제 안내</h3><p>안내된 참가비와 취소 규정을 확인해 주세요. 결제 수단 선택은 이 화면에서 저장되거나 전달되지 않습니다.</p></div>
-        <fieldset id="payment-methods" class="join-fieldset">
-          <legend>결제 수단 <span class="optional-mark">안내</span></legend>
-          <div class="join-payment-options">
-            <label class="join-payment-option is-selected"><input type="radio" name="paymentGuidanceChoice" data-payment-method value="card" checked /><span class="payment-mark payment-mark-card" aria-hidden="true">▰</span><span><b>신용·체크카드</b><small>안내용 선택</small></span><i aria-hidden="true"></i></label>
-            <label class="join-payment-option"><input type="radio" name="paymentGuidanceChoice" data-payment-method value="easy" /><span class="payment-mark payment-mark-easy" aria-hidden="true">P</span><span><b>간편결제</b><small>안내용 선택</small></span><i aria-hidden="true"></i></label>
-            <label class="join-payment-option"><input type="radio" name="paymentGuidanceChoice" data-payment-method value="transfer" /><span class="payment-mark payment-mark-transfer" aria-hidden="true">↔</span><span><b>계좌이체</b><small>안내용 선택</small></span><i aria-hidden="true"></i></label>
-          </div>
-        </fieldset>
-        <div id="payment-guidance-notice" class="join-guidance-notice"><span aria-hidden="true">ⓘ</span><p><b>결제 안내</b><br />이 화면에서는 결제를 실행하지 않습니다. 결제 수단과 처리 시점은 서버의 결제 정책 또는 시설 안내를 따릅니다.</p></div>
-        <label class="join-agreement join-payment-agreement"><input id="payment-agree" name="agreePayment" type="checkbox" value="true" /><span><b id="payment-agreement-label">참가비 안내와 취소 안내를 확인했습니다.</b><small>이 화면은 결제 수단과 참가비 정보를 안내하며 결제를 실행하거나 상태를 저장하지 않습니다.</small></span></label>
+      <section th:if="${paid}" class="join-stage" data-step-panel="2" aria-labelledby="payment-heading" hidden>
+        <div class="join-stage-intro"><h3 id="payment-heading">참가비 결제</h3><p>카카오페이 결제 화면으로 이동합니다. 결제가 승인되면 신청이 '확정 대기'로 접수됩니다. 결제 금액은 서버가 참가 인원으로 계산합니다.</p></div>
+        <dl th:if="${paymentAvailable}" id="payment-method" class="join-payment-amount">
+          <div><dt>결제 수단</dt><dd><span class="payment-mark payment-mark-easy" aria-hidden="true">P</span> 카카오페이</dd></div>
+        </dl>
+        <div th:unless="${paymentAvailable}" class="join-inline-notice"><span aria-hidden="true">ℹ</span><span><b>지금은 결제할 수 없습니다.</b> 결제 설정이 준비되지 않았습니다. 시설에 문의해 주세요.</span></div>
+        <dl class="join-payment-amount">
+          <div><dt>참가비</dt><dd th:text="${feeSummaryNote}">9,000원 × 1명</dd></div>
+          <div class="join-payment-amount-total"><dt>결제 금액</dt><dd th:text="${feeTotalText}">9,000원</dd></div>
+        </dl>
+        <div id="payment-guidance-notice" class="join-guidance-notice"><span aria-hidden="true">ⓘ</span><p><b>결제·환불 안내</b><br /><th:block th:if="${paymentTestMode}">테스트 결제입니다. 실제 금액이 청구되지 않습니다.<br /></th:block>반려·취소되면 인원만큼 즉시 환불됩니다. 경기 시작 전까지 취소하면 전액 환불됩니다.</p></div>
+        <label class="join-agreement join-payment-agreement"><input id="payment-agree" name="agreePayment" type="checkbox" value="true" /><span><b id="payment-agreement-label">결제 및 환불 안내를 확인했습니다.</b><small>시설 관리자가 반려하거나 경기 시작 전까지 확정되지 않은 신청은 자동으로 환불됩니다.</small></span></label>
         <p id="payment-error" class="join-error" role="alert" hidden></p>
-        <div class="join-stage-actions"><button id="back-button" type="button" class="join-button join-button-quiet"><span aria-hidden="true">←</span> 신청 정보로</button><button id="submit-application" type="submit" class="join-button join-button-primary" th:disabled="${!canReserve}">신청 접수</button></div>
+        <div class="join-stage-actions"><button id="back-button" type="button" class="join-button join-button-quiet"><span aria-hidden="true">←</span> 신청 정보로</button><button id="submit-payment" type="button" class="join-button join-button-primary" th:disabled="${!canReserve or !paymentAvailable}" th:text="${'카카오페이로 ' + feeTotalText + ' 결제'}">카카오페이로 결제</button></div>
       </section>
     </form>
 
@@ -97,8 +103,8 @@
         <div><dt>참가자</dt><dd th:text="${completion.participantText}">회원</dd></div>
         <!--/* 접수 번호는 일단 숨김: <div><dt>접수 번호</dt><dd th:text="${completion.receiptNo}">접수 번호</dd></div> */-->
         <div><dt>신청 상태</dt><dd th:text="${completion.stateLabel}">신청 접수</dd></div>
-        <div><dt>결제 안내</dt><dd th:text="${completion.paymentGuidance}">결제는 이 화면에서 처리하지 않습니다.</dd></div>
-        <div><dt>참가비 합계</dt><dd th:text="${completion.totalText}">서버 확인 필요</dd></div>
+        <div><dt th:text="${completion.paid} ? '결제' : '결제 안내'">결제 안내</dt><dd th:text="${completion.paymentGuidance}">무료 신청 · 별도 결제 없음</dd></div>
+        <div><dt th:text="${completion.paid} ? '결제 금액' : '참가비 합계'">참가비 합계</dt><dd th:text="${completion.totalText}">0원</dd></div>
       </dl>
       <div th:if="${completion.teamAssigned}" class="join-team-result"><span th:text="${'A팀 ' + completion.teamACount + '명'}">A팀</span><span th:text="${'B팀 ' + completion.teamBCount + '명'}">B팀</span></div>
       <div class="join-complete-actions"><a class="join-button join-button-quiet" th:href="@{/matches}">매칭방 더 보기</a><a class="join-button join-button-primary" th:href="@{/mypage#reservations}">내 신청 내역 확인</a></div>
@@ -125,10 +131,10 @@
         <p class="join-summary-remaining" th:text="${canReserve ? match.remainingLabel + ' · 신청 인원 ' + selection.seats + '명' : '현재 선택으로 예약할 수 없습니다.'}">남은 자리</p>
       </div>
       <div class="join-summary-total">
-        <div><span th:text="${completed ? '신청 상태' : '참가비 안내'}">참가비 안내</span><b th:text="${completed ? completion.stateLabel : (canReserve ? feeTotalText : '예약 불가')}">-</b></div>
-        <small th:text="${completed ? '결제 상태는 이 화면에서 저장하지 않습니다.' : feeSummaryNote}">참가 인원 기준 안내 금액입니다.</small>
+        <div><span th:text="${completed ? '신청 상태' : (paid ? '결제 금액' : '참가비 안내')}">참가비 안내</span><b th:text="${completed ? completion.stateLabel : (canReserve ? feeTotalText : '예약 불가')}">-</b></div>
+        <small th:text="${completed ? (paid ? completion.totalText + ' 결제 완료' : '참가비가 없는 신청입니다.') : feeSummaryNote}">참가 인원 기준 금액입니다.</small>
       </div>
-      <p class="join-summary-footnote"><span aria-hidden="true">✓</span> 신청 내용은 서버로 전송되며, 결제는 별도 안내에 따라 진행됩니다.</p>
+      <p class="join-summary-footnote"><span aria-hidden="true">✓</span> <span th:text="${paid} ? '결제는 카카오페이에서 처리되며 카드·계좌 정보는 SPO:IT에 저장되지 않습니다.' : '신청 내용은 서버로 전송됩니다.'">신청 내용은 서버로 전송됩니다.</span></p>
     </aside>
   </div>
 </main>
@@ -158,6 +164,8 @@
           <li>모집 중이고 경기 시작 전인 매치만 취소할 수 있습니다.</li>
           <li>팀 배정이 끝난 뒤에는 직접 취소할 수 없으니 시설에 문의해 주세요.</li>
           <li>팀 신청은 신청한 대표만 취소할 수 있습니다.</li>
+          <li th:if="${paid}">결제한 참가비는 경기 시작 전까지 취소하면 전액 환불됩니다. 팀 신청은 취소한 인원만큼 대표의 결제 수단으로 환불됩니다.</li>
+          <li th:if="${paid}">시설 관리자가 반려하거나 경기 시작 전까지 확정되지 않은 신청은 자동으로 반려되고 전액 환불됩니다.</li>
         </ul>
       </section>
       <section aria-labelledby="rules-guide-noshow">
@@ -205,6 +213,8 @@
 
 <footer th:replace="~{fragments/layout :: simpleFooter}"></footer>
 
+<!--/* 신청·결제 실패 안내. 시간 겹침 안내 창이 뜨는 경우에는 그 창이 이유를 보여 주므로 한 번 더 띄우지 않습니다. */-->
+<th:block th:if="${timeConflicts == null or #lists.isEmpty(timeConflicts)}"><div th:replace="~{fragments/feedback :: flash}"></div></th:block>
 <script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/site-menu.js}"></script>
 <script th:src="@{/js/match-join-page.js}" th:attr="data-completed=${completed}"></script>

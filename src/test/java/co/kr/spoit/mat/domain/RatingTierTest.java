@@ -35,4 +35,10 @@ class RatingTierTest {
     void labelsPlacementBeforeFiveRatedMatchesRegardlessOfMmr(int ratedMatchCount, String label) {
         assertThat(RatingTier.labelOf(new BigDecimal("1500.00"), ratedMatchCount)).isEqualTo(label);
     }
+
+    @ParameterizedTest
+    @CsvSource({"0, 배치 중", "4, 배치 중", "5, 실버 2", "30, 실버 2"})
+    void tierNameUsesSamePlacementRuleWithoutPoints(int ratedMatchCount, String name) {
+        assertThat(RatingTier.tierNameOf(new BigDecimal("1149.99"), ratedMatchCount)).isEqualTo(name);
+    }
 }

@@ -159,7 +159,8 @@ confirmSubmit.setAttribute('data-confirm-facility-action', '');
 [confirmTitle, confirmMessage, confirmName, confirmCancel, confirmSubmit]
   .forEach(element => confirmModal.append(element));
 
-['room-editor-modal', 'room-editor-form', 'admin-toast',
+ids.set('room-editor-form', new Form({ id: 'room-editor-form' }));
+['room-editor-modal',
   'breadcrumb-current', 'facility-map-address', 'room-editor-hour-grid', 'room-editor-time-summary',
   'room-editor-capacity-hint', 'room-editor-team', 'date-schedule-hour-grid',
   'date-schedule-count', 'date-schedule-ranges'].forEach(id => control(id));
@@ -199,7 +200,13 @@ const documentObject = {
   listeners: {}
 };
 
+/* 공용 결과 안내(ui-feedback.js): 관리자 셸이 실패를 이 안내 모달로 넘기는지 기록한다. */
+const feedbackCalls = { toasts: [], alerts: [] };
 const windowObject = {
+  SpoitFeedback: {
+    toast: message => feedbackCalls.toasts.push(message),
+    alert: (title, reason) => feedbackCalls.alerts.push({ title, reason })
+  },
   location: { hash: '#facility-assets', pathname: '/admin/facility', href: 'http://localhost/admin/facility' },
   history: { replaceState() {} },
   matchMedia: () => ({ matches: false, addEventListener() {} }),
@@ -291,7 +298,28 @@ sportOptions.forEach(input => { input.checked = false; });
 const invalidSubmit = documentObject.dispatch('submit', facilityForm);
 assert.equal(invalidSubmit.defaultPrevented, true);
 assert.equal(confirmModal.hidden, true, 'validation failure must not open the confirmation');
-assert.equal(ids.get('admin-toast').dataset.kind, 'error');
+assert.deepEqual(feedbackCalls.alerts.at(-1), { title: '시설을 저장할 수 없습니다', reason: '시설 이용 종목을 하나 이상 선택해 주세요.' },
+  'validation failure must explain the reason in the failure modal');
+assert.equal(feedbackCalls.toasts.length, 0, 'validation failure must not use the success toast');
 assert.equal(facilityForm.requestSubmitCount, 1, 'validation failure must not submit the edit');
 
-console.log('PASS: facility update/delete need confirmation, cancel sends nothing, confirm submits once, create and validation stay as before.');
+/* 6) 매칭방 저장: 검증을 통과해 보낸 뒤 다시 누르거나 Enter를 쳐도 두 번째 제출은 막는다. */
+const roomEditorForm = ids.get('room-editor-form');
+const roomEditorSubmit = control('room-editor-submit', { textContent: '매칭방 생성' });
+roomEditorForm.dataset.roomMode = 'create';
+roomEditorForm.dataset.roomLocked = 'true'; // 일정 칸 검증은 이 테스트 범위 밖이라 건너뛴다.
+ids.get('room-editor-team').value = '6';
+const firstRoomSubmit = documentObject.dispatch('submit', roomEditorForm);
+assert.equal(firstRoomSubmit.defaultPrevented, false, 'a valid room form must reach the server');
+assert.equal(roomEditorSubmit.disabled, true, 'the save button must lock while the request is on its way');
+assert.equal(roomEditorSubmit.textContent, '저장 중…');
+const secondRoomSubmit = documentObject.dispatch('submit', roomEditorForm);
+assert.equal(secondRoomSubmit.defaultPrevented, true, 'a second submit must not create the same room again');
+
+/* 뒤로 가기 캐시에서 돌아오면 버튼을 다시 쓸 수 있다. */
+for (const handler of windowObject.listeners.pageshow ?? []) handler({ persisted: true });
+assert.equal(roomEditorSubmit.disabled, false, 'restored page must release the save button');
+assert.equal(roomEditorSubmit.textContent, '매칭방 생성');
+assert.equal(roomEditorForm.dataset.submitting, undefined);
+
+console.log('PASS: facility update/delete need confirmation, cancel sends nothing, confirm submits once, create and validation stay as before; room save submits once.');

@@ -28,7 +28,7 @@
     <div class="mypage-player-summary">
       <div class="mypage-skill-highlight">
         <span class="mypage-summary-label">대표 종목 레이팅<th:block th:if="${summary.representativeBasis != null}" th:text="${' · ' + summary.representativeBasis}"> · 경기 기록 기준</th:block></span>
-        <strong th:text="${summary.representativeRatingText}">기록 없음</strong>
+        <strong th:classappend="${summary.representativeTierKey != null ? 'is-tier-' + summary.representativeTierKey : ''}" th:text="${summary.representativeRatingText}">기록 없음</strong>
         <a th:if="${summary.representativeSportName != null}" class="mypage-skill-sport-link" th:href="@{/mypage(recordSport=${summary.representativeSportId})} + '#match-records'" th:text="${summary.representativeSportName}">종목</a>
         <p th:text="${summary.skillNote}">참가 확정 매치의 개인 레이팅 평균을 표시합니다.</p>
       </div>
@@ -43,18 +43,14 @@
       <div class="mypage-sport-levels-heading"><h3>다른 종목 레이팅</h3><p>대표 종목 외에 참가 기록이 있는 종목의 레이팅을 간략히 표시합니다.</p></div>
       <div class="mypage-sport-level-list" aria-live="polite">
         <a th:each="sport : ${otherSports}" class="mypage-sport-level-row" th:href="@{/mypage(recordSport=${sport.sportId})} + '#match-records'" th:aria-label="${sport.name + ' 경기 기록 보기'}">
-          <span th:text="${sport.name}">종목</span><strong th:text="${sport.ratingText}">기록 없음</strong><small th:text="${sport.note}">경기 기록</small>
+          <span th:text="${sport.name}">종목</span><strong th:classappend="${sport.tierKey != null ? 'is-tier-' + sport.tierKey : ''}" th:text="${sport.ratingText}">기록 없음</strong><small th:text="${sport.note}">경기 기록</small>
         </a>
         <p th:if="${#lists.isEmpty(otherSports)}" class="mypage-sport-level-empty" th:text="${summary.otherSportsNote}">매칭 참가 기록이 생기면 종목별 레이팅을 표시합니다.</p>
       </div>
     </div>
   </section>
 
-  <div id="mypage-message" class="auth-message mypage-message" role="status" aria-live="polite" th:if="${message != null}" th:text="${message}"></div>
-  <aside class="mypage-notice" aria-label="데이터 안내">
-    <span class="mypage-notice-mark" aria-hidden="true">i</span>
-  <p>신청·프로필·알림은 서버에서 제공하는 현재 회원 데이터입니다. 결제 안내는 참고 정보이며 이 화면에는 결제 상태를 저장하지 않습니다.</p>
-  </aside>
+  <div th:replace="~{fragments/feedback :: flash}"></div>
 
   <div class="mypage-layout">
     <nav class="mypage-nav" aria-label="마이페이지 메뉴">
@@ -68,7 +64,6 @@
     <div class="mypage-content">
       <section id="match-records" class="mypage-section" aria-labelledby="match-records-heading">
         <div class="mypage-section-heading">
-          <span class="mypage-section-index" aria-hidden="true">01</span>
           <div><h2 id="match-records-heading">종목별 레이팅과 경기 이력</h2><p>레이팅이 반영된 경기 기록을 확인하고, 종목을 선택해 이력을 좁혀볼 수 있습니다.</p></div>
         </div>
         <div class="mypage-records-layout">
@@ -80,10 +75,10 @@
                 <span class="mypage-rating-sport-grade"><strong th:text="${records.historyTotalCount + '경기'}">0경기</strong><small>전체 기록</small></span>
               </a>
               <a th:each="sport : ${records.sports}" class="mypage-rating-sport" th:href="@{/mypage(recordSport=${sport.sportId})} + '#match-records'" th:aria-current="${sport.selected ? 'true' : null}" th:classappend="${sport.selected} ? 'is-selected' : ''">
-                <span class="mypage-rating-sport-copy"><span class="mypage-rating-sport-name" th:text="${sport.name}">종목</span><small th:text="${'경기 ' + sport.ratedMatchCount + '회 · ' + sport.mmrText}">경기 0회 · MMR 1,000</small></span>
+                <span class="mypage-rating-sport-copy"><span class="mypage-rating-sport-name" th:text="${sport.name}">종목</span><small th:text="${'경기 ' + sport.ratedMatchCount + '회'}">경기 0회</small></span>
                 <span class="mypage-rating-sport-grade">
-                  <strong th:text="${sport.tierLabel}">배치 중</strong>
-                  <span th:if="${sport.placed}" class="mypage-rating-meter" role="img" th:aria-label="${sport.name + ' 티어 진행도 ' + sport.tierPoints + 'P'}"><i th:style="'width:' + ${sport.tierPoints} + '%'"></i></span>
+                  <strong th:classappend="${sport.tierKey != null ? 'is-tier-' + sport.tierKey : ''}" th:text="${sport.tierLabel}">배치 중</strong>
+                  <span th:if="${sport.placed}" class="mypage-rating-meter" th:classappend="${'is-tier-' + sport.tierKey}" role="img" th:aria-label="${sport.name + ' 티어 진행도 ' + sport.tierPoints + 'P'}"><i th:style="'width:' + ${sport.tierPoints} + '%'"></i></span>
                 </span>
               </a>
             </div>
@@ -105,18 +100,18 @@
                       <span class="mypage-match-history-status" th:classappend="${'is-' + item.resultKey}" th:text="${item.resultLabel}">승</span>
                     </span>
                   </span>
-                  <span class="mypage-match-history-score"><small>MMR 변동</small><strong th:classappend="${'is-' + item.deltaKey}" th:text="${item.deltaText}">0.00</strong></span>
+                  <span class="mypage-match-history-score"><small>레이팅</small><strong th:classappend="${'is-' + item.deltaKey}" th:text="${item.deltaText}">0P</strong></span>
                   <span class="mypage-match-history-chevron" aria-hidden="true">⌄</span>
                 </button>
                 <div class="mypage-match-history-detail" hidden>
                   <div class="mypage-match-score-summary">
                     <div class="mypage-match-player-score">
-                      <small>내 MMR</small>
-                      <strong th:text="${item.mmrBeforeText + ' → ' + item.mmrAfterText}">1,000 → 1,000</strong>
+                      <small>내 레이팅</small>
+                      <strong><span class="mypage-rating-step" th:classappend="${item.ratingFrom.tierKey != null ? 'is-tier-' + item.ratingFrom.tierKey : ''}" th:text="${item.ratingFrom.text}">실버 4 · 0P</span><th:block th:if="${item.ratingTo != null}"><span class="mypage-rating-arrow">→</span><span class="mypage-rating-step" th:classappend="${'is-tier-' + item.ratingTo.tierKey}" th:text="${item.ratingTo.text}">실버 4 · 0P</span></th:block><em th:if="${item.divisionChange != null}" class="mypage-match-division-change" th:classappend="${item.divisionChange == '승급'} ? 'is-up' : 'is-down'" th:text="${item.divisionChange}">승급</em></strong>
                     </div>
-                    <div class="mypage-match-team-averages" role="group" aria-label="반영 시점 A팀과 B팀 평균 MMR">
-                      <span th:classappend="${item.myTeam == 'A'} ? 'is-mine' : ''"><i class="is-team-a" aria-hidden="true"></i>A팀 <b th:text="${item.averageAText}">1,000</b><small th:if="${item.myTeam == 'A'}">내 팀</small></span>
-                      <span th:classappend="${item.myTeam == 'B'} ? 'is-mine' : ''"><i class="is-team-b" aria-hidden="true"></i>B팀 <b th:text="${item.averageBText}">1,000</b><small th:if="${item.myTeam == 'B'}">내 팀</small></span>
+                    <div class="mypage-match-team-averages" role="group" aria-label="반영 시점 A팀과 B팀 평균 티어">
+                      <span th:classappend="${item.myTeam == 'A'} ? 'is-mine' : ''"><i class="is-team-a" aria-hidden="true"></i>A팀 평균 <b th:classappend="${'is-tier-' + item.averageA.tierKey}" th:text="${item.averageA.text}">실버 4</b><small th:if="${item.myTeam == 'A'}">내 팀</small></span>
+                      <span th:classappend="${item.myTeam == 'B'} ? 'is-mine' : ''"><i class="is-team-b" aria-hidden="true"></i>B팀 평균 <b th:classappend="${'is-tier-' + item.averageB.tierKey}" th:text="${item.averageB.text}">실버 4</b><small th:if="${item.myTeam == 'B'}">내 팀</small></span>
                     </div>
                   </div>
                   <dl class="mypage-match-history-facts">
@@ -128,21 +123,20 @@
             </div>
           </section>
         </div>
-        <p class="mypage-rating-disclaimer">표시 레이팅은 서버가 제공한 값이며 공식 실력 지표가 아닙니다. 매칭방의 1~5단계 모집 조건과는 별도입니다.</p>
+        <p class="mypage-rating-disclaimer">레이팅은 확정된 경기 결과로 계산합니다. 매칭방 모집 실력(1~5단계)과는 별개입니다.</p>
       </section>
 
       <section id="reservations" class="mypage-section" aria-labelledby="reservations-heading">
         <div class="mypage-section-heading">
-          <span class="mypage-section-index" aria-hidden="true">02</span>
-            <div><h2 id="reservations-heading">신청 내역</h2><p>진행 중인 참가 신청과 확정 대기·완료·취소 상태를 확인하고 신청을 관리합니다.</p></div>
+          <div><h2 id="reservations-heading">신청 내역</h2><p>진행 중인 참가 신청과 확정 대기·완료·취소 상태를 확인하고 신청을 관리합니다.</p></div>
         </div>
-        <div class="divide-y divide-line" aria-live="polite">
-          <section aria-labelledby="current-reservations-heading">
-            <div class="flex items-center justify-between border-b border-line pb-2">
-              <h3 id="current-reservations-heading" class="text-sm font-extrabold">현재 신청</h3>
-              <span class="text-xs font-semibold text-muted" th:text="${#lists.size(currentReservations) + '건'}">0건</span>
+        <div class="mypage-reservation-groups" aria-live="polite">
+          <section class="mypage-reservation-group" aria-labelledby="current-reservations-heading">
+            <div class="mypage-reservation-group-heading">
+              <h3 id="current-reservations-heading">현재 신청</h3>
+              <span class="mypage-reservation-count" th:text="${#lists.size(currentReservations) + '건'}">0건</span>
             </div>
-            <div th:if="${!#lists.isEmpty(currentReservations)}" class="divide-y divide-line">
+            <div th:if="${!#lists.isEmpty(currentReservations)}" class="mypage-reservation-list">
               <article th:each="entry : ${currentReservations}" class="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div class="min-w-0">
                   <div class="flex flex-wrap items-center gap-2">
@@ -153,11 +147,12 @@
                   <h4 class="mt-1 text-sm font-extrabold" th:text="${entry.title}">매칭방</h4>
                   <p class="mt-1 text-xs leading-5 text-muted" th:text="${entry.metaLine}">날짜 · 시간 · 장소</p>
                   <p class="mt-1 text-[11px] text-faint" th:text="${entry.seatLine}">참가 1명</p>
+                  <p th:if="${entry.paymentLine != null}" class="mt-1 text-[11px] text-muted" th:text="${entry.paymentLine}">카카오페이 9,000원 결제</p>
                   <p th:if="${entry.statusNote != null}" class="mt-1 text-[11px] text-muted" th:text="${entry.statusNote}">안내</p>
                 </div>
                 <div class="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
                   <a th:if="${entry.canViewPaymentGuidance}" th:href="@{${entry.paymentGuidanceUrl}}" class="h-9 shrink-0 self-start rounded-lg bg-match px-3 py-2 text-xs font-bold text-white hover:bg-match-hover sm:self-center">결제 안내</a>
-                  <form th:if="${entry.canCancel}" method="post" th:action="@{/mypage/applications/{applicationId}/cancel(applicationId=${entry.applicationId})}" th:attr="data-team-cancel=${entry.teamCancel ? 'true' : null}, data-team-cancel-title=${entry.teamCancel ? entry.title : null}, data-team-cancel-meta=${entry.teamCancel ? entry.metaLine : null}">
+                  <form th:if="${entry.canCancel}" method="post" th:action="@{/mypage/applications/{applicationId}/cancel(applicationId=${entry.applicationId})}" th:attr="data-team-cancel=${entry.teamCancel ? 'true' : null}, data-team-cancel-title=${entry.teamCancel ? entry.title : null}, data-team-cancel-meta=${entry.teamCancel ? entry.metaLine : null}, data-refund-unit=${entry.refundUnitAmount > 0 ? entry.refundUnitAmount : null}, data-refund-cancel=${!entry.teamCancel and entry.refundUnitAmount > 0 ? 'true' : null}, data-refund-cancel-title=${!entry.teamCancel and entry.refundUnitAmount > 0 ? entry.title : null}, data-refund-cancel-meta=${!entry.teamCancel and entry.refundUnitAmount > 0 ? entry.metaLine : null}">
                     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                     <!-- 확인창 팀원 목록 데이터. 스크립트가 없으면 폼은 팀 전체 취소로 제출된다. -->
                     <ul th:if="${entry.teamCancel}" hidden data-team-members>
@@ -171,22 +166,24 @@
             <p th:if="${#lists.isEmpty(currentReservations)}" class="py-5 text-sm text-muted"><span>진행 중인 신청이 없습니다.</span> <a th:href="@{/matches}" class="font-bold text-book-ink hover:underline">매칭방 둘러보기</a></p>
           </section>
 
-          <section aria-labelledby="past-reservations-heading">
-            <div class="flex items-center justify-between border-b border-line pb-2">
-              <h3 id="past-reservations-heading" class="text-sm font-extrabold">지난 참여 · 취소</h3>
-              <span class="text-xs font-semibold text-muted" th:text="${#lists.size(pastReservations) + '건'}">0건</span>
+          <section class="mypage-reservation-group is-past" aria-labelledby="past-reservations-heading">
+            <div class="mypage-reservation-group-heading">
+              <h3 id="past-reservations-heading">지난 참여 · 취소</h3>
+              <span class="mypage-reservation-count" th:text="${#lists.size(pastReservations) + '건'}">0건</span>
             </div>
-            <div th:if="${!#lists.isEmpty(pastReservations)}" class="divide-y divide-line">
+            <!-- 최근 5건만 먼저 보이는 것은 스크립트가 적용한다. 스크립트가 없으면 전체 목록이 그대로 보인다. -->
+            <div th:if="${!#lists.isEmpty(pastReservations)}" id="past-reservation-list" class="mypage-reservation-list" data-past-reservations>
               <article th:each="entry : ${pastReservations}" class="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div class="min-w-0">
                   <div class="flex flex-wrap items-center gap-2">
-                    <span class="text-[10px] font-extrabold text-match-ink" th:text="${entry.sportName}">종목</span>
+                    <span class="text-[10px] font-extrabold text-muted" th:text="${entry.sportName}">종목</span>
                     <span class="text-[10px] text-faint" th:text="${entry.typeLabel}">개인 신청</span>
                     <span class="text-[10px] font-extrabold" th:classappend="${entry.stateClass}" th:text="${entry.stateLabel}">이용 완료</span>
                   </div>
                   <h4 class="mt-1 text-sm font-extrabold" th:text="${entry.title}">매칭방</h4>
                   <p class="mt-1 text-xs leading-5 text-muted" th:text="${entry.metaLine}">날짜 · 시간 · 장소</p>
                   <p class="mt-1 text-[11px] text-faint" th:text="${entry.seatLine}">참가 1명</p>
+                  <p th:if="${entry.paymentLine != null}" class="mt-1 text-[11px] text-muted" th:text="${entry.paymentLine}">카카오페이 9,000원 결제</p>
                   <p th:if="${entry.statusNote != null}" class="mt-1 text-[11px] text-muted" th:text="${entry.statusNote}">안내</p>
                 </div>
                 <!-- 경기가 끝난 참가 내역에서 결과 화면으로 이어 줍니다. 결과 화면은 확정 참가자만 열람할 수 있습니다.
@@ -194,10 +191,13 @@
                      제출 대상이면 제출 버튼을, 그 외 완료 경기는 결과 보기 링크를 보여 줍니다. -->
                 <div th:if="${resultSubmitMatchIds.contains(entry.matchId) or entry.stateLabel == '이용 완료'}" class="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
                   <a th:if="${resultSubmitMatchIds.contains(entry.matchId)}" th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="h-9 shrink-0 self-start rounded-lg bg-match px-3 py-2 text-xs font-bold text-white hover:bg-match-hover sm:self-center">경기 결과 제출</a>
-                  <a th:unless="${resultSubmitMatchIds.contains(entry.matchId)}" th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="h-9 shrink-0 self-start rounded-lg border border-line-strong px-3 py-2 text-xs font-bold text-ink-2 hover:border-match hover:text-match-ink sm:self-center">경기 결과 보기</a>
+                  <a th:unless="${resultSubmitMatchIds.contains(entry.matchId)}" th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="mypage-result-view-link h-9 shrink-0 self-start rounded-lg border border-line-strong px-3 py-2 text-xs font-bold text-ink-2 hover:border-match hover:text-match-ink sm:self-center">경기 결과 보기</a>
                 </div>
               </article>
             </div>
+            <button th:if="${#lists.size(pastReservations) > 5}" type="button" class="mypage-more-button" data-past-toggle
+                    aria-controls="past-reservation-list" aria-expanded="true" hidden
+                    th:text="${'지난 참여 전체 보기 (' + #lists.size(pastReservations) + '건)'}">지난 참여 전체 보기</button>
             <p th:if="${#lists.isEmpty(pastReservations)}" class="py-5 text-sm text-muted">완료하거나 취소한 내역이 없습니다.</p>
           </section>
         </div>
@@ -206,7 +206,6 @@
       <section id="notifications" class="mypage-section" aria-labelledby="notifications-heading"
                data-notification-surface>
         <div class="mypage-section-heading mypage-notifications-heading">
-          <span class="mypage-section-index" aria-hidden="true">03</span>
           <div><h2 id="notifications-heading">알림 확인 <span class="mypage-unread-count" data-notification-summary="short" aria-live="polite" th:text="${(unreadCount ?: 0) > 0 ? '· ' + unreadCount + '건 미확인' : '· 모두 확인했습니다'}">· 모두 확인했습니다</span></h2><p>예약과 팀 활동, 경기 결과 관련 알림입니다.</p></div>
           <form method="post" th:action="@{/mypage/notifications/read-all}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
             <button type="submit" class="mypage-text-button" data-notification-read-all th:disabled="${(unreadCount ?: 0) == 0}">모두 읽음 처리</button>
@@ -239,6 +238,21 @@
 </main>
 
 <div th:replace="~{fragments/notification :: center(${currentMember != null})}"></div>
+
+<!-- 결제한 개인 신청 취소: 환불 금액을 알리고 확인을 받는다. 스크립트가 없으면 폼이 그대로 제출된다. -->
+<dialog id="refund-cancel-dialog" class="mypage-confirm-dialog" aria-labelledby="refund-cancel-title" aria-describedby="refund-cancel-message">
+  <div class="mypage-confirm-dialog-content">
+    <div class="mypage-confirm-dialog-heading">
+      <div><h2 id="refund-cancel-title">신청 취소</h2><p id="refund-cancel-match">매칭방</p></div>
+      <button class="mypage-confirm-close" type="button" data-close-refund-cancel aria-label="닫기">×</button>
+    </div>
+    <p id="refund-cancel-message" class="mypage-confirm-note">신청을 취소할까요?</p>
+    <div class="mypage-confirm-actions">
+      <button class="mypage-confirm-back" type="button" data-close-refund-cancel>돌아가기</button>
+      <button id="refund-cancel-confirm" class="mypage-confirm-submit" type="button">신청 취소</button>
+    </div>
+  </div>
+</dialog>
 
 <!-- RES-04 팀 신청 취소: 대표가 취소할 팀원을 고른다. 대표가 빠지고 남는 팀원이 있으면 새 대표를 고른다. -->
 <dialog id="team-cancel-dialog" class="mypage-confirm-dialog" aria-labelledby="team-cancel-title" aria-describedby="team-cancel-message">

@@ -3,7 +3,6 @@
   'use strict';
 
   const form = document.getElementById('profile-form');
-  const message = document.getElementById('profile-edit-message');
   const sportSelect = document.getElementById('profile-representative-sport');
   const ratingPreview = document.getElementById('representative-level-preview');
   const ratingNote = document.getElementById('representative-level-note');
@@ -23,11 +22,20 @@
     return withdrawalDialog?.dataset.withdrawalBlocked === 'true';
   }
 
+  /* 티어 색은 서버가 option에 실어 준 키(data-tier)만 쓴다. 키가 없으면(배치 중·기록 없음) 기본색으로 둔다. */
+  function syncTierClass(tier) {
+    Array.from(ratingPreview.classList).forEach(function (name) {
+      if (name.indexOf('is-tier-') === 0) ratingPreview.classList.remove(name);
+    });
+    if (tier) ratingPreview.classList.add('is-tier-' + tier);
+  }
+
   function syncRatingPreview() {
     if (!sportSelect || !ratingPreview) return;
     const option = sportSelect.options[sportSelect.selectedIndex];
     const hasSport = Boolean(sportSelect.value) && Boolean(option);
     ratingPreview.textContent = hasSport ? (option.dataset.rating || '기록 없음') : '종목을 선택하세요';
+    syncTierClass(hasSport ? option.dataset.tier : null);
     if (ratingNote) {
       ratingNote.textContent = hasSport
         ? (option.dataset.ratingNote || '확정 매치 기록에 따라 표시하며 직접 수정할 수 없습니다.')
@@ -134,10 +142,4 @@
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape' && withdrawalDialog?.open) closeWithdrawal();
   });
-
-  if (message) {
-    message.addEventListener('click', function () {
-      message.hidden = true;
-    });
-  }
 })();

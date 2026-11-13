@@ -1,6 +1,7 @@
 package co.kr.spoit.member.controller;
 
 import static co.kr.spoit.member.domain.MemberPrincipalFixture.member;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -15,9 +16,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -94,14 +98,27 @@ class MyPageRatingRecordRenderTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(allOf(
                         containsString("대표 종목 레이팅 · 경기 기록 기준</span>"),
-                        containsString("<strong>실버 4 · 63P</strong>"),
+                        containsString("<strong class=\"is-tier-silver\">실버 4 · 63P</strong>"),
                         containsString(">풋살</a>"),
                         containsString("aria-label=\"농구 경기 기록 보기\""),
-                        containsString("<span>농구</span><strong>배치 중 (3/5)</strong><small>경기 3회 · MMR 1,000</small>"))))
+                        containsString("<span>농구</span><strong>배치 중 (3/5)</strong><small>경기 3회</small>"))))
                 .andExpect(content().string(not(containsString("aria-label=\"풋살 경기 기록 보기\""))));
 
         // 프로필 영역은 아래 종목 카드와 같은 조회 결과를 쓴다.
         verify(recordMapper, times(1)).findRatings(USER_ID);
+    }
+
+    @Test
+    @DisplayName("대표 종목이 배치 중이면 큰 글자는 중립색이고, 다른 종목 줄의 티어에는 티어 색 클래스가 붙는다")
+    void tierColorClassFollowsTierAndSkipsPlacement() throws Exception {
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.of(sportOption(3L, "농구")));
+
+        String html = mockMvc.perform(get("/mypage").with(user(member())))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(representativeArea(html)).contains("<strong>배치 중 (3/5)</strong>").doesNotContain("is-tier-");
+        assertThat(html).contains("<span>풋살</span><strong class=\"is-tier-silver\">실버 4 · 63P</strong>");
     }
 
     @Test
@@ -130,21 +147,64 @@ class MyPageRatingRecordRenderTest {
                         containsString("value=\"2\" data-rating=\"실버 4 · 63P\""),
                         containsString("value=\"3\" data-rating=\"배치 중 (3/5)\""),
                         containsString("value=\"4\" data-rating=\"기록 없음\""),
-                        containsString("id=\"representative-level-preview\">실버 4 · 63P</strong>"))));
+                        containsString(">실버 4 · 63P</strong>"))));
     }
 
     @Test
-    @DisplayName("종목 카드는 티어·MMR·경기 수를, 이력은 승패·MMR 변동·평가 상세를 보여 주고 5점제 문구는 없다")
+    @DisplayName("대표 종목에 티어가 있으면 미리보기에 티어 클래스를, 그 종목 option에 서버의 티어 키를 data-tier로 싣는다")
+    void profilePreviewCarriesTierClass() throws Exception {
+        given(memberService.findSports()).willReturn(List.of(sportOption(2L, "풋살"), sportOption(3L, "농구")));
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.of(sportOption(2L, "풋살")));
+
+        String html = renderProfile();
+
+        assertThat(tag(html, "id=\"representative-level-preview\"")).contains("class=\"is-tier-silver\"");
+        assertThat(tag(html, "value=\"2\"")).contains("data-tier=\"silver\"");
+    }
+
+    @Test
+    @DisplayName("배치 중이거나 기록이 없는 종목이 섞여도 화면이 그려지고, 그 option에는 data-tier가 없으며 미리보기는 기본색이다")
+    void profileSkipsTierForPlacementAndNoRecord() throws Exception {
+        given(memberService.findSports()).willReturn(List.of(
+                sportOption(2L, "풋살"), sportOption(3L, "농구"), sportOption(4L, "배구")));
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.of(sportOption(3L, "농구")));
+
+        String html = renderProfile();
+
+        assertThat(tag(html, "value=\"3\"")).contains("data-rating=\"배치 중 (3/5)\"").doesNotContain("data-tier");
+        assertThat(tag(html, "value=\"4\"")).doesNotContain("data-tier");
+        assertThat(tag(html, "value=\"2\"")).contains("data-tier=\"silver\"");
+        assertThat(tag(html, "id=\"representative-level-preview\"")).doesNotContain("is-tier-");
+    }
+
+    private String renderProfile() throws Exception {
+        return mockMvc.perform(get("/mypage/profile").with(user(member())))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+    }
+
+    // 속성 순서나 줄바꿈과 상관없이 표식 속성을 가진 여는 태그 하나를 잘라 본다.
+    private static String tag(String html, String marker) {
+        Matcher matcher = Pattern.compile("<[^>]*" + Pattern.quote(marker) + "[^>]*>").matcher(html);
+        assertThat(matcher.find()).as(marker).isTrue();
+        return matcher.group();
+    }
+
+    @Test
+    @DisplayName("종목 카드는 티어·경기 수를, 이력은 승패·포인트 변동·평가 상세를 보여 주고 MMR과 5점제 문구는 없다")
     void rendersRatingsAndHistory() throws Exception {
         given(recordMapper.findHistory(USER_ID, null, 20)).willReturn(List.of(
-                history(31L, "주말 풋살", "동호회", "A", "1015.07", "16.00", "0.53", "7.05", "1.0"),
-                history(30L, "평일 풋살", "개인", "B", "1031.60", "-16.00", "0.68", null, "0.0")));
+                history(31L, "주말 풋살", "동호회", "A", "1015.07", "16.00", "0.53", "7.05", "1.0", 12),
+                history(30L, "평일 풋살", "개인", "B", "1031.60", "-16.00", "0.68", null, "0.0", 11)));
 
         mockMvc.perform(get("/mypage").with(user(member())))
                 .andExpect(status().isOk())
                 .andExpect(content().string(allOf(
-                        containsString("경기 12회 · MMR 1,032"),
-                        containsString("실버 4 · 63P"),
+                        containsString("<small>경기 12회</small>"),
+                        containsString("<strong class=\"is-tier-silver\">실버 4 · 63P</strong>"),
+                        containsString("class=\"mypage-rating-meter is-tier-silver\""),
+                        // 배치 중 종목 카드는 티어 클래스 없이 중립색이다.
+                        containsString("<strong>배치 중 (3/5)</strong>"),
                         containsString("aria-label=\"풋살 티어 진행도 63P\""),
                         containsString("배치 중 (3/5)"),
                         containsString("2경기"),
@@ -153,16 +213,46 @@ class MyPageRatingRecordRenderTest {
                         containsString(">패</span>"),
                         containsString("<span>팀 신청</span>"),
                         containsString("<span>개인 신청</span>"),
-                        containsString(">+16.53</strong>"),
-                        containsString(">-15.32</strong>"),
-                        containsString("1,015 → 1,032"),
+                        containsString("<small>레이팅</small><strong class=\"is-up\">+33P</strong>"),
+                        containsString("<strong class=\"is-down\">-31P</strong>"),
+                        containsString("<span class=\"mypage-rating-step is-tier-silver\">실버 4 · 30P</span><span class=\"mypage-rating-arrow\">→</span><span class=\"mypage-rating-step is-tier-silver\">실버 4 · 63P</span>"),
+                        containsString("<span class=\"mypage-rating-step is-tier-silver\">실버 4 · 63P</span><span class=\"mypage-rating-arrow\">→</span><span class=\"mypage-rating-step is-tier-silver\">실버 4 · 32P</span>"),
+                        containsString("A팀 평균 <b class=\"is-tier-silver\">실버 4</b>"),
+                        containsString("B팀 평균 <b class=\"is-tier-bronze\">브론즈 1</b>"),
+                        containsString("<dt>승패</dt><dd>+32P</dd>"),
+                        containsString("<dt>평가</dt><dd>+1P</dd>"),
+                        containsString("<dt>승패</dt><dd>-32P</dd>"),
                         containsString("7.05점"),
                         containsString("<dd>없음</dd>"),
                         containsString("내 팀"))))
                 // 배치 중 종목에는 티어 진행도 막대를 그리지 않는다.
                 .andExpect(content().string(not(containsString("농구 티어 진행도"))))
+                .andExpect(content().string(not(containsString("MMR"))))
+                .andExpect(content().string(not(containsString("승급"))))
                 .andExpect(content().string(not(containsString("/ 5.00"))))
                 .andExpect(content().string(not(containsString("5점 만점"))));
+    }
+
+    @Test
+    @DisplayName("배치 경기 이력은 티어·포인트 대신 배치 진행만, 상세에는 평가 점수만 보이고 승급·강등은 표시한다")
+    void rendersPlacementAndDivisionChange() throws Exception {
+        given(recordMapper.findHistory(USER_ID, null, 20)).willReturn(List.of(
+                history(33L, "승급 경기", "개인", "A", "999.00", "16.00", "0.50", "5.50", "1.0", 7),
+                history(32L, "배치 완료 경기", "개인", "A", "1000.00", "15.50", "0.00", "5.00", "1.0", 5),
+                history(31L, "배치 경기", "개인", "B", "1000.00", "-31.09", "-0.66", "4.34", "0.0", 1)));
+
+        mockMvc.perform(get("/mypage").with(user(member())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(allOf(
+                        containsString("<span class=\"mypage-rating-step is-tier-bronze\">브론즈 1 · 98P</span><span class=\"mypage-rating-arrow\">→</span><span class=\"mypage-rating-step is-tier-silver\">실버 4 · 31P</span><em class=\"mypage-match-division-change is-up\">승급</em>"),
+                        containsString("<strong class=\"is-placement\">배치 완료</strong>"),
+                        containsString("<span class=\"mypage-rating-step\">배치 완료</span><span class=\"mypage-rating-arrow\">→</span><span class=\"mypage-rating-step is-tier-silver\">실버 4 · 31P</span>"),
+                        containsString("<strong class=\"is-placement\">배치 1/5</strong>"),
+                        containsString("<span class=\"mypage-rating-step\">배치 경기 1/5</span></strong>"),
+                        containsString("4.34점"))))
+                // 배치 경기 두 줄에는 승패·평가 포인트가 없어 승급 경기 한 줄만 남는다.
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString().split("<dt>승패</dt>", -1)).hasSize(2))
+                .andExpect(content().string(not(containsString("MMR"))));
     }
 
     @Test
@@ -188,6 +278,13 @@ class MyPageRatingRecordRenderTest {
         verify(recordMapper, times(2)).findHistory(eq(USER_ID), isNull(), eq(20));
     }
 
+    // 종목 카드에도 같은 문구가 있어 대표 종목 영역만 잘라 본다.
+    private static String representativeArea(String html) {
+        int start = html.indexOf("class=\"mypage-skill-highlight\"");
+        assertThat(start).isNotNegative();
+        return html.substring(start, html.indexOf("</div>", start));
+    }
+
     private static SportOption sportOption(Long sportId, String name) {
         var sport = new SportOption();
         sport.setSportId(sportId);
@@ -206,7 +303,7 @@ class MyPageRatingRecordRenderTest {
 
     private static MyRatingHistoryRow history(Long historyId, String title, String applicationType, String side,
                                               String mmrBefore, String eloDelta, String evaluationDelta,
-                                              String evaluationScore, String actualScore) {
+                                              String evaluationScore, String actualScore, int ratedMatchCountAfter) {
         BigDecimal before = new BigDecimal(mmrBefore);
         BigDecimal elo = new BigDecimal(eloDelta);
         BigDecimal evaluation = new BigDecimal(evaluationDelta);
@@ -229,6 +326,7 @@ class MyPageRatingRecordRenderTest {
         row.setTeamAvgMmrA(new BigDecimal("1010.25"));
         row.setTeamAvgMmrB(new BigDecimal("990.75"));
         row.setCalculatedAt(LocalDateTime.of(2026, 10, 4, 12, 0));
+        row.setRatedMatchCountAfter(ratedMatchCountAfter);
         return row;
     }
 }

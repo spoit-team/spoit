@@ -88,20 +88,6 @@
            FOR UPDATE
     </select>
 
-    <!-- 삭제 차단 판단용: 지정한 상태의 매칭방을 실제 행으로 잠그고 하나만 가져온다. -->
-    <select id="selectMatchIdInStatusesForUpdate" resultType="java.lang.Long">
-        SELECT match_id
-          FROM social_match
-         WHERE facility_id = #{facilityId}
-           AND status IN
-        <foreach collection="statuses" item="status" open="(" separator="," close=")">
-            #{status}
-        </foreach>
-         ORDER BY match_id ASC
-         LIMIT 1
-           FOR UPDATE
-    </select>
-
     <!-- 종목 해제 보호용: 상태와 무관하게 참조하는 매칭방을 실제 행으로 잠그고 하나만 가져온다. -->
     <select id="selectMatchIdForSportsForUpdate" resultType="java.lang.Long">
         SELECT match_id

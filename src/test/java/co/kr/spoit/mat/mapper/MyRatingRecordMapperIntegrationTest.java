@@ -46,6 +46,33 @@ class MyRatingRecordMapperIntegrationTest extends AbstractMySqlMapperTest {
     }
 
     @Test
+    void ratedMatchCountAfterDoesNotDependOnLimitOrSportFilter() {
+        // 종목 A n번째 경기는 n경기째 반영이고 종목 B 한 경기는 1경기째다. 최근 20건만 보여도 같은 값이어야 한다.
+        assertThat(recordMapper.findHistory(ME, null, 20)).extracting(MyRatingHistoryRow::getRatedMatchCountAfter)
+                .containsExactly(22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 1, 8, 7, 6, 5, 4);
+        assertThat(recordMapper.findHistory(ME, null, 30)).extracting(MyRatingHistoryRow::getRatedMatchCountAfter)
+                .endsWith(4, 3, 2, 1);
+        assertThat(recordMapper.findHistory(ME, SPORT_A, 20)).extracting(MyRatingHistoryRow::getRatedMatchCountAfter)
+                .containsExactly(22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3);
+        assertThat(recordMapper.findHistory(ME, SPORT_A, 3)).extracting(MyRatingHistoryRow::getRatedMatchCountAfter)
+                .containsExactly(22, 21, 20);
+        assertThat(recordMapper.findHistory(ME, SPORT_B, 20)).extracting(MyRatingHistoryRow::getRatedMatchCountAfter)
+                .containsExactly(1);
+    }
+
+    @Test
+    void ratedMatchCountAfterFollowsSportRatingWhenEarlierHistoryIsMissing() {
+        // 914는 반영 10경기 중 마지막 2경기만 이력이 있다. 이력을 처음부터 세면 2, 1이 되어 배치 중으로 보인다.
+        assertThat(recordMapper.findHistory(914L, null, 20))
+                .extracting(MyRatingHistoryRow::getHistoryId, MyRatingHistoryRow::getRatedMatchCountAfter)
+                .containsExactly(tuple(9452L, 10), tuple(9451L, 9));
+
+        MyRatingRecords records = new MyRatingRecordService(recordMapper).find(914L, null);
+        assertThat(records.getHistory()).extracting(MyRatingRecords.HistoryItem::getDeltaText)
+                .containsExactly("+32P", "+32P");
+    }
+
+    @Test
     void sportFilterKeepsOnlyThatSportAndJoinsDisplayValues() {
         List<MyRatingHistoryRow> history = recordMapper.findHistory(ME, SPORT_B, 20);
 

@@ -117,6 +117,8 @@
         <a th:href="@{/matches}" class="match-list-button match-list-button-secondary">조건 초기화</a>
       </div>
 
+      <!-- 첫 화면과 무한 스크롤 조각(GET /matches/cards)이 같이 쓴다: 카드들 + 다음 페이지 sentinel -->
+      <th:block th:fragment="moreCards">
       <article th:each="match : ${matches}" class="match-list-row" th:attr="data-room-id=${match.matchId}">
         <figure class="match-list-photo">
           <span class="match-list-photo-fallback" aria-hidden="true" th:text="${match.sportName}">종목</span>
@@ -228,13 +230,18 @@
           </footer>
         </div>
       </article>
+      <div th:if="${nextCursor != null}" id="match-more" class="match-list-more" role="status"
+           th:attr="data-next-url=@{/matches/cards(cursor=${nextCursor}, sportId=${search.sportId}, regionId=${search.regionId}, date=${search.dateIdx}, hours=${search.hours})}">
+        <span class="match-list-more-spinner" aria-hidden="true"></span>
+        <span data-more-message>매칭방을 더 불러오는 중…</span>
+      </div>
+      </th:block>
     </div>
   </section>
 </main>
 
 <footer th:replace="~{fragments/layout :: siteFooter}"></footer>
 
-<div id="toast" class="pointer-events-none fixed bottom-5 left-1/2 z-[70] -translate-x-1/2 translate-y-3 rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white opacity-0 shadow-xl transition-all" role="status" aria-live="polite"></div>
 <dialog id="app-dialog" class="max-w-none rounded-2xl border-0 p-0 shadow-2xl backdrop:bg-ink/45"></dialog>
 
 <!-- 헤더 종 아이콘에서 여는 통합 알림 창 -->

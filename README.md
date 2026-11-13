@@ -74,12 +74,13 @@ CREATE DATABASE spoit DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 mysql --default-character-set=utf8mb4 -u 개발용계정 -p
 ```
 
-클라이언트에서 스키마를 선택하고 두 SQL 파일을 순서대로 실행합니다. `SOURCE` 경로는 저장소 루트에서 실행할 때 기준입니다. 오류가 나면 중단하고 원인을 확인하세요. `--force`로 오류를 무시하지 마세요.
+클라이언트에서 스키마를 선택하고 세 SQL 파일(스키마, seed, 공공 체육시설 데이터)을 순서대로 실행합니다. `SOURCE` 경로는 저장소 루트에서 실행할 때 기준입니다. 오류가 나면 중단하고 원인을 확인하세요. `--force`로 오류를 무시하지 마세요.
 
 ```sql
 USE spoit;
 SOURCE db/schema.sql;
 SOURCE db/seed.sql;
+SOURCE db/migrations/20261110-seoul-public-facilities.sql;
 ```
 
 `seed.sql`은 빈 DB에 한 번만 넣는 개발용 더미 데이터입니다. 이미 가져온 DB에는 다시 실행하지 마세요. 재구성이 필요하면 먼저 데이터를 백업하고, 별도의 새 개발 DB를 만들어 스키마와 seed를 처음부터 적용하세요. [시드 계정 및 주의사항](db/seed-accounts.md)도 확인하세요.
@@ -107,6 +108,10 @@ SOURCE db/seed.sql;
 로컬 파일을 사용하지 않고 OS/IDE 환경 변수만 설정한 경우에는 `gradlew.bat bootRun` 또는 `./gradlew bootRun`으로 실행합니다. IDE에서도 같은 방식으로 환경 변수와 필요 시 `--spring.profiles.active=local` 인자를 지정하세요.
 
 http://localhost:8080 으로 접속합니다.
+
+### 6. 참가비 결제 켜기 (선택)
+
+참가비가 있는 매치는 카카오페이 테스트 결제로 결제한 뒤 신청이 접수됩니다. `KAKAOPAY_SECRET_KEY` 환경 변수가 없으면 유료 매치의 결제 버튼만 비활성화되고 나머지 기능은 그대로 동작합니다. 설정 방법은 [docs/payment-kakaopay.md](docs/payment-kakaopay.md)를 보세요.
 
 현재 실제 DB 조회가 연결된 업무 화면은 매칭 목록입니다. 매칭 상세·신청과 그 밖의 업무 페이지는 아직 스텁 화면이며, seed의 고정 날짜 데이터는 검색의 오늘부터 14일 범위 밖일 수 있어 목록이 비어도 서버 기동 실패를 뜻하지 않습니다.
 

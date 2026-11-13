@@ -122,7 +122,7 @@ class RoomManagementRouteIntegrationTest {
                         hasProperty("matchId", is(FOREIGN_MATCH_ID))))))
                 .andExpect(content().string(containsString("금요 농구 모집")));
 
-        // 상세(배정 후): 확정 신청이 참가자 명단으로 옮겨져 팀과 함께 모델에 담긴다.
+        // 상세(배정 후): 신청 내역은 그대로 남고, 참가자 명단이 팀과 함께 모델에 담긴다.
         // 목록 조회 뒤, 첫 상세 조회 전에 상태를 바꿔 같은 트랜잭션의 MyBatis 1차 캐시를 피한다.
         jdbcTemplate.update("UPDATE social_match SET status = '매칭 완료' WHERE match_id = ?", OWNED_MATCH_ID);
         mockMvc.perform(get("/admin/operations")
@@ -155,6 +155,9 @@ class RoomManagementRouteIntegrationTest {
                 futureStart, futureStart.plusHours(2), OWNED_MATCH_ID);
 
         // 상세(배정 전): 신청 내역만 보이고 참가자 표는 팀 배정 뒤에 채워진다.
+        // 승인·반려 버튼은 시작 전 경기에만 표시되므로 고정 fixture 날짜 대신 미래 시각을 사용한다.
+        jdbcTemplate.update("UPDATE social_match SET start_at = DATE_ADD(NOW(), INTERVAL 7 DAY), "
+                + "end_at = DATE_ADD(NOW(), INTERVAL 7 DAY) + INTERVAL 2 HOUR WHERE match_id = ?", OWNED_MATCH_ID);
         mockMvc.perform(get("/admin/operations")
                         .param("matchId", String.valueOf(OWNED_MATCH_ID))
                         .with(user(manager(MANAGER_A))))

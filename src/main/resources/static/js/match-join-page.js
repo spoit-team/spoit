@@ -1,4 +1,8 @@
-/* 매치 참가 신청 화면: 단계 전환과 동의 검사만 담당합니다. 신청은 서버가 저장하며 결제 UI는 안내용입니다. */
+/*
+ * 매치 참가 신청 화면: 단계 전환과 동의 검사, 유료 매치의 참가비 결제를 담당합니다.
+ * 무료 매치는 신청 내용(1단계)에서 폼을 그대로 제출합니다. 유료 매치는 1단계 제출을 막고 결제(2단계)로 넘어간 뒤
+ * 결제 준비(prepare)를 fetch로 보내고 받은 카카오페이 결제 페이지로 이동합니다. 금액과 신청 접수는 서버가 정합니다.
+ */
 (function () {
   'use strict';
 
@@ -13,15 +17,27 @@
   const paymentAgree = document.getElementById('payment-agree');
   const joinError = document.getElementById('join-error');
   const paymentError = document.getElementById('payment-error');
+  const payButton = document.getElementById('submit-payment');
 
   if (!form) return;
 
+  const paid = form.dataset.paid === 'true';
+  const totalSteps = paid ? 3 : 2;
   let currentStep = 1;
+  let paying = false;
 
   function setError(target, message) {
     if (!target) return;
     target.textContent = message || '';
     target.hidden = !message;
+  }
+
+  /* 서버가 결제를 거부했거나 연결이 끊긴 경우: 원인을 공용 실패 안내 모달로 보여 준다.
+     동의 체크처럼 입력 바로 옆에서 고칠 수 있는 안내는 setError로 그 자리에 둔다. */
+  function showPaymentFailure(message) {
+    const feedback = window.SpoitFeedback;
+    if (feedback) feedback.alert('결제를 시작할 수 없습니다', message, { returnFocus: payButton });
+    else setError(paymentError, message);
   }
 
   function setStep(step) {
@@ -38,29 +54,23 @@
       const number = indicator.querySelector('.step-number');
       if (number) number.textContent = value < step ? '✓' : String(value);
     });
-    if (stageIndex) stageIndex.textContent = 'STEP 0' + step + ' / 03';
+    if (stageIndex) stageIndex.textContent = 'STEP 0' + step + ' / 0' + totalSteps;
     if (stageHeading) {
       stageHeading.textContent = step === 1
         ? '신청 내용을 확인해 주세요'
-        : step === 2 ? '결제 안내를 확인해 주세요' : '신청 처리가 완료되었습니다';
+        : step === 2 ? '참가비를 결제해 주세요' : '신청 처리가 완료되었습니다';
     }
     (step === 1 || step === 2 ? stageHeading : null)?.focus?.({ preventScroll: true });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  document.querySelectorAll('input[data-payment-method]').forEach(function (input) {
-    input.addEventListener('change', function () {
-      document.querySelectorAll('.join-payment-option').forEach(function (option) {
-        option.classList.toggle('is-selected', !!option.querySelector('input')?.checked);
-      });
-    });
-  });
-
   backButton?.addEventListener('click', function () {
+    if (paying) return;
+    setError(paymentError, '');
     setStep(1);
   });
 
-  // 무료 결제만 지원: 신청 내용(1단계)에서 바로 접수한다. 결제 안내(2단계)는 유료 결제 도입 시 다시 연결한다.
+  // 무료 매치는 신청 내용(1단계)에서 바로 접수하고, 유료 매치는 결제(2단계)로 넘어간다.
   form.addEventListener('submit', function (event) {
     if (!rulesAgree?.checked) {
       event.preventDefault();
@@ -69,10 +79,78 @@
       return;
     }
     setError(joinError, '');
-    document.querySelectorAll('[data-payment-method]').forEach(function (input) { input.disabled = true; });
+    if (paid) {
+      // 유료 매치는 폼을 제출하지 않는다. 서버도 결제 없는 유료 신청은 받지 않는다.
+      event.preventDefault();
+      setStep(2);
+      return;
+    }
     // 두 번 누르면 두 번째 요청이 "이미 신청" 오류로 끝나 완료 화면 대신 오류가 보이므로 막는다.
     if (continueButton) continueButton.disabled = true;
   });
+
+  /* ---------------- 참가비 결제 (유료 매치) ---------------- */
+
+  function teamMemberIds() {
+    return Array.from(form.querySelectorAll('input[name="clubMemberIds"]'))
+      .map(function (input) { return Number(input.value); })
+      .filter(function (value) { return Number.isFinite(value); });
+  }
+
+  async function postJson(url, body) {
+    const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+    if (form.dataset.csrfHeader && form.dataset.csrfToken) headers[form.dataset.csrfHeader] = form.dataset.csrfToken;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: headers,
+      credentials: 'same-origin',
+      body: JSON.stringify(body)
+    });
+    const data = await response.json().catch(function () { return {}; });
+    return { ok: response.ok && !response.redirected && data.ok === true, data: data };
+  }
+
+  function setPaying(value) {
+    paying = value;
+    if (payButton) {
+      payButton.disabled = value;
+      payButton.setAttribute('aria-busy', value ? 'true' : 'false');
+    }
+    if (backButton) backButton.disabled = value;
+  }
+
+  // 결제 준비가 끝나면 카카오페이 결제 페이지로 이동한다. 결제 뒤에는 카카오페이가 서버의 승인 주소로 돌려보낸다.
+  async function pay() {
+    if (paying) return;
+    if (!paymentAgree?.checked) {
+      setError(paymentError, '결제 및 환불 안내에 동의해 주세요.');
+      paymentAgree?.focus();
+      return;
+    }
+    setError(paymentError, '');
+    setPaying(true);
+    try {
+      const clubId = form.querySelector('input[name="clubId"]')?.value;
+      const prepared = await postJson(form.dataset.paymentPrepareUrl, {
+        applicationType: form.dataset.applicationType,
+        clubId: clubId ? Number(clubId) : null,
+        clubMemberIds: teamMemberIds(),
+        agreeRules: !!rulesAgree?.checked,
+        agreePayment: !!paymentAgree?.checked
+      });
+      if (prepared.ok && prepared.data.redirectUrl) {
+        window.location.assign(prepared.data.redirectUrl);
+        return;
+      }
+      setPaying(false);
+      showPaymentFailure(prepared.data.message || '결제를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } catch (error) {
+      setPaying(false);
+      showPaymentFailure('서버에 연결하지 못했습니다. 네트워크 상태를 확인해 주세요.');
+    }
+  }
+
+  payButton?.addEventListener('click', pay);
 
   /* 시간 겹침: 서버가 겹침을 찾았을 때만 모달이 렌더링되며, 화면을 열자마자 띄웁니다. 신청 버튼은 서버가 이미 막아 둡니다. */
   const conflictDialog = document.getElementById('time-conflict-dialog');

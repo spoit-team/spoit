@@ -18,8 +18,7 @@
         <div class="heading-actions"><a class="admin-button small" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">← 매칭방 목록</a></div>
       </div>
 
-      <p th:if="${message != null}" class="ops-message" role="status" th:text="${message}">운영 안내</p>
-      <p th:if="${error != null}" class="ops-message is-error" role="alert" th:text="${error}">요청을 처리하지 못했습니다.</p>
+      <div th:replace="~{fragments/feedback :: flash}"></div>
 
       <!-- 매칭방을 찾지 못했거나 조회할 수 없는 경우 -->
       <section id="ops-unavailable" class="ops-empty" th:if="${match == null}">
@@ -59,7 +58,7 @@
 
         <div class="notice-strip">
           <strong>운영 범위</strong>
-          <p>팀 배정은 경기 시작 전까지 할 수 있으며, 시작 시각까지 배정하지 않으면 인원이 찬 경우 자동 배정됩니다. 참가 신청은 아래 참가 신청 내역에서 한 명씩 승인·반려하며, 이용 완료 처리는 이 화면에서 할 수 없습니다.</p>
+          <p>팀 배정은 경기 시작 전까지 할 수 있으며, 시작 시각까지 배정하지 않으면 인원이 찬 경우 자동 배정됩니다. 참가 신청은 아래 참가 신청 내역에서 한 명씩 승인·반려합니다. 이용 완료 처리 자체는 이 화면에서 할 수 없으며, 이용이 끝난 경기는 참가자 표의 신고 링크로 접수 화면에 이어집니다.</p>
         </div>
 
         <!-- 승인·반려: match-application-decision.js가 확인창을 띄운 뒤 폼 없이 fetch로 보내고 성공하면 새로고침한다. -->
@@ -70,7 +69,7 @@
             <div class="section-title-wrap">
               <h2 id="ops-applications-heading">참가 신청 내역</h2>
               <p th:text="${match.teamAssigned}
-                  ? '팀 배정이 끝나 참가 확정 신청은 참가자 목록으로 옮겨졌습니다. 반려·취소 신청은 기록으로 남습니다.'
+                  ? '팀 배정이 끝났습니다. 신청 내역은 기록으로 모두 남습니다.'
                   : '확정 대기 신청을 한 명씩 승인하거나 반려합니다. 팀 신청도 팀원마다 따로 처리합니다.'">접수된 참가 신청을 표시합니다.</p>
             </div>
             <span class="status-badge neutral" th:text="${#lists.size(match.applications) + '건'}">0건</span>
@@ -78,7 +77,7 @@
           <div class="table-scroll">
             <table class="admin-table ops-table">
               <caption class="sr-only">매칭방 참가 신청 내역</caption>
-              <thead><tr><th scope="col">신청자</th><th scope="col">구분</th><th scope="col">신청 일시</th><th scope="col">상태</th><th scope="col">처리</th></tr></thead>
+              <thead><tr><th scope="col">신청자</th><th scope="col">구분</th><th scope="col">신청 일시</th><th scope="col">상태</th><th scope="col">결제</th><th scope="col">처리</th></tr></thead>
               <tbody>
                 <!-- 'application'는 Thymeleaf 예약어(웹 변수)라 지역 변수 이름으로 쓸 수 없다. -->
                 <!-- 이름 버튼은 participant-history.js가 참가자 이력 모달로 연다. 동호회 신청은 이름 옆에 동호회명을 붙인다. -->
@@ -93,6 +92,7 @@
                   <td th:text="${roomApplication.kindLabel}">구분</td>
                   <td th:text="${roomApplication.createdAtLabel}">신청 일시</td>
                   <td><span class="status-badge neutral" th:text="${roomApplication.statusLabel}">상태</span></td>
+                  <td th:text="${roomApplication.paymentLabel}">무료</td>
                   <td>
                     <div th:if="${roomApplication.decidable}" class="ops-decision-buttons">
                       <button class="admin-button small primary" type="button" data-decision="confirm"
@@ -104,13 +104,14 @@
                               th:data-application-id="${roomApplication.applicationId}"
                               th:data-applicant-name="${roomApplication.applicantName}"
                               th:data-club-name="${roomApplication.clubName}"
+                              th:data-refund-amount="${roomApplication.refundAmount > 0 ? roomApplication.refundAmount : null}"
                               th:aria-label="${roomApplication.applicantName + ' 참가 신청 반려'}">반려</button>
                     </div>
                     <span th:unless="${roomApplication.decidable}" class="ops-decision-none" aria-label="처리할 수 없음">—</span>
                   </td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(match.applications)}">
-                  <td class="table-empty" colspan="5" th:text="${match.teamAssigned} ? '참가자 목록에 없는 신청 기록이 없습니다.' : '접수된 참가 신청이 없습니다.'">접수된 참가 신청이 없습니다.</td>
+                  <td class="table-empty" colspan="6" th:text="${match.teamAssigned} ? '참가자 목록에 없는 신청 기록이 없습니다.' : '접수된 참가 신청이 없습니다.'">접수된 참가 신청이 없습니다.</td>
                 </tr>
               </tbody>
             </table>
@@ -162,14 +163,14 @@
           <div class="section-heading ops-section-heading">
             <div class="section-title-wrap">
               <h2 id="ops-participants-heading">참가자</h2>
-              <p>팀 배정이 끝나면 확정 참가자를 A팀, B팀 순서로 표시합니다.</p>
+              <p>팀 배정이 끝나면 확정 참가자를 A팀, B팀 순서로 표시합니다. 이용 완료된 경기는 참가자별 신고 접수 화면으로 이어집니다.</p>
             </div>
             <span class="status-badge neutral" th:text="${#lists.size(match.participants) + '명'}">0명</span>
           </div>
           <div class="table-scroll">
             <table class="admin-table ops-table">
               <caption class="sr-only">매칭방 참가자 목록</caption>
-              <thead><tr><th scope="col">참가자</th><th scope="col">팀</th><th scope="col">상태</th></tr></thead>
+              <thead><tr><th scope="col">참가자</th><th scope="col">팀</th><th scope="col">상태</th><th scope="col">신고</th></tr></thead>
               <tbody>
                 <tr th:each="participant : ${match.participants}">
                   <td>
@@ -181,9 +182,24 @@
                   </td>
                   <td th:text="${participant.teamLabel}">팀</td>
                   <td><span class="status-badge neutral" th:text="${participant.statusLabel}">상태</span></td>
+                  <td th:with="reportable=${match.statusLabel == '이용 완료' and participant.statusLabel == '참가 확정' and participant.historyUserId != null}">
+                    <!-- 신고 대상은 '이용 완료(DB 종료)' 경기의 '참가 확정' 참가자뿐입니다.
+                         대기 참가자는 participant.statusLabel이 '확정 대기'라 여기서 제외됩니다. -->
+                    <a th:if="${reportable}"
+                       class="admin-button small"
+                       th:href="@{/admin/facility/reports(matchId=${match.matchId}, targetUserId=${participant.historyUserId})}"
+                       th:aria-label="${participant.name + ' 신고 접수'}">신고</a>
+                    <span th:unless="${reportable}" class="ops-report-unavailable"
+                          th:title="${match.statusLabel != '이용 완료' ? '이용이 끝난 경기에서만 신고할 수 있습니다.'
+                              : (participant.statusLabel != '참가 확정' ? '참가가 확정된 사람만 신고할 수 있습니다.'
+                              : '회원 정보가 없어 신고할 수 없습니다.')}"
+                          th:text="${match.statusLabel != '이용 완료' ? '이용 완료 후'
+                              : (participant.statusLabel != '참가 확정' ? '확정 참가자만'
+                              : '정보 없음')}">이용 완료 후</span>
+                  </td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(match.participants)}">
-                  <td class="table-empty" colspan="3" th:text="${match.teamAssigned} ? '등록된 참가자가 없습니다.' : '팀 배정이 끝나면 참가자가 표시됩니다.'">등록된 참가자가 없습니다.</td>
+                  <td class="table-empty" colspan="4" th:text="${match.teamAssigned} ? '등록된 참가자가 없습니다.' : '팀 배정이 끝나면 참가자가 표시됩니다.'">등록된 참가자가 없습니다.</td>
                 </tr>
               </tbody>
             </table>
@@ -218,14 +234,13 @@
         <div class="ops-footer-actions">
           <a class="admin-button small" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'">매칭방 목록으로 돌아가기</a>
         </div>
-        <p class="ops-storage-note">표시되는 신청·참가 상태는 서버에 저장된 값입니다. 결제 상태는 이 화면에서 다루지 않습니다.</p>
+        <p class="ops-storage-note">표시되는 신청·참가·결제 상태는 서버에 저장된 값입니다. 반려하거나 매칭방을 취소하면 결제한 참가비는 자동으로 환불됩니다.</p>
       </div>
     </div>
   </main>
 </div>
 
 <div th:replace="~{fragments/admin :: notificationModal('시설 알림', '시설 운영 관련 알림을 확인합니다.')}"></div>
-<div th:replace="~{fragments/admin :: toast}"></div>
 
 <!-- 참가자 이력: participant-history.js가 이름 버튼을 누르면 이력 조회 API의 요약으로 본문을 채운다. -->
 <div th:if="${match != null}" class="modal-backdrop" id="participant-history-modal" hidden

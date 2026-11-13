@@ -20,6 +20,9 @@ public interface MatchMapper {
     /** 조건에 맞는 매칭방 목록 (시작 시각 순) */
     List<MatchRow> findMatches(MatchSearchQuery query);
 
+    /** 조건에 맞는 매칭방 중 목록 순서상 사진이 있는 첫 방의 사진 (없으면 null) */
+    String findFirstPhotoUrl(MatchSearchQuery query);
+
     /** 조건에 맞는 매칭방 집계 */
     MatchCountSummary countMatches(MatchSearchQuery query);
 
@@ -29,6 +32,10 @@ public interface MatchMapper {
     /** 여러 매칭방의 참가자를 한 번에 조회 (N+1 방지) */
     List<ParticipantRow> findParticipants(@Param("matchIds") List<Long> matchIds,
                                           @Param("statuses") List<String> statuses);
+
+    /** 매칭방 상세의 참가자. findParticipants 값에 신청 시점 반영 경기 수(entryRatedMatchCount)를 더한다. */
+    List<ParticipantRow> findDetailParticipants(@Param("matchId") long matchId,
+                                                @Param("statuses") List<String> statuses);
 
     /** 확정 대기 중인 신청자(개인·팀원)를 참가자 행 모양으로 조회 (participantId·matchSide·entryMmr는 null) */
     List<ParticipantRow> findPendingApplicants(@Param("matchIds") List<Long> matchIds,
