@@ -301,16 +301,23 @@ public class MyPageController {
 
     /** 프로필 화면 모델을 조립한다. 선택지가 없으면 저장된 지역을 표시할 수 없으므로 가입 화면과 같은 자치구 목록을 쓴다. */
     private String renderProfile(Model model, Long userId, Map<String, Object> profile) {
-        // 종목 option의 data-rating과 처음 미리보기 문구가 같은 값을 쓰도록 한 번 읽어 둔다.
-        Map<Long, String> sportRatings = ratingRecordService.findSportCards(userId).stream()
+        // 종목 option의 data-rating·data-tier와 처음 미리보기가 같은 값을 쓰도록 한 번 읽어 둔다.
+        List<SportCard> sportCards = ratingRecordService.findSportCards(userId);
+        Map<Long, String> sportRatings = sportCards.stream()
                 .collect(Collectors.toMap(SportCard::getSportId, SportCard::getTierLabel));
+        // 배치 중이거나 기록이 없으면 티어 키가 null이다. toMap은 null 값을 받지 않으므로 맵에서 뺀다.
+        Map<Long, String> sportTierKeys = sportCards.stream()
+                .filter(card -> card.getTierKey() != null)
+                .collect(Collectors.toMap(SportCard::getSportId, SportCard::getTierKey));
         if (profile != null) {
-            profile.put("representativeRatingText",
-                    sportRatings.getOrDefault(profile.get("representativeSportId"), NO_RATING_TEXT));
+            Object representativeSportId = profile.get("representativeSportId");
+            profile.put("representativeRatingText", sportRatings.getOrDefault(representativeSportId, NO_RATING_TEXT));
+            profile.put("representativeTierKey", sportTierKeys.get(representativeSportId));
         }
         model.addAttribute("profile", profile);
         model.addAttribute("sports", memberService.findSports());
         model.addAttribute("sportRatings", sportRatings);
+        model.addAttribute("sportTierKeys", sportTierKeys);
         model.addAttribute("districts", memberService.findSignupRegions());
         // 화면과 무관하게 서버가 확인한 탈퇴 차단 사유를 항상 내려준다. 비로그인이면 빈 목록.
         model.addAttribute("withdrawalBlocks", withdrawalBlocks(userId));

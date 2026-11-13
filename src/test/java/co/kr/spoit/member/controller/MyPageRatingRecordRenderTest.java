@@ -20,6 +20,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -145,7 +147,47 @@ class MyPageRatingRecordRenderTest {
                         containsString("value=\"2\" data-rating=\"실버 4 · 63P\""),
                         containsString("value=\"3\" data-rating=\"배치 중 (3/5)\""),
                         containsString("value=\"4\" data-rating=\"기록 없음\""),
-                        containsString("id=\"representative-level-preview\">실버 4 · 63P</strong>"))));
+                        containsString(">실버 4 · 63P</strong>"))));
+    }
+
+    @Test
+    @DisplayName("대표 종목에 티어가 있으면 미리보기에 티어 클래스를, 그 종목 option에 서버의 티어 키를 data-tier로 싣는다")
+    void profilePreviewCarriesTierClass() throws Exception {
+        given(memberService.findSports()).willReturn(List.of(sportOption(2L, "풋살"), sportOption(3L, "농구")));
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.of(sportOption(2L, "풋살")));
+
+        String html = renderProfile();
+
+        assertThat(tag(html, "id=\"representative-level-preview\"")).contains("class=\"is-tier-silver\"");
+        assertThat(tag(html, "value=\"2\"")).contains("data-tier=\"silver\"");
+    }
+
+    @Test
+    @DisplayName("배치 중이거나 기록이 없는 종목이 섞여도 화면이 그려지고, 그 option에는 data-tier가 없으며 미리보기는 기본색이다")
+    void profileSkipsTierForPlacementAndNoRecord() throws Exception {
+        given(memberService.findSports()).willReturn(List.of(
+                sportOption(2L, "풋살"), sportOption(3L, "농구"), sportOption(4L, "배구")));
+        given(memberService.findRepresentativeSport(USER_ID)).willReturn(Optional.of(sportOption(3L, "농구")));
+
+        String html = renderProfile();
+
+        assertThat(tag(html, "value=\"3\"")).contains("data-rating=\"배치 중 (3/5)\"").doesNotContain("data-tier");
+        assertThat(tag(html, "value=\"4\"")).doesNotContain("data-tier");
+        assertThat(tag(html, "value=\"2\"")).contains("data-tier=\"silver\"");
+        assertThat(tag(html, "id=\"representative-level-preview\"")).doesNotContain("is-tier-");
+    }
+
+    private String renderProfile() throws Exception {
+        return mockMvc.perform(get("/mypage/profile").with(user(member())))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+    }
+
+    // 속성 순서나 줄바꿈과 상관없이 표식 속성을 가진 여는 태그 하나를 잘라 본다.
+    private static String tag(String html, String marker) {
+        Matcher matcher = Pattern.compile("<[^>]*" + Pattern.quote(marker) + "[^>]*>").matcher(html);
+        assertThat(matcher.find()).as(marker).isTrue();
+        return matcher.group();
     }
 
     @Test

@@ -51,10 +51,6 @@
   </section>
 
   <div th:replace="~{fragments/feedback :: flash}"></div>
-  <aside class="mypage-notice" aria-label="데이터 안내">
-    <span class="mypage-notice-mark" aria-hidden="true">i</span>
-  <p>신청·프로필·알림은 서버에서 제공하는 현재 회원 데이터입니다. 결제 안내는 참고 정보이며 이 화면에는 결제 상태를 저장하지 않습니다.</p>
-  </aside>
 
   <div class="mypage-layout">
     <nav class="mypage-nav" aria-label="마이페이지 메뉴">
@@ -68,7 +64,6 @@
     <div class="mypage-content">
       <section id="match-records" class="mypage-section" aria-labelledby="match-records-heading">
         <div class="mypage-section-heading">
-          <span class="mypage-section-index" aria-hidden="true">01</span>
           <div><h2 id="match-records-heading">종목별 레이팅과 경기 이력</h2><p>레이팅이 반영된 경기 기록을 확인하고, 종목을 선택해 이력을 좁혀볼 수 있습니다.</p></div>
         </div>
         <div class="mypage-records-layout">
@@ -128,21 +123,20 @@
             </div>
           </section>
         </div>
-        <p class="mypage-rating-disclaimer">표시 레이팅은 서버가 제공한 값이며 공식 실력 지표가 아닙니다. 매칭방의 1~5단계 모집 조건과는 별도입니다.</p>
+        <p class="mypage-rating-disclaimer">레이팅은 확정된 경기 결과로 계산합니다. 매칭방 모집 실력(1~5단계)과는 별개입니다.</p>
       </section>
 
       <section id="reservations" class="mypage-section" aria-labelledby="reservations-heading">
         <div class="mypage-section-heading">
-          <span class="mypage-section-index" aria-hidden="true">02</span>
-            <div><h2 id="reservations-heading">신청 내역</h2><p>진행 중인 참가 신청과 확정 대기·완료·취소 상태를 확인하고 신청을 관리합니다.</p></div>
+          <div><h2 id="reservations-heading">신청 내역</h2><p>진행 중인 참가 신청과 확정 대기·완료·취소 상태를 확인하고 신청을 관리합니다.</p></div>
         </div>
-        <div class="divide-y divide-line" aria-live="polite">
-          <section aria-labelledby="current-reservations-heading">
-            <div class="flex items-center justify-between border-b border-line pb-2">
-              <h3 id="current-reservations-heading" class="text-sm font-extrabold">현재 신청</h3>
-              <span class="text-xs font-semibold text-muted" th:text="${#lists.size(currentReservations) + '건'}">0건</span>
+        <div class="mypage-reservation-groups" aria-live="polite">
+          <section class="mypage-reservation-group" aria-labelledby="current-reservations-heading">
+            <div class="mypage-reservation-group-heading">
+              <h3 id="current-reservations-heading">현재 신청</h3>
+              <span class="mypage-reservation-count" th:text="${#lists.size(currentReservations) + '건'}">0건</span>
             </div>
-            <div th:if="${!#lists.isEmpty(currentReservations)}" class="divide-y divide-line">
+            <div th:if="${!#lists.isEmpty(currentReservations)}" class="mypage-reservation-list">
               <article th:each="entry : ${currentReservations}" class="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div class="min-w-0">
                   <div class="flex flex-wrap items-center gap-2">
@@ -172,16 +166,17 @@
             <p th:if="${#lists.isEmpty(currentReservations)}" class="py-5 text-sm text-muted"><span>진행 중인 신청이 없습니다.</span> <a th:href="@{/matches}" class="font-bold text-book-ink hover:underline">매칭방 둘러보기</a></p>
           </section>
 
-          <section aria-labelledby="past-reservations-heading">
-            <div class="flex items-center justify-between border-b border-line pb-2">
-              <h3 id="past-reservations-heading" class="text-sm font-extrabold">지난 참여 · 취소</h3>
-              <span class="text-xs font-semibold text-muted" th:text="${#lists.size(pastReservations) + '건'}">0건</span>
+          <section class="mypage-reservation-group is-past" aria-labelledby="past-reservations-heading">
+            <div class="mypage-reservation-group-heading">
+              <h3 id="past-reservations-heading">지난 참여 · 취소</h3>
+              <span class="mypage-reservation-count" th:text="${#lists.size(pastReservations) + '건'}">0건</span>
             </div>
-            <div th:if="${!#lists.isEmpty(pastReservations)}" class="divide-y divide-line">
+            <!-- 최근 5건만 먼저 보이는 것은 스크립트가 적용한다. 스크립트가 없으면 전체 목록이 그대로 보인다. -->
+            <div th:if="${!#lists.isEmpty(pastReservations)}" id="past-reservation-list" class="mypage-reservation-list" data-past-reservations>
               <article th:each="entry : ${pastReservations}" class="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div class="min-w-0">
                   <div class="flex flex-wrap items-center gap-2">
-                    <span class="text-[10px] font-extrabold text-match-ink" th:text="${entry.sportName}">종목</span>
+                    <span class="text-[10px] font-extrabold text-muted" th:text="${entry.sportName}">종목</span>
                     <span class="text-[10px] text-faint" th:text="${entry.typeLabel}">개인 신청</span>
                     <span class="text-[10px] font-extrabold" th:classappend="${entry.stateClass}" th:text="${entry.stateLabel}">이용 완료</span>
                   </div>
@@ -196,10 +191,13 @@
                      제출 대상이면 제출 버튼을, 그 외 완료 경기는 결과 보기 링크를 보여 줍니다. -->
                 <div th:if="${resultSubmitMatchIds.contains(entry.matchId) or entry.stateLabel == '이용 완료'}" class="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
                   <a th:if="${resultSubmitMatchIds.contains(entry.matchId)}" th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="h-9 shrink-0 self-start rounded-lg bg-match px-3 py-2 text-xs font-bold text-white hover:bg-match-hover sm:self-center">경기 결과 제출</a>
-                  <a th:unless="${resultSubmitMatchIds.contains(entry.matchId)}" th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="h-9 shrink-0 self-start rounded-lg border border-line-strong px-3 py-2 text-xs font-bold text-ink-2 hover:border-match hover:text-match-ink sm:self-center">경기 결과 보기</a>
+                  <a th:unless="${resultSubmitMatchIds.contains(entry.matchId)}" th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="mypage-result-view-link h-9 shrink-0 self-start rounded-lg border border-line-strong px-3 py-2 text-xs font-bold text-ink-2 hover:border-match hover:text-match-ink sm:self-center">경기 결과 보기</a>
                 </div>
               </article>
             </div>
+            <button th:if="${#lists.size(pastReservations) > 5}" type="button" class="mypage-more-button" data-past-toggle
+                    aria-controls="past-reservation-list" aria-expanded="true" hidden
+                    th:text="${'지난 참여 전체 보기 (' + #lists.size(pastReservations) + '건)'}">지난 참여 전체 보기</button>
             <p th:if="${#lists.isEmpty(pastReservations)}" class="py-5 text-sm text-muted">완료하거나 취소한 내역이 없습니다.</p>
           </section>
         </div>
@@ -208,7 +206,6 @@
       <section id="notifications" class="mypage-section" aria-labelledby="notifications-heading"
                data-notification-surface>
         <div class="mypage-section-heading mypage-notifications-heading">
-          <span class="mypage-section-index" aria-hidden="true">03</span>
           <div><h2 id="notifications-heading">알림 확인 <span class="mypage-unread-count" data-notification-summary="short" aria-live="polite" th:text="${(unreadCount ?: 0) > 0 ? '· ' + unreadCount + '건 미확인' : '· 모두 확인했습니다'}">· 모두 확인했습니다</span></h2><p>예약과 팀 활동, 경기 결과 관련 알림입니다.</p></div>
           <form method="post" th:action="@{/mypage/notifications/read-all}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
             <button type="submit" class="mypage-text-button" data-notification-read-all th:disabled="${(unreadCount ?: 0) == 0}">모두 읽음 처리</button>

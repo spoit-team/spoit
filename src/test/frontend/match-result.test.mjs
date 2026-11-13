@@ -197,7 +197,21 @@ function stepStates(page) {
   assert.equal(page.steps.hidden, true, '팀장이 아니면 단계 바를 보여 주지 않습니다.');
   assert.equal(page.steps.children.length, 0);
   assert.equal(page.stateMessage.hidden, true, '팀장이 아닌 것은 오류가 아니므로 안내를 띄우지 않습니다.');
-  assert.match(textOf(page.stateBody), /최종 결과/);
+  // 확정 결과는 점수판으로 그린다: 두 팀 승패, 우리 팀 배지, 레이팅 상태 한 줄. 작은 라벨과 보조 문장은 없다.
+  const [scoreCard] = page.stateBody.children;
+  assert.ok(hasClass(scoreCard, 'match-result-score'));
+  const [scoreRows, scoreBadge, scoreRating] = scoreCard.children;
+  assert.deepEqual(scoreRows.children.map(row => [row.className, textOf(row.children[1])]), [
+    ['match-result-score-row is-win', '승리'],
+    ['match-result-score-row is-loss', '패배']
+  ]);
+  assert.equal(scoreBadge.textContent, '우리 팀 승리');
+  assert.ok(hasClass(scoreBadge, 'is-win'), '우리 팀이 이기면 배지를 초록으로 표시합니다.');
+  assert.equal(scoreRating.textContent, '레이팅 반영 완료');
+  assert.doesNotMatch(textOf(page.stateBody), /레이팅에 반영되었습니다|최종 결과/);
+  // 내 진영·결과 상태·레이팅은 위쪽 경기 정보 표에만 두고 결과 섹션에서는 다시 그리지 않는다.
+  assert.ok(!page.stateBody.children.some(child => child.tagName === 'DL'), '결과 섹션에 경기 정보 표를 다시 그리면 안 됩니다.');
+  assert.doesNotMatch(textOf(page.stateBody), /내 진영/);
 
   // A/B팀 로스터는 요약 API의 확정 참가자 닉네임으로만 그린다.
   assert.equal(page.teamsContainer.children.length, 2, 'A/B 두 팀 로스터를 그려야 합니다.');
@@ -404,6 +418,32 @@ function stepStates(page) {
 
   assert.match(textOf(page.stateBody), /레이팅 반영에서 제외된 경기/);
   assert.doesNotMatch(textOf(page.stateBody), /마감/);
+  // 확정 결과가 없으면 승패 줄 없이 지금 상태 한 문장만 보인다.
+  assert.ok(hasClass(page.stateBody.children[0], 'is-pending'));
+  assert.equal(page.stateBody.children[0].children.length, 1);
+}
+
+/* 점수판: 진 팀 배지는 중립색이고, 무승부는 두 줄 모두 무승부다. */
+for (const [finalResult, ratingStatus, rows, badge, rating] of [
+  ['B_WIN', 'EXCLUDED', ['패배', '승리'], '우리 팀 패배', '레이팅 제외'],
+  ['DRAW', 'WAITING', ['무승부', '무승부'], '무승부', '레이팅 반영 대기']
+]) {
+  const page = resultPage({
+    summary: { matchId: 42, resultStatus: 'CONFIRMED', ratingStatus, finalResult, mySide: 'A' },
+    captainStatus: 403
+  });
+  globalThis.document = page.document;
+  globalThis.window = page.window;
+
+  await import('../../main/resources/static/js/match-result.js?score-' + finalResult);
+  await flush();
+
+  const [card] = page.stateBody.children;
+  const [rowList, badgeNode, ratingNode] = card.children;
+  assert.deepEqual(rowList.children.map(row => textOf(row.children[1])), rows);
+  assert.equal(badgeNode.textContent, badge);
+  assert.ok(!hasClass(badgeNode, 'is-win'), '승리가 아니면 배지는 중립색입니다.');
+  assert.equal(ratingNode.textContent, rating);
 }
 
 console.log('PASS: result screen keeps the summary read-only for participants and gates submission to captains.');

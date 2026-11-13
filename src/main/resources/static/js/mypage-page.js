@@ -23,8 +23,85 @@
     button.setAttribute('aria-expanded', String(open));
   });
 
+  /*
+   * 스크롤 위치를 따라 메뉴 표시를 옮깁니다. 섹션의 scroll-margin-top(sticky 헤더 아래)을 기준선으로 삼아
+   * 기준선에 걸린 섹션의 메뉴를 고릅니다. 짧은 마지막 섹션은 기준선까지 올라오지 못하므로 페이지 끝에 닿으면 고릅니다.
+   */
+  const navSections = Array.from(document.querySelectorAll('.mypage-nav-link'))
+    .map(function (link) { return link.hash ? document.getElementById(link.hash.slice(1)) : null; })
+    .filter(Boolean);
+  let followingScroll = true;
+  let settleTimer = 0;
+  let resizeTimer = 0;
+  let guideObserver = null;
+
+  function guideLine() {
+    return parseFloat(getComputedStyle(navSections[0]).scrollMarginTop) || 0;
+  }
+
+  function atPageEnd() {
+    return window.scrollY > 0
+      && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+  }
+
+  function syncNavToScroll() {
+    if (!followingScroll) return;
+    const line = guideLine() + 1;
+    let current = navSections[0];
+    if (atPageEnd()) {
+      current = navSections[navSections.length - 1];
+    } else {
+      navSections.forEach(function (section) {
+        if (section.getBoundingClientRect().top <= line) current = section;
+      });
+    }
+    setCurrentNav('#' + current.id);
+  }
+
+  // 기준선 아래 1px 띠만 보도록 화면 높이로 아래 여백을 정하므로, 창 크기가 바뀌면 다시 만든다.
+  function observeGuideLine() {
+    guideObserver?.disconnect();
+    const line = guideLine();
+    const below = Math.max(window.innerHeight - line - 1, 0);
+    guideObserver = new IntersectionObserver(syncNavToScroll, { rootMargin: -line + 'px 0px ' + -below + 'px 0px' });
+    navSections.forEach(function (section) { guideObserver.observe(section); });
+  }
+
+  // 메뉴를 눌러 부드럽게 스크롤되는 동안 지나가는 섹션으로 표시가 깜빡이지 않게, 스크롤이 멈출 때까지 고른 메뉴를 유지한다.
+  function waitForScrollToSettle() {
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(function () {
+      window.removeEventListener('scroll', waitForScrollToSettle);
+      followingScroll = true;
+      syncNavToScroll();
+    }, 150);
+  }
+
+  function holdNavUntilScrollSettles() {
+    followingScroll = false;
+    window.addEventListener('scroll', waitForScrollToSettle, { passive: true });
+    waitForScrollToSettle();
+  }
+
+  function followScrollWithNav() {
+    if (!navSections.length || !('IntersectionObserver' in window)) return;
+    observeGuideLine();
+    const pageEnd = document.createElement('div');
+    pageEnd.setAttribute('aria-hidden', 'true');
+    document.body.append(pageEnd);
+    new IntersectionObserver(syncNavToScroll, { rootMargin: '0px 0px 2px 0px' }).observe(pageEnd);
+    window.addEventListener('resize', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(observeGuideLine, 150);
+    });
+  }
+
   document.querySelectorAll('.mypage-nav-link').forEach(function (link) {
-    if (link.hash) link.addEventListener('click', function () { setCurrentNav(link.hash); });
+    if (!link.hash) return;
+    link.addEventListener('click', function () {
+      setCurrentNav(link.hash);
+      if (guideObserver) holdNavUntilScrollSettles();
+    });
   });
 
   window.addEventListener('hashchange', function () {
@@ -32,6 +109,32 @@
   });
 
   setCurrentNav(window.location.hash);
+  followScrollWithNav();
+
+  /* 지난 참여·취소 목록은 최근 5건만 먼저 보이고 버튼으로 나머지를 펼칩니다. 버튼은 스크립트가 있을 때만 보입니다. */
+  const PAST_VISIBLE_COUNT = 5;
+  const pastToggle = document.querySelector('[data-past-toggle]');
+  const pastList = pastToggle ? document.getElementById(pastToggle.getAttribute('aria-controls')) : null;
+  const pastItems = pastList ? Array.from(pastList.children) : [];
+
+  function setPastExpanded(expanded) {
+    pastItems.forEach(function (item, index) {
+      item.hidden = !expanded && index >= PAST_VISIBLE_COUNT;
+    });
+    pastToggle.setAttribute('aria-expanded', String(expanded));
+    pastToggle.textContent = expanded ? '접기' : '지난 참여 전체 보기 (' + pastItems.length + '건)';
+  }
+
+  if (pastItems.length > PAST_VISIBLE_COUNT) {
+    setPastExpanded(false);
+    pastToggle.hidden = false;
+    pastToggle.addEventListener('click', function () {
+      const expanded = pastToggle.getAttribute('aria-expanded') !== 'true';
+      setPastExpanded(expanded);
+      // 접으면 목록이 짧아져 버튼이 화면 위로 사라질 수 있어 버튼 위치로 돌아온다.
+      if (!expanded) pastToggle.scrollIntoView({ block: 'nearest' });
+    });
+  }
 
   /*
    * RES-04 팀 신청 취소: 대표가 취소할 팀원을 체크박스로 고릅니다.

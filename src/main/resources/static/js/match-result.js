@@ -28,6 +28,7 @@
   };
 
   const RESULT_LABELS = { A_WIN: 'A팀 승', DRAW: '무승부', B_WIN: 'B팀 승' };
+  const OUTCOME_LABELS = { win: '승리', loss: '패배', draw: '무승부' };
   const REQUEST_RESULTS = ['A_WIN', 'DRAW', 'B_WIN'];
   const STEPS = [
     { key: 'result', label: '결과 제출' },
@@ -422,44 +423,74 @@
       return;
     }
 
-    if (summary.ratingStatus === 'APPLIED') {
-      stateBody.appendChild(stateCard('레이팅 반영', 'is-confirmed',
-        '최종 결과 ' + resultText(summary.finalResult), '레이팅에 반영되었습니다.'));
-    } else if (summary.ratingStatus === 'EXCLUDED') {
-      stateBody.appendChild(stateCard('레이팅 제외', 'is-excluded', '레이팅 반영에서 제외된 경기입니다.',
-        summary.finalResult ? '최종 결과 ' + resultText(summary.finalResult) : null));
-    } else if (summary.finalResult) {
-      stateBody.appendChild(stateCard('결과 확정', 'is-confirmed',
-        '최종 결과 ' + resultText(summary.finalResult), '레이팅 반영을 기다리고 있습니다.'));
-    } else if (summary.resultStatus === 'CONFLICT') {
-      stateBody.appendChild(stateCard('확인 중', 'is-conflict',
-        '두 팀장의 제출 결과가 달라 확인 중입니다.', '경기 결과가 확정되면 이 화면에서 확인할 수 있습니다.'));
-    } else if (summary.resultStatus === 'SUBMITTED') {
-      stateBody.appendChild(stateCard('제출 완료', 'is-waiting',
-        '한 팀장이 결과를 제출했습니다.', '두 팀장의 결과가 같으면 확정됩니다.'));
-    } else {
-      stateBody.appendChild(stateCard('결과 대기', 'is-waiting',
-        '아직 결과가 확정되지 않았습니다.', '경기가 끝나고 팀장이 결과를 제출하면 확정됩니다.'));
+    stateBody.appendChild(RESULT_LABELS[summary.finalResult] ? scoreboard() : pendingCard());
+  }
+
+  /* 확정 결과 점수판: A·B팀 두 줄에 승패를, 오른쪽에 우리 팀 결과 배지를, 아래 한 줄에 레이팅 상태만 둔다. */
+  function scoreboard() {
+    const card = document.createElement('div');
+    card.className = 'match-result-score';
+
+    const rows = document.createElement('ul');
+    rows.className = 'match-result-score-rows';
+    rows.setAttribute('aria-label', '최종 결과');
+    ['A', 'B'].forEach(function (side) {
+      const outcome = outcomeOf(side);
+      const row = document.createElement('li');
+      row.className = 'match-result-score-row is-' + outcome;
+      const team = document.createElement('span');
+      team.className = 'match-result-score-team';
+      const dot = document.createElement('i');
+      dot.className = 'is-team-' + side.toLowerCase();
+      dot.setAttribute('aria-hidden', 'true');
+      const name = document.createElement('span');
+      name.textContent = sideText(side);
+      team.append(dot, name);
+      const result = document.createElement('strong');
+      result.textContent = OUTCOME_LABELS[outcome];
+      row.append(team, result);
+      rows.appendChild(row);
+    });
+    card.appendChild(rows);
+
+    if (mySide === 'A' || mySide === 'B') {
+      const mine = outcomeOf(mySide);
+      const badge = document.createElement('span');
+      badge.className = 'match-result-score-badge' + (mine === 'win' ? ' is-win' : '');
+      badge.textContent = mine === 'draw' ? '무승부' : '우리 팀 ' + OUTCOME_LABELS[mine];
+      card.appendChild(badge);
     }
 
-    if (summary.mySide === 'A' || summary.mySide === 'B') {
-      const facts = document.createElement('dl');
-      facts.className = 'match-result-facts';
-      [
-        ['내 진영', sideText(summary.mySide)],
-        ['결과 상태', resultStatusText(summary.resultStatus)],
-        ['레이팅', ratingText(summary.ratingStatus)]
-      ].forEach(function (pair) {
-        const cell = document.createElement('div');
-        const term = document.createElement('dt');
-        term.textContent = pair[0];
-        const value = document.createElement('dd');
-        value.textContent = pair[1];
-        cell.append(term, value);
-        facts.appendChild(cell);
-      });
-      stateBody.appendChild(facts);
-    }
+    const rating = document.createElement('p');
+    rating.className = 'match-result-score-rating';
+    rating.textContent = scoreRatingText(summary.ratingStatus);
+    card.appendChild(rating);
+    return card;
+  }
+
+  function outcomeOf(side) {
+    if (summary.finalResult === 'DRAW') return 'draw';
+    return summary.finalResult === side + '_WIN' ? 'win' : 'loss';
+  }
+
+  function scoreRatingText(status) {
+    if (status === 'APPLIED') return '레이팅 반영 완료';
+    if (status === 'EXCLUDED') return '레이팅 제외';
+    return '레이팅 반영 대기';
+  }
+
+  /* 결과가 확정되지 않았으면 승패 대신 지금 상태를 한 문장으로 알린다. 판단 순서는 레이팅 제외 → 불일치 → 한쪽 제출 → 미제출. */
+  function pendingCard() {
+    const card = document.createElement('div');
+    card.className = 'match-result-score is-pending';
+    const sentence = document.createElement('p');
+    sentence.className = 'match-result-score-note';
+    if (summary.ratingStatus === 'EXCLUDED') sentence.textContent = '레이팅 반영에서 제외된 경기입니다.';
+    else if (summary.resultStatus === 'CONFLICT') sentence.textContent = '두 팀장의 제출 결과가 달라 확인 중입니다.';
+    else if (summary.resultStatus === 'SUBMITTED') sentence.textContent = '한 팀장이 결과를 제출했고, 두 팀장의 결과가 같으면 확정됩니다.';
+    else sentence.textContent = '경기가 끝나고 팀장이 결과를 제출하면 결과가 확정됩니다.';
+    card.appendChild(sentence);
+    return card;
   }
 
   function showMessage(target, result, tone) {
