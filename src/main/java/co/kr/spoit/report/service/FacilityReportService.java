@@ -284,7 +284,8 @@ public class FacilityReportService {
         }
     }
 
-    private static String normalizeSummary(String summary) {
+    /** 신고 원문을 정규화·검증한다. 회원 신고 접수도 같은 1~1000자 규칙을 쓴다. */
+    static String normalizeSummary(String summary) {
         if (summary == null || summary.isBlank()) {
             throw new IllegalArgumentException("신고 내용을 입력해 주세요.");
         }

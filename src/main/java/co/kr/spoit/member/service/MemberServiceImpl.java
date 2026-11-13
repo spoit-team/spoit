@@ -1,6 +1,5 @@
 package co.kr.spoit.member.service;
 
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -37,9 +36,6 @@ public class MemberServiceImpl implements MemberService {
 
     /** {@code app_user.email} 컬럼 길이. */
     private static final int EMAIL_MAX_LENGTH = 255;
-
-    /** BCrypt가 처리할 수 있는 비밀번호 최대 바이트 수. 초과분은 잘려 검증되므로 가입 단계에서 막는다. */
-    private static final int PASSWORD_MAX_BYTES = 72;
 
     private static final String SIGNUP_ROLE_MEMBER = "member";
 
@@ -95,7 +91,7 @@ public class MemberServiceImpl implements MemberService {
         validateEmail(email);
         validatePhone(phone);
         validateNickname(nickname);
-        validatePassword(form.getPassword(), form.getPasswordConfirm());
+        MemberPasswordPolicy.validate(form.getPassword(), form.getPasswordConfirm());
 
         Long regionId = form.getRegionId();
         validateRegionExists(regionId);
@@ -266,32 +262,6 @@ public class MemberServiceImpl implements MemberService {
         if (!NICKNAME_PATTERN.matcher(nickname).matches()) {
             throw new IllegalArgumentException("닉네임은 한글, 영문, 숫자, 밑줄로 2~12자 입력해 주세요.");
         }
-    }
-
-    private static void validatePassword(String password, String confirmation) {
-        if (password == null || password.length() < 8 || !hasAsciiLetterAndDigit(password)) {
-            throw new IllegalArgumentException("비밀번호는 영문과 숫자를 포함해 8자 이상 입력해 주세요.");
-        }
-        if (password.getBytes(StandardCharsets.UTF_8).length > PASSWORD_MAX_BYTES) {
-            throw new IllegalArgumentException("비밀번호는 72바이트 이하로 입력해 주세요.");
-        }
-        if (!password.equals(confirmation)) {
-            throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
-        }
-    }
-
-    private static boolean hasAsciiLetterAndDigit(String value) {
-        boolean letter = false;
-        boolean digit = false;
-        for (int i = 0; i < value.length(); i++) {
-            char character = value.charAt(i);
-            if ((character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z')) {
-                letter = true;
-            } else if (character >= '0' && character <= '9') {
-                digit = true;
-            }
-        }
-        return letter && digit;
     }
 
     private static String trim(String value) {

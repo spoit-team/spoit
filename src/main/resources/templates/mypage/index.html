@@ -59,6 +59,7 @@
       <a href="#reservations" class="mypage-nav-link">신청 내역</a>
       <a href="#notifications" class="mypage-nav-link">알림 확인 <span class="mypage-nav-count" data-notification-nav-count th:hidden="${(unreadCount ?: 0) == 0}" th:text="${unreadCount}" aria-hidden="true">0</span></a>
       <a th:href="@{/mypage/profile}" class="mypage-nav-link mypage-nav-edit">프로필 수정 <span aria-hidden="true">↗</span></a>
+      <a th:href="@{/mypage/profile#password-change}" class="mypage-nav-link">비밀번호 변경 <span aria-hidden="true">↗</span></a>
     </nav>
 
     <div class="mypage-content">
@@ -278,7 +279,6 @@
   </div>
 </dialog>
 
-<script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/site-menu.js}"></script>
 <script th:src="@{/js/mypage-page.js}"></script>
 </body>

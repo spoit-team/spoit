@@ -33,6 +33,9 @@ public interface MemberMapper {
     int recordWithdrawal(@Param("userId") Long userId, @Param("deletedAt") LocalDateTime deletedAt,
             @Param("now") LocalDateTime now);
 
+    /** 비밀번호 해시를 갱신한다. 탈퇴 여부만 검사하고 이용정지 시각은 유지한다. */
+    int updatePasswordHash(@Param("userId") Long userId, @Param("passwordHash") String passwordHash);
+
     /**
      * 회원 행을 잠그고 최신 값을 읽는다. 탈퇴·신청·회장 위임이 같은 회원 행에서 직렬화되도록
      * 쓰기 트랜잭션 안에서만 호출한다(잠금 없이 읽는 {@link #findById}와 달리 스냅샷이 아닌 최신 값을 준다).

@@ -83,6 +83,27 @@ class MemberPenaltyTimeServiceTest {
     }
 
     @Test
+    @DisplayName("영구 정지 센티널로 연장하면 컬럼을 갱신하고 세션 폐기를 예약한다")
+    void permanentSentinelExtendsAndRevokes() {
+        LocalDateTime result = service.extendUntil(USER_ID, MemberPenaltyTimeService.PERMANENT_END_AT);
+
+        assertThat(result).isEqualTo(LocalDateTime.of(9999, 12, 31, 23, 59, 59));
+        verify(memberMapper).updatePenaltyTime(USER_ID, MemberPenaltyTimeService.PERMANENT_END_AT);
+        verify(revocationService).revokeAfterCommit(USER_ID);
+        assertThat(MemberPenaltyTimeService.isPermanentEndAt(result)).isTrue();
+        assertThat(MemberPenaltyTimeService.isPermanentEndAt(LocalDateTime.now().plusDays(30))).isFalse();
+        assertThat(MemberPenaltyTimeService.isPermanentEndAt(null)).isFalse();
+    }
+
+    @Test
+    @DisplayName("영구 정지 뒤 해제는 센티널을 null로 덮어쓴다")
+    void overwriteClearsPermanentSentinel() {
+        service.overwrite(USER_ID, null);
+
+        verify(memberMapper).updatePenaltyTime(USER_ID, null);
+    }
+
+    @Test
     @DisplayName("해제는 회원 행을 먼저 잠근 뒤 종료 시각 컬럼을 비운다")
     void overwriteNullLocksThenClears() {
         service.overwrite(USER_ID, null);

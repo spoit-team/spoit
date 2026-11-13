@@ -55,9 +55,18 @@
            FOR UPDATE
     </select>
 
+    <!-- 회원 신고 대상 조회용 상태 스냅샷. 쓰기 트랜잭션이 아니라 잠그지 않는다. -->
+    <select id="findMatchSnapshot" resultType="co.kr.spoit.report.domain.MatchSnapshot">
+        SELECT m.match_id AS matchId
+              ,m.facility_id AS facilityId
+              ,m.status AS status
+          FROM social_match m
+         WHERE m.match_id = #{matchId}
+    </select>
+
     <!-- 대상 선택지는 그 경기의 확정 참가자 전부다. 대기·취소·반려는 제외한다.
          한 경기의 참가자는 팀 정원으로 제한되며, 임의 건수 절단은 뒤쪽 참가자 신고를 막으므로 두지 않는다.
-         경기 자체는 서비스가 담당 시설·종료 상태를 먼저 검증한 뒤에만 이 조회를 호출한다. -->
+         서비스가 신고자 권한과 경기 종료 상태를 먼저 검증한 뒤에만 이 조회를 호출한다. -->
     <select id="findParticipants" resultType="co.kr.spoit.report.domain.ReportParticipantRow">
         SELECT u.user_id AS userId
               ,u.nickname AS nickname

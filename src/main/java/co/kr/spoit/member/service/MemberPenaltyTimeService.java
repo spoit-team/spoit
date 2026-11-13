@@ -27,7 +27,21 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class MemberPenaltyTimeService {
 
+    /**
+     * 영구 정지를 뜻하는 이용정지 종료 시각이다.
+     *
+     * <p>{@code app_user.penalty_time}은 {@code null}이면 해제로 읽히므로, 영구 정지는 해제 전까지
+     * 항상 미래로 비교되는 이 값을 실제 저장 값으로 쓴다. 제재의 {@code penalty.end_at}도 같은 값을
+     * 써서 두 컬럼이 서로 어긋나지 않게 한다.</p>
+     */
+    public static final LocalDateTime PERMANENT_END_AT = LocalDateTime.of(9999, 12, 31, 23, 59, 59);
+
     private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
+
+    /** 저장된 종료 시각이 영구 정지를 뜻하는지 판정한다. */
+    public static boolean isPermanentEndAt(LocalDateTime endAt) {
+        return endAt != null && !endAt.isBefore(PERMANENT_END_AT);
+    }
 
     private final MemberMapper memberMapper;
     private final MemberAccountLockService accountLockService;

@@ -75,9 +75,38 @@
     </div>
   </form>
 
-  <section class="mypage-section profile-edit-withdrawal" aria-labelledby="withdrawal-heading">
+  <section id="password-change" class="mypage-section profile-edit-section" aria-labelledby="password-change-heading">
     <div class="mypage-section-heading">
       <span class="mypage-section-index" aria-hidden="true">04</span>
+      <div><h2 id="password-change-heading">비밀번호 변경</h2><p>변경 후 새 비밀번호로 다시 로그인해야 합니다.</p></div>
+    </div>
+    <p th:if="${param.passwordError != null}" class="auth-message is-error mypage-message" role="alert" th:text="${param.passwordError[0]}">비밀번호를 변경하지 못했습니다.</p>
+    <form id="profile-password-form" method="post" th:action="@{/mypage/password}">
+      <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+      <div class="mypage-profile-fields">
+        <div class="mypage-field mypage-field-wide">
+          <label for="profile-current-password" class="mb-1.5 block text-xs font-bold text-muted">현재 비밀번호</label>
+          <input id="profile-current-password" name="currentPassword" class="auth-input" type="password" autocomplete="current-password" required />
+        </div>
+        <div class="mypage-field">
+          <label for="profile-new-password" class="mb-1.5 block text-xs font-bold text-muted">새 비밀번호</label>
+          <input id="profile-new-password" name="newPassword" class="auth-input" type="password" autocomplete="new-password" minlength="8" maxlength="72" required aria-describedby="profile-new-password-help" />
+          <p id="profile-new-password-help" class="text-faint">영문과 숫자를 포함해 8자 이상, UTF-8 기준 72바이트 이하로 입력해 주세요.</p>
+        </div>
+        <div class="mypage-field">
+          <label for="profile-new-password-confirm" class="mb-1.5 block text-xs font-bold text-muted">새 비밀번호 확인</label>
+          <input id="profile-new-password-confirm" name="newPasswordConfirm" class="auth-input" type="password" autocomplete="new-password" maxlength="72" required />
+        </div>
+      </div>
+      <div class="mypage-form-actions">
+        <button type="submit" class="mypage-primary-button rounded-[10px] px-5 text-sm font-extrabold">비밀번호 변경</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="mypage-section profile-edit-withdrawal" aria-labelledby="withdrawal-heading">
+    <div class="mypage-section-heading">
+      <span class="mypage-section-index" aria-hidden="true">05</span>
       <div><h2 id="withdrawal-heading">회원 탈퇴</h2><p>현재 비밀번호를 확인한 뒤 탈퇴를 처리합니다.</p></div>
     </div>
     <div class="profile-edit-withdrawal-content">
@@ -141,7 +170,6 @@
 
 <div th:replace="~{fragments/notification :: center(${currentMember != null})}"></div>
 
-<script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/site-menu.js}"></script>
 <script th:src="@{/js/profile-edit.js}"></script>
 </body>
