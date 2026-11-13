@@ -38,6 +38,9 @@ public interface ReportMapper {
     /** 경기 상태 스냅샷을 잠그고 읽는다. 접수 트랜잭션에서 상태를 다시 검사할 때 쓴다. */
     MatchSnapshot findMatchSnapshotForUpdate(@Param("matchId") Long matchId);
 
+    /** 경기 상태 스냅샷을 잠그지 않고 읽는다. 회원 신고 대상 조회에서 상태·참가 여부를 검사할 때 쓴다. */
+    MatchSnapshot findMatchSnapshot(@Param("matchId") Long matchId);
+
     /** 경기의 지정 상태 참가자를 대상 선택지로 조회한다. 한 경기 참가자는 팀 정원으로 제한된다. */
     List<ReportParticipantRow> findParticipants(@Param("matchId") Long matchId,
             @Param("participationStatus") String participationStatus);

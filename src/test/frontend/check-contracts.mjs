@@ -147,6 +147,55 @@ for (const file of templates) {
   }
 }
 
+/* ── 이메일 인증번호 비밀번호 재설정 계약 ─────────────────────────────── */
+const loginAuthSource = await readFile(path.join(resources, 'templates/auth/login.html'), 'utf8');
+const passwordRecoverySource = await readFile(path.join(resources, 'templates/auth/find-password.html'), 'utf8');
+const passwordRecoveryScript = await readFile(path.join(resources, 'static/js/password-recovery.js'), 'utf8');
+const passwordRecoveryMarkup = await inspectHtml(passwordRecoverySource);
+const passwordRecoveryForms = new Map(passwordRecoveryMarkup.forms
+  .filter(form => form.attributes.id)
+  .map(form => [form.attributes.id, form]));
+
+check(!loginAuthSource.includes('아이디 찾기') && !loginAuthSource.includes('/login/find-account'),
+  'login.html: the unsupported find-account link must be removed');
+check(loginAuthSource.includes('th:href="@{/login/find-password}"')
+  && loginAuthSource.includes('>비밀번호 찾기</a>'),
+  'login.html: the password recovery link must remain');
+check(passwordRecoverySource.includes("step == 'REQUEST'")
+  && passwordRecoverySource.includes("step == 'VERIFY'")
+  && passwordRecoverySource.includes("step == 'RESET'"),
+  'find-password.html: request, verification and reset steps must be server-rendered');
+
+const recoveryActionRoutes = literalRoutes(passwordRecoveryMarkup.elements);
+for (const route of [
+  '/login/find-password/send-code',
+  '/login/find-password/verify-code',
+  '/login/find-password/reset'
+]) {
+  check(recoveryActionRoutes.includes(route), `find-password.html: missing form route ${route}`);
+}
+
+const otpInput = passwordRecoveryForms.get('recovery-verify-form')?.inputs.find(input => input.name === 'code');
+check(otpInput?.type === 'text' && otpInput.inputmode === 'numeric'
+  && otpInput.autocomplete === 'one-time-code' && otpInput.maxlength === '6',
+  'recovery-verify-form: the six-digit code must be a text field that preserves leading zeroes');
+check(!otpInput?.['th:value'] && !otpInput?.value,
+  'recovery-verify-form: entered codes must not be re-rendered');
+
+const resetInputs = passwordRecoveryForms.get('recovery-reset-form')?.inputs ?? [];
+for (const name of ['password', 'passwordConfirm']) {
+  const input = resetInputs.find(candidate => candidate.name === name);
+  check(input?.type === 'password' && input.autocomplete === 'new-password' && !input['th:value'] && !input.value,
+    `recovery-reset-form: ${name} must be blank and use new-password autocomplete`);
+}
+check(passwordRecoverySource.includes('UTF-8 기준 72바이트')
+  && passwordRecoverySource.includes('영문과 숫자를 포함해 8자 이상'),
+  'find-password.html: new password guidance must match the signup policy');
+check(passwordRecoveryScript.includes("replace(/[^0-9]/g, '').slice(0, 6)")
+  && passwordRecoveryScript.includes('TextEncoder')
+  && passwordRecoveryScript.includes('PASSWORD_MAX_BYTES = 72'),
+  'password-recovery.js: input guidance must preserve six-digit codes and enforce the UTF-8 byte limit');
+
 const requiredBindings = {
   'selection-form': ['applicationType', 'clubId', 'clubMemberIds'],
   'team-create-form': ['clubName', 'sportId', 'regionId'],
@@ -156,7 +205,12 @@ const requiredBindings = {
   'facility-form': ['concurrentMatchLimit'],
   'room-editor-form': ['facilityId', 'sportId', 'teamCapacity', 'feePerPerson'],
   'profile-form': ['nickname', 'regionId', 'representativeSportId'],
+  'profile-password-form': ['currentPassword', 'newPassword', 'newPasswordConfirm'],
   'signup-form': ['nickname', 'regionId'],
+  'recovery-request-form': ['email'],
+  'recovery-verify-form': ['email', 'code'],
+  'recovery-reset-form': ['email', 'password', 'passwordConfirm'],
+  'recovery-resend-form': ['email'],
   // 예약 운영 일정: 주간·날짜별·모집 조건·휴관 저장 폼의 필수 바인딩입니다.
   'weekly-hours-form': ['facilityId'],
   'date-schedule-form': ['facilityId', 'date', 'hours', 'note'],
@@ -187,6 +241,21 @@ for (const file of scripts) {
    항상 내려주고, 화면은 그 값으로만 비밀번호 입력과 확인 버튼을 잠근다. 사유가 늘거나
    잠금 조건이 화면에서 임의로 풀리면 사용자가 막힌 줄 모르고 탈퇴를 시도하므로 여기서 고정한다. */
 const profileSource = await readFile(path.join(resources, 'templates/mypage/profile.html'), 'utf8');
+const profilePasswordForm = namedForms.get('profile-password-form');
+check(profilePasswordForm?.attributes['th:action'] === '@{/mypage/password}'
+  && profilePasswordForm.attributes.method === 'post',
+  'profile-password-form: password changes must POST to the protected route');
+for (const [name, autocomplete] of [['currentPassword', 'current-password'],
+  ['newPassword', 'new-password'], ['newPasswordConfirm', 'new-password']]) {
+  const input = profilePasswordForm?.inputs.find(candidate => candidate.name === name);
+  check(input?.type === 'password' && input.autocomplete === autocomplete && input.required !== undefined
+    && !input.value && !input['th:value'],
+    `profile-password-form: ${name} must be required and never rendered with its value`);
+}
+check(profilePasswordForm?.inputs.some(input => input['th:name'] === '${_csrf.parameterName}'
+  && input['th:value'] === '${_csrf.token}'), 'profile-password-form: CSRF token is required');
+check(profileSource.includes('id="password-change"') && profileSource.includes('${param.passwordError[0]}'),
+  'profile.html: password change errors must be visible at the linked section');
 const withdrawalDialog = profileSource.slice(
   profileSource.indexOf('id="profile-withdrawal-dialog"'),
   profileSource.indexOf('<script', profileSource.indexOf('id="profile-withdrawal-dialog"')));
@@ -856,6 +925,8 @@ for (const file of ['templates/admin/facility.html', 'templates/admin/system.htm
 const notificationScript = await readFile(path.join(resources, 'static/js/notification-center.js'), 'utf8');
 const notificationFragment = await readFile(path.join(resources, 'templates/fragments/notification.html'), 'utf8');
 const myPageSource = await readFile(path.join(resources, 'templates/mypage/index.html'), 'utf8');
+check(myPageSource.includes('@{/mypage/profile#password-change}'),
+  'mypage/index.html: password change must be reachable directly from mypage');
 const matchResultSource = await readFile(path.join(resources, 'templates/mypage/match-result.html'), 'utf8');
 const matchResultScript = await readFile(path.join(resources, 'static/js/match-result.js'), 'utf8');
 
@@ -932,6 +1003,25 @@ check(/status === 403[\s\S]{0,120}submitSection\.hidden = true/.test(matchResult
   'match-result.js: a non-captain 403 must hide the submission area instead of showing an error');
 check(matchResultScript.includes('textContent') && !/innerHTML\s*=/.test(matchResultScript),
   'match-result.js: API values must be rendered as text, never injected as HTML');
+check(matchResultSource.includes('id="match-report"')
+    && matchResultSource.includes('aria-hidden="true">04</span>'),
+  'match-result.html: the participant-report section must be numbered 04');
+check(matchResultScript.includes("apiUrl('report-targets')")
+    && matchResultScript.includes("apiUrl('reports')"),
+  'match-result.js: participant reports must load targets and submit through their dedicated APIs');
+check(matchResultScript.includes("detail: { status: summary.status || '' }")
+    && /if \(detail\.status !== '종료'\)[\s\S]{0,100}root\.hidden = true/.test(matchResultScript),
+  'match-result.js: participant reporting must stay hidden unless the match status is 종료');
+check(matchResultSource.includes('data-csrf-header')
+    && matchResultScript.includes('config.headers[csrfHeader] = csrfToken'),
+  'match-result.js: participant report submissions must use the page CSRF token');
+check(['노쇼', '비매너·욕설', '폭력·싸움', '기타'].every(category => matchResultScript.includes(`'${category}'`))
+    && matchResultScript.includes('SUMMARY_MAX = 1000'),
+  'match-result.js: participant reports must use the supported categories and summary limit');
+check(/chip\.tabIndex = checked \|\| \(!selectedCategory && index === 0\)/.test(matchResultScript)
+    && ['ArrowLeft:', 'ArrowUp:', 'ArrowRight:', 'ArrowDown:'].every(key => matchResultScript.includes(key))
+    && matchResultScript.includes('next.focus()'),
+  'match-result.js: the report category radio group must support keyboard entry and arrow navigation');
 check(matchResultScript.includes('JSON.stringify({ result: pending })'),
   'match-result.js: submission must post {result} to the captain-only endpoint');
 check(!/myResult/.test(matchResultSource),
@@ -1266,6 +1356,13 @@ for (const day of ['1', '3', '7', '14', '30']) {
   check(systemSource.includes(`<option value="${day}">`),
     `suspend-form: suspension must offer ${day} days`);
 }
+check((suspendModal ?? '').includes('<option value="-1">영구 정지</option>')
+  && (suspendModal ?? '').includes('복구')
+  && (suspendModal ?? '').includes('aria-describedby="suspend-days-hint"'),
+  'suspend-form: permanent suspension must be available and described as lasting until restored');
+check(systemSource.includes("penalty.endAt == '영구 정지' ? '영구 정지'")
+  && !systemSource.includes('9999-12-31'),
+  'system.html: permanent penalty end dates must render as 영구 정지, not a sentinel date');
 check(systemSource.includes('data-user-suspend'),
   'system.html: the account row must open the suspension modal');
 check(!systemSource.includes('user-suspension-reason'),

@@ -24,6 +24,7 @@
 | `20261110-seoul-public-facilities.sql` | 서울시 공공서비스예약 체육시설 113곳, 서울 구 14개, 시설 관리자 계정 10개 등록. `scripts/public-facility-import.ps1`이 만든 파일이며 데이터만 넣고 여러 번 실행해도 안전함. 새 DB도 `seed.sql` 다음에 적용하고 `spoit_mat_test`에는 적용하지 않음. [공공 체육시설 등록](#공공-체육시설-등록-20261110) 참고 | 파일 끝 확인 질의에서 `facilities` 113, `skipped`가 NULL이면 적용됨 |
 | `20261111-demo-match-data.sql` | 발표 시연 데이터: 데모 회원 101명·동호회 8개, 공공 체육시설 매칭방 189개(11/12~11/30 매일 9개, 11/1~11/9 지난 경기 18개), 매칭방 사진을 종목별 기본 사진으로 채움. `scripts/demo-match-data.py`가 만든 파일이며 여러 번 실행해도 안전함. `20261109`·`20261110` 다음에 적용. [발표 시연 데이터](#발표-시연-데이터-20261111) 참고 | 파일 끝 확인 질의에서 `demo_matches` 189, `rooms_without_photo` 0이면 적용됨 |
 | `20261111-rating-demo-data.sql` | 레이팅 시연 데이터: 회원 24명(`rating-01~24@spoit.test`)과 10월 경기 34개의 결과·평가·레이팅 이력 226행. 마이페이지에서 배치 중·배치 완료(브론즈·실버·골드)가 모두 보인다. `scripts/rating-demo-data.ps1`이 만든 파일이며 여러 번 실행해도 안전함. `20261111-demo-match-data.sql` 다음에 적용. [레이팅 시연 데이터](#레이팅-시연-데이터-20261111) 참고 | 파일 끝 확인 질의에서 `rating_users` 24, `history_rows` 226이면 적용됨 |
+| `20261112-password-reset.sql` | 비밀번호 재설정 인증 요청과 이메일·IP 요청 제한 테이블 추가. [비밀번호 재설정](#비밀번호-재설정-20261112) 참고 | 두 테이블이 모두 있고 정의가 일치하면 적용됨. 하나만 있으면 중단 후 확인 |
 | `20261112-demo-password-unify.sql` | 데모·레이팅 회원 125명의 비밀번호를 `spoit1234!`에서 seed 회원과 같은 `spoit1234`로 통일. 예전 해시가 남은 행만 바꾸며 여러 번 실행해도 안전함. 20261111 두 파일 다음에 적용. [데모 회원 비밀번호 통일](#데모-회원-비밀번호-통일-20261112) 참고 | 파일 끝 확인 질의에서 `old_hash_left` 0이면 적용됨 |
 | `20261112-club-single-region.sql` | 동호회 활동 지역을 동호회마다 1개로 정리(seed 4곳·시연 데이터 4곳은 이름에 맞는 구만 남기고, 시연 데이터 소개 글의 두 지역 문구도 고침). 데이터만 바꾸고 여러 번 실행해도 안전함. `20261111-demo-match-data.sql` 다음에 적용. [동호회 시연 데이터](#동호회-시연-데이터-20261112) 참고 | 파일 끝 확인 질의에서 `clubs_with_many_regions` 0, `intros_with_two_regions` 0이면 적용됨 |
 | `20261112-club-demo-data.sql` | 동호회 시연 데이터: 축구+풋살 동호회 10개(시연 2개 포함), 회원 76명(비밀번호 `spoit1234`), 지난 동호회 경기 50개와 레이팅 이력 500행, 11/29 매칭방 2개와 동호회 팀 신청 10행. `scripts/club-demo-data.py`가 만든 파일이며 여러 번 실행해도 안전함. `20261112-club-single-region.sql` 다음에 적용. [동호회 시연 데이터](#동호회-시연-데이터-20261112) 참고 | 파일 끝 확인 질의에서 `club_demo_users` 76, `club_demo_clubs` 10, `past_matches` 50, `history_rows` 500, `team_applications` 10, `rating_mismatches` 0이면 적용됨 |
@@ -88,7 +89,13 @@ SELECT
       AND REFERENCED_TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME = 'club'
       AND REFERENCED_COLUMN_NAME = 'club_id') AS m1105_fk,
   (SELECT COUNT(*) FROM information_schema.TABLES
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment') AS m1108_applied;
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment') AS m1108_applied,
+  (SELECT COUNT(*) FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'password_reset_challenge' AND TABLE_TYPE = 'BASE TABLE') AS m1112_password_challenge,
+  (SELECT COUNT(*) FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'password_reset_rate_limit' AND TABLE_TYPE = 'BASE TABLE') AS m1112_password_limit,
+  (SELECT COUNT(*) FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('password_reset_challenge', 'password_reset_rate_limit') AND TABLE_TYPE = 'VIEW') AS m1112_password_views;
 '@
 & "$mysqlBin\mysql.exe" -u 개발용계정 -p --default-character-set=utf8mb4 $db -e $check
 ```
@@ -104,9 +111,12 @@ SELECT
 | `m1105_column` | `club_id` 존재 | 컬럼 없음 |
 | `m1105_fk` | 지정된 이름과 참조 대상의 외래 키 존재 | 해당 외래 키 없음 |
 | `m1108_applied` | 이미 적용됨, 건너뜀 | 3단계에서 `20261108` 적용 |
+| `m1112_password_challenge` | 인증 요청 테이블 존재 | 인증 요청 테이블 없음 |
+| `m1112_password_limit` | 요청 제한 테이블 존재 | 요청 제한 테이블 없음 |
 
 - `m1104_tables`는 남은 태그 테이블 수입니다. `0`이면 `20261104`를 건너뛰고, `2`이면 3단계에서 적용합니다. `1`이면 부분 적용 상태이므로 파일 전체를 재실행하지 말고 남은 테이블과 참조 관계를 확인한 뒤 팀과 복구 방법을 정하세요.
 - `m1105_column`과 `m1105_fk`가 모두 `1`이면 `20261105`를 건너뛰고, 모두 `0`이면 3단계에서 적용합니다. 값이 다르면 부분 적용 또는 다른 스키마 상태이므로 파일을 실행하지 말고 실제 컬럼·외래 키 정의를 확인해 팀과 처리하세요. 이름이 다른 외래 키도 먼저 확인해야 합니다.
+- `m1112_password_views`가 `0`이고 `m1112_password_challenge`와 `m1112_password_limit`이 모두 `0`일 때만 `20261112-password-reset`을 적용합니다. 뷰가 없고 두 테이블이 모두 `1`이면 파일을 재실행하지 말고 실제 테이블 정의가 SQL과 일치하는지 확인합니다. 두 테이블 값이 다르거나 같은 이름의 뷰가 있으면 부분 적용 또는 다른 스키마 상태이므로 중단하고 팀과 처리하세요.
 
 ### 3. 적용
 
@@ -124,17 +134,25 @@ SELECT
 & "$mysqlBin\mysql.exe" -u 개발용계정 -p --default-character-set=utf8mb4 $db -e "source db/migrations/20261104-drop-club-hashtag.sql"
 & "$mysqlBin\mysql.exe" -u 개발용계정 -p --default-character-set=utf8mb4 $db -e "source db/migrations/20261105-notification-club.sql"
 & "$mysqlBin\mysql.exe" -u 개발용계정 -p --default-character-set=utf8mb4 $db -e "source db/migrations/20261108-payment.sql"
+& "$mysqlBin\mysql.exe" -u 개발용계정 -p --default-character-set=utf8mb4 $db -e "source db/migrations/20261112-password-reset.sql"
 ```
 
 - 사전·사후 확인 질의가 있는 파일은 그 출력도 확인하세요. `20261030`은 컬럼 1행(`group_application_id`, `bigint`, `YES`)과 FK 1행(`fk_match_application_group`)이 나오면 성공입니다. `20261103`은 컬럼 1행(`photo_url`, `varchar(500)`, `YES`)이 나오면 성공입니다. `20261104`는 마지막 확인 질의에서 행이 나오지 않아야 합니다. `20261108`은 마지막 확인 질의에서 테이블 1행(`payment`)과 컬럼 2행(`payment_id`, `refunded_at`)이 나오면 성공입니다.
 - `20261105`에는 별도의 확인 질의가 없으므로 아래 4단계에서 컬럼과 외래 키를 모두 확인하세요. 기존 알림의 새 `club_id`는 NULL로 유지됩니다. 미적용 상태에서는 알림 저장과 배포 전 스키마 검사가 실패할 수 있습니다.
+- `20261112-password-reset`은 두 `CREATE TABLE`이 각각 확정되므로, 실패하면 같은 파일을 다시 실행하지 말고 두 테이블의 상태를 확인하세요. 비밀번호 찾기와 로그인 후 비밀번호 변경에는 이 테이블들이 필요합니다.
 - `20261028`은 시설별 요일 운영 시간이 중복되어 있으면 사전 점검에서 일부러 멈춥니다. 이때는 데이터를 임의로 지우지 말고 시설 담당자와 확인하세요.
 - `20261027-app-user-withdrawal`은 `app_user.status`가 이전 코드에서 로그인할 수 있던 값(`ACTIVE`·`활성`·`NORMAL`)이 아닌 회원(정지, 시설 관리자 승인 대기·거절 등)이 있으면 컬럼 추가 뒤 사전 점검에서 멈춥니다. 출력된 회원을 처리하고(정지 → `penalty_time` 지정, 대기·거절 → 승인 여부를 정해 `role` 조정) `status`를 `ACTIVE`로 바꾼 뒤, 파일을 다시 실행하지 말고 파일의 3단계 `ALTER`와 4단계 확인 질의만 실행하세요.
 - `20261027-club-active-name-unique`은 해체되지 않은 동호회끼리 이름이 겹치면 사전 점검에서 멈춥니다. 출력된 동호회 중 어느 쪽 이름을 바꿀지 동호회 담당자와 정한 뒤 다시 실행하세요.
 
 ### 4. 다시 확인
 
-2단계 확인 명령을 다시 실행해 기존 여섯 열과 `m1105_column`·`m1105_fk`·`m1108_applied`는 모두 `1`, `m1104_tables`는 `0`인지 봅니다. 이 확인은 각 마이그레이션의 모든 스키마 세부 사항을 검증하지는 않습니다. 테스트 DB도 적용하는 사람은 `$db = "spoit_mat_test"`로 바꾸고 1~4단계를 반복합니다.
+2단계 확인 명령을 다시 실행해 기존 여섯 열과 `m1105_column`·`m1105_fk`·`m1108_applied`·`m1112_password_challenge`·`m1112_password_limit`은 모두 `1`, `m1104_tables`와 `m1112_password_views`는 `0`인지 봅니다. 이 확인은 각 마이그레이션의 모든 스키마 세부 사항을 검증하지는 않습니다. 테스트 DB도 적용하는 사람은 `$db = "spoit_mat_test"`로 바꾸고 1~4단계를 반복합니다.
+
+## 비밀번호 재설정 (`20261112`)
+
+기존 DB에 `password_reset_challenge`와 `password_reset_rate_limit`을 추가합니다. 신규 DB에 현재 `schema.sql`을 적용했다면 이미 포함되어 있으므로 다시 실행하지 않습니다. 기존 DB는 2단계에서 두 테이블이 모두 없는 것을 확인하고 백업한 뒤에만 3단계의 `20261112-password-reset.sql`을 한 번 적용하세요.
+
+두 테이블이 이미 있거나 하나만 있으면 스크립트를 다시 실행하지 마세요. 두 테이블이 있는 경우 각각 `SHOW CREATE TABLE password_reset_challenge`와 `SHOW CREATE TABLE password_reset_rate_limit` 결과를 마이그레이션 SQL과 비교해 컬럼·인덱스·제약을 확인합니다. 하나만 있거나 정의가 다르면 부분 적용 여부를 팀과 확인해 복구합니다. MySQL DDL은 문장별로 확정되므로 오류가 났다고 자동으로 모두 롤백되지 않습니다.
 
 ## 공공 체육시설 등록 (`20261110`)
 

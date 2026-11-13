@@ -39,6 +39,14 @@
           AND (penalty_time IS NULL OR penalty_time &lt;= #{now})
     </update>
 
+    <!-- 비밀번호 재설정은 탈퇴 계정만 제외하며 이용정지 시각은 변경하지 않는다. -->
+    <update id="updatePasswordHash">
+        UPDATE app_user
+           SET password_hash = #{passwordHash}
+         WHERE user_id = #{userId}
+           AND deleted_at IS NULL
+    </update>
+
     <insert id="insert" parameterType="co.kr.spoit.member.domain.Member"
             useGeneratedKeys="true" keyProperty="userId">
         INSERT INTO app_user (email, password_hash, nickname, phone, role)

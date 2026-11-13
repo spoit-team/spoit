@@ -3,12 +3,20 @@
 import assert from 'node:assert/strict';
 
 globalThis.Element ??= class Element {};
+// match-result.js가 문서 전역으로 요약 이벤트를 알린다. Node에는 있지만 없을 수도 있는 환경을 대비한다.
+globalThis.CustomEvent ??= class CustomEvent {
+  constructor(type, init = {}) {
+    this.type = type;
+    this.detail = init.detail;
+  }
+};
 
 class SyNode extends Element {
   constructor(properties = {}) {
     super();
     Object.assign(this, {
-      hidden: false, disabled: false, textContent: '', type: '', className: '', id: ''
+      hidden: false, disabled: false, textContent: '', type: '', className: '', id: '', value: '',
+      tagName: '', parentNode: null
     }, properties);
     this.attributes = {};
     this.children = [];
@@ -26,25 +34,68 @@ class SyNode extends Element {
     for (const handler of this.listeners[event.type] ?? []) handler(event);
     return true;
   }
-  setAttribute(name, value) { this.attributes[name] = String(value); }
+  setAttribute(name, value) {
+    // 실제 DOM은 값 인자가 없으면 DOMException을 던진다. 회귀를 테스트에서 잡도록 인자 2개를 강제한다.
+    assert.equal(arguments.length, 2, `setAttribute('${name}')에는 값 인자까지 2개가 필요합니다.`);
+    this.attributes[name] = String(value);
+  }
   getAttribute(name) { return this.attributes[name] ?? null; }
+  hasAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attributes, name); }
   removeAttribute(name) { delete this.attributes[name]; }
   focus() {}
   closest(selector) {
-    if (selector === '[data-result]') return this.result ? this : null;
-    if (selector === '[data-action]') return this.action ? this : null;
+    let node = this;
+    while (node) {
+      if (matchesSelector(node, selector)) return node;
+      node = node.parentNode;
+    }
     return null;
   }
-  querySelector(selector) { return (this.bySelector?.[selector]) ?? null; }
-  querySelectorAll(selector) { return (this.bySelectorAll?.[selector]) ?? []; }
-  replaceChildren(...nodes) { this.children = nodes; }
-  append(...nodes) { this.children.push(...nodes); }
-  appendChild(node) { this.children.push(node); return node; }
+  matches(selector) { return matchesSelector(this, selector); }
+  querySelector(selector) {
+    return this.bySelector?.[selector] ?? descendantsOf(this).find(node => matchesSelector(node, selector)) ?? null;
+  }
+  querySelectorAll(selector) {
+    return this.bySelectorAll?.[selector] ?? descendantsOf(this).filter(node => matchesSelector(node, selector));
+  }
+  replaceChildren(...nodes) {
+    this.children = [];
+    nodes.forEach(node => this.appendChild(node));
+  }
+  append(...nodes) {
+    nodes.forEach(node => this.appendChild(node));
+  }
+  appendChild(node) {
+    if (node && typeof node === 'object') node.parentNode = this;
+    this.children.push(node);
+    return node;
+  }
   dispatch(type, event = {}) {
     const payload = { target: this, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...event };
     for (const handler of this.listeners[type] ?? []) handler(payload);
     return payload;
   }
+}
+
+function descendantsOf(node) {
+  return node.children.flatMap(child => [child, ...descendantsOf(child)]);
+}
+
+// 이 테스트가 쓰는 선택자(#id, [attr], [attr="값"], 태그 이름, 쉼표 목록)만 해석한다.
+function matchesSelector(node, selector) {
+  return String(selector).split(',').some(part => matchesSingle(node, part.trim()));
+}
+
+function matchesSingle(node, selector) {
+  if (!node || !selector) return false;
+  const attribute = selector.match(/^\[([^\]=]+)(?:="([^"]*)")?\]$/);
+  if (attribute) {
+    if (typeof node.hasAttribute !== 'function' || !node.hasAttribute(attribute[1])) return false;
+    return attribute[2] === undefined || node.getAttribute(attribute[1]) === attribute[2];
+  }
+  if (selector.startsWith('#')) return node.id === selector.slice(1);
+  if (selector.startsWith('.')) return hasClass(node, selector.slice(1));
+  return String(node.tagName || '').toLowerCase() === selector.toLowerCase();
 }
 
 function hasClass(node, name) {
@@ -57,7 +108,10 @@ function textOf(node) {
 }
 
 function resultPage(options = {}) {
-  const { summary, summaryStatus = () => 200, captain, captainStatus = 200 } = options;
+  const {
+    summary, summaryStatus = () => 200, captain, captainStatus = 200,
+    reportTargets = [], reportTargetsStatus = 200, memberId = null
+  } = options;
   const calls = [];
   const fields = {};
   const field = name => {
@@ -74,6 +128,16 @@ function resultPage(options = {}) {
   const teamsContainer = new SyNode();
   const steps = new SyNode({ hidden: true });
   const evaluationSection = new SyNode({ hidden: true });
+  // 신고 섹션(04): 템플릿처럼 로딩 placeholder를 담은 body를 가진 숨은 섹션이다.
+  const reportSection = new SyNode({ hidden: true, id: 'match-report' });
+  const reportBody = new SyNode();
+  reportBody.setAttribute('data-report-body', '');
+  const reportPlaceholder = new SyNode({ className: 'match-result-loading', textContent: '신고 대상을 불러오는 중입니다.' });
+  const reportMessage = new SyNode({ hidden: true });
+  reportMessage.setAttribute('data-report-message', '');
+  reportBody.appendChild(reportPlaceholder);
+  reportSection.appendChild(reportBody);
+  reportSection.appendChild(reportMessage);
 
   ['matchId', 'side', 'resultStatus', 'ratingStatus', 'title', 'sport', 'schedule', 'facility', 'deadline'].forEach(field);
 
@@ -82,6 +146,7 @@ function resultPage(options = {}) {
   root.setAttribute('data-match-id', '42');
   root.setAttribute('data-csrf-header', 'X-CSRF-TOKEN');
   root.setAttribute('data-csrf-token', 'csrf-value');
+  if (memberId != null) root.setAttribute('data-member-id', String(memberId));
   root.bySelector = {
     '[data-result-summary]': summarySection,
     '[data-result-body]': stateBody,
@@ -108,10 +173,21 @@ function resultPage(options = {}) {
   const document = {
     hidden: false,
     activeElement: null,
-    addEventListener() {},
+    listeners: {},
+    addEventListener(type, handler) { (this.listeners[type] ??= []).push(handler); },
+    dispatchEvent(event) {
+      for (const handler of this.listeners[event.type] ?? []) handler(event);
+      return true;
+    },
+    getElementById(id) { return reportSection.id === id ? reportSection : null; },
     createElement(tagName) {
       const node = new SyNode();
       node.tagName = String(tagName).toUpperCase();
+      return node;
+    },
+    createTextNode(text) {
+      const node = new SyNode({ textContent: String(text) });
+      node.tagName = '#TEXT';
       return node;
     },
     querySelector(selector) { return selector === '[data-result-root]' ? root : null; }
@@ -128,6 +204,16 @@ function resultPage(options = {}) {
           json: () => Promise.resolve(summary)
         });
       }
+      if (url.endsWith('/report-targets')) {
+        const status = typeof reportTargetsStatus === 'function' ? reportTargetsStatus() : reportTargetsStatus;
+        return Promise.resolve({
+          ok: status === 200, redirected: false, status,
+          json: () => Promise.resolve(reportTargets)
+        });
+      }
+      if (url.endsWith('/reports')) {
+        return Promise.resolve({ ok: true, redirected: false, status: 201, json: () => Promise.resolve({}) });
+      }
       const status = typeof captainStatus === 'function' ? captainStatus() : captainStatus;
       return Promise.resolve({
         ok: status === 200, redirected: false, status,
@@ -138,7 +224,8 @@ function resultPage(options = {}) {
 
   return {
     root, fields, summarySection, stateBody, stateMessage,
-    submitSection, submitBody, submitMessage, teamsContainer, steps, evaluationSection, document, window, calls
+    submitSection, submitBody, submitMessage, teamsContainer, steps, evaluationSection,
+    reportSection, reportBody, reportMessage, document, window, calls
   };
 }
 
@@ -446,4 +533,60 @@ for (const [finalResult, ratingStatus, rows, badge, rating] of [
   assert.equal(ratingNode.textContent, rating);
 }
 
-console.log('PASS: result screen keeps the summary read-only for participants and gates submission to captains.');
+/* ── 4) 종료 경기: 신고 섹션이 대상 API 응답으로 폼을 그리고 로딩 문구를 지운다 ── */
+{
+  const page = resultPage({
+    summary: { matchId: 42, status: '종료', resultStatus: 'CONFIRMED', ratingStatus: 'APPLIED', mySide: 'A' },
+    captainStatus: 403,
+    reportTargets: [
+      { userId: 11, nickname: '베스트' },
+      { userId: 12, nickname: '가나' }
+    ]
+  });
+  globalThis.document = page.document;
+  globalThis.window = page.window;
+
+  await import('../../main/resources/static/js/match-result.js?report');
+  await flush();
+  await flush();
+
+  assert.equal(page.reportSection.hidden, false, '경기 상태가 종료면 신고 섹션을 열어야 합니다.');
+  assert.deepEqual(
+    page.calls.map(call => call.url),
+    [
+      '/mypage/matches/42/result/summary',
+      '/mypage/matches/42/report-targets',
+      '/mypage/matches/42/result'
+    ],
+    '요약 응답이 종료 상태를 알리면 신고 대상 API를 한 번 조회해야 합니다.'
+  );
+
+  // 로딩 placeholder가 남아 있으면 폼 렌더링이 중간에 멈춘 것이다.
+  assert.doesNotMatch(textOf(page.reportBody), /신고 대상을 불러오는 중입니다/,
+    '대상 응답을 받으면 로딩 문구를 지워야 합니다.');
+
+  const targetsList = page.reportBody.querySelector('[data-report-targets]');
+  assert.ok(targetsList, '신고 대상 목록 컨테이너를 그려야 합니다.');
+  assert.equal(targetsList.children.length, 2, '응답의 참가자 수만큼 대상 버튼을 그려야 합니다.');
+  assert.deepEqual(
+    targetsList.children.map(button => button.getAttribute('data-report-target')),
+    ['12', '11'],
+    '대상은 닉네임 순으로 정렬해 그려야 합니다.'
+  );
+  assert.match(textOf(targetsList), /가나/);
+  assert.match(textOf(targetsList), /베스트/);
+  assert.equal(page.reportBody.querySelector('[data-report-chosen]').textContent, '참가자를 먼저 선택해 주세요.');
+
+  // 그린 대상 버튼은 실제로 선택 동작에 연결돼 있어야 한다.
+  page.reportSection.dispatch('click', { target: targetsList.children[0] });
+  assert.equal(page.reportBody.querySelector('[data-report-chosen]').textContent, '가나');
+  assert.equal(
+    page.reportBody.querySelector('[data-report-targets]').children[0].getAttribute('aria-pressed'),
+    'true'
+  );
+  assert.ok(page.reportBody.querySelector('[data-report-categories]'), '신고 사유 그룹도 함께 그려야 합니다.');
+  assert.ok(page.reportBody.querySelector('[data-report-summary]'), '상세 내용 입력도 함께 그려야 합니다.');
+  assert.ok(page.reportBody.querySelector('[data-report-submit]'), '신고 버튼도 함께 그려야 합니다.');
+}
+
+console.log('PASS: result screen keeps the summary read-only for participants, gates submission to captains, and renders report targets after a closed match.');

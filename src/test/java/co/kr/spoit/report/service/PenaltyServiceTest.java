@@ -88,6 +88,56 @@ class PenaltyServiceTest {
     }
 
     @Test
+    @DisplayName("계정 영구 정지는 센티널 종료 시각을 제재와 회원 컬럼에 함께 저장한다")
+    void issuesPermanentAccountRestrictionWithSentinel() {
+        service.issueForAccount(TARGET_ID, ADMIN_ID, PenaltyService.PERMANENT_DURATION_DAYS, "운영 정책 위반");
+
+        ArgumentCaptor<Penalty> captor = ArgumentCaptor.forClass(Penalty.class);
+        verify(mapper).insertPenalty(captor.capture());
+        Penalty saved = captor.getValue();
+        assertThat(saved.getPenaltyType()).isEqualTo(PenaltyService.TYPE_RESTRICTION);
+        assertThat(saved.getEndAt()).isEqualTo(MemberPenaltyTimeService.PERMANENT_END_AT);
+        assertThat(saved.getEndAt()).isEqualTo(LocalDateTime.of(9999, 12, 31, 23, 59, 59));
+        // 실제 로그인 차단 컬럼도 같은 센티널로 연장해야 한다.
+        verify(memberPenaltyTimeService).extendUntil(TARGET_ID, MemberPenaltyTimeService.PERMANENT_END_AT);
+    }
+
+    @Test
+    @DisplayName("신고 처리 경로는 영구 정지 특수 값을 계속 거부한다")
+    void reportIssueRejectsPermanentDuration() {
+        assertThatThrownBy(() -> service.issueForReport(REPORT_ID, TARGET_ID, ADMIN_ID, "이용 제한",
+                PenaltyService.PERMANENT_DURATION_DAYS, "사유"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("1·3·7·14·30");
+
+        assertThatThrownBy(() -> PenaltyService.requireDuration(PenaltyService.PERMANENT_DURATION_DAYS))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verify(mapper, never()).insertPenalty(any());
+        verify(memberPenaltyTimeService, never()).extendUntil(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("영구 정지 제재 이력은 종료 시각을 9999-12-31이 아니라 영구 정지로 표시한다")
+    void permanentRestrictionShowsReadableEndLabel() {
+        PenaltyRow row = new PenaltyRow();
+        row.setPenaltyId(1L);
+        row.setTargetUserId(TARGET_ID);
+        row.setPenaltyType(PenaltyService.TYPE_RESTRICTION);
+        row.setStatus(PenaltyService.STATUS_ACTIVE);
+        row.setActive(true);
+        row.setStartAt(LocalDateTime.of(2026, 11, 1, 10, 0));
+        row.setEndAt(MemberPenaltyTimeService.PERMANENT_END_AT);
+        when(mapper.findPenalties(isNull(), eq("all"), any(), eq(PenaltyService.PAGE_SIZE + 1), eq(0)))
+                .thenReturn(List.of(row));
+
+        PenaltyPage page = service.loadPage(null, null, 0);
+
+        assertThat(page.getPenalties().get(0).getEndAt()).isEqualTo("영구 정지");
+        assertThat(page.getPenalties().get(0).getEndAt()).doesNotContain("9999");
+    }
+
+    @Test
     @DisplayName("정지 해제는 회원 행을 잠그고 제재를 해제한 뒤 회원 이용정지를 비운다")
     void releasesAllActiveRestrictionsAndClearsPenaltyTime() {
         when(mapper.releaseActiveRestrictions(eq(TARGET_ID), eq(ADMIN_ID), any())).thenReturn(2);

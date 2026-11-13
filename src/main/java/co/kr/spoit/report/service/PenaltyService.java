@@ -32,14 +32,20 @@ import co.kr.spoit.report.mapper.PenaltyMapper;
  * 재계산한다. REPEATABLE READ 스냅샷을 쓰면 방금 해제한 행이 여전히 '적용 중'으로 보여 정지가 풀리지
  * 않는다. 남은 제재가 없으면 {@code null}로 풀어 인증이 다시 통과하게 한다.</p>
  *
- * <p>영구 정지는 지원하지 않는다. 이용 제한은 {@link #ALLOWED_DURATIONS}일 중 하나만 허용하고,
- * 경고는 기간 없이 기록한다. 이 클래스는 감사 로그를 쓰지 않는다(감사 화면 제거 요청).</p>
+ * <p>신고 처리 경로는 영구 정지를 지원하지 않는다. 이용 제한은 {@link #ALLOWED_DURATIONS}일 중
+ * 하나만 허용하고, 경고는 기간 없이 기록한다. 영구 정지는 사용자 관리 화면의 계정 정지
+ * ({@link #issueForAccount})에서만 {@link #PERMANENT_DURATION_DAYS}로 선택하며, 종료 시각은
+ * {@link MemberPenaltyTimeService#PERMANENT_END_AT}를 {@code penalty.end_at}과
+ * {@code app_user.penalty_time}에 함께 저장한다. 이 클래스는 감사 로그를 쓰지 않는다(감사 화면 제거 요청).</p>
  */
 @Service
 public class PenaltyService {
 
     /** 이용 제한으로 허용하는 기간(일)이다. */
     public static final Set<Integer> ALLOWED_DURATIONS = Set.of(1, 3, 7, 14, 30);
+
+    /** 계정 정지 화면에서만 쓰는 영구 정지 선택 값이다. 신고 처리 경로에는 허용하지 않는다. */
+    public static final int PERMANENT_DURATION_DAYS = -1;
 
     public static final String TYPE_WARNING = "경고";
     public static final String TYPE_RESTRICTION = "이용 제한";
@@ -111,13 +117,19 @@ public class PenaltyService {
         if (reportId == null || reportId <= 0) {
             throw new IllegalArgumentException("신고 번호를 확인해 주세요.");
         }
-        return issue(reportId, targetUserId, issuedBy, penaltyType, durationDays, reason);
+        // 신고 처리 경로는 영구 정지를 선택할 수 없다. 특수 값은 계정 정지 전용이다.
+        return issue(reportId, targetUserId, issuedBy, penaltyType, durationDays, false, reason);
     }
 
-    /** 신고와 무관한 계정 정지(사용자 관리 화면)로 제재 이력을 남긴다. */
+    /**
+     * 신고와 무관한 계정 정지(사용자 관리 화면)로 제재 이력을 남긴다.
+     *
+     * @param durationDays 1/3/7/14/30 또는 영구 정지를 뜻하는 {@link #PERMANENT_DURATION_DAYS}
+     */
     @Transactional
     public Long issueForAccount(Long targetUserId, Long issuedBy, int durationDays, String reason) {
-        return issue(null, targetUserId, issuedBy, TYPE_RESTRICTION, durationDays, reason);
+        return issue(null, targetUserId, issuedBy, TYPE_RESTRICTION, durationDays,
+                durationDays == PERMANENT_DURATION_DAYS, reason);
     }
 
     /**
@@ -186,7 +198,7 @@ public class PenaltyService {
     }
 
     private Long issue(Long reportId, Long targetUserId, Long issuedBy, String penaltyType,
-            Integer durationDays, String reason) {
+            Integer durationDays, boolean permanent, String reason) {
         if (targetUserId == null || targetUserId <= 0) {
             throw new IllegalArgumentException("제재 대상 회원을 확인할 수 없습니다.");
         }
@@ -196,9 +208,14 @@ public class PenaltyService {
         String type = normalizeType(penaltyType);
         String trimmedReason = normalizeReason(reason);
         LocalDateTime now = LocalDateTime.now(ZONE);
-        LocalDateTime endAt = TYPE_RESTRICTION.equals(type)
-                ? now.plusDays(requireDuration(durationDays))
-                : null;
+        LocalDateTime endAt;
+        if (!TYPE_RESTRICTION.equals(type)) {
+            endAt = null;
+        } else if (permanent) {
+            endAt = MemberPenaltyTimeService.PERMANENT_END_AT;
+        } else {
+            endAt = now.plusDays(requireDuration(durationDays));
+        }
 
         // 잠금 순서를 회원 → 제재로 통일한다. 경고도 이력이 남으므로 회원 행을 먼저 잠가 역할을 확인하고,
         // 시스템 관리자 계정에는 어떤 제재도 부여하지 않는다.
@@ -309,11 +326,19 @@ public class PenaltyService {
                 row.getEmail(),
                 warning ? "경고" : "이용 제한",
                 PenaltyListItem.format(row.getStartAt()),
-                PenaltyListItem.format(row.getEndAt()),
+                formatEndAt(row.getEndAt()),
                 row.getReportId(),
                 row.getReason(),
                 statusLabel,
                 statusTone,
                 active);
+    }
+
+    /** 종료 시각 표시. 영구 정지 센티널은 날짜 대신 사람이 읽는 라벨로 보여 준다. */
+    private static String formatEndAt(LocalDateTime endAt) {
+        if (MemberPenaltyTimeService.isPermanentEndAt(endAt)) {
+            return "영구 정지";
+        }
+        return PenaltyListItem.format(endAt);
     }
 }

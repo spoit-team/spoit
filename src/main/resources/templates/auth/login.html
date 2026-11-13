@@ -42,8 +42,6 @@
       <div class="flex flex-wrap items-center justify-between gap-2 pt-0.5 text-xs">
         <label class="inline-flex cursor-pointer items-center gap-2 font-medium text-ink-2"><input id="remember-login" name="remember" class="auth-checkbox" type="checkbox" th:checked="${remember}" /> 로그인 상태 유지</label>
         <div class="flex items-center gap-2 text-muted">
-          <a th:href="@{/login/find-account}" class="hover:text-book">아이디 찾기</a>
-          <span aria-hidden="true" class="text-faint">|</span>
           <a th:href="@{/login/find-password}" class="hover:text-book">비밀번호 찾기</a>
         </div>
       </div>
@@ -58,7 +56,6 @@
   </footer>
 </main>
 
-<script th:src="@{/js/ui-utils.js}"></script>
 <script th:src="@{/js/auth-form.js}"></script>
 </body>
 </html>
