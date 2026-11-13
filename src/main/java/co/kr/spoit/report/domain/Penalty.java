@@ -9,7 +9,9 @@ import lombok.Setter;
  * {@code penalty} 테이블 행이다. 신고 처리·회원 정지로 부여되는 제재 이력을 담는다.
  *
  * <p>{@code endAt}이 {@code null}이면 기간이 없는 제재(경고)이고, 값이 있으면 그 시각까지
- * 이용이 제한된다. 이 프로젝트는 유효 기간이 있는 경고·이용 제한만 다루며 영구 정지는 두지 않는다.</p>
+ * 이용이 제한된다. 영구 정지는 종료 시각이 없는 대신
+ * {@link co.kr.spoit.member.service.MemberPenaltyTimeService#PERMANENT_END_AT} 센티널을
+ * {@code end_at}에 저장해 항상 미래로 비교되게 한다(신고 처리 경로에서는 선택할 수 없다).</p>
  */
 @Getter
 @Setter

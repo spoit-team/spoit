@@ -11,6 +11,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import co.kr.spoit.member.service.MemberPenaltyTimeService;
+
 /** 인증 주체의 화면 값과 계정 상태 판정만 확인한다. */
 class MemberPrincipalTest {
 
@@ -33,6 +35,18 @@ class MemberPrincipalTest {
         member.setPenaltyTime(penaltyTime);
 
         assertThat(MemberPrincipal.from(member, NOW).isEnabled()).isEqualTo(enabled);
+    }
+
+    @Test
+    @DisplayName("영구 정지 센티널이 저장된 계정은 로그인할 수 없다")
+    void keepsPermanentSuspensionBlocked() {
+        Member member = member("플레이어");
+        member.setPenaltyTime(MemberPenaltyTimeService.PERMANENT_END_AT);
+
+        assertThat(MemberPrincipal.from(member, NOW).isEnabled()).isFalse();
+        // 센티널은 어떤 기준 시각에서도 미래로 비교된다.
+        assertThat(MemberPrincipal.from(member, LocalDateTime.of(9999, 12, 31, 23, 59, 58)).isEnabled())
+                .isFalse();
     }
 
     @Test

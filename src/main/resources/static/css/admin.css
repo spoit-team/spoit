@@ -195,9 +195,6 @@ button { color: inherit; }
 .bar-chart.is-day .bar { width: 6px; min-height: 3px; }
 .chart-empty-note { margin: -5px 20px 12px; padding: 8px 10px; border-left: 2px solid var(--admin-line-strong); color: var(--admin-muted); font-size: 10.5px; line-height: 1.6; }
 .chart-foot { display: flex; justify-content: space-between; gap: 10px; padding: 0 20px 15px; color: var(--admin-faint); font-size: 10px; }
-.unlinked-panel { display: grid; gap: 6px; margin: 14px 18px 16px; padding: 14px 16px; border: 1px dashed var(--admin-line-strong); border-radius: 10px; background: repeating-linear-gradient(135deg, #fafbfc 0 8px, #f5f6f8 8px 16px); }
-.unlinked-panel strong { color: var(--admin-ink-2); font-size: 12px; font-weight: 800; }
-.unlinked-panel p { margin: 0; color: var(--admin-muted); font-size: 11px; line-height: 1.65; }
 /* 최근 요청 피드: 담당 시설 매칭방의 참가 신청 최신 5건을 좁은 카드 안에서도 읽히게 쌓는다.
    상태 배지는 신청 상태일 뿐 처리 버튼이 아니며, 항목 전체가 조회 전용 상세 링크다. */
 .request-feed { display: grid; margin: 12px 0 0; padding: 0 18px; list-style: none; }
@@ -570,7 +567,6 @@ body.has-admin-modal { overflow: hidden; }
 .admin-notification-actions { display: flex; align-items: center; gap: 6px; }
 .admin-notification-actions .admin-button { min-height: 30px; padding: 0 9px; font-size: 10px; }
 .admin-notification-empty { padding: 26px 10px; color: var(--admin-muted); font-size: 11px; text-align: center; }
-.admin-notifications-open { overflow: hidden; }
 .report-modal-kicker { margin-bottom: 2px; color: var(--admin-blue-ink); font-size: 10px; font-weight: 800; letter-spacing: .04em; }
 .report-kv-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px 12px; }
 .report-kv { min-width: 0; }
@@ -694,7 +690,6 @@ body.has-admin-modal { overflow: hidden; }
   .bar-chart.is-day .bar { width: 4px; }
   .bar-chart.is-day .bar-label { font-size: 9px; letter-spacing: -.04em; }
   .chart-empty-note { margin-right: 12px; margin-left: 12px; }
-  .unlinked-panel { margin-right: 14px; margin-left: 14px; }
   .request-feed { padding: 0 14px; }
   .request-feed-empty, .request-feed-foot { margin-right: 14px; margin-left: 14px; }
   .card-pad { padding: 15px; }

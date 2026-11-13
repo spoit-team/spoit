@@ -268,10 +268,24 @@ class AdminUserServiceTest {
     }
 
     @Test
-    @DisplayName("정지 기간이 허용 목록 밖이면 제재를 만들지 않는다")
+    @DisplayName("정지 기간이 허용 목록 밖이면 영구 정지까지 열거해 안내하고 제재를 만들지 않는다")
     void rejectsUnsupportedSuspendDuration() {
+        // 계정 정지 화면에는 영구 정지 선택지도 있으므로 오류 안내가 두 선택지를 모두 열거한다.
         assertThatThrownBy(() -> service.suspend(ACTOR, TARGET, 5, "사유"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("1·3·7·14·30")
+                .hasMessageContaining("영구 정지");
+        // 영구 정지 특수 값(-1) 외의 음수·0은 계속 거부한다.
+        assertThatThrownBy(() -> service.suspend(ACTOR, TARGET, 0, "사유"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("1·3·7·14·30")
+                .hasMessageContaining("영구 정지");
+        assertThatThrownBy(() -> service.suspend(ACTOR, TARGET, -2, "사유"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("영구 정지");
+        assertThatThrownBy(() -> service.suspend(ACTOR, TARGET, null, "사유"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("영구 정지");
 
         verify(penaltyService, never()).issueForAccount(anyLong(), anyLong(), anyInt(), any());
     }
@@ -302,10 +316,88 @@ class AdminUserServiceTest {
     }
 
     @Test
+    @DisplayName("계정 영구 정지는 영구 정지 특수 값을 그대로 제재 부여에 넘긴다")
+    void suspendsAccountPermanently() {
+        when(accountLockService.lockById(TARGET)).thenReturn(member("일반 회원"));
+
+        AdminUserActionResult result = service.suspend(ACTOR, TARGET,
+                PenaltyService.PERMANENT_DURATION_DAYS, "운영 정책 위반");
+
+        assertThat(result.applied()).isTrue();
+        assertThat(result.message()).contains("영구 정지");
+        verify(penaltyService).issueForAccount(TARGET, ACTOR, PenaltyService.PERMANENT_DURATION_DAYS,
+                "운영 정책 위반");
+        verify(memberMapper, never()).updatePenaltyTime(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("영구 정지된 계정의 상태·제재 문구는 9999-12-31 대신 영구 정지로 보여 준다")
+    void permanentSuspensionShowsReadableLabels() {
+        AdminUserRow row = row(1L);
+        row.setPenaltyTime(MemberPenaltyTimeService.PERMANENT_END_AT);
+        when(memberMapper.findAdminUsers(any(), any(), any(), any(), any(), anyInt(), anyInt()))
+                .thenReturn(List.of(row));
+
+        AdminUserPage page = service.loadPage(null, null, "suspended", 0);
+
+        AdminUserListItem user = page.getUsers().get(0);
+        assertThat(user.getStatusLabel()).isEqualTo("영구 정지");
+        assertThat(user.getSanction()).contains("영구 정지");
+        assertThat(user.getSanction()).doesNotContain("9999");
+        assertThat(user.isSuspended()).isTrue();
+        assertThat(user.getStatusTone()).isEqualTo("bad");
+    }
+
+    @Test
+    @DisplayName("기간 정지된 계정의 상태·제재 문구는 기존 표시를 유지한다")
+    void temporarySuspensionKeepsExistingLabels() {
+        LocalDateTime endAt = LocalDateTime.now().plusDays(3).withNano(0);
+        AdminUserRow row = row(1L);
+        row.setPenaltyTime(endAt);
+        when(memberMapper.findAdminUsers(any(), any(), any(), any(), any(), anyInt(), anyInt()))
+                .thenReturn(List.of(row));
+
+        AdminUserPage page = service.loadPage(null, null, "suspended", 0);
+
+        AdminUserListItem user = page.getUsers().get(0);
+        assertThat(user.getStatusLabel()).isEqualTo("정지");
+        assertThat(user.getSanction()).isEqualTo("이용 제한 ~ "
+                + endAt.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+        assertThat(user.getSanction()).doesNotContain("영구");
+    }
+
+    @Test
+    @DisplayName("정지 상태가 아닌 계정에는 제재 문구를 표시하지 않는다")
+    void expiredPenaltyHasNoSanctionText() {
+        AdminUserRow row = row(1L);
+        row.setPenaltyTime(LocalDateTime.now().minusDays(1));
+        when(memberMapper.findAdminUsers(any(), any(), any(), any(), any(), anyInt(), anyInt()))
+                .thenReturn(List.of(row));
+
+        AdminUserListItem user = service.loadPage(null, null, "all", 0).getUsers().get(0);
+
+        assertThat(user.getStatusLabel()).isEqualTo("정상");
+        assertThat(user.getSanction()).isNull();
+    }
+
+    @Test
     @DisplayName("복구는 남은 이용 제한을 모두 해제한다")
     void restoresSuspendedAccount() {
         Member suspended = member("일반 회원");
         suspended.setPenaltyTime(LocalDateTime.now().plusDays(3));
+        when(accountLockService.lockById(TARGET)).thenReturn(suspended);
+
+        AdminUserActionResult result = service.restore(ACTOR, TARGET);
+
+        assertThat(result.applied()).isTrue();
+        verify(penaltyService).releaseActiveRestrictions(TARGET, ACTOR);
+    }
+
+    @Test
+    @DisplayName("영구 정지된 계정도 복구로 해제할 수 있다")
+    void restoresPermanentlySuspendedAccount() {
+        Member suspended = member("일반 회원");
+        suspended.setPenaltyTime(MemberPenaltyTimeService.PERMANENT_END_AT);
         when(accountLockService.lockById(TARGET)).thenReturn(suspended);
 
         AdminUserActionResult result = service.restore(ACTOR, TARGET);

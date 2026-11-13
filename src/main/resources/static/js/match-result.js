@@ -529,12 +529,19 @@
         if (summarySection) summarySection.hidden = true;
         if (stateMessage) showMessage(stateMessage, result, 'error');
         renderState();
+        // 신고 섹션(04)은 경기 상태가 종료일 때만 열린다. 조회 실패 시 status 없는 빈 detail을 보내 닫아 둔다.
+        document.dispatchEvent(new CustomEvent('match-result:summary', { detail: {} }));
         return false;
       }
       summary = result.data;
       mySide = summary.mySide || mySide;
       renderSummary();
       renderState();
+      // 신고 섹션(04)이 경기 상태를 같은 기준으로 판단하게 조회 결과를 알린다.
+      // 서버 신고 API가 종료(CLOSED) 경기만 허용하므로 status만 그대로 넘긴다.
+      document.dispatchEvent(new CustomEvent('match-result:summary', {
+        detail: { status: summary.status || '' }
+      }));
       return true;
     });
   }
@@ -660,5 +667,437 @@
     if (!ok) return;
     // 팀장 전용 조회는 확정 참가자 조회가 성공한 뒤에만 시도한다.
     loadCaptain();
+  });
+})(window);
+
+/* ── 참가자 신고(04) ───────────────────────────────────────────────
+   서버 신고 API(MemberReportService)가 경기 상태 종료(MatchStatus.CLOSED, DB 값 '종료')만
+   허용하므로, 요약 응답의 status가 '종료'일 때만 섹션을 열고 대상을 조회한다.
+   결과·레이팅 상태만 확정되고 경기 상태가 종료가 아니면 섹션을 숨긴 채 아무 것도 요청하지 않는다.
+   대상은 GET report-targets(본인 제외), 제출은 POST reports — 둘 다 결과 화면과 같은
+   경기 번호 규칙과 CSRF 데이터 속성(data-result-root의 data-csrf-*)을 따른다.
+   모든 API 값은 textContent로만 그려 HTML로 주입하지 않는다. */
+(function (global) {
+  'use strict';
+
+  const root = document.getElementById('match-report');
+  if (!root) return;
+
+  const resultRoot = document.querySelector('[data-result-root]');
+  if (!resultRoot) return;
+
+  const csrfHeader = resultRoot.getAttribute('data-csrf-header');
+  const csrfToken = resultRoot.getAttribute('data-csrf-token');
+  const apiBase = (resultRoot.getAttribute('data-api-base') || '/mypage/matches').replace(/\/+$/, '');
+
+  const body = root.querySelector('[data-report-body]');
+  const messageBox = root.querySelector('[data-report-message]');
+
+  const CATEGORIES = ['노쇼', '비매너·욕설', '폭력·싸움', '기타'];
+  const SUMMARY_MAX = 1000;
+  const FALLBACK = {
+    401: '로그인이 만료되었습니다. 다시 로그인해 주세요.',
+    403: '이 경기의 확정 참가자만 신고할 수 있습니다.',
+    404: '경기 정보를 찾을 수 없습니다.'
+  };
+
+  let targets = [];
+  let selectedUserId = 0;
+  let selectedCategory = '';
+  let busy = false;
+
+  function matchId() {
+    const fromDom = Number(resultRoot.getAttribute('data-match-id'));
+    if (Number.isFinite(fromDom) && fromDom > 0) return fromDom;
+    // match-result.js와 같은 규칙: 주소에서 경기 번호를 읽는다(예: /mypage/matches/42/result-form).
+    const found = global.location.pathname.match(/\/mypage\/matches\/(\d+)(?:\/|$)/);
+    return found ? Number(found[1]) : 0;
+  }
+
+  function apiUrl(suffix) {
+    const id = matchId();
+    if (!id) return null;
+    return apiBase + '/' + id + '/' + suffix;
+  }
+
+  function request(url, options) {
+    const config = Object.assign({
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' }
+    }, options || {});
+    if (config.method !== 'GET' && csrfHeader && csrfToken) {
+      config.headers = Object.assign({}, config.headers);
+      config.headers[csrfHeader] = csrfToken;
+    }
+    return global.fetch(url, config).then(function (response) {
+      if (response.redirected) {
+        return { ok: false, status: 401, data: null, message: FALLBACK[401] };
+      }
+      return response.json().catch(function () { return null; }).then(function (data) {
+        // 실패 문구는 화면 쪽 안전 문구로만 안내한다. 서버 메시지는 요청 성공 판정에만 쓴다.
+        return { ok: response.ok, status: response.status, data: data, message: null };
+      });
+    }).catch(function () {
+      return { ok: false, status: 0, data: null, message: '서버에 연결하지 못했습니다. 네트워크 상태를 확인해 주세요.' };
+    });
+  }
+
+  /* ── 안전한 실패 문구. 서버가 준 원문은 그대로 내보내지 않는다. ── */
+  function safeErrorMessage(result) {
+    if (result.status === 401 || result.status === 403 || result.status === 404) return FALLBACK[result.status];
+    if (result.status === 0) return result.message;
+    if (result.status >= 500) return '신고를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+    return '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+  }
+
+  function showMessage(target, text, tone) {
+    if (!target) return;
+    target.textContent = text;
+    target.classList.toggle('is-error', tone === 'error');
+    target.classList.toggle('is-success', tone === 'success');
+    target.hidden = false;
+  }
+
+  function hideMessage(target) {
+    if (target) target.hidden = true;
+  }
+
+  /* ── 그리기. API 값은 전부 textContent로만 넣는다. ─────────────── */
+  function setBusy(next) {
+    busy = next;
+    body.querySelectorAll('button, textarea').forEach(function (node) {
+      node.disabled = next ? true : false;
+    });
+  }
+
+  function selectedTarget() {
+    return targets.find(function (target) {
+      return Number(target.userId) === selectedUserId;
+    });
+  }
+
+  function optionButton(target) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'match-report-target';
+    button.setAttribute('data-report-target', String(target.userId));
+    button.setAttribute('aria-pressed', String(Number(target.userId) === selectedUserId));
+    button.disabled = busy;
+    const name = document.createElement('span');
+    name.textContent = target.nickname || '이름 없는 참가자';
+    const mark = document.createElement('small');
+    mark.textContent = Number(target.userId) === selectedUserId ? '선택됨' : '선택';
+    button.append(name, mark);
+    return button;
+  }
+
+  function renderTargets() {
+    const list = body.querySelector('[data-report-targets]');
+    if (!list) return;
+    list.replaceChildren();
+    targets.forEach(function (target) {
+      list.appendChild(optionButton(target));
+    });
+  }
+
+  function summaryNode() {
+    const wrap = document.createElement('div');
+    wrap.className = 'match-report-summary';
+    const label = document.createElement('p');
+    label.className = 'match-report-summary-label';
+    label.textContent = '신고 대상';
+    const chosen = document.createElement('p');
+    chosen.className = 'match-report-summary-value';
+    chosen.setAttribute('data-report-chosen', '');
+    const who = selectedTarget();
+    chosen.textContent = who ? (who.nickname || '이름 없는 참가자') : '참가자를 먼저 선택해 주세요.';
+    wrap.append(label, chosen);
+    return wrap;
+  }
+
+  function formBlock() {
+    const form = document.createElement('div');
+    form.className = 'match-report-form';
+
+    const catLabel = document.createElement('p');
+    catLabel.className = 'match-report-label';
+    catLabel.id = 'match-report-category-label';
+    catLabel.textContent = '신고 사유';
+    const catGroup = document.createElement('div');
+    catGroup.className = 'match-report-categories';
+    catGroup.setAttribute('role', 'radiogroup');
+    catGroup.setAttribute('aria-labelledby', 'match-report-category-label');
+    catGroup.setAttribute('data-report-categories', '');
+    CATEGORIES.forEach(function (category, index) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'match-report-category';
+      chip.setAttribute('role', 'radio');
+      chip.setAttribute('data-report-category', category);
+      const checked = category === selectedCategory;
+      chip.setAttribute('aria-checked', String(checked));
+      // 라디오 그룹의 로빙 탭 스톱: 선택된 항목이 탭 정지점이고, 아직 고르지 않았으면 첫 항목이 진입점이다.
+      chip.tabIndex = checked || (!selectedCategory && index === 0) ? 0 : -1;
+      chip.disabled = busy;
+      const mark = document.createElement('span');
+      mark.textContent = category;
+      chip.appendChild(mark);
+      catGroup.appendChild(chip);
+    });
+
+    const sumLabel = document.createElement('label');
+    sumLabel.className = 'match-report-label';
+    sumLabel.setAttribute('for', 'match-report-summary');
+    sumLabel.textContent = '상세 내용';
+    const counter = document.createElement('span');
+    counter.className = 'match-report-counter';
+    counter.setAttribute('data-report-count', '0');
+    counter.textContent = '0';
+    sumLabel.appendChild(counter);
+    sumLabel.appendChild(document.createTextNode('/1000자'));
+
+    const textarea = document.createElement('textarea');
+    textarea.id = 'match-report-summary';
+    textarea.className = 'match-report-summary-input';
+    textarea.setAttribute('data-report-summary', '');
+    textarea.maxLength = SUMMARY_MAX;
+    textarea.rows = 5;
+    textarea.required = true;
+    textarea.placeholder = '일어난 일을 시간 순서로 적어 주세요. 신고 내용은 관리자만 확인합니다.';
+    textarea.disabled = busy;
+
+    const note = document.createElement('p');
+    note.className = 'match-report-note';
+    note.textContent = '허위 신고는 이용에 제한이 생길 수 있습니다. 사실만 바탕으로 적어 주세요.';
+
+    const actions = document.createElement('div');
+    actions.className = 'match-report-actions';
+    const submit = document.createElement('button');
+    submit.type = 'button';
+    submit.className = 'mypage-primary-button match-report-submit';
+    submit.setAttribute('data-report-submit', '');
+    submit.textContent = '신고하기';
+    submit.disabled = busy;
+    actions.appendChild(submit);
+
+    form.append(catLabel, catGroup, sumLabel, textarea, note, actions);
+    return form;
+  }
+
+  function renderReport() {
+    const chosen = body.querySelector('[data-report-chosen]');
+    if (chosen) {
+      const who = selectedTarget();
+      chosen.textContent = who ? (who.nickname || '이름 없는 참가자') : '참가자를 먼저 선택해 주세요.';
+    }
+  }
+
+  /* 신고 사유 선택 상태를 한 곳에서 반영한다. 선택된 항목만 aria-checked=true·탭 정지점이 된다. */
+  function selectCategory(category) {
+    selectedCategory = category;
+    body.querySelectorAll('[data-report-category]').forEach(function (node) {
+      const checked = node.getAttribute('data-report-category') === selectedCategory;
+      node.setAttribute('aria-checked', String(checked));
+      node.tabIndex = checked ? 0 : -1;
+    });
+  }
+
+  function stateCard(label, tone, title, note) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'match-result-state ' + tone;
+    const labelNode = document.createElement('span');
+    labelNode.className = 'match-result-state-label';
+    labelNode.textContent = label;
+    const titleNode = document.createElement('strong');
+    titleNode.textContent = title;
+    wrapper.append(labelNode, titleNode);
+    if (note) {
+      const noteNode = document.createElement('p');
+      noteNode.textContent = note;
+      wrapper.appendChild(noteNode);
+    }
+    return wrapper;
+  }
+
+  function renderFailed() {
+    const error = document.createElement('p');
+    error.className = 'match-result-error';
+    error.textContent = '신고 대상을 불러오지 못했습니다.';
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'mypage-secondary-button match-result-retry';
+    retry.textContent = '다시 시도';
+    retry.addEventListener('click', function () {
+      retry.disabled = true;
+      loadTargets();
+    });
+    body.replaceChildren(error, retry);
+  }
+
+  function renderForm() {
+    const targetsList = document.createElement('div');
+    targetsList.className = 'match-report-targets';
+    targetsList.setAttribute('data-report-targets', '');
+    targetsList.setAttribute('role', 'group');
+    targetsList.setAttribute('aria-label', '신고할 참가자 선택');
+    body.replaceChildren(summaryNode(), targetsList, formBlock());
+    renderTargets();
+  }
+
+  function syncCounter() {
+    const counter = body.querySelector('[data-report-count]');
+    const field = body.querySelector('[data-report-summary]');
+    if (counter && field) counter.textContent = String(field.value.length);
+  }
+
+  /* ── 조회·제출 ─────────────────────────────────────────────────── */
+  function loadTargets() {
+    const url = apiUrl('report-targets');
+    if (!url) {
+      root.hidden = true;
+      return;
+    }
+    return request(url).then(function (result) {
+      if (!result.ok) {
+        renderFailed();
+        return;
+      }
+      targets = Array.isArray(result.data) ? result.data.filter(function (target) {
+        return target && Number(target.userId) > 0;
+      }) : [];
+      // 현재 사용자는 대상에서 뺀다(서버 응답에 섞여 와도 화면에서 다시 걸러 둔다).
+      const mine = Number(resultRoot.getAttribute('data-member-id'));
+      if (Number.isFinite(mine) && mine > 0) {
+        targets = targets.filter(function (target) {
+          return Number(target.userId) !== mine;
+        });
+      }
+      targets.sort(function (a, b) {
+        return String(a.nickname || '').localeCompare(String(b.nickname || ''), 'ko');
+      });
+      renderForm();
+      syncCounter();
+    });
+  }
+
+  function submitReport() {
+    const who = selectedTarget();
+    const summaryText = (body.querySelector('[data-report-summary]') || {}).value || '';
+    const category = selectedCategory;
+    if (!who) {
+      showMessage(messageBox, '신고할 참가자를 먼저 선택해 주세요.', 'error');
+      return;
+    }
+    if (!category) {
+      showMessage(messageBox, '신고 사유를 선택해 주세요.', 'error');
+      return;
+    }
+    const text = summaryText.trim();
+    if (text.length < 1) {
+      showMessage(messageBox, '상세 내용을 1자 이상 적어 주세요.', 'error');
+      return;
+    }
+    if (text.length > SUMMARY_MAX) {
+      showMessage(messageBox, '상세 내용을 1000자 이하로 줄여 주세요.', 'error');
+      return;
+    }
+    const url = apiUrl('reports');
+    if (!url) {
+      showMessage(messageBox, FALLBACK[404], 'error');
+      return;
+    }
+    setBusy(true);
+    hideMessage(messageBox);
+    request(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        targetUserId: Number(who.userId),
+        category: category,
+        summary: text
+      })
+    }).then(function (result) {
+      setBusy(false);
+      if (!result.ok) {
+        showMessage(messageBox, safeErrorMessage(result), 'error');
+        return;
+      }
+      selectedUserId = 0;
+      selectedCategory = '';
+      renderForm();
+      syncCounter();
+      showMessage(messageBox, '신고가 접수되었습니다. 관리자 확인 후 처리됩니다.', 'success');
+    });
+  }
+
+  /* ── 이벤트 ─────────────────────────────────────────────────────── */
+  root.addEventListener('click', function (event) {
+    const element = event.target instanceof Element ? event.target : null;
+    if (!element) return;
+    const target = element.closest('[data-report-target]');
+    if (target && !busy) {
+      const nextId = Number(target.getAttribute('data-report-target'));
+      selectedUserId = nextId === selectedUserId ? 0 : nextId;
+      renderTargets();
+      renderReport();
+      return;
+    }
+    const chip = element.closest('[data-report-category]');
+    if (chip && !busy) {
+      selectCategory(chip.getAttribute('data-report-category'));
+      return;
+    }
+    if (element.closest('[data-report-submit]') && !busy) {
+      submitReport();
+    }
+  });
+
+  /* 신고 사유 radiogroup의 화살표 이동. 이전/다음 항목으로 순환하며 포커스와 선택을 함께 옮긴다.
+     Enter·Space는 버튼 기본 클릭 동작을 그대로 두고, busy 상태에서는 아무 것도 하지 않는다. */
+  const CATEGORY_KEYS = {
+    ArrowLeft: -1,
+    ArrowUp: -1,
+    ArrowRight: 1,
+    ArrowDown: 1
+  };
+
+  root.addEventListener('keydown', function (event) {
+    const step = CATEGORY_KEYS[event.key];
+    if (!step || busy) return;
+    const element = event.target instanceof Element ? event.target : null;
+    if (!element) return;
+    const chip = element.closest('[data-report-category]');
+    if (!chip) return;
+
+    const chips = Array.prototype.slice.call(body.querySelectorAll('[data-report-category]'));
+    const current = chips.indexOf(chip);
+    if (current < 0 || chips.length === 0) return;
+
+    event.preventDefault();
+    const next = chips[(current + step + chips.length) % chips.length];
+    selectCategory(next.getAttribute('data-report-category'));
+    next.focus();
+  });
+
+  root.addEventListener('input', function (event) {
+    if (event.target instanceof Element && event.target.matches('[data-report-summary]')) {
+      syncCounter();
+      hideMessage(messageBox);
+    }
+  });
+
+  /* 요약 조회가 끝나면(match-result.js가 알리는 시점) 경기 상태를 확인해 섹션을 여거나 닫는다.
+     서버 대상 API는 종료(CLOSED) 경기에서만 허용되므로 결과·레이팅 확정 여부는 열람 조건이 아니다. */
+  document.addEventListener('match-result:summary', function (event) {
+    const detail = event.detail || {};
+    if (detail.status !== '종료') {
+      root.hidden = true;
+      return;
+    }
+    if (root.hidden) {
+      root.hidden = false;
+      loadTargets();
+    }
   });
 })(window);

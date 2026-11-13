@@ -5,6 +5,7 @@ import java.time.format.DateTimeFormatter;
 
 import co.kr.spoit.member.domain.AdminUserRow;
 import co.kr.spoit.member.domain.MemberRole;
+import co.kr.spoit.member.service.MemberPenaltyTimeService;
 
 /**
  * 사용자 관리 목록 한 행의 화면 모델이다.
@@ -59,6 +60,7 @@ public class AdminUserListItem {
         MemberRole role = MemberRole.from(row.getRole());
         boolean pending = Boolean.TRUE.equals(row.getPendingRequest());
         boolean suspended = row.getPenaltyTime() != null && row.getPenaltyTime().isAfter(now);
+        boolean permanent = suspended && MemberPenaltyTimeService.isPermanentEndAt(row.getPenaltyTime());
         return new AdminUserListItem(
                 row.getUserId(),
                 nullToDash(row.getNickname()),
@@ -69,12 +71,31 @@ public class AdminUserListItem {
                 pending ? "대기" : "없음",
                 pending ? "warn" : "neutral",
                 pending,
-                suspended ? "정지" : "정상",
+                suspensionLabel(suspended, permanent),
                 suspended ? "bad" : "good",
                 suspended,
-                suspended ? "이용 제한 ~ " + DATE_TIME.format(row.getPenaltyTime()) : null,
+                sanction(suspended, permanent, row.getPenaltyTime()),
                 row.getCreatedAt() == null ? NONE : DATE.format(row.getCreatedAt()),
                 NONE);
+    }
+
+    /** 계정 상태 라벨. 영구 정지는 종료 날짜가 없으므로 별도 문구로 보여 준다. */
+    private static String suspensionLabel(boolean suspended, boolean permanent) {
+        if (!suspended) {
+            return "정상";
+        }
+        return permanent ? "영구 정지" : "정지";
+    }
+
+    /** 제재 보조 문구. 영구 정지는 센티널 날짜(9999-12-31)를 노출하지 않는다. */
+    private static String sanction(boolean suspended, boolean permanent, LocalDateTime penaltyTime) {
+        if (!suspended) {
+            return null;
+        }
+        if (permanent) {
+            return "영구 정지 · 복구 전까지";
+        }
+        return "이용 제한 ~ " + DATE_TIME.format(penaltyTime);
     }
 
     static String tone(MemberRole role) {

@@ -7,41 +7,6 @@
   gap: 12px;
 }
 
-.match-view-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--color-line);
-  border-radius: 999px;
-  background: var(--color-paper-soft);
-}
-
-.match-view-link {
-  display: inline-flex;
-  min-height: 32px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  padding: 0 11px;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 700;
-  text-decoration: none;
-  transition: background-color .14s ease, color .14s ease;
-}
-
-.match-view-link:hover {
-  color: var(--color-ink);
-}
-
-.match-view-link.is-current {
-  background: #fff;
-  color: var(--color-ink);
-  box-shadow: 0 1px 3px rgb(19 21 25 / 10%);
-}
-
-.match-view-link:focus-visible,
 .match-applications-link:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--color-book) 45%, transparent);
   outline-offset: 3px;

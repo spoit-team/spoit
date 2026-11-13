@@ -37,9 +37,11 @@ import lombok.RequiredArgsConstructor;
  * 없으면 아무것도 바꾸지 않고 거절 결과를 돌려준다. 역할이 실제로 바뀐 뒤에는
  * {@link MemberSessionRevocationService}로 기존 세션을 만료시켜 낡은 권한이 남지 않게 한다.</p>
  *
- * <p>회원 정지는 기간(1·3·7·14·30일)과 사유를 검증하고, {@code penalty} 이력을
+ * <p>회원 정지는 기간(1·3·7·14·30일) 또는 영구 정지 선택 값({@code -1})과 사유를 검증하고, {@code penalty} 이력을
  * {@link PenaltyService}로 남긴 뒤 같은 트랜잭션에서 {@code app_user.penalty_time}을 동기화한다.
- * 회원 행은 {@link MemberAccountLockService}로 잠가 동시 변경과 직렬화한다.</p>
+ * 영구 정지는 종료 시각 센티널({@link MemberPenaltyTimeService#PERMANENT_END_AT})을 두 컬럼에 함께 저장하고,
+ * 복구({@link #restore})에서만 해제된다. 회원 행은 {@link MemberAccountLockService}로 잠가 동시 변경과
+ * 직렬화한다.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -219,9 +221,10 @@ public class AdminUserService {
     }
 
     /**
-     * 회원 계정을 기간 정지한다. 기간과 사유를 검증하고 제재 이력을 함께 남긴다.
+     * 회원 계정을 정지한다. 기간(또는 영구 정지)과 사유를 검증하고 제재 이력을 함께 남긴다.
      *
-     * @param durationDays 1·3·7·14·30일 중 하나
+     * @param durationDays 1·3·7·14·30일 중 하나, 또는 영구 정지를 뜻하는
+     *                     {@link PenaltyService#PERMANENT_DURATION_DAYS}
      */
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public AdminUserActionResult suspend(Long actorUserId, Long userId, Integer durationDays, String reason) {
@@ -229,7 +232,7 @@ public class AdminUserService {
         if (userId != null && userId.equals(actorUserId)) {
             return AdminUserActionResult.rejected("자기 자신의 계정은 정지할 수 없습니다.");
         }
-        int days = PenaltyService.requireDuration(durationDays);
+        int days = resolveSuspendDuration(durationDays);
         String trimmedReason = PenaltyService.normalizeReason(reason);
         Member target = lockTarget(userId);
         if (MemberRole.from(target.getRole()) == MemberRole.ADMIN) {
@@ -239,7 +242,10 @@ public class AdminUserService {
             return AdminUserActionResult.rejected("이미 이용이 제한된 계정입니다.");
         }
         penaltyService.issueForAccount(userId, actorUserId, days, trimmedReason);
-        return AdminUserActionResult.applied(target.getNickname() + " 계정을 " + days + "일 정지했습니다.");
+        String periodLabel = days == PenaltyService.PERMANENT_DURATION_DAYS
+                ? "영구 정지"
+                : days + "일 정지";
+        return AdminUserActionResult.applied(target.getNickname() + " 계정을 " + periodLabel + "했습니다.");
     }
 
     /** 정지를 해제하고 남은 제재도 함께 정리한다. */
@@ -254,6 +260,24 @@ public class AdminUserService {
         }
         penaltyService.releaseActiveRestrictions(userId, actorUserId);
         return AdminUserActionResult.applied(target.getNickname() + " 계정의 정지를 해제했습니다.");
+    }
+
+    /**
+     * 정지 기간을 검증한다. 영구 정지 선택 값을 허용하고, 나머지는
+     * {@link PenaltyService#requireDuration}의 허용 목록(1·3·7·14·30일)을 따른다.
+     *
+     * <p>계정 정지 화면에는 영구 정지 선택지도 있으므로, 잘못된 값에는 두 선택지를 모두
+     * 열거해 안내한다. 신고 기반 제재가 함께 쓰는 {@link PenaltyService#requireDuration}의
+     * 메시지는 바꾸지 않는다.</p>
+     */
+    private static int resolveSuspendDuration(Integer durationDays) {
+        if (durationDays != null && durationDays == PenaltyService.PERMANENT_DURATION_DAYS) {
+            return PenaltyService.PERMANENT_DURATION_DAYS;
+        }
+        if (durationDays == null || !PenaltyService.ALLOWED_DURATIONS.contains(durationDays)) {
+            throw new IllegalArgumentException("정지 기간은 1·3·7·14·30일 또는 영구 정지 중에서 선택해 주세요.");
+        }
+        return PenaltyService.requireDuration(durationDays);
     }
 
     private void requireActor(Long actorUserId) {

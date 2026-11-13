@@ -96,6 +96,24 @@
         <p class="match-result-loading">평가 정보를 불러오는 중입니다.</p>
       </div>
     </section>
+
+    <!-- 참가자 신고(04): 이용 완료(매칭방 상태 '종료')인 경우에만 스크립트가 보여 준다.
+         대상은 현재 참가자를 뺀 다른 확정 참가자만 담긴 GET /mypage/matches/{matchId}/report-targets 응답으로 그리고,
+         제출은 POST /mypage/matches/{matchId}/reports를 fetch로 보낸다(CSRF는 data-result-root의 data-csrf-* 속성을 쓴다). -->
+    <section id="match-report" class="mypage-section match-result-section match-report-section" aria-labelledby="match-report-heading"
+             hidden data-report-section>
+      <div class="mypage-section-heading">
+        <span class="mypage-section-index" aria-hidden="true">04</span>
+        <div>
+          <h2 id="match-report-heading">참가자 신고</h2>
+          <p>경기 이용이 완료된 후, 함께한 참가자의 문제 행동을 관리자에게 알립니다.</p>
+        </div>
+      </div>
+      <p class="auth-message match-result-message" data-report-message role="status" aria-live="polite" hidden></p>
+      <div class="match-result-body" data-report-body aria-live="polite">
+        <p class="match-result-loading">신고 대상을 불러오는 중입니다.</p>
+      </div>
+    </section>
   </div>
 </main>
 

@@ -585,6 +585,212 @@
   }
 }
 
+/* 참가자 신고(04). 결과 섹션의 상태 카드·버튼 규격을 그대로 쓰고, 폼 요소만 이 화면에 맞춘다. */
+
+.match-report-form {
+  display: grid;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-paper);
+}
+
+.match-report-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 13px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-paper-soft);
+}
+
+.match-report-summary-label,
+.match-report-label {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+.match-report-summary-value {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 800;
+  word-break: keep-all;
+}
+
+.match-report-targets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.match-report-target {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 13px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 10px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, background-color .15s;
+}
+
+.match-report-target span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.match-report-target small {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--color-faint);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.match-report-target:hover:not(:disabled) {
+  border-color: var(--color-book);
+  background: var(--color-book-soft);
+}
+
+.match-report-target[aria-pressed="true"] {
+  border-color: var(--color-book);
+  background: var(--color-book-soft);
+}
+
+.match-report-target[aria-pressed="true"] small { color: var(--color-book-ink); }
+
+.match-report-target:focus-visible {
+  outline: 2px solid var(--color-book);
+  outline-offset: 2px;
+}
+
+.match-report-target:disabled { cursor: wait; opacity: .55; }
+
+.match-report-categories {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.match-report-category {
+  min-height: 38px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 999px;
+  background: var(--color-paper);
+  color: var(--color-ink-2);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+  transition: border-color .15s, background-color .15s, color .15s;
+}
+
+.match-report-category:hover:not(:disabled) {
+  border-color: var(--color-book);
+  color: var(--color-book-ink);
+}
+
+.match-report-category[aria-checked="true"] {
+  border-color: var(--color-book);
+  background: var(--color-book);
+  color: #fff;
+}
+
+.match-report-category:focus-visible {
+  outline: 2px solid var(--color-book);
+  outline-offset: 2px;
+}
+
+.match-report-category:disabled { cursor: wait; opacity: .55; }
+
+.match-report-counter {
+  margin-left: 6px;
+  color: var(--color-faint);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.match-report-summary-input {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 10px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+  resize: vertical;
+  transition: border-color .14s, box-shadow .14s;
+}
+
+.match-report-summary-input::placeholder {
+  color: var(--color-faint);
+  font-weight: 400;
+}
+
+.match-report-summary-input:hover:not(:disabled) { border-color: var(--color-faint); }
+
+.match-report-summary-input:focus {
+  border-color: var(--color-book);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-book-soft);
+}
+
+.match-report-summary-input:disabled { background: var(--color-field-disabled); cursor: wait; }
+
+.match-report-note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.match-report-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.match-report-submit {
+  padding-inline: 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.match-report-submit:disabled {
+  cursor: wait;
+  opacity: .6;
+}
+
+@media (max-width: 520px) {
+  .match-report-targets { grid-template-columns: minmax(0, 1fr); }
+
+  .match-report-categories { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .match-report-form { padding: 15px; }
+
+  .match-report-actions button { flex: 1; }
+}
+
 /* 선수 평가. 팀 묶음은 요약의 .match-result-team 표기를, 상태·확인 단계는 결과 섹션의 클래스를 그대로 쓴다. */
 
 .match-evaluation-team {
