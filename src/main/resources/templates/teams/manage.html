@@ -25,7 +25,7 @@
       <article th:each="joinRequest : ${myJoinRequests}" class="team-application-row">
         <div class="team-application-copy">
           <div class="team-member-name"><a th:href="@{/teams/{clubId}(clubId=${joinRequest.clubId})}" th:text="${joinRequest.clubName}">동호회 이름</a></div>
-          <p th:text="${'신청 ' + joinRequest.date + ' · 대기중'}">신청일 · 대기중</p>
+          <p th:text="${'신청 ' + joinRequest.date + ' · 대기 중'}">신청일 · 대기 중</p>
         </div>
         <div class="team-application-actions">
           <form method="post" th:action="@{/teams/{clubId}/applications/{joinRequestId}/cancel(clubId=${joinRequest.clubId}, joinRequestId=${joinRequest.joinRequestId})}">
@@ -86,7 +86,7 @@
           <div class="team-summary-item"><div class="team-summary-label">창단일</div><div class="team-summary-value" th:text="${managedClub.founded}">창단일</div></div>
           <div class="team-summary-item"><div class="team-summary-label">활동 시간</div><div class="team-summary-value" th:text="${managedClub.time}">활동 시간</div></div>
           <div class="team-summary-item"><div class="team-summary-label">모집 상태</div><div class="team-summary-value" th:text="${managedClub.recruitLabel}">모집 상태</div></div>
-          <div class="team-summary-item"><div class="team-summary-label">팀 실력</div><div class="team-summary-value" th:text="${managedClub.tierLabel}">팀 실력</div></div>
+          <div class="team-summary-item"><div class="team-summary-label">동호회 등급</div><div class="team-summary-value" th:text="${managedClub.tierLabel}">동호회 등급</div></div>
         </div>
         <div class="team-management-overview-block">
           <div class="team-section-heading"><div><h2>동호회 소개</h2><p class="team-intro-text" th:text="${managedClub.intro}">동호회 소개</p></div></div>
@@ -279,7 +279,7 @@
   <form method="post" th:if="${managedClub != null}" th:action="@{/teams/{clubId}/leave(clubId=${managedClub.clubId})}">
     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
     <div class="team-dialog-heading"><div><h2 id="team-leave-title">동호회에서 탈퇴할까요?</h2><p>진행 전에 내용을 확인해 주세요.</p></div><button class="team-dialog-close" type="button" data-dialog-close aria-label="닫기">×</button></div>
-    <div class="team-dialog-body"><p class="team-dialog-summary" th:text="${managedClub.clubName + ' 동호회원 목록에서 내 계정이 제외됩니다. 모집 중인 동호회 매치에 신청되어 있으면 탈퇴할 수 없습니다.'}">탈퇴 안내</p></div>
+    <div class="team-dialog-body"><p class="team-dialog-summary" th:text="${managedClub.clubName + ' 동호회원 목록에서 내 계정이 제외됩니다. 모집 중인 팀 매치에 신청되어 있으면 탈퇴할 수 없습니다.'}">탈퇴 안내</p></div>
     <div class="team-dialog-actions"><button class="team-button team-button-quiet" type="button" data-dialog-close>취소</button><button class="team-button team-button-danger" type="submit">동호회 탈퇴</button></div>
   </form>
 </dialog>

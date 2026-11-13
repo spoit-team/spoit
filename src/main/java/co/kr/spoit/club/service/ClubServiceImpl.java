@@ -192,17 +192,17 @@ public class ClubServiceImpl implements ClubService {
         }
         Integer maxMembers = form.getMaxMembers();
         if (maxMembers == null || maxMembers < MIN_MEMBERS || maxMembers > MAX_MEMBERS) {
-            throw new IllegalArgumentException("모집 정원은 2~30명으로 입력해주세요.");
+            throw new IllegalArgumentException("모집 정원은 2~30명으로 입력해 주세요.");
         }
         String activityDays = normalizeDays(form.getActivityDays());
         LocalTime start = form.getActivityStartTime();
         LocalTime end = form.getActivityEndTime();
         if (start == null || end == null) {
-            throw new IllegalArgumentException("활동 시작 시간과 종료 시간을 입력해주세요.");
+            throw new IllegalArgumentException("활동 시작 시간과 종료 시간을 입력해 주세요.");
         }
         // 익일로 넘김, 같은 시각만 거부
         if (start.equals(end)) {
-            throw new IllegalArgumentException("활동 시작 시간과 종료시간이 같을 수 없습니다.");
+            throw new IllegalArgumentException("활동 시작 시간과 종료 시간이 같을 수 없습니다.");
         }
 
         return Club.builder()
