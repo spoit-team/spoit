@@ -492,7 +492,7 @@ check(Boolean(dashboardSource), 'facility.html: dashboard view missing');
 // POST/Redirect/Get 진입 시 JS 실행 전에 대시보드가 먼저 그려졌다가 바뀌는 깜빡임이 생긴다.
 for (const [id, key] of [['facility-dashboard', 'dashboard'], ['facility-assets', 'assets'],
   ['facility-schedule', 'schedule'], ['facility-bookings', 'bookings'],
-  ['facility-stats', 'stats'], ['facility-content', 'content']]) {
+  ['facility-stats', 'stats']]) {
   check(new RegExp(`<section class="admin-view" id="${id}"[^>]*th:hidden="\\$\\{view != '${key}'\\}"`)
     .test(facilitySource),
     `facility.html: ${id} must be hidden by the server view model, not a hardcoded hidden`);
@@ -707,7 +707,7 @@ check(!/class="table-link/.test(roomRowActions),
    통계 화면은 POST 폼으로 조회 조건을 서버에 넘기고(다른 관리자 변경 요청과 같은 관례),
    서버가 계산한 값만 그립니다. 기간 직접 입력(periodFrom/periodTo)과
    시설 미선택(-시설 선택-) 상태가 계약입니다. */
-const statsSource = fragmentSlice(facilitySource, 'id="facility-stats"', 'id="facility-content"');
+const statsSource = fragmentSlice(facilitySource, 'id="facility-stats"', '</main>');
 check(Boolean(statsSource), 'facility.html: stats view missing');
 const statsForm = fragmentSlice(statsSource ?? '', '<form class="heading-actions"', '</form>') ?? '';
 check(statsForm.length > 0, 'facility.html: the stats filter form is missing');
@@ -736,35 +736,17 @@ check(statsSource?.includes('${stats?.applicationTotal ?: 0}')
   && statsSource?.includes('${stats?.approvalRate ?: 0}')
   && statsSource?.includes('${stats?.approvedCount ?: 0}'),
   'facility.html: the stats view must render the application metrics from stats');
-check(!/시설 관리자 제외/.test(statsSource ?? ''),
-  'facility.html: participant count no longer excludes the facility manager');
 const statsNotice = fragmentSlice(statsSource ?? '', 'class="notice-strip"', '</div>') ?? '';
 check(statsNotice.length > 0 && !/생성된 매칭방/.test(statsNotice),
   'facility.html: the stats basis notice must describe the start_at range, not creation time');
-/* 요일·시간대 상세는 "최대값 대비 상대 길이"가 아니라 "전체 확정 참가 인원 대비 인원/비중"이다.
-   예전 weekday.percent/hour.height 막대는 최대 요일 대비 상대값이라 비중으로 오해됐고,
-   0명 시간대도 목록에서 사라졌다. 계약이 상세 목록으로 바뀌었으므로 되돌아가지 않게 고정한다.
-   값의 단위는 인원(명)이며 매칭방 수(건)가 아니다. */
-for (const field of ['stats?.weekdayDetails', 'detail.count', 'detail.share']) {
-  check(statsSource?.includes(field), `facility.html: the weekday detail must render ${field}`);
+for (const field of ['stats?.applicationWeekdayDetails', 'stats?.applicationHourDetails', 'stats?.applicationWeekdayHourDetails']) {
+  check(statsSource?.includes(field), `facility.html: the application distribution must render ${field}`);
 }
-for (const field of ['stats?.hourDetails', 'stats?.weekdayHourDetails', 'row.hourlyCounts']) {
-  check(statsSource?.includes(field), `facility.html: the detail views must render ${field}`);
-}
-check(/00시부터 23시까지/.test(statsSource ?? '') && /0명인 칸도/.test(statsSource ?? ''),
-  'facility.html: the hour/heatmap detail must state that zero-person rows stay visible');
-check((statsSource?.match(/detail\.count \?: 0\) \+ '명'/g) ?? []).length === 2,
-  'facility.html: weekday/hour detail counts must be read as people(명), not rooms(건)');
-const statsLegend = fragmentSlice(statsSource ?? '', 'class="stats-heat-legend"', '</div>') ?? '';
-check(statsLegend.length > 0 && /0명/.test(statsLegend) && !/건/.test(statsLegend),
-  'facility.html: the heatmap legend must use people units, not room counts');
-check(!/weekday\.percent|hour\.height|weekday-value/.test(statsSource ?? ''),
-  'facility.html: stats must not fall back to the max-relative percent/height bars');
-check(/시작하는/.test(statsNotice) && /전체 확정 참가 인원/.test(statsNotice)
-  && /취소/.test(statsNotice),
-  'facility.html: the stats notice must name the start_at basis, cancelled exclusion and total denominator');
-check(/출석·노쇼/.test(statsNotice) && /여러 경기/.test(statsNotice) && /이용 중/.test(statsNotice),
-  'facility.html: the stats notice must explain per-match counting, attendance limits and start-time basis');
+check(!/확정 참가 인원|stats\?\.participantCount|stats\?\.popularDay|stats\?\.peakTime|facility-stat-heatmap/.test(statsSource ?? ''),
+  'facility.html: the stats view must not render the removed participant statistics');
+check(/시작하는/.test(statsNotice) && /종료된 매칭의 신청/.test(statsNotice)
+  && /취소된 매칭/.test(statsNotice) && /대기 중인 신청은 신청 수에 포함/.test(statsNotice),
+  'facility.html: the stats notice must explain the application scope and pending applications');
 
 const operationsSource = await readFile(path.join(resources, 'templates/admin/operations.html'), 'utf8');
 check(operationsSource.includes('th:if="${match == null}"'),
@@ -871,12 +853,12 @@ check(/th:href="@\{\/admin\/system/.test(systemSidebar ?? ''),
   'admin.html: system sidebar must keep its own menu links');
 // 민원·요청, 점검·유지보수 화면은 백엔드 처리 없이 껍데기만 남아 있었으므로 메뉴에서 제거했다.
 // 되살아나면 화면에 없는 동작을 약속하게 되므로, 남은 메뉴와 함께 부재를 고정한다.
-for (const removed of ['facility-requests', 'facility-maintenance', '민원·요청', '점검·유지보수']) {
+for (const removed of ['facility-requests', 'facility-maintenance', 'facility-content', '민원·요청', '점검·유지보수', '공지·이용 수칙']) {
   check(!(facilitySidebar ?? '').includes(removed),
     `admin.html: removed facility menu entry must stay gone (${removed})`);
 }
 for (const kept of ['facility-dashboard', 'facility-assets', 'facility-schedule',
-  'facility-bookings', 'facility-stats', 'facility-content']) {
+  'facility-bookings', 'facility-stats']) {
   check((facilitySidebar ?? '').includes(kept),
     `admin.html: facility sidebar must keep ${kept}`);
 }
@@ -884,12 +866,12 @@ for (const kept of ['facility-dashboard', 'facility-assets', 'facility-schedule'
 /* ── 시스템 관리자 메뉴 계약 ──────────────────────────────────────────────
    공지·FAQ·약관(CMS)과 감사 로그는 메뉴와 화면에서 제거했다. 되살아나면 없는
    데이터를 약속하게 되므로 부재를 고정하고, 남은 메뉴가 온전한지 확인한다. */
-for (const removed of ['system-cms', 'system-audit', '공지·FAQ·약관', '감사 로그']) {
+for (const removed of ['system-cms', 'system-audit', '공지·FAQ·약관', '감사 로그', 'system-settings', '운영 설정']) {
   check(!(systemSidebar ?? '').includes(removed),
     `admin.html: removed system menu entry must stay gone (${removed})`);
 }
 for (const kept of ['system-dashboard', 'system-errors', 'system-users',
-  'system-penalties', 'system-settings']) {
+  'system-penalties']) {
   check((systemSidebar ?? '').includes(kept),
     `admin.html: system sidebar must keep ${kept}`);
 }
@@ -898,6 +880,7 @@ for (const kept of ['system-dashboard', 'system-errors', 'system-users',
    민원·요청과 점검·유지보수는 서버 모델·핸들러가 없어 화면만 존재했다. 화면과 진입점,
    모달·스크립트 연결이 다시 생기면 없는 동작을 약속하게 되므로 부재를 고정한다. */
 for (const removed of ['id="facility-requests"', 'id="facility-maintenance"',
+  'id="facility-content"', 'id="facility-notices"', 'id="facility-rules"',
   'id="maintenance-modal"', 'id="maintenance-form"', 'data-open-maintenance',
   'data-close-maintenance', '@{/admin/facility/requests', '@{/admin/facility/maintenance',
   'requestMetrics', 'maintenanceMetrics', 'maintenanceFilters', '요청 목록', '점검 일지']) {
@@ -1223,6 +1206,13 @@ check(!(systemSidebar ?? '').includes("data-view-target=\"system-reports\""),
    진입점은 접수함 URL로 보내고 옛 뷰는 접수함으로 안내하는 화면만 남긴다.
    페널티 화면(#system-penalties)과 페널티 메뉴는 이번 범위에서 그대로 둔다. */
 const systemSource = await readFile(path.join(resources, 'templates/admin/system.html'), 'utf8');
+const systemUsers = fragmentSlice(systemSource, 'id="system-users"', 'id="system-settings"') ?? '';
+check(/시스템 관리자<\/div><div class="metric-value"><span th:text="\$\{userMetrics\?\.systemAdminCount \?: 0\}"/.test(systemUsers),
+  'system.html: system administrator metric must use the system administrator count');
+check(/시설 관리자<\/div><div class="metric-value"><span th:text="\$\{userMetrics\?\.facilityAdminCount \?: 0\}"/.test(systemUsers),
+  'system.html: facility administrator metric must use the facility administrator count');
+check(/<section class="admin-view" id="system-settings"[^>]*th:if="\$\{false\}"/.test(systemSource),
+  'system.html: unimplemented settings view must not render, including for direct hash links');
 const penaltySection = fragmentSlice(systemSource, 'id="system-penalties"', 'id="system-users"') ?? '';
 const outsidePenalty = systemSource.split(penaltySection).join('');
 
