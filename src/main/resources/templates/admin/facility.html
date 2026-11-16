@@ -196,7 +196,7 @@
           <div class="page-heading-copy">
             <div class="page-eyebrow">시설 운영 · 성과 분석</div>
             <h1>예약 통계</h1>
-            <p>선택한 시설·기간에 시작하는 종료된 매칭의 확정 참가 인원과, 접수된 신청의 최신 상태 분포를 함께 확인합니다.</p>
+            <p>선택한 시설·기간에 시작하는 종료된 매칭의 최신 신청 상태 분포를 확인합니다.</p>
             <p class="stats-scope">
               <b th:text="${selectedFacility?.name ?: '시설 미선택'}">시설</b>
               <span th:text="${stats?.periodLabel ?: '최근 30일'}">최근 30일</span>
@@ -219,71 +219,13 @@
         </div>
         <div class="metric-grid stats-metrics" th:with="approvalRate=${stats?.approvalRate ?: 0}, cancelRate=${stats?.cancelRate ?: 0}">
           <article class="card metric-card"><div class="metric-top">완료된 매칭방 수</div><div class="metric-value"><span th:text="${stats?.bookingCount ?: 0}">0</span><small>개</small></div><div class="metric-foot">종료 상태 · 시작 시각 기준</div></article>
-          <article class="card metric-card"><div class="metric-top">확정 참가 인원</div><div class="metric-value"><span th:text="${stats?.participantCount ?: 0}">0</span><small>명</small></div><div class="metric-foot">경기별 확정 인원 합 · 출석·노쇼 미구분</div></article>
-          <article class="card metric-card"><div class="metric-top">가장 인기 있는 요일</div><div class="metric-value" th:text="${stats?.popularDay ?: '—'}">—</div><div class="metric-foot">확정 참가 인원 최다 · 집중 시간 <span th:text="${stats?.peakTime ?: '—'}">—</span></div></article>
-          <div class="stats-metric-divider" aria-hidden="true"></div>
           <article class="card metric-card"><div class="metric-top">신청 수</div><div class="metric-value"><span th:text="${stats?.applicationTotal ?: 0}">0</span><small>건</small></div><div class="metric-foot">사람·매칭 기준 · 대기 포함 · 개인 <span th:text="${stats?.individualCount ?: 0}">0</span> · 동호회 <span th:text="${stats?.clubCount ?: 0}">0</span></div></article>
           <article class="card metric-card"><div class="metric-top">승인율</div><div class="metric-value"><span th:text="${#numbers.formatDecimal(approvalRate, 1, 0)}">0</span><small>%</small></div><div class="metric-foot">확정 ÷ 처리(확정+반려·취소) · 확정 <span th:text="${stats?.approvedCount ?: 0}">0</span>건</div></article>
           <article class="card metric-card"><div class="metric-top">취소율</div><div class="metric-value"><span th:text="${#numbers.formatDecimal(cancelRate, 1, 0)}">0</span><small>%</small></div><div class="metric-foot">반려·취소 ÷ 처리 · 반려·취소 <span th:text="${stats?.cancelledCount ?: 0}">0</span>건 · 처리 <span th:text="${stats?.resolvedCount ?: 0}">0</span>건</div></article>
         </div>
         <p class="stats-empty-note" th:if="${#lists.isEmpty(facilities)}">담당 시설이 없어 집계할 수 없습니다. 시설을 먼저 등록한 뒤 다시 조회해 주세요.</p>
-        <p class="stats-empty-note" th:if="${!#lists.isEmpty(facilities) and selectedFacility == null}">조회할 시설을 선택하면 선택 기간에 시작하는 종료된 매칭의 요일·시간대별 확정 참가 인원이 표시됩니다. 이어서 신청 상태 분포도 함께 보여 줍니다. 시설을 고르지 않은 상태에서는 집계하지 않습니다.</p>
+        <p class="stats-empty-note" th:if="${!#lists.isEmpty(facilities) and selectedFacility == null}">조회할 시설을 선택하면 선택 기간에 시작하는 종료된 매칭의 요일·시간대별 신청 상태 분포가 표시됩니다. 시설을 고르지 않은 상태에서는 집계하지 않습니다.</p>
         <p class="stats-empty-note" th:if="${selectedFacility != null and (stats?.bookingCount ?: 0) == 0}">선택한 기간에 시작하는 종료된 매칭이 없습니다. 시설은 그대로 두고 기간을 넓혀 다시 조회해 보세요. 아래 그래프와 표는 0건 상태를 그대로 보여 줍니다.</p>
-        <div class="section-heading stats-section-heading" th:if="${selectedFacility != null}">
-          <div class="section-title-wrap">
-            <h2>확정 참가 인원</h2>
-            <p>종료된 매칭의 확정 참가자 행을 경기 시작 요일·시각으로 나눕니다. 아래 신청 상태와는 세는 단위가 달라 숫자가 다를 수 있습니다.</p>
-          </div>
-        </div>
-        <div class="dashboard-grid stats-detail-grid" th:if="${selectedFacility != null}">
-          <article class="card stats-panel">
-            <div class="card-heading"><div><h2>요일별 확정 참가 인원</h2><p>막대 길이와 %는 같은 조건의 전체 확정 참가 인원 대비 비중입니다.</p></div></div>
-            <ul class="stats-day-list" th:if="${!#lists.isEmpty(stats?.weekdayDetails)}">
-              <li class="stats-day-row" th:each="detail : ${stats?.weekdayDetails}" th:classappend="${(detail.count ?: 0) == 0 ? 'is-zero' : ''}">
-                <span class="stats-row-label" th:text="${detail.label}">월</span>
-                <span class="stats-bar" aria-hidden="true"><i th:style="'width:' + ${detail.share ?: 0} + '%'"></i></span>
-                <b class="stats-count" th:text="${(detail.count ?: 0) + '명'}">0명</b>
-                <b class="stats-share" th:text="${'전체 ' + (detail.share ?: 0) + '%'}">전체 0%</b>
-              </li>
-            </ul>
-            <p class="stats-panel-empty" th:if="${#lists.isEmpty(stats?.weekdayDetails)}">집계된 요일별 확정 참가 인원이 없습니다.</p>
-          </article>
-          <article class="card stats-panel">
-            <div class="card-heading"><div><h2>시간대별 확정 참가 인원</h2><p>00시부터 23시까지, 0명인 시간대도 표시합니다. %는 전체 확정 참가 인원 대비 비중입니다.</p></div></div>
-            <ul class="stats-hour-list" th:if="${!#lists.isEmpty(stats?.hourDetails)}">
-              <li class="stats-hour-row" th:each="detail : ${stats?.hourDetails}" th:classappend="${(detail.count ?: 0) == 0 ? 'is-zero' : ''}">
-                <span class="stats-row-label" th:text="${detail.label}">00시</span>
-                <span class="stats-bar" aria-hidden="true"><i th:style="'width:' + ${detail.share ?: 0} + '%'"></i></span>
-                <b class="stats-count" th:text="${(detail.count ?: 0) + '명'}">0명</b>
-                <b class="stats-share" th:text="${'전체 ' + (detail.share ?: 0) + '%'}">전체 0%</b>
-              </li>
-            </ul>
-            <p class="stats-panel-empty" th:if="${#lists.isEmpty(stats?.hourDetails)}">집계된 시간대별 확정 참가 인원이 없습니다.</p>
-          </article>
-        </div>
-        <article class="card stats-panel stats-heatmap-card" th:if="${selectedFacility != null}">
-          <div class="card-heading"><div><h2>요일 × 시작 시각 확정 참가 인원</h2><p>선택한 조건에서 시작하는 종료된 매칭의 확정 참가 인원입니다. 0명인 칸도 그대로 표시하고, 색은 인원 구간을 나타냅니다.</p></div></div>
-          <div class="stats-heatmap-scroll" th:if="${!#lists.isEmpty(stats?.weekdayHourDetails)}" role="region" aria-label="요일과 시작 시각별 확정 참가 인원 표" tabindex="0">
-            <table class="stats-heatmap" id="facility-stat-heatmap">
-              <caption class="sr-only">월요일부터 일요일까지, 00시부터 23시까지 시작한 종료된 매칭의 확정 참가 인원입니다. 0명인 칸도 표시합니다.</caption>
-              <thead><tr><th scope="col">요일</th><th scope="col" th:each="hour : ${#numbers.sequence(0, 23)}" th:text="${#numbers.formatInteger(hour, 2) + '시'}">00시</th></tr></thead>
-              <tbody>
-                <tr th:each="row : ${stats?.weekdayHourDetails}">
-                  <th scope="row" th:text="${row.label}">월</th>
-                  <td th:each="cellCount, hourStat : ${row.hourlyCounts}"
-                      th:classappend="${(cellCount ?: 0) == 0 ? 'is-zero' : ''}"
-                      th:attr="data-heat-level=${(cellCount ?: 0) == 0 ? null : ((cellCount ?: 0) <= 2 ? 1 : ((cellCount ?: 0) <= 5 ? 2 : ((cellCount ?: 0) <= 9 ? 3 : 4)))}"
-                      th:title="${row.label + '요일 ' + #numbers.formatInteger(hourStat.index, 2) + '시 시작 종료 매칭의 확정 참가 인원 ' + (cellCount ?: 0) + '명'}"
-                      th:text="${cellCount ?: 0}">0</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p class="stats-panel-empty" th:if="${#lists.isEmpty(stats?.weekdayHourDetails)}">집계된 요일·시간대 조합이 없습니다. 선택한 기간에 시작하는 종료된 매칭이 없으면 표가 비어 있습니다.</p>
-          <div class="stats-heat-legend" th:if="${!#lists.isEmpty(stats?.weekdayHourDetails)}">
-            <span class="stats-heat-legend-item" aria-hidden="true"><i></i>0명</span><span class="stats-heat-legend-item" aria-hidden="true"><i data-heat-level="1"></i>1–2명</span><span class="stats-heat-legend-item" aria-hidden="true"><i data-heat-level="2"></i>3–5명</span><span class="stats-heat-legend-item" aria-hidden="true"><i data-heat-level="3"></i>6–9명</span><span class="stats-heat-legend-item" aria-hidden="true"><i data-heat-level="4"></i>10명 이상</span><span class="stats-heat-legend-note">칸의 숫자는 시작 시각 기준 종료된 매칭의 확정 참가 인원이며, 배경색은 0명·1–2명·3–5명·6–9명·10명 이상 구간을 구분합니다.</span>
-          </div>
-        </article>
         <div class="section-heading stats-section-heading" th:if="${selectedFacility != null}">
           <div class="section-title-wrap">
             <h2>신청 상태</h2>
@@ -419,27 +361,9 @@
             <p class="stats-mini-note">각 칸의 위 숫자는 <b>확정</b>, 아래 숫자는 <b>반려·취소</b> 건수입니다. 대기 중인 신청은 막대와 표 모두에서 제외했습니다.</p>
           </div>
         </article>
-        <div class="notice-strip"><strong>통계 기준</strong><p>선택한 시설·기간에 <b>시작하는</b> 종료된 매칭의 확정 참가 인원을 매칭 시작 시각의 요일·시간대로 집계하며, 취소된 매칭은 제외합니다. 참가 인원은 경기별 확정 인원의 합계라 같은 사람이 여러 경기에 참여하면 경기마다 각각 포함되고, 출석·노쇼는 구분하지 못합니다. 조회 기간과 요일·시간대 구분은 모두 매칭 시작 시각을 기준으로 하므로 그 시간에 시설을 이용 중인 모든 인원을 센 값이 아닙니다. 기간은 시작일 00:00부터 종료일 23:59까지이고, 비중(%)은 같은 조건의 전체 확정 참가 인원 대비 비율을 반올림한 정수입니다.</p><p><b>신청 상태 기준</b>은 확정 참가 인원과 다릅니다. 신청은 같은 방·같은 사람의 가장 최근 상태를 <b>사람 1명 × 매칭 1건</b>으로 세고, 동호회 팀 신청은 팀원 각각을 1명으로 셉니다. 같은 사람이 다른 매칭에 신청하면 별도 건으로 포함합니다. 취소된 매칭방의 신청은 빼고, 대기 중인 신청은 막대에 넣지 않습니다. 승인율은 확정 ÷ (확정+반려·취소), 취소율은 (반려·취소) ÷ (확정+반려·취소)이며, 분모가 0이면 두 값 모두 0%입니다. 그래서 위의 확정 참가 인원과 차트의 확정 신청 수는 세는 단위가 달라 서로 다를 수 있습니다.</p></div>
+        <div class="notice-strip"><strong>통계 기준</strong><p>선택한 시설·기간에 <b>시작하는</b> 종료된 매칭의 신청을 매칭 시작 시각의 요일·시간대로 집계하며, 취소된 매칭은 제외합니다. 기간은 시작일 00:00부터 종료일 23:59까지입니다.</p><p>신청은 같은 방·같은 사람의 가장 최근 상태를 <b>사람 1명 × 매칭 1건</b>으로 세고, 동호회 팀 신청은 팀원 각각을 1명으로 셉니다. 같은 사람이 다른 매칭에 신청하면 별도 건으로 포함합니다. 대기 중인 신청은 신청 수에 포함하지만 막대와 표에는 넣지 않습니다. 승인율은 확정 ÷ (확정+반려·취소), 취소율은 (반려·취소) ÷ (확정+반려·취소)이며, 분모가 0이면 두 값 모두 0%입니다.</p></div>
       </section>
 
-      <!-- 공지·이용 수칙 -->
-      <section class="admin-view" id="facility-content" data-view-title="공지·이용 수칙" th:hidden="${view != 'content'}">
-        <div class="page-heading">
-          <div class="page-heading-copy"><div class="page-eyebrow">시설 정보</div><h1>공지·이용 수칙</h1><p>시설 이용자에게 표시되는 공지와 운영 수칙을 관리합니다.</p></div>
-          <div class="heading-actions"><button class="admin-button primary" type="button" disabled title="콘텐츠 편집 API 연동 후 사용할 수 있습니다.">＋ 콘텐츠 작성</button></div>
-        </div>
-        <div class="card">
-          <div class="toolbar"><div class="tabs" role="tablist" aria-label="콘텐츠 유형"><button type="button" role="tab" data-content-tab="facility-notices" aria-selected="true">공지사항</button><button type="button" role="tab" data-content-tab="facility-rules" aria-selected="false">시설 이용 수칙</button></div><span class="toolbar-spacer"></span><select class="field-control" aria-label="게시 상태"><option>전체 게시 상태</option><option>게시 중</option><option>임시 저장</option></select></div>
-          <div class="admin-panel" id="facility-notices"><div class="table-scroll"><table class="admin-table"><thead><tr><th>제목</th><th>게시 상태</th><th>노출 기간</th><th>작성자</th><th>수정 일시</th><th>관리</th></tr></thead><tbody>
-            <tr th:each="notice : ${notices}"><td><span class="cell-primary" th:text="${notice.title}">공지 제목</span></td><td><span class="status-badge" th:classappend="${notice.statusTone}" th:text="${notice.statusLabel}">상태</span></td><td th:text="${notice.periodLabel}">기간</td><td th:text="${notice.author}">작성자</td><td th:text="${notice.updatedAt}">수정 일시</td><td><button class="table-link" type="button" disabled title="공지 편집 API 연동 후 사용할 수 있습니다.">편집</button></td></tr>
-            <tr th:if="${#lists.isEmpty(notices)}"><td class="table-empty" colspan="6">등록된 공지가 없습니다.</td></tr>
-          </tbody></table></div></div>
-          <div class="admin-panel" id="facility-rules" hidden><div class="table-scroll"><table class="admin-table"><thead><tr><th>이용 수칙</th><th>분류</th><th>게시 상태</th><th>최근 수정</th><th>관리</th></tr></thead><tbody>
-            <tr th:each="rule : ${rules}"><td><span class="cell-primary" th:text="${rule.title}">이용 수칙</span></td><td th:text="${rule.category}">분류</td><td><span class="status-badge" th:classappend="${rule.statusTone}" th:text="${rule.statusLabel}">상태</span></td><td th:text="${rule.updatedAt}">수정 일시</td><td><button class="table-link" type="button" disabled title="이용 수칙 편집 API 연동 후 사용할 수 있습니다.">편집</button></td></tr>
-            <tr th:if="${#lists.isEmpty(rules)}"><td class="table-empty" colspan="5">등록된 이용 수칙이 없습니다.</td></tr>
-          </tbody></table></div></div>
-        </div>
-      </section>
     </div>
   </main>
 </div>

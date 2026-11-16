@@ -24,7 +24,7 @@ import co.kr.spoit.admin.service.SystemResourceHistory.Sample;
  * 위장하지 않고 {@code null}로 전달한다. 오류 로그·신고 수집은 아직 범위가 아니므로 해당 수치는
  * {@code null}, 목록은 빈 상태로 둔다.</p>
  *
- * <p>15초 표본 2,880개를 그대로 차트에 그리면 화면이 감당하지 못하므로, 차트 막대는 5분 구간별
+ * <p>최근 6시간의 차트 막대는 15초 표본을 5분 구간별
  * CPU·힙 평균으로 압축한다. 평균은 실제 측정값만 대상으로 하며, 한 구간의 값이 모두 미지원이면
  * 0으로 채우지 않고 {@code null}로 남긴다. CPU 피크는 압축된 평균이 아니라 원본 15초 표본 기준이다.</p>
  */
@@ -37,8 +37,10 @@ public class SystemMonitoringService {
     /** 화면 차트 막대 하나가 담당하는 구간이다. */
     static final Duration CHART_BUCKET = Duration.ofMinutes(5);
 
-    /** 12시간 / 5분 = 144개. 화면에 표시할 막대 상한이다. */
-    static final int MAX_BARS = 144;
+    /** 최근 6시간 / 5분 = 72개. 화면에 표시할 막대 상한이다. */
+    static final int MAX_BARS = 72;
+
+    private static final Duration CHART_WINDOW = Duration.ofHours(6);
 
     private static final String STATUS_UP = "정상";
     private static final String TONE_GOOD = "good";
@@ -113,7 +115,7 @@ public class SystemMonitoringService {
                 recentErrors.attention(),
                 // 모든 서비스 probe가 정상일 때만 true다. 수집하지 않은 상태에서 정상으로 표시하지 않는다.
                 services.stream().allMatch(service -> TONE_GOOD.equals(service.getTone())),
-                bars(samples),
+                bars(samples, now),
                 services,
                 recentErrors.rows(),
                 List.of());
@@ -163,12 +165,12 @@ public class SystemMonitoringService {
     }
 
     /**
-     * 차트는 실제 저장된 표본만 5분 구간별 평균으로 압축한다.
+     * 차트는 최근 6시간에 실제 저장된 표본만 5분 구간별 평균으로 압축한다.
      *
      * <p>측정 불가({@code null})는 0으로 취급하지 않고 평균에서 제외한다. 한 구간의 측정값이 모두
      * 없으면 그 막대의 값은 {@code null}이다. 막대는 최근 것부터 최대 {@link #MAX_BARS}개만 남긴다.</p>
      */
-    private static List<SystemDashboard.Bar> bars(List<Sample> samples) {
+    private static List<SystemDashboard.Bar> bars(List<Sample> samples, LocalDateTime now) {
         List<SystemDashboard.Bar> bars = new ArrayList<>();
         LocalDateTime currentBucket = null;
         long cpuSum = 0L;
@@ -176,6 +178,9 @@ public class SystemMonitoringService {
         long memorySum = 0L;
         int memoryCount = 0;
         for (Sample sample : samples) {
+            if (sample.bucketStart().isBefore(now.minus(CHART_WINDOW)) || sample.bucketStart().isAfter(now)) {
+                continue;
+            }
             LocalDateTime bucketStart = chartBucketStart(sample.bucketStart());
             if (currentBucket != null && !currentBucket.equals(bucketStart)) {
                 bars.add(bar(currentBucket, cpuSum, cpuCount, memorySum, memoryCount));
