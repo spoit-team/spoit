@@ -95,8 +95,8 @@
   const SESSION_STOP_ANNOUNCEMENT = '로그인 세션이 만료되어 자동 갱신을 멈췄습니다. 페이지를 새로고침해 주세요.';
   const FAILURE_MESSAGE = '자동 갱신 실패 · 마지막 수집 값';
   const FAILURE_ANNOUNCEMENT = '자동 갱신에 실패했습니다. 표시 중인 값은 마지막 수집 결과입니다.';
-  const EMPTY_CHART_NOTE = '앱 재시작 후 15초 간격으로 수집해 5분 평균 차트를 다시 쌓습니다 (최대 최근 12시간)';
-  const FILLED_CHART_NOTE = '최근 12시간 · 15초 수집 · 차트는 5분 평균 · 앱 재시작 시 이력 초기화';
+  const EMPTY_CHART_NOTE = '15초 간격으로 수집해 5분 평균 차트를 표시합니다 (최대 최근 6시간)';
+  const FILLED_CHART_NOTE = '최근 6시간 · 15초 수집 · 차트는 5분 평균';
 
   const monitoringRoot = document.getElementById('system-dashboard');
   const monitoringUrl = monitoringRoot?.dataset.monitoringUrl || '';
@@ -192,7 +192,7 @@
     });
     container.replaceChildren(...groups);    const isEmpty = groups.length === 0;
     setText('chart-note', isEmpty ? EMPTY_CHART_NOTE : FILLED_CHART_NOTE);
-    setText('chart-empty', isEmpty ? '아직 표본이 없습니다 (재시작 직후)' : 'JVM CPU · 힙 메모리 (%)');
+    setText('chart-empty', isEmpty ? '아직 표본이 없습니다' : 'JVM CPU · 힙 메모리 (%)');
   }
 
   function renderServices(services) {

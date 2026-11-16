@@ -205,7 +205,7 @@ class SystemMonitoringServiceTest {
     }
 
     @Test
-    void keepsAtMostOneBarPerFiveMinutesForAFullTwelveHourWindow() {
+    void showsAtMostSeventyTwoFiveMinuteBarsFromRecentSixHours() {
         when(databaseProbe.isReachable()).thenReturn(true);
         LocalDateTime now = LocalDateTime.of(2026, 11, 2, 10, 0);
         for (LocalDateTime time = now.minusHours(12).plusMinutes(5); !time.isAfter(now.minusSeconds(15));
@@ -215,12 +215,29 @@ class SystemMonitoringServiceTest {
 
         SystemDashboard dashboard = service(describeProbe(1, 2, 3), now).currentDashboard();
 
-        // 2,861개 표본(요청 시점 포함)이 5분 구간으로 압축되어 144개 막대가 된다.
-        assertThat(dashboard.getBars()).hasSize(144);
+        // 12시간 원본 표본 중 최근 6시간만 최대 72개의 막대로 표시한다.
+        assertThat(dashboard.getBars()).hasSize(72);
         assertThat(dashboard.getBars()).hasSizeLessThanOrEqualTo(SystemMonitoringService.MAX_BARS);
-        // 12시간 전 구간부터 표시하고, 요청 시점 구간이 마지막이다.
-        assertThat(dashboard.getBars().get(0).getLabel()).isEqualTo("22:05");
-        assertThat(dashboard.getBars().get(143).getLabel()).isEqualTo("10:00");
+        // 막대 상한을 적용하면 요청 시점 구간이 마지막이다.
+        assertThat(dashboard.getBars().get(0).getLabel()).isEqualTo("04:05");
+        assertThat(dashboard.getBars().get(71).getLabel()).isEqualTo("10:00");
+    }
+
+    @Test
+    void excludesSamplesBeforeSixHourBoundaryEvenWhenHistoryIsSparse() {
+        when(databaseProbe.isReachable()).thenReturn(true);
+        LocalDateTime now = LocalDateTime.of(2026, 11, 2, 10, 3);
+        history.record(now.minusHours(6).minusSeconds(15), 99, 99);
+        history.record(now.minusHours(6), 20, 30);
+        history.record(now.minusMinutes(1), 40, 50);
+
+        SystemDashboard dashboard = service(describeProbe(10, 10, 10), now).currentDashboard();
+
+        assertThat(dashboard.getBars()).hasSize(2);
+        assertThat(dashboard.getBars().get(0).getLabel()).isEqualTo("04:00");
+        assertThat(dashboard.getBars().get(0).getCpuHeight()).isEqualTo(20);
+        // 피크는 차트 표시 범위가 아닌 보관된 12시간 원본에서 계산한다.
+        assertThat(dashboard.getCpuPeak()).isEqualTo(99);
     }
 
     @Test
