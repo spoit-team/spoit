@@ -293,8 +293,8 @@ class FacilityAdminControllerTest {
     }
 
     @Test
-    @DisplayName("시설 선택 시 상세 집계 7×24 표와 선택 요일·시간대 인원·비중을 실제 렌더한다")
-    void rendersStatsDetailsFromFacilityStatsModel() throws Exception {
+    @DisplayName("예약 통계는 신청 상태를 표시하고 확정 참가 인원 통계는 표시하지 않는다")
+    void rendersApplicationStatsWithoutParticipantStats() throws Exception {
         when(facilityService.findManagedFacilities(7L))
                 .thenReturn(List.of(facility(10L, "송파 풋살파크")));
         when(facilityStatsService.load(eq(7L), eq(10L), any(), any(), any()))
@@ -308,80 +308,11 @@ class FacilityAdminControllerTest {
                 .andExpect(view().name("admin/facility"))
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
 
-        // 선택 시설이 통계 범위 문구에 그대로 연결된다.
-        assertThat(html).contains("송파 풋살파크").doesNotContain("시설 미선택");
-
-        // 지표 카드의 확정 참가 인원도 건수가 아닌 명 단위로, 출석·노쇼 미구분 기준과 함께 렌더한다.
-        assertThat(html).contains("확정 참가 인원")
-                .contains("<span>30</span><small>명</small>")
-                .contains("경기별 확정 인원 합 · 출석·노쇼 미구분");
-
-        // 상세 패널 제목과 안내도 인원(명)과 전체 확정 참가 인원 대비 비중 기준을 쓴다.
-        assertThat(html).contains("요일별 확정 참가 인원")
-                .contains("시간대별 확정 참가 인원")
-                .contains("00시부터 23시까지, 0명인 시간대도 표시합니다")
-                .contains("전체 확정 참가 인원 대비 비중");
-
-        // 요일 상세: 7행(월~일)과 0명 행의 is-zero, 선택 요일의 인원·전체 참가자 비중.
-        String dayList = section(html, "class=\"stats-day-list\"", "</ul>");
-        assertThat(countOf(dayList, "<li class=\"stats-day-row")).isEqualTo(7);
-        assertThat(countOf(dayList, "is-zero")).isEqualTo(4);
-        assertThat(dayList).contains("<span class=\"stats-row-label\">월</span>")
-                .contains("<b class=\"stats-count\">15명</b>")
-                .contains("<b class=\"stats-share\">전체 50%</b>")
-                .contains("<span class=\"stats-row-label\">화</span>")
-                .contains("<b class=\"stats-count\">9명</b>")
-                .contains("<b class=\"stats-share\">전체 30%</b>")
-                .contains("<span class=\"stats-row-label\">수</span>")
-                .contains("<b class=\"stats-count\">6명</b>")
-                .contains("<b class=\"stats-share\">전체 20%</b>")
-                .contains("<b class=\"stats-count\">0명</b>")
-                .doesNotContain("건");
-
-        // 시간대 상세: 00~23시 24행, 선택 시간대의 인원·전체 참가자 비중.
-        String hourList = section(html, "class=\"stats-hour-list\"", "</ul>");
-        assertThat(countOf(hourList, "<li class=\"stats-hour-row")).isEqualTo(24);
-        assertThat(hourList).contains("<span class=\"stats-row-label\">00시</span>")
-                .contains("<span class=\"stats-row-label\">23시</span>")
-                .contains("<b class=\"stats-count\">18명</b>")
-                .contains("<b class=\"stats-share\">전체 60%</b>")
-                .contains("<b class=\"stats-count\">8명</b>")
-                .contains("<b class=\"stats-share\">전체 27%</b>")
-                .doesNotContain("건");
-
-        // 요일×시간 표: 7행 × 24칸, 선택한 요일/시간 칸의 인원과 인원 구간(히트 레벨).
-        String heatmap = section(html, "<table class=\"stats-heatmap\"", "</table>");
-        assertThat(countOf(heatmap, "<td")).isEqualTo(7 * 24);
-        assertThat(countOf(heatmap, "<tr>")).isEqualTo(7 + 1);
-        // 색은 혼잡도가 아니라 확정 참가 인원 구간을 뜻한다.
-        assertThat(html).contains("색은 인원 구간을 나타냅니다")
-                .doesNotContain("혼잡");
-        assertThat(heatmap).contains("월요일 09시 시작 종료 매칭의 확정 참가 인원 12명")
-                .contains("월요일 14시 시작 종료 매칭의 확정 참가 인원 3명")
-                .contains("화요일 09시 시작 종료 매칭의 확정 참가 인원 6명")
-                .contains("화요일 18시 시작 종료 매칭의 확정 참가 인원 2명")
-                .contains("화요일 20시 시작 종료 매칭의 확정 참가 인원 1명")
-                .contains("수요일 18시 시작 종료 매칭의 확정 참가 인원 6명")
-                .contains("data-heat-level=\"4\"")
-                .contains("data-heat-level=\"3\"")
-                .contains("data-heat-level=\"2\"")
-                .contains("data-heat-level=\"1\"");
-        assertThat(countOf(heatmap, "data-heat-level=")).isEqualTo(6);
-
-        // 범례는 0명·1–2명·3–5명·6–9명·10명 이상 인원 구간을 건수가 아닌 명 기준으로 안내한다.
-        String legend = section(html, "class=\"stats-heat-legend\"", "</div>");
-        assertThat(legend).contains("0명").contains("1–2명").contains("3–5명")
-                .contains("6–9명").contains("10명 이상")
-                .doesNotContain("건");
-
-        // 통계 기준 문구: 출석·노쇼 미구분과 시작 시각 기준(이용 중 인원 아님)을 밝힌다.
-        String notice = section(html, "<strong>통계 기준</strong>", "</div>");
-        assertThat(notice).contains("출석·노쇼는 구분하지 못합니다")
-                .contains("여러 경기에 참여하면 경기마다 각각 포함")
-                .contains("시작 시각을 기준으로")
-                .contains("이용 중인 모든 인원을 센 값이 아닙니다")
-                .contains("비중(%)은 같은 조건의 전체 확정 참가 인원 대비 비율")
-                .contains("취소된 매칭은 제외");
+        assertThat(html).contains("송파 풋살파크", "신청 상태", "신청 수", "통계 기준")
+                .doesNotContain("확정 참가 인원", "가장 인기 있는 요일", "집중 시간", "facility-stat-heatmap");
+        assertThat(section(html, "<strong>통계 기준</strong>", "</div>"))
+                .contains("종료된 매칭의 신청", "대기 중인 신청은 신청 수에 포함")
+                .doesNotContain("확정 참가 인원");
     }
 
     @Test
@@ -490,7 +421,7 @@ class FacilityAdminControllerTest {
 
         assertThat(html).contains("시설 미선택")
                 .contains("조회할 시설을 선택하면")
-                .contains("요일·시간대별 확정 참가 인원이 표시됩니다")
+                .contains("요일·시간대별 신청 상태 분포가 표시됩니다")
                 .doesNotContain("stats-day-list")
                 .doesNotContain("stats-hour-list")
                 .doesNotContain("facility-stat-heatmap");

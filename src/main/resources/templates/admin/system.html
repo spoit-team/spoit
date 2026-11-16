@@ -126,8 +126,8 @@
         </div>
         <div class="metric-grid">
           <article class="card metric-card"><div class="metric-top">전체 회원</div><div class="metric-value"><span th:text="${userMetrics?.totalCount ?: 0}">0</span><small>명</small></div><div class="metric-foot">가입 계정 기준</div></article>
-          <article class="card metric-card"><div class="metric-top">승인 대기</div><div class="metric-value"><span th:text="${userMetrics?.pendingCount ?: 0}">0</span><small>건</small></div><div class="metric-foot"><span class="attention">관리자 권한 요청 포함</span></div></article>
-          <article class="card metric-card"><div class="metric-top">관리자 계정</div><div class="metric-value"><span th:text="${userMetrics?.adminCount ?: 0}">0</span><small>명</small></div><div class="metric-foot" th:text="${'시스템 ' + (userMetrics?.systemAdminCount ?: 0) + ' · 시설 ' + (userMetrics?.facilityAdminCount ?: 0)}">구성</div></article>
+          <article class="card metric-card"><div class="metric-top">시스템 관리자</div><div class="metric-value"><span th:text="${userMetrics?.systemAdminCount ?: 0}">0</span><small>명</small></div><div class="metric-foot">시스템 관리자 계정</div></article>
+          <article class="card metric-card"><div class="metric-top">시설 관리자</div><div class="metric-value"><span th:text="${userMetrics?.facilityAdminCount ?: 0}">0</span><small>명</small></div><div class="metric-foot">시설 관리자 계정</div></article>
           <article class="card metric-card"><div class="metric-top">정지 계정</div><div class="metric-value"><span th:text="${userMetrics?.suspendedCount ?: 0}">0</span><small>명</small></div><div class="metric-foot">현재 정지 상태</div></article>
         </div>
         <div class="section-heading"><div class="section-title-wrap"><h2>계정 목록</h2><p>승인·정지·역할 변경은 각 계정 행에서 처리합니다.</p></div></div>
@@ -166,7 +166,7 @@
       <div id="system-audit" hidden></div>
 
       <!-- 환경 설정 -->
-      <section class="admin-view" id="system-settings" data-view-title="환경 설정" hidden>
+      <section class="admin-view" id="system-settings" data-view-title="환경 설정" th:if="${false}" hidden>
         <div class="page-heading">
           <div class="page-heading-copy"><div class="page-eyebrow">운영 설정</div><h1>시스템 환경 설정</h1><p>서비스 공통 설정을 확인하고 변경합니다.</p></div>
           <div class="heading-actions"><span class="inline-state" id="settings-state">변경 후 저장 버튼을 눌러 주세요.</span><button class="admin-button primary" type="submit" form="system-settings-form">변경 저장</button></div>

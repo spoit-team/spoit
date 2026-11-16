@@ -347,13 +347,9 @@ button { color: inherit; }
 .facility-map-preview strong { font-weight: 800; }
 .facility-map-preview span, .facility-map-preview small { color: var(--admin-muted); }
 .facility-map-preview small { font-size: 10px; }
-.stats-metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
-.stats-metrics > .metric-card:first-child::before, .stats-metric-divider + .metric-card::before { position: absolute; top: 18px; bottom: 18px; left: 0; width: 1px; background: var(--metric-divider-color); content: ""; }
-.stats-metric-divider { grid-column: 1/-1; height: 1px; background: var(--metric-divider-color); }
+.stats-metrics { grid-template-columns: repeat(4,minmax(0,1fr)); }
+.stats-metrics > .metric-card:first-child::before { position: absolute; top: 18px; bottom: 18px; left: 0; width: 1px; background: var(--metric-divider-color); content: ""; }
 .stats-metrics .metric-card:last-child::after { position: absolute; top: 18px; right: 0; bottom: 18px; width: 1px; background: var(--metric-divider-color); content: ""; }
-/* 3칸씩 두 줄로 놓이므로 각 줄의 오른쪽 끝(3·6번째 카드)에도 바깥선을 그린다.
-   마지막 카드 규칙만으로는 첫 줄 오른쪽이 비어 두 묶음의 테두리가 어긋난다. */
-.stats-metrics > .metric-card:nth-of-type(3n)::after { position: absolute; top: 18px; right: 0; bottom: 18px; width: 1px; background: var(--metric-divider-color); content: ""; }
 /* 예약 통계 기간 직접 입력: 드롭다운(.field-control 40px)과 같은 줄에 나란히 놓는다. */
 .heading-actions input[type="date"].field-control { min-width: 130px; }
 .heading-actions input[type="date"].field-control:disabled { background: var(--admin-paper); color: var(--admin-muted); }
@@ -606,14 +602,11 @@ body.has-admin-modal { overflow: hidden; }
   .metric-card:nth-child(-n+2) { border-bottom: 1px solid var(--metric-divider-color); }
   /* 지표가 두 칸뿐이면 한 줄로 끝나므로 줄 사이 구분선을 그리지 않는다. */
   .metric-grid.two-metrics .metric-card:nth-child(-n+2) { border-bottom: 0; }
-  /* 통계 지표는 확정 인원 3칸 + 신청 3칸 구성이다. 2열로 접으면 사용자가 넣은
-     .stats-metric-divider가 행 사이에 끼어 배치를 밀어내므로 숨기고, 기사(article) 기준으로
-     세로선(오른쪽 열)과 가로선(앞 두 행)을 직접 그린다. 구분선 div 때문에 :nth-of-type을 쓴다. */
+  /* 통계 지표 네 칸을 두 줄로 접고 각 행에 구분선을 표시한다. */
   .stats-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .stats-metric-divider { display: none; }
-  .stats-metrics .metric-card::before { display: none; }
-  .stats-metrics .metric-card:nth-of-type(even)::before { display: block; top: 18px; bottom: 18px; left: 0; width: 1px; background: var(--metric-divider-color); content: ""; }
-  .stats-metrics .metric-card:nth-of-type(-n+4) { border-bottom: 1px solid var(--metric-divider-color); }
+  .stats-metrics .metric-card:nth-of-type(n)::before { display: block; top: 18px; bottom: 18px; left: 0; width: 1px; background: var(--metric-divider-color); content: ""; }
+  .stats-metrics .metric-card:nth-of-type(2)::after { position: absolute; top: 18px; right: 0; bottom: 18px; width: 1px; background: var(--metric-divider-color); content: ""; }
+  .stats-metrics .metric-card:nth-of-type(-n+2) { border-bottom: 1px solid var(--metric-divider-color); }
   .admin-content { padding-right: 22px; padding-left: 22px; }
   .admin-topbar { padding-right: 22px; padding-left: 22px; }
   .dashboard-grid { grid-template-columns: minmax(0,1.35fr) minmax(270px,1fr); }
@@ -671,7 +664,7 @@ body.has-admin-modal { overflow: hidden; }
   .metric-grid.two-metrics { grid-template-columns: 1fr; }
   .metric-grid.two-metrics .metric-card:nth-child(even)::before { display: none; }
   .metric-grid.two-metrics .metric-card + .metric-card { border-top: 1px solid var(--metric-divider-color); }
-  /* 좁은 화면에서 6칸 지표는 2열에서도 한 칸이 160px 아래로 좁아 기준 문구가 끊긴다.
+  /* 좁은 화면에서 통계 지표는 2열에서도 한 칸이 160px 아래로 좁아 기준 문구가 끊긴다.
      한 칸씩 쌓고 세로·가로 구분선(의사 요소)은 모두 지운 뒤 카드 아래 테두리로만 나눈다.
      1120px 블록의 :nth-of-type(even) 세로선 규칙과 명시도를 맞춰 덮어야 하므로 같은 형태를 쓴다. */
   .stats-metrics { grid-template-columns: 1fr; }
