@@ -1,8 +1,6 @@
 package co.kr.spoit.admin.controller;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 
 import org.springframework.http.ContentDisposition;
@@ -34,7 +32,7 @@ import co.kr.spoit.report.service.PenaltyService;
 /**
  * 시스템 관리자 화면 템플릿을 렌더링하는 페이지 컨트롤러이다.
  *
- * <p>{@code view=dashboard|errors|users|penalties|settings}와 검색 조건
+ * <p>{@code view=dashboard|errors|users|penalties}와 검색 조건
  * ({@code q/role/status/period/page})을 그대로 모델에 반영한다. 모니터링 dashboard는
  * {@link SystemMonitoringService}가 실제 측정치로 구성하고, 오류 로그는
  * {@link SystemErrorLogService}가 메모리 버퍼에서, 사용자 관리는 {@link AdminUserService}가,
@@ -48,15 +46,11 @@ import co.kr.spoit.report.service.PenaltyService;
 @Controller
 public class SystemAdminController {
 
-    /** 여러 화면이 공유하는 불변 빈 목록이다. */
-    private static final List<Object> EMPTY_LIST = Collections.emptyList();
-
     /** 알려진 화면 값. 그 밖의 값은 모니터링으로 되돌린다. */
     private static final String VIEW_DASHBOARD = "dashboard";
     private static final String VIEW_ERRORS = "errors";
     private static final String VIEW_USERS = "users";
     private static final String VIEW_PENALTIES = "penalties";
-    private static final String VIEW_SETTINGS = "settings";
     /** 회원 역할·승인·상태 변경이 막혔을 때 실패 안내 모달의 제목 */
     static final String USER_ACTION_ERROR_TITLE = "회원 관리 요청을 처리할 수 없습니다";
 
@@ -73,23 +67,6 @@ public class SystemAdminController {
         this.adminUserService = adminUserService;
         this.penaltyService = penaltyService;
     }
-
-    /* ------------------------------------------------------------------
-     * 인증 화면: 로그인은 MemberAuthController, 회원가입은 MemberSignupController가 담당한다.
-     * ------------------------------------------------------------------ */
-
-    /* ------------------------------------------------------------------
-     * 마이페이지: 요약·프로필 수정 화면 모두 member.controller.MyPageController가 담당한다.
-     * ------------------------------------------------------------------ */
-
-    /* ------------------------------------------------------------------
-     * 매칭 화면(목록/카드/상세/신청)은 MatchController가 담당한다.
-     * ------------------------------------------------------------------ */
-
-    /* ------------------------------------------------------------------
-     * 시설 관리자 화면(시설 관리·운영)은 FacilityAdminController,
-     * MatchOperationsController가 담당한다.
-     * ------------------------------------------------------------------ */
 
     /* ------------------------------------------------------------------
      * 시스템 관리자 화면: 공통 셸(AdminShellModel) 위에 실제 조회 결과를 얹는다.
@@ -140,9 +117,6 @@ public class SystemAdminController {
         model.addAttribute("users", userPage.getUsers());
         model.addAttribute("userPagination", userPage.getPagination());
 
-        // 신고 접수함은 별도 라우트가 담당한다. 모델 계약상 빈 값만 유지한다.
-        model.addAttribute("reports", EMPTY_LIST);
-        model.addAttribute("settings", null);
         return "admin/system";
     }
 
@@ -386,7 +360,6 @@ public class SystemAdminController {
             case VIEW_ERRORS -> VIEW_ERRORS;
             case VIEW_USERS -> VIEW_USERS;
             case VIEW_PENALTIES -> VIEW_PENALTIES;
-            case VIEW_SETTINGS -> VIEW_SETTINGS;
             default -> VIEW_DASHBOARD;
         };
     }

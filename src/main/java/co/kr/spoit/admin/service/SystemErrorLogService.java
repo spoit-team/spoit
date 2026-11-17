@@ -149,7 +149,7 @@ public class SystemErrorLogService {
             return "WARN".equalsIgnoreCase(record.level());
         }
         if (SEVERITY_INFO.equals(severity)) {
-            // INFO는 수집하지 않는다. 화면 선택지와 수집 범위를 맞추기 위해 항상 비운다.
+            // INFO는 수집하지 않으므로 이 선택지로는 항상 0건이 나온다(화면 계약상 선택지만 유지).
             return false;
         }
         return SEVERITY_ERROR.equals(severity) && "ERROR".equalsIgnoreCase(record.level());
