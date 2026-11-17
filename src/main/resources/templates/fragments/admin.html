@@ -30,11 +30,11 @@
   <nav class="admin-nav" id="admin-sidebar-nav" aria-label="관리 메뉴">
     <div class="admin-nav-group">
       <span class="admin-nav-label">시설 운영</span>
-      <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-dashboard'" data-view-target="facility-dashboard" th:aria-current="${active == 'facility-dashboard' ? 'page' : null}"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="4" rx="1.2"/><rect x="13.5" y="10.5" width="7" height="10" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/></svg></span>대시보드</a>
-      <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-assets'" data-view-target="facility-assets"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 20V8l7-4 7 4v12M9 20v-6h6v6M8 9h.01M16 9h.01"/></svg></span>시설·공간 관리</a>
-      <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-schedule'" data-view-target="facility-schedule"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M14 14h2M8 17h3"/></svg></span>예약 운영 일정</a>
-      <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-bookings'" data-view-target="facility-bookings"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M8 17h7"/></svg></span>매칭방 관리</a>
-      <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-stats'" data-view-target="facility-stats"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M4 20V11M10 20V5M16 20v-8M22 20V8"/></svg></span>예약 통계</a>
+      <a class="admin-nav-link" th:href="@{/admin/facility(view='dashboard')} + '#facility-dashboard'" data-view-target="facility-dashboard" th:aria-current="${active == 'facility-dashboard' ? 'page' : null}"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="4" rx="1.2"/><rect x="13.5" y="10.5" width="7" height="10" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/></svg></span>대시보드</a>
+      <a class="admin-nav-link" th:href="@{/admin/facility(view='assets')} + '#facility-assets'" data-view-target="facility-assets"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 20V8l7-4 7 4v12M9 20v-6h6v6M8 9h.01M16 9h.01"/></svg></span>시설·공간 관리</a>
+      <a class="admin-nav-link" th:href="@{/admin/facility(view='schedule')} + '#facility-schedule'" data-view-target="facility-schedule"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M14 14h2M8 17h3"/></svg></span>예약 운영 일정</a>
+      <a class="admin-nav-link" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'" data-view-target="facility-bookings"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M8 17h7"/></svg></span>매칭방 관리</a>
+      <a class="admin-nav-link" th:href="@{/admin/facility(view='stats')} + '#facility-stats'" data-view-target="facility-stats"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M4 20V11M10 20V5M16 20v-8M22 20V8"/></svg></span>예약 통계</a>
     </div>
     <div class="admin-nav-group">
       <span class="admin-nav-label">이용자 보호</span>
@@ -62,16 +62,16 @@
   <nav class="admin-nav" id="admin-sidebar-nav" aria-label="관리 메뉴">
     <div class="admin-nav-group">
       <span class="admin-nav-label">시스템</span>
-      <a class="admin-nav-link" th:href="@{/admin/system} + '#system-dashboard'" data-view-target="system-dashboard" th:aria-current="${active == 'system-dashboard' ? 'page' : null}"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="4" rx="1.2"/><rect x="13.5" y="10.5" width="7" height="10" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/></svg></span>모니터링</a>
-      <a class="admin-nav-link" th:href="@{/admin/system} + '#system-errors'" data-view-target="system-errors"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg></span>서버·오류 로그<span class="nav-count" th:if="${errorMetrics != null and errorMetrics.openCount > 0}" th:text="${errorMetrics.openCount}">0</span></a>
+      <a class="admin-nav-link" th:href="@{/admin/system(view='dashboard')} + '#system-dashboard'" data-view-target="system-dashboard" th:aria-current="${active == 'system-dashboard' ? 'page' : null}"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="4" rx="1.2"/><rect x="13.5" y="10.5" width="7" height="10" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/></svg></span>모니터링</a>
+      <a class="admin-nav-link" th:href="@{/admin/system(view='errors')} + '#system-errors'" data-view-target="system-errors"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg></span>서버·오류 로그<span class="nav-count" th:if="${errorMetrics != null and errorMetrics.openCount > 0}" th:text="${errorMetrics.openCount}">0</span></a>
     </div>
     <div class="admin-nav-group">
       <span class="admin-nav-label">사용자 관리</span>
-      <a class="admin-nav-link" th:href="@{/admin/system} + '#system-users'" data-view-target="system-users"><span class="nav-symbol"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0M16 5.5a3.5 3.5 0 0 1 0 6.8M17.5 14.5a5.7 5.7 0 0 1 3.7 5.5"/></svg></span>사용자 관리</a>
+      <a class="admin-nav-link" th:href="@{/admin/system(view='users')} + '#system-users'" data-view-target="system-users"><span class="nav-symbol"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0M16 5.5a3.5 3.5 0 0 1 0 6.8M17.5 14.5a5.7 5.7 0 0 1 3.7 5.5"/></svg></span>사용자 관리</a>
       <!-- 신고 접수함은 별도 URL 화면이다. data-view-target을 붙이면 같은 경로 안의 화면 전환으로
            가로채이므로 URL 링크로 그대로 이동하도록 두지 않는다. -->
       <a class="admin-nav-link" th:href="@{/admin/system/reports}" th:aria-current="${active == 'system-reports' ? 'page' : null}"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 7.6 7.5 9.5 4.3-1.9 7.5-5 7.5-9.5V6L12 3Z"/><path d="M9 12h6M12 9v6"/></svg></span>신고 접수함</a>
-      <a class="admin-nav-link" th:href="@{/admin/system} + '#system-penalties'" data-view-target="system-penalties"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 7.6 7.5 9.5 4.3-1.9 7.5-5 7.5-9.5V6L12 3Z"/><path d="M9 12h6M12 9v6"/></svg></span>페널티 관리</a>
+      <a class="admin-nav-link" th:href="@{/admin/system(view='penalties')} + '#system-penalties'" data-view-target="system-penalties"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 7.6 7.5 9.5 4.3-1.9 7.5-5 7.5-9.5V6L12 3Z"/><path d="M9 12h6M12 9v6"/></svg></span>페널티 관리</a>
     </div>
   </nav>
   <div class="sidebar-spacer"></div>
@@ -82,6 +82,7 @@
 
 <!-- 관리자 상단 바 -->
 <header th:fragment="topbar(breadcrumb, environment)" class="admin-topbar">
+  <button class="mobile-menu-toggle" type="button" data-mobile-nav-toggle aria-expanded="false" aria-controls="admin-sidebar-nav" aria-label="메뉴 열기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg></button>
   <div class="breadcrumbs"><span>관리자</span><span aria-hidden="true">/</span><strong id="breadcrumb-current" th:text="${breadcrumb}">관리</strong></div>
   <span class="topbar-spacer"></span>
   <span class="system-env" th:title="${environment != null ? environment : '관리자'}" th:aria-label="${environment != null ? environment : '관리자'}"><i class="env-dot"></i> <span th:text="${environment != null ? environment : '관리자'}">관리자</span></span>

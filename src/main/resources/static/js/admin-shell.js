@@ -6,6 +6,7 @@
 
   const layout = document.querySelector('.admin-layout');
   const sidebarToggle = document.querySelector('[data-sidebar-toggle]');
+  const mobileNavToggle = document.querySelector('[data-mobile-nav-toggle]');
   const sidebarBreakpoint = global.matchMedia('(max-width: 840px)');
   const views = Array.from(document.querySelectorAll('.admin-view'));
   const navTargets = Array.from(document.querySelectorAll('[data-view-target]'));
@@ -38,10 +39,56 @@
 
   function syncSidebarForViewport() {
     setSidebarExpanded(!sidebarBreakpoint.matches);
+    syncMobileMenu();
   }
 
   sidebarToggle?.addEventListener('click', function () {
     setSidebarExpanded(!layout?.classList.contains('is-sidebar-expanded'));
+  });
+
+  /* 모바일(≤840px) 메뉴: 사이드바 대신 상단바의 메뉴 버튼으로 펼치는 드롭 영역.
+     is-mobile-ready를 붙여 JS가 있을 때만 접힘 기본값을 쓰게 한다(스크립트 없이도 탐색 가능).
+     화면을 다시 그리지 않으므로 폼 입력은 그대로 남는다. */
+  layout?.classList.add('is-mobile-ready');
+
+  function mobileMenuOpen() {
+    return Boolean(layout?.classList.contains('is-mobile-menu-open'));
+  }
+
+  function syncMobileMenu() {
+    if (!layout) return;
+    /* 데스크톱 폭으로 돌아오면 열린 상태를 반드시 닫는다. */
+    if (!sidebarBreakpoint.matches && mobileMenuOpen()) {
+      layout.classList.remove('is-mobile-menu-open');
+      mobileNavToggle?.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  function setMobileMenuOpen(open) {
+    if (!layout) return;
+    layout.classList.toggle('is-mobile-menu-open', open);
+    mobileNavToggle?.setAttribute('aria-expanded', String(open));
+  }
+
+  mobileNavToggle?.addEventListener('click', function () {
+    setMobileMenuOpen(!mobileMenuOpen());
+  });
+
+  /* 메뉴 항목을 고르면(같은 URL 안의 화면 전환 포함) 모바일 메뉴를 접는다.
+     링크 이동(다른 경로)이면 페이지가 바뀌므로 상태가 자연히 초기화된다. */
+  document.addEventListener('click', function (event) {
+    if (!mobileMenuOpen()) return;
+    const link = event.target instanceof Element ? event.target.closest('.admin-nav-link') : null;
+    if (link) setMobileMenuOpen(false);
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Escape' || !mobileMenuOpen()) return;
+    /* 알림 모달이 열려 있으면 그쪽 Esc 처리가 우선이다(닫힌 뒤에도 이벤트가 남지 않게 early return). */
+    if (notificationModal && !notificationModal.hidden) return;
+    setMobileMenuOpen(false);
+    /* Esc로 닫을 때는 초점을 메뉴 버튼으로 돌려 키보드 위치를 잃지 않게 한다. */
+    mobileNavToggle?.focus?.();
   });
 
   if (typeof sidebarBreakpoint.addEventListener === 'function') {
@@ -69,6 +116,8 @@
       if (active) item.setAttribute('aria-current', 'page');
       else item.removeAttribute('aria-current');
     });
+    /* 모바일 메뉴에서 항목을 골랐다면 메뉴를 접어 본문을 다시 보이게 한다. */
+    if (mobileMenuOpen()) setMobileMenuOpen(false);
     const title = target.dataset.viewTitle;
     if (breadcrumb && title) breadcrumb.textContent = title;
     if (updateLocation !== false) {
@@ -96,12 +145,10 @@
 
   global.addEventListener('hashchange', function () { showView(viewFromLocation(), false); });
 
-  /* 탭: 예약 설정, 시설 콘텐츠, 시스템 CMS.
+  /* 탭: 예약 설정.
      일정 카드는 시설 선택 시 조각으로 교체되므로 요소별 바인딩 대신 document 위임으로 처리합니다. */
   const tabGroups = [
-    { attr: 'scheduleTab', panelSelector: '[data-schedule-panel]' },
-    { attr: 'contentTab', panelSelector: '.admin-panel' },
-    { attr: 'cmsTab', panelSelector: '.admin-panel' }
+    { attr: 'scheduleTab', panelSelector: '[data-schedule-panel]' }
   ];
 
   function tabSelector(attr) {

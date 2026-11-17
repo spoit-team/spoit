@@ -76,12 +76,12 @@
           <div class="result-meta" th:unless="${#lists.isEmpty(dashboard?.recentMatches)}"><b th:text="${#lists.size(dashboard?.recentMatches)}">0</b>건 표시 · 최근 등록 순</div>
           <div class="table-scroll"><table class="admin-table"><caption class="sr-only">담당 시설 전체에서 최근 등록된 매칭방 5건</caption><thead><tr><th>방 이름·번호</th><th>시설·종목</th><th>참여 현황</th><th>이용 일시</th><th>방 상태</th><th>상세</th></tr></thead><tbody>
           <tr th:each="match : ${dashboard?.recentMatches}">
-            <td><span class="cell-primary" th:text="${match.title}">방 이름</span><span class="cell-secondary" th:text="${match.matchId}">방 번호</span></td>
-            <td><span th:text="${match.facilityName}">시설</span><small class="cell-secondary" th:text="${match.sportName}">종목</small></td>
-            <td th:text="${match.participation}">0 / 0명</td>
-            <td th:text="${match.dateLabel}">일시</td>
-            <td><span class="status-badge" th:classappend="${match.statusTone}" th:text="${match.statusLabel}">상태</span></td>
-            <td><a class="table-link" th:href="@{/admin/operations(matchId=${match.matchId})}" th:aria-label="${match.matchId + '번 매칭방 상세 보기'}">상세</a></td>
+            <td data-label="방 이름·번호"><span class="cell-primary" th:text="${match.title}">방 이름</span><span class="cell-secondary" th:text="${match.matchId}">방 번호</span></td>
+            <td data-label="시설·종목"><span th:text="${match.facilityName}">시설</span><small class="cell-secondary" th:text="${match.sportName}">종목</small></td>
+            <td data-label="참여 현황" th:text="${match.participation}">0 / 0명</td>
+            <td data-label="이용 일시" th:text="${match.dateLabel}">일시</td>
+            <td data-label="방 상태"><span class="status-badge" th:classappend="${match.statusTone}" th:text="${match.statusLabel}">상태</span></td>
+            <td data-label="상세"><a class="table-link" th:href="@{/admin/operations(matchId=${match.matchId})}" th:aria-label="${match.matchId + '번 매칭방 상세 보기'}">상세</a></td>
           </tr>
           <tr th:if="${#lists.isEmpty(dashboard?.recentMatches)}"><td class="table-empty" colspan="6">담당 시설에 등록된 매칭방이 없습니다. 매칭방을 개설하면 최근 등록 5건이 여기에 표시됩니다.</td></tr>
         </tbody></table></div>
@@ -100,12 +100,12 @@
         <div class="section-heading"><div class="section-title-wrap"><h2>담당 시설 목록</h2><p><b th:text="${#lists.size(facilities)}">0</b>개 시설</p></div></div>
         <div class="card"><div class="table-scroll"><table class="admin-table"><thead><tr><th>시설명</th><th>위치</th><th>이용 종목</th><th>대관 가능 구역</th><th>운영 상태</th><th>관리</th></tr></thead><tbody>
           <tr th:each="facility : ${facilities}">
-            <td><span class="cell-primary" th:text="${facility.name}">시설명</span></td>
-            <td th:text="${facility.address}">주소</td>
-            <td th:text="${facility.sportsLabel}">종목</td>
-            <td th:text="${facility.concurrentMatchLimit + '구역'}">0구역</td>
-            <td><span class="status-badge" th:classappend="${facility.statusTone}" th:text="${facility.statusLabel}">상태</span></td>
-            <td class="facility-row-actions">
+            <td data-label="시설명"><span class="cell-primary" th:text="${facility.name}">시설명</span></td>
+            <td data-label="위치" th:text="${facility.address}">주소</td>
+            <td data-label="이용 종목" th:text="${facility.sportsLabel}">종목</td>
+            <td data-label="대관 가능 구역" th:text="${facility.concurrentMatchLimit + '구역'}">0구역</td>
+            <td data-label="운영 상태"><span class="status-badge" th:classappend="${facility.statusTone}" th:text="${facility.statusLabel}">상태</span></td>
+            <td data-label="관리" class="facility-row-actions">
               <button class="admin-button small" type="button" data-edit-facility th:aria-label="${facility.name + ' 시설 수정'}" th:attr="data-facility-id=${facility.facilityId},data-facility-name=${facility.name},data-facility-address=${facility.address},data-facility-sports=${facility.sportsLabel},data-facility-zones=${facility.concurrentMatchLimit},data-facility-status=${facility.statusLabel}">수정</button>
               <form class="facility-delete-form" method="post" th:action="@{/admin/facilities/{facilityId}/delete(facilityId=${facility.facilityId})}">
                 <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
@@ -166,12 +166,12 @@
           <div class="result-meta"><b th:text="${#lists.size(matches)}">0</b>개의 매칭방</div>
           <div class="table-scroll"><table class="admin-table"><thead><tr><th>방 이름·번호</th><th>시설·종목</th><th>참여 현황</th><th>이용 일시</th><th>방 상태</th><th>관리</th></tr></thead><tbody>
             <tr th:each="match : ${matches}">
-              <td><span class="cell-primary" th:text="${match.title}">방 이름</span><span class="cell-secondary" th:text="${match.matchId}">방 번호</span></td>
-              <td><span th:text="${match.facilityName}">시설</span><small class="cell-secondary" th:text="${match.sportName}">종목</small></td>
-              <td th:text="${match.participation}">0 / 0명</td>
-              <td th:text="${match.dateLabel}">일시</td>
-              <td><span class="status-badge" th:classappend="${match.statusTone}" th:text="${match.statusLabel}">상태</span></td>
-              <td class="room-row-actions">
+              <td data-label="방 이름·번호"><span class="cell-primary" th:text="${match.title}">방 이름</span><span class="cell-secondary" th:text="${match.matchId}">방 번호</span></td>
+              <td data-label="시설·종목"><span th:text="${match.facilityName}">시설</span><small class="cell-secondary" th:text="${match.sportName}">종목</small></td>
+              <td data-label="참여 현황" th:text="${match.participation}">0 / 0명</td>
+              <td data-label="이용 일시" th:text="${match.dateLabel}">일시</td>
+              <td data-label="방 상태"><span class="status-badge" th:classappend="${match.statusTone}" th:text="${match.statusLabel}">상태</span></td>
+              <td data-label="관리" class="room-row-actions">
                 <!-- 상세는 화면 이동이라 <a>를 유지하고, 세 동작 모두 같은 admin-button.small 모양을 쓴다.
                      되돌릴 수 없는 취소만 danger-ghost로 위험을 구분한다. -->
                 <a class="admin-button small" th:href="@{/admin/operations(matchId=${match.matchId})}" th:aria-label="${match.matchId + '번 매칭방 상세 보기'}">상세</a>

@@ -494,4 +494,40 @@
   .ops-room-ident h2 {
     font-size: 18px;
   }
+
+  /* 신청 내역·참가자 표는 admin.css의 세로형 장부 규칙을 따른다.
+     처리 버튼(승인·반려)과 신고 링크가 한 줄을 밀지 않게 줄바꿈을 허용한다. */
+  .ops-table td {
+    white-space: normal;
+  }
+
+  .ops-decision-buttons {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 460px) {
+  /* 배정 보드를 한 열로 쌓은 뒤에도 버튼 한 줄이 320px에서 넘치지 않게 두 줄로 감는다. */
+  .ops-assignment-buttons {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .ops-assignment-buttons .admin-button {
+    flex: 1 1 40%;
+  }
+
+  .ops-assignment-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ops-rating-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ops-rating-actions .admin-button {
+    width: 100%;
+  }
 }

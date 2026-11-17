@@ -988,6 +988,17 @@
     flex-direction: column;
   }
 
+  /* 신고 장부도 공통 세로형 '항목명: 값' 규칙(admin.css 600px 블록)을 따른다.
+     첫 칸 들여쓰기와 경기 칸의 고정 폭을 풀어 좁은 폭에서도 값이 잘리지 않게 한다. */
+  .report-table td:first-child {
+    padding-left: 14px;
+  }
+
+  .report-table-match {
+    min-width: 0;
+    max-width: none;
+  }
+
   .report-sheet-stamp {
     display: none;
   }

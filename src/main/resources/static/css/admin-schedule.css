@@ -519,6 +519,12 @@
     line-height: 1.65;
   }
 
+  /* 요일별 운영 시간 표도 공통 세로형 장부 규칙(admin.css 600px 블록)을 따른다.
+     시작·종료 선택 상자가 '항목명: 값' 한 줄 안에서 줄바꿈되지 않게 폭만 넓힌다. */
+  .schedule-table .schedule-hour-select {
+    max-width: 100%;
+  }
+
   .date-schedule-reset-form {
     align-items: stretch;
     flex-direction: column;

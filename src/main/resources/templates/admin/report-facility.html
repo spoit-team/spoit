@@ -234,23 +234,23 @@
             <tbody>
               <tr th:each="report : ${reports}"
                   th:classappend="${(selectedReport != null and selectedReport.reportId == report.reportId) ? 'is-selected' : ''}">
-                <td><span class="report-id" th:text="${'#' + report.reportId}">#0</span></td>
-                <td>
+                <td data-label="접수 번호"><span class="report-id" th:text="${'#' + report.reportId}">#0</span></td>
+                <td data-label="경기">
                   <span class="cell-primary" th:text="${report.matchTitle != null ? report.matchTitle : '경기 연결 없음'}">경기</span>
                   <span class="cell-secondary"
                         th:text="${(report.facilityName != null ? report.facilityName : '시설 미설정') + (report.matchId != null ? ' · 경기 #' + report.matchId : '')}">시설 · 경기 번호</span>
                 </td>
-                <td><span class="cell-primary" th:text="${report.targetName != null ? report.targetName : '이름 없음'}">신고 대상</span></td>
-                <td><span class="report-category" th:text="${report.category}">유형</span></td>
-                <td><span class="report-time" th:text="${report.createdAt}">접수 일시</span></td>
-                <td>
+                <td data-label="신고 대상"><span class="cell-primary" th:text="${report.targetName != null ? report.targetName : '이름 없음'}">신고 대상</span></td>
+                <td data-label="유형"><span class="report-category" th:text="${report.category}">유형</span></td>
+                <td data-label="접수 일시"><span class="report-time" th:text="${report.createdAt}">접수 일시</span></td>
+                <td data-label="상태">
                   <span th:replace="~{admin/report-fragments :: statusBadge(${report.status})}">상태</span>
                 </td>
-                <td>
+                <td data-label="처리 결과">
                   <span class="report-resolution"
                         th:text="${report.resolution != null and !#strings.isEmpty(report.resolution) ? report.resolution : '—'}">—</span>
                 </td>
-                <td>
+                <td data-label="상세">
                   <a class="admin-button small"
                      th:href="@{/admin/facility/reports(reportId=${report.reportId}, reportPage=${reportPage != null ? reportPage : 0}, matchPage=${matchPage != null ? matchPage : 0}, matchId=${selectedMatchId}, targetUserId=${selectedTargetUserId})} + '#report-selected'"
                      th:aria-label="${'신고 ' + report.reportId + ' 상세 보기'}">내용 보기</a>
