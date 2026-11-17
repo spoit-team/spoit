@@ -9,7 +9,7 @@
 .admin-body[data-admin-role="system"] .admin-content .section-heading { padding-top: 13px; border-top: 1px solid var(--admin-line-strong); }
 .admin-body[data-admin-role="system"] .admin-content .setting-grid { border: 0; border-bottom: 1px solid var(--admin-line-strong); border-radius: 0; background: transparent; }
 
-/* Fit up to 72 five-minute buckets without letting the gaps consume the plot. */
+/* Fit up to 36 ten-minute buckets without letting the gaps consume the plot. */
 #system-dashboard .bar-chart { container-type: inline-size; gap: 0; }
 #system-dashboard .bar-group {
   display: grid;

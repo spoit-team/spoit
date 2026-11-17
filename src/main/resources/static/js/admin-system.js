@@ -95,8 +95,8 @@
   const SESSION_STOP_ANNOUNCEMENT = '로그인 세션이 만료되어 자동 갱신을 멈췄습니다. 페이지를 새로고침해 주세요.';
   const FAILURE_MESSAGE = '자동 갱신 실패 · 마지막 수집 값';
   const FAILURE_ANNOUNCEMENT = '자동 갱신에 실패했습니다. 표시 중인 값은 마지막 수집 결과입니다.';
-  const EMPTY_CHART_NOTE = '15초 간격으로 수집해 5분 평균 차트를 표시합니다 (최대 최근 6시간)';
-  const FILLED_CHART_NOTE = '최근 6시간 · 15초 수집 · 차트는 5분 평균';
+  const EMPTY_CHART_NOTE = '15초 간격으로 수집해 10분 평균 차트를 표시합니다 (최대 최근 6시간)';
+  const FILLED_CHART_NOTE = '최근 6시간 · 15초 수집 · 차트는 10분 평균';
 
   const monitoringRoot = document.getElementById('system-dashboard');
   const monitoringUrl = monitoringRoot?.dataset.monitoringUrl || '';

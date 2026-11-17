@@ -687,9 +687,10 @@ check(!bookingsSource?.includes('<span class="cell-primary" th:text="${match.mat
   'facility.html: each booking must not lead with the room number');
 // 행 관리 열: 상세·수정·취소가 같은 버튼 모양을 쓰되, 상세는 화면 이동이라 링크(<a>)로 남긴다.
 // 취소는 확인 모달을 거치는 POST 폼이어야 하고, 되돌릴 수 없는 동작이라 위험 색을 유지한다.
+// 모바일 세로형 장부를 위해 td에 data-label이 붙는다(관리 열 라벨: '관리').
 const roomRowActions = bookingsSource?.slice(
-  bookingsSource.indexOf('<td class="room-row-actions">'),
-  bookingsSource.indexOf('</td>', bookingsSource.indexOf('<td class="room-row-actions">'))) ?? '';
+  bookingsSource.indexOf('<td data-label="관리" class="room-row-actions">'),
+  bookingsSource.indexOf('</td>', bookingsSource.indexOf('<td data-label="관리" class="room-row-actions">'))) ?? '';
 check(roomRowActions.length > 0, 'facility.html: the booking row action cell is missing');
 check(/<a class="admin-button small" th:href="@\{\/admin\/operations\(matchId=\$\{match\.matchId\}\)\}"/.test(roomRowActions),
   'facility.html: the room detail action must stay a link but look like the row buttons');
@@ -1252,6 +1253,17 @@ for (const removed of ['id="report-modal"', 'report-modal-body', 'data-open-repo
 check(/id="system-penalties"/.test(systemSource)
   && /data-view-target="system-penalties"/.test(adminSource),
   'system.html: the penalty view and its sidebar entry must stay untouched');
+
+/* ── 시스템 화면의 서버 렌더링 계약 ────────────────────────────────────────
+   사이드바 메뉴는 view= 쿼리로 이동한다. 섹션 표시를 스크립트에 맡기고 hidden을
+   하드코딩하면 JS 실행 전에 모니터링 화면이 먼저 그려졌다가 바뀌는 깜빡임이 생긴다.
+   시설 화면과 같이 서버 view 모델로 첫 화면을 결정한다. */
+for (const [id, key] of [['system-dashboard', 'dashboard'], ['system-errors', 'errors'],
+  ['system-penalties', 'penalties'], ['system-users', 'users']]) {
+  check(new RegExp(`<section class="admin-view" id="${id}"(?:\\s+data-view-title="[^"]*")?\\s+th:hidden="\\$\\{view != '${key}'\\}"`)
+    .test(systemSource),
+    `system.html: ${id} must be hidden by the server view model, not a hardcoded hidden`);
+}
 
 /* ── 페널티 목록 페이지 계약 ────────────────────────────────────────────────
    제재 이력은 20건씩 나뉜다. 페이지 링크는 GET 이동이며 q·status 필터를 유지하고,

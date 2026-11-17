@@ -41,7 +41,8 @@ import co.kr.spoit.member.domain.MemberPrincipal;
  * <p>화면 탭 속성 중 예약 운영 일정({@code view=schedule})은
  * {@link FacilityScheduleService}가 선택 시설·날짜·탭에 맞춰 구성하고, 매칭방 관리
  * ({@code view=bookings})의 목록·필터·종목 선택지는 {@link RoomManagementService}가 인증 주체의
- * 담당 시설 범위로 구성한다. 나머지 탭은 아직 빈 값이다.</p>
+ * 담당 시설 범위로 구성한다. 예약 통계({@code view=stats})는 {@link FacilityStatsService}가,
+ * 시설·공간 관리({@code view=assets})는 {@link FacilityService}가 실제 조회 값으로 채운다.</p>
  */
 @Controller
 public class FacilityAdminController {
@@ -72,8 +73,9 @@ public class FacilityAdminController {
      * 시설 관리 화면을 렌더링한다. 담당 시설과 매칭방 목록은 인증 주체의 회원 ID로만 조회한다.
      *
      * <p>{@code view=schedule}이면 예약 운영 일정 화면의 선택 시설·날짜·종목·탭을 복원하고,
-     * {@code view=bookings}이면 매칭방 관리 섹션을 기본으로 보여 준다. 그 밖의 경우 기본 보기는
-     * dashboard이다.</p>
+     * {@code view=bookings}이면 매칭방 관리 섹션을 기본으로 보여 준다. {@code view=assets}는
+     * 시설·공간 관리 섹션을, {@code view=stats}는 예약 통계 섹션을 기본으로 보여 준다. 그 밖의
+     * 경우 기본 보기는 dashboard이다.</p>
      *
      * <p>매칭방 목록은 화면 해시로 섹션을 바꾸는 클라이언트 동작 때문에 모든 GET에서 실제 값으로
      * 채운다. 검색어·상태는 매칭방 필터이며, 종목({@code sportId})과 시설({@code facilityId})은
@@ -97,13 +99,16 @@ public class FacilityAdminController {
         AdminShellModel.apply(model);
         // 변경 요청의 결과 안내(message/error/errorTitle)는 flash로 모델에 들어오고,
         // 화면의 fragments/feedback :: flash가 성공 토스트·실패 모달로 보여 준다.
-        // view는 서버 상태가 아니라 뷰의 기본 선택값이다.
+        // view는 서버 상태가 아니라 뷰의 기본 선택값이다. 알려진 섹션 값만 그대로 인정하고,
+        // 나머지는 대시보드로 되돌려 서버가 첫 화면을 바로 렌더링하게 한다.
         boolean scheduleView = "schedule".equals(view);
         boolean bookingsView = "bookings".equals(view);
         boolean statsView = "stats".equals(view);
+        boolean assetsView = "assets".equals(view);
         model.addAttribute("view", scheduleView ? "schedule"
                 : bookingsView ? "bookings"
-                : statsView ? "stats" : "dashboard");
+                : statsView ? "stats"
+                : assetsView ? "assets" : "dashboard");
         Long userId = principal == null ? null : principal.getUserId();
 
         // 대시보드는 해시로 섹션을 바꾸는 화면 계약상 모든 view에서 실제 값으로 채운다.
@@ -153,8 +158,6 @@ public class FacilityAdminController {
                 ? facilityStatsService.load(userId, facilityId, period, periodFrom, periodTo)
                 : null;
         model.addAttribute("stats", stats);
-        model.addAttribute("notices", EMPTY_LIST);
-        model.addAttribute("rules", EMPTY_LIST);
         return "admin/facility";
     }
 

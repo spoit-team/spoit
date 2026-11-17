@@ -128,6 +128,20 @@ class FacilityAdminControllerTest {
     }
 
     @Test
+    @DisplayName("view=assets이면 시설·공간 관리 섹션을 서버가 첫 화면으로 렌더링한다")
+    void keepsAssetsViewForServerRenderedSection() throws Exception {
+        mockMvc.perform(get("/admin/facility")
+                        .param("view", "assets")
+                        .with(user(facilityManager())))
+                .andExpect(status().isOk())
+                .andExpect(view().name("admin/facility"))
+                .andExpect(model().attribute("view", "assets"))
+                .andExpect(model().attribute("stats", org.hamcrest.Matchers.nullValue()));
+
+        verify(facilityStatsService, never()).load(any(), any(), any(), any(), any());
+    }
+
+    @Test
     @DisplayName("period·periodFrom·periodTo를 서비스로 그대로 전달한다")
     void passesPeriodParametersToService() throws Exception {
         when(facilityStatsService.load(7L, 10L, "custom", "2026-10-01", "2026-10-31"))
