@@ -23,12 +23,7 @@
   const message = document.getElementById('signup-message');
   const termsError = document.getElementById('terms-error');
   const requiredConsents = [document.getElementById('agree-service'), document.getElementById('agree-privacy')];
-  // 동의 대상은 실제로 선택 가능한 체크박스만 모읍니다. 비활성 항목(마케팅)은 전체 동의에 포함하지 않습니다.
-  const allConsents = [
-    document.getElementById('agree-service'),
-    document.getElementById('agree-privacy'),
-    document.getElementById('agree-marketing')
-  ].filter(function (checkbox) { return checkbox && !checkbox.disabled; });
+  const allConsents = requiredConsents.filter(function (checkbox) { return checkbox && !checkbox.disabled; });
   const EMAIL_MAX_LENGTH = 255;
   const PASSWORD_MAX_BYTES = 72;
   // 서버의 BCrypt 72바이트 제한과 같은 기준으로 셉니다. TextEncoder가 없으면 퍼센트 인코딩으로 대신 계산합니다.
