@@ -12,7 +12,8 @@
     dialogOpener = document.activeElement;
     activeDialog = dialog;
     dialog.showModal();
-    const focusTarget = focusSelector ? dialog.querySelector(focusSelector) : null;
+    let focusTarget = null;
+    if (focusSelector) focusTarget = dialog.querySelector(focusSelector);
     focusTarget?.focus();
   }
 
@@ -25,7 +26,8 @@
   }
 
   document.addEventListener('click', function (event) {
-    const target = event.target instanceof Element ? event.target : null;
+    let target = null;
+    if (event.target instanceof Element) target = event.target;
     if (!target) return;
 
     if (target.closest('[data-dialog-close]')) {
@@ -129,9 +131,8 @@
 
       event.preventDefault();
       if (error) {
-        error.textContent = !hasDay
-          ? '정기 활동 요일을 하나 이상 선택해 주세요.'
-          : '활동 시작 시간과 종료 시간이 같을 수 없습니다.';
+        if (!hasDay) error.textContent = '정기 활동 요일을 하나 이상 선택해 주세요.';
+        else error.textContent = '활동 시작 시간과 종료 시간이 같을 수 없습니다.';
         error.hidden = false;
       }
       if (!hasDay) dayInputs[0]?.focus();

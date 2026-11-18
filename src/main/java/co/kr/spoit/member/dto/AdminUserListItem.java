@@ -61,21 +61,53 @@ public class AdminUserListItem {
         boolean pending = Boolean.TRUE.equals(row.getPendingRequest());
         boolean suspended = row.getPenaltyTime() != null && row.getPenaltyTime().isAfter(now);
         boolean permanent = suspended && MemberPenaltyTimeService.isPermanentEndAt(row.getPenaltyTime());
+        Long userId = row.getUserId();
+        String nickname = nullToDash(row.getNickname());
+        String email = nullToDash(row.getEmail());
+        String roleLabel = role.label();
+        String roleTone = tone(role);
+        String roleValue = value(role);
+        String approvalLabel;
+        if (pending) {
+            approvalLabel = "대기";
+        } else {
+            approvalLabel = "없음";
+        }
+        String approvalTone;
+        if (pending) {
+            approvalTone = "warn";
+        } else {
+            approvalTone = "neutral";
+        }
+        String statusLabel = suspensionLabel(suspended, permanent);
+        String statusTone;
+        if (suspended) {
+            statusTone = "bad";
+        } else {
+            statusTone = "good";
+        }
+        String sanction = sanction(suspended, permanent, row.getPenaltyTime());
+        String joinedAt;
+        if (row.getCreatedAt() == null) {
+            joinedAt = NONE;
+        } else {
+            joinedAt = DATE.format(row.getCreatedAt());
+        }
         return new AdminUserListItem(
-                row.getUserId(),
-                nullToDash(row.getNickname()),
-                nullToDash(row.getEmail()),
-                role.label(),
-                tone(role),
-                value(role),
-                pending ? "대기" : "없음",
-                pending ? "warn" : "neutral",
+                userId,
+                nickname,
+                email,
+                roleLabel,
+                roleTone,
+                roleValue,
+                approvalLabel,
+                approvalTone,
                 pending,
-                suspensionLabel(suspended, permanent),
-                suspended ? "bad" : "good",
+                statusLabel,
+                statusTone,
                 suspended,
-                sanction(suspended, permanent, row.getPenaltyTime()),
-                row.getCreatedAt() == null ? NONE : DATE.format(row.getCreatedAt()),
+                sanction,
+                joinedAt,
                 NONE);
     }
 
@@ -84,7 +116,10 @@ public class AdminUserListItem {
         if (!suspended) {
             return "정상";
         }
-        return permanent ? "영구 정지" : "정지";
+        if (permanent) {
+            return "영구 정지";
+        }
+        return "정지";
     }
 
     /** 제재 보조 문구. 영구 정지는 센티널 날짜(9999-12-31)를 노출하지 않는다. */
@@ -116,7 +151,10 @@ public class AdminUserListItem {
     }
 
     private static String nullToDash(String value) {
-        return value == null || value.isBlank() ? NONE : value;
+        if (value == null || value.isBlank()) {
+            return NONE;
+        }
+        return value;
     }
 
     public Long getUserId() {

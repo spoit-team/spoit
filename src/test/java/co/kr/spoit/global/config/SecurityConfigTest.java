@@ -7,6 +7,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -26,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.servlet.function.RouterFunction;
@@ -124,6 +126,47 @@ class SecurityConfigTest {
     void myPagePostRequiresCsrf() throws Exception {
         mockMvc.perform(post("/mypage/profile").with(user(member())))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("브라우저 폼의 CSRF 실패는 같은 출처 GET으로 돌아가며 원래 요청은 실행하지 않는다")
+    void browserFormCsrfFailureRecoversToSameOriginReferer() throws Exception {
+        mockMvc.perform(post("/admin/system/users/5/suspend")
+                        .param("durationDays", "7")
+                        .param("reason", "csrf")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .accept(MediaType.TEXT_HTML)
+                        .header("Referer", "http://localhost/admin/system?view=dashboard&csrfRecovery=old")
+                        .with(user(admin())))
+                .andExpect(status().isSeeOther())
+                .andExpect(redirectedUrl("/admin/system?view=dashboard&csrfRecovery=1"));
+
+        verify(adminUserService, never()).suspend(eq(7L), eq(5L), eq(7), eq("csrf"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {
+            "https://attacker.example/admin/system",
+            "http://localhost//attacker.example",
+            "http://localhost/admin/../login"
+    })
+    @DisplayName("외부 또는 안전하지 않은 Referer의 브라우저 CSRF 실패는 기존 403을 유지한다")
+    void browserFormCsrfFailureRejectsUnsafeReferer(String referer) throws Exception {
+        mockMvc.perform(post("/admin/system/users/5/suspend")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .accept(MediaType.TEXT_HTML)
+                        .header("Referer", referer)
+                        .with(user(admin())))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist("Location"));
+    }
+
+    @Test
+    @DisplayName("매칭방 CSRF 실패는 기존 매칭방 관리 화면으로 돌아간다")
+    void roomCsrfFailureKeepsExistingRedirect() throws Exception {
+        mockMvc.perform(post("/admin/rooms").with(user(facilityManager())))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/facility?view=bookings#facility-bookings"));
     }
 
     @ParameterizedTest(name = "{0}")

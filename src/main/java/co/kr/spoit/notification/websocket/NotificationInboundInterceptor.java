@@ -93,8 +93,10 @@ public class NotificationInboundInterceptor implements ChannelInterceptor {
             throw new AccessDeniedException("로그인 후 알림 채널에 연결할 수 있습니다.");
         }
         Map<String, Object> attributes = accessor.getSessionAttributes();
-        Object expected = attributes == null
-                ? null : attributes.get(NotificationHandshakeInterceptor.CSRF_TOKEN_ATTRIBUTE);
+        Object expected = null;
+        if (attributes != null) {
+            expected = attributes.get(NotificationHandshakeInterceptor.CSRF_TOKEN_ATTRIBUTE);
+        }
         if (!(expected instanceof String expectedToken)) {
             throw new AccessDeniedException("알림 채널의 CSRF 토큰이 없습니다.");
         }
@@ -127,6 +129,10 @@ public class NotificationInboundInterceptor implements ChannelInterceptor {
             return null;
         }
         String value = accessor.getNativeHeader(name).get(0);
-        return value == null || value.isBlank() ? null : value;
+        if (value == null || value.isBlank()) {
+            return null;
+        } else {
+            return value;
+        }
     }
 }

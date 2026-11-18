@@ -4,5 +4,17 @@
 <span th:fragment="statusBadge(status)" class="status-badge report-status"
       th:classappend="${status == '접수' ? 'is-received' : (status == '검토 중' ? 'is-reviewing' : (status == '처리 완료' ? 'is-done' : (status == '기각' ? 'is-dismissed' : '')))}"
       th:text="${status}">상태</span>
+
+<nav th:fragment="reportPager(ariaLabel, pageLabel, page, itemCount, itemUnit, shouldDisplay, hasPrevious, previousUrl, hasNext, nextUrl)"
+     class="report-pager" th:if="${shouldDisplay}" th:attr="aria-label=${ariaLabel}">
+  <span class="report-pager-label"
+        th:text="${pageLabel + ' ' + ((page != null ? page : 0) + 1) + '페이지 · 이 페이지 ' + itemCount + itemUnit}">신고 1페이지</span>
+  <a class="report-page-link" rel="prev" th:if="${hasPrevious}" th:href="${previousUrl}"
+     th:attr="aria-label=${'이전 ' + pageLabel + ' 페이지'}">← 이전</a>
+  <span class="report-page-current" aria-current="page"
+        th:text="${(page != null ? page : 0) + 1} + '페이지'">1페이지</span>
+  <a class="report-page-link" rel="next" th:if="${hasNext}" th:href="${nextUrl}"
+     th:attr="aria-label=${'다음 ' + pageLabel + ' 페이지'}">다음 →</a>
+</nav>
 </body>
 </html>

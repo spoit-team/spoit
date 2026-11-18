@@ -106,7 +106,10 @@ public class MyPageController {
             csrfToken.getToken();
         }
         MemberPrincipal principal = principalOf(authentication);
-        Long userId = principal == null ? null : principal.getUserId();
+        Long userId = null;
+        if (principal != null) {
+            userId = principal.getUserId();
+        }
         MyReservations reservations = (userId == null || userId <= 0)
                 ? MyReservations.empty() : reservationService.find(userId);
 
@@ -253,8 +256,13 @@ public class MyPageController {
             memberService.updateProfile(principal.getUserId(), form);
         } catch (IllegalArgumentException exception) {
             String message = exception.getMessage();
-            return renderProfileError(model, principal, form,
-                    message == null || message.isBlank() ? "입력 정보를 확인해 주세요." : message);
+            String displayMessage;
+            if (message == null || message.isBlank()) {
+                displayMessage = "입력 정보를 확인해 주세요.";
+            } else {
+                displayMessage = message;
+            }
+            return renderProfileError(model, principal, form, displayMessage);
         }
         FlashFeedback.success(redirect, "프로필을 저장했습니다.");
         return "redirect:/mypage/profile";
@@ -289,11 +297,27 @@ public class MyPageController {
     /** 저장 실패 시 제출 값을 유지해 사용자가 수정 내용을 잃지 않게 한다. */
     private String renderProfileError(Model model, MemberPrincipal principal, ProfileUpdateForm form, String error) {
         Map<String, Object> profile = new LinkedHashMap<>();
-        profile.put("nickname", form == null ? "" : nullToEmpty(form.getNickname()));
-        profile.put("phone", form == null ? "" : nullToEmpty(form.getPhone()));
-        profile.put("representativeSportId", form == null ? null : form.getRepresentativeSportId());
+        String nickname = "";
+        if (form != null) {
+            nickname = nullToEmpty(form.getNickname());
+        }
+        profile.put("nickname", nickname);
+        String phone = "";
+        if (form != null) {
+            phone = nullToEmpty(form.getPhone());
+        }
+        profile.put("phone", phone);
+        Long representativeSportId = null;
+        if (form != null) {
+            representativeSportId = form.getRepresentativeSportId();
+        }
+        profile.put("representativeSportId", representativeSportId);
         profile.put("representativeRatingNote", "확정 매치 기록이 없으면 기록 없음으로 표시합니다.");
-        profile.put("regionId", form == null ? null : form.getRegionId());
+        Long regionId = null;
+        if (form != null) {
+            regionId = form.getRegionId();
+        }
+        profile.put("regionId", regionId);
         profile.put("email", principal.getEmail());
         FlashFeedback.failure(model, PROFILE_ERROR_TITLE, error);
         return renderProfile(model, principal.getUserId(), profile);
@@ -330,7 +354,10 @@ public class MyPageController {
             return WithdrawalBlocks.empty();
         }
         WithdrawalBlocks blocks = memberService.findWithdrawalBlocks(userId);
-        return blocks == null ? WithdrawalBlocks.empty() : blocks;
+        if (blocks == null) {
+            return WithdrawalBlocks.empty();
+        }
+        return blocks;
     }
 
     /** 프로필 폼이 참조하는 값만 담는다. 비로그인이면 null. */
@@ -343,12 +370,28 @@ public class MyPageController {
         Member member = memberService.findByEmail(principal.getEmail()).orElse(null);
         Map<String, Object> profile = new LinkedHashMap<>();
         // 세션 principal은 가입 시점 스냅샷이므로 저장된 닉네임·연락처는 DB에서 다시 읽는다.
-        profile.put("nickname", member == null ? nullToEmpty(principal.getNickname()) : nullToEmpty(member.getNickname()));
+        String nickname;
+        if (member == null) {
+            nickname = nullToEmpty(principal.getNickname());
+        } else {
+            nickname = nullToEmpty(member.getNickname());
+        }
+        profile.put("nickname", nickname);
         profile.put("email", nullToEmpty(principal.getEmail()));
-        profile.put("phone", member == null ? nullToEmpty(principal.getPhone()) : nullToEmpty(member.getPhone()));
+        String phone;
+        if (member == null) {
+            phone = nullToEmpty(principal.getPhone());
+        } else {
+            phone = nullToEmpty(member.getPhone());
+        }
+        profile.put("phone", phone);
         profile.put("representativeSportId", representative.map(SportOption::getSportId).orElse(null));
         profile.put("representativeRatingNote", "확정 매치 기록이 없으면 기록 없음으로 표시합니다.");
-        profile.put("regionId", regions.isEmpty() ? null : regions.get(0).getRegionId());
+        Long regionId = null;
+        if (!regions.isEmpty()) {
+            regionId = regions.get(0).getRegionId();
+        }
+        profile.put("regionId", regionId);
         return profile;
     }
 
@@ -368,11 +411,17 @@ public class MyPageController {
                 || authentication instanceof AnonymousAuthenticationToken) {
             return null;
         }
-        return authentication.getPrincipal() instanceof MemberPrincipal principal ? principal : null;
+        if (authentication.getPrincipal() instanceof MemberPrincipal principal) {
+            return principal;
+        }
+        return null;
     }
 
     private static String nullToEmpty(String value) {
-        return value == null ? "" : value;
+        if (value == null) {
+            return "";
+        }
+        return value;
     }
 
     /** 프로필 영역에 보여 줄 대표 종목. tierKey는 배치 중·기록 없음이면 null, byRecords는 설정 대신 경기 기록으로 고른 경우다. */

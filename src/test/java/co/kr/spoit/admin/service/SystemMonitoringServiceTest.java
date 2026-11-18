@@ -62,9 +62,11 @@ class SystemMonitoringServiceTest {
         assertThat(dashboard.getDiskPercent()).isNull();
         // 힙 사용률을 알 수 없으면 0%로 위장하지 않는다.
         assertThat(dashboard.getMemoryPercent()).isNull();
-        assertThat(dashboard.getBars()).hasSize(1);
-        assertThat(dashboard.getBars().get(0).getCpuHeight()).isNull();
-        assertThat(dashboard.getBars().get(0).getMemoryHeight()).isNull();
+        // 표본이 없어도 6시간을 36칸으로 나눈 자리를 모두 유지한다.
+        assertThat(dashboard.getBars()).hasSize(36);
+        SystemDashboard.Bar latest = dashboard.getBars().get(35);
+        assertThat(latest.getCpuHeight()).isNull();
+        assertThat(latest.getMemoryHeight()).isNull();
     }
 
     @Test
@@ -105,9 +107,9 @@ class SystemMonitoringServiceTest {
         SystemDashboard first = service.currentDashboard();
         SystemDashboard second = service.currentDashboard();
 
-        assertThat(first.getBars()).hasSize(1);
-        assertThat(second.getBars()).hasSize(1);
-        assertThat(second.getBars().get(0).getLabel()).isEqualTo("10:00");
+        assertThat(first.getBars()).hasSize(36);
+        assertThat(second.getBars()).hasSize(36);
+        assertThat(second.getBars().get(35).getLabel()).isEqualTo("09:53");
         assertThat(history.size(NOW)).isEqualTo(1);
     }
 
@@ -121,11 +123,11 @@ class SystemMonitoringServiceTest {
         service.collectSample();
 
         assertThat(history.size(NOW)).isEqualTo(1);
-        assertThat(service.currentDashboard().getBars()).hasSize(1);
+        assertThat(service.currentDashboard().getBars()).hasSize(36);
     }
 
     @Test
-    void aggregatesRawSamplesIntoFiveMinuteAverages() {
+    void aggregatesRawSamplesIntoTenMinuteAverages() {
         when(databaseProbe.isReachable()).thenReturn(true);
         LocalDateTime now = LocalDateTime.of(2026, 11, 2, 10, 10);
         history.record(now.minusMinutes(10), 10, 20);
@@ -135,14 +137,16 @@ class SystemMonitoringServiceTest {
 
         SystemDashboard dashboard = service(describeProbe(40, 80, 10), now).currentDashboard();
 
-        assertThat(dashboard.getBars()).hasSize(2);
-        assertThat(dashboard.getBars().get(0).getLabel()).isEqualTo("10:00");
-        // 10:00 구간의 측정 표본 3개 평균: CPU (10+20+30)/3, 힙 (20+40+60)/3. null 표본은 제외한다.
-        assertThat(dashboard.getBars().get(0).getCpuHeight()).isEqualTo(20);
-        assertThat(dashboard.getBars().get(0).getMemoryHeight()).isEqualTo(40);
-        assertThat(dashboard.getBars().get(1).getLabel()).isEqualTo("10:10");
-        assertThat(dashboard.getBars().get(1).getCpuHeight()).isEqualTo(40);
-        assertThat(dashboard.getBars().get(1).getMemoryHeight()).isEqualTo(80);
+        // 15초 표본 네 개가 모두 마지막 10분 구간([10:00, 10:10))에 들어간다.
+        assertThat(dashboard.getBars()).hasSize(36);
+        SystemDashboard.Bar last = dashboard.getBars().get(35);
+        assertThat(last.getLabel()).isEqualTo("10:00");
+        // 조회 시점 표본(40, 80)까지 더해 측정 표본 4개 평균: CPU (10+20+30+40)/4, 힙 (20+40+60+80)/4.
+        assertThat(last.getCpuHeight()).isEqualTo(25);
+        assertThat(last.getMemoryHeight()).isEqualTo(50);
+        // 표본이 없는 앞 구간은 빠지지 않고 값만 비어 있다.
+        assertThat(dashboard.getBars().get(0).getLabel()).isEqualTo("04:10");
+        assertThat(dashboard.getBars().get(0).getCpuHeight()).isNull();
     }
 
     @Test
@@ -155,7 +159,8 @@ class SystemMonitoringServiceTest {
 
         SystemDashboard dashboard = service(describeProbe(30, 30, 10), now).currentDashboard();
 
-        SystemDashboard.Bar bar = dashboard.getBars().get(0);
+        // 11:00 구간은 6시간을 36칸으로 나눈 30번째 칸이다.
+        SystemDashboard.Bar bar = dashboard.getBars().get(30);
         assertThat(bar.getLabel()).isEqualTo("11:00");
         // null을 0으로 채웠다면 CPU는 10이 된다. 측정값만 평균하므로 30이다.
         assertThat(bar.getCpuHeight()).isEqualTo(30);
@@ -172,9 +177,11 @@ class SystemMonitoringServiceTest {
 
         SystemDashboard dashboard = service(describeProbe(5, 7, 10), now).currentDashboard();
 
-        assertThat(dashboard.getBars()).hasSize(2);
-        assertThat(dashboard.getBars().get(0).getCpuHeight()).isNull();
-        assertThat(dashboard.getBars().get(0).getMemoryHeight()).isNull();
+        assertThat(dashboard.getBars()).hasSize(36);
+        SystemDashboard.Bar bar = dashboard.getBars().get(33);
+        assertThat(bar.getLabel()).isEqualTo("13:35");
+        assertThat(bar.getCpuHeight()).isNull();
+        assertThat(bar.getMemoryHeight()).isNull();
     }
 
     @Test
@@ -185,8 +192,8 @@ class SystemMonitoringServiceTest {
 
         SystemDashboard dashboard = service(describeProbe(0, 0, 10), now).currentDashboard();
 
-        assertThat(dashboard.getBars().get(0).getCpuHeight()).isZero();
-        assertThat(dashboard.getBars().get(0).getMemoryHeight()).isZero();
+        assertThat(dashboard.getBars().get(33).getCpuHeight()).isZero();
+        assertThat(dashboard.getBars().get(33).getMemoryHeight()).isZero();
     }
 
     @Test
@@ -200,12 +207,12 @@ class SystemMonitoringServiceTest {
         SystemDashboard dashboard = service(describeProbe(10, 10, 10), now).currentDashboard();
 
         // 막대는 평균이지만 피크는 원본 15초 표본의 최대치다.
-        assertThat(dashboard.getBars().get(0).getCpuHeight()).isEqualTo(40);
+        assertThat(dashboard.getBars().get(33).getCpuHeight()).isEqualTo(40);
         assertThat(dashboard.getCpuPeak()).isEqualTo(90);
     }
 
     @Test
-    void showsAtMostSeventyTwoFiveMinuteBarsFromRecentSixHours() {
+    void showsThirtySixTenMinuteBarsCoveringRecentSixHours() {
         when(databaseProbe.isReachable()).thenReturn(true);
         LocalDateTime now = LocalDateTime.of(2026, 11, 2, 10, 0);
         for (LocalDateTime time = now.minusHours(12).plusMinutes(5); !time.isAfter(now.minusSeconds(15));
@@ -215,12 +222,13 @@ class SystemMonitoringServiceTest {
 
         SystemDashboard dashboard = service(describeProbe(1, 2, 3), now).currentDashboard();
 
-        // 12시간 원본 표본 중 최근 6시간만 최대 72개의 막대로 표시한다.
-        assertThat(dashboard.getBars()).hasSize(72);
-        assertThat(dashboard.getBars()).hasSizeLessThanOrEqualTo(SystemMonitoringService.MAX_BARS);
-        // 막대 상한을 적용하면 요청 시점 구간이 마지막이다.
-        assertThat(dashboard.getBars().get(0).getLabel()).isEqualTo("04:05");
-        assertThat(dashboard.getBars().get(71).getLabel()).isEqualTo("10:00");
+        // 12시간 원본 표본 중 최근 6시간만 10분 묶음 36칸으로 표시한다.
+        assertThat(dashboard.getBars()).hasSize(SystemMonitoringService.MAX_BARS);
+        // 칸은 조회 시점부터 거슬러 10분씩, 빠지는 시간 없이 이어진다.
+        assertThat(dashboard.getBars().get(0).getLabel()).isEqualTo("04:00");
+        assertThat(dashboard.getBars().get(35).getLabel()).isEqualTo("09:50");
+        // 36칸을 모두 채우지 못한 구간도 36칸 자체는 유지된다.
+        assertThat(dashboard.getBars()).allSatisfy(bar -> assertThat(bar.getLabel()).isNotBlank());
     }
 
     @Test
@@ -233,11 +241,33 @@ class SystemMonitoringServiceTest {
 
         SystemDashboard dashboard = service(describeProbe(10, 10, 10), now).currentDashboard();
 
-        assertThat(dashboard.getBars()).hasSize(2);
-        assertThat(dashboard.getBars().get(0).getLabel()).isEqualTo("04:00");
+        assertThat(dashboard.getBars()).hasSize(36);
+        // 6시간 경계(04:03)에 정확히 걸친 표본은 첫 칸에 들어간다.
+        assertThat(dashboard.getBars().get(0).getLabel()).isEqualTo("04:03");
         assertThat(dashboard.getBars().get(0).getCpuHeight()).isEqualTo(20);
+        // 나머지 칸은 표본이 없어 값이 비어 있다.
+        assertThat(dashboard.getBars().get(1).getCpuHeight()).isNull();
         // 피크는 차트 표시 범위가 아닌 보관된 12시간 원본에서 계산한다.
         assertThat(dashboard.getCpuPeak()).isEqualTo(99);
+    }
+
+    @Test
+    void keepsAnEmptyBucketAsALabelWithoutBars() {
+        when(databaseProbe.isReachable()).thenReturn(true);
+        LocalDateTime now = LocalDateTime.of(2026, 11, 2, 20, 0);
+
+        SystemDashboard dashboard = service(describeProbe(null, null, 10), now).currentDashboard();
+
+        // 측정값이 전혀 없어도 36칸의 라벨은 모두 채워지고 막대 값만 null이다.
+        assertThat(dashboard.getBars()).hasSize(36);
+        assertThat(dashboard.getBars())
+                .allSatisfy(bar -> {
+                    assertThat(bar.getCpuHeight()).isNull();
+                    assertThat(bar.getMemoryHeight()).isNull();
+                    assertThat(bar.getLabel()).isNotBlank();
+                });
+        assertThat(dashboard.getBars().get(0).getLabel()).isEqualTo("14:00");
+        assertThat(dashboard.getBars().get(35).getLabel()).isEqualTo("19:50");
     }
 
     @Test

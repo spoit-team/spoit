@@ -588,16 +588,6 @@
   overflow-wrap: anywhere;
 }
 
-.room-detail-note {
-  margin: 15px 0 0;
-  padding: 12px 13px;
-  border-left: 2px solid var(--color-match);
-  background: var(--color-paper-soft);
-  color: var(--color-ink-2);
-  font-size: 11px;
-  line-height: 1.65;
-}
-
 .room-detail-section-heading {
   display: flex;
   align-items: center;

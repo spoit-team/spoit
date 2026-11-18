@@ -21,12 +21,13 @@ import co.kr.spoit.admin.service.SystemResourceHistory.Sample;
  *
  * <p>화면 요청 시점에 표본을 한 번 기록하고, 이후 15초마다 스케줄로 표본을 이어 붙인다. 표본은
  * 메모리에만 남으며 15초 구간 중복은 억제된다. JVM·운영체제가 제공하지 않는 지표는 0으로
- * 위장하지 않고 {@code null}로 전달한다. 오류 로그·신고 수집은 아직 범위가 아니므로 해당 수치는
- * {@code null}, 목록은 빈 상태로 둔다.</p>
+ * 위장하지 않고 {@code null}로 전달한다. 최근 오류 수치와 목록은 메모리 오류 버퍼에서 실제로
+ * 집계하며 재시작하면 초기화된다. 신고 수집만 아직 범위가 아니므로 신고 관련 목록은 빈 상태로 둔다.</p>
  *
- * <p>최근 6시간의 차트 막대는 15초 표본을 5분 구간별
- * CPU·힙 평균으로 압축한다. 평균은 실제 측정값만 대상으로 하며, 한 구간의 값이 모두 미지원이면
- * 0으로 채우지 않고 {@code null}로 남긴다. CPU 피크는 압축된 평균이 아니라 원본 15초 표본 기준이다.</p>
+ * <p>최근 6시간의 차트 막대는 조회 시점부터 거슬러 10분 구간 36칸으로 나누고, 각 칸에 들어온
+ * 15초 표본을 CPU·힙 평균으로 압축한다. 평균은 실제 측정값만 대상으로 하며, 한 구간의 값이 모두
+ * 미지원이면 0으로 채우지 않고 {@code null}로 남긴다. 측정 표본이 없는 구간도 빠뜨리지 않고 라벨만
+ * 있는 빈 칸으로 남긴다. CPU 피크는 압축된 평균이 아니라 원본 15초 표본 기준이다.</p>
  */
 @Service
 public class SystemMonitoringService {
@@ -35,10 +36,10 @@ public class SystemMonitoringService {
     private static final DateTimeFormatter COLLECTED_AT_FORMAT = DateTimeFormatter.ofPattern("MM-dd HH:mm:ss");
 
     /** 화면 차트 막대 하나가 담당하는 구간이다. */
-    static final Duration CHART_BUCKET = Duration.ofMinutes(5);
+    static final Duration CHART_BUCKET = Duration.ofMinutes(10);
 
-    /** 최근 6시간 / 5분 = 72개. 화면에 표시할 막대 상한이다. */
-    static final int MAX_BARS = 72;
+    /** 최근 6시간 / 10분 = 36개. 화면에 표시할 막대 칸 수다. */
+    static final int MAX_BARS = 36;
 
     private static final Duration CHART_WINDOW = Duration.ofHours(6);
 
@@ -165,63 +166,72 @@ public class SystemMonitoringService {
     }
 
     /**
-     * 차트는 최근 6시간에 실제 저장된 표본만 5분 구간별 평균으로 압축한다.
+     * 차트는 최근 6시간을 조회 시점부터 거슬러 10분 구간 36칸으로 나누고, 각 칸에 들어온 표본을 평균으로
+     * 압축한다.
      *
      * <p>측정 불가({@code null})는 0으로 취급하지 않고 평균에서 제외한다. 한 구간의 측정값이 모두
-     * 없으면 그 막대의 값은 {@code null}이다. 막대는 최근 것부터 최대 {@link #MAX_BARS}개만 남긴다.</p>
+     * 없으면 그 막대의 값은 {@code null}이다. 측정 표본이 없는 구간도 건너뛰지 않고 라벨만 있는 빈
+     * 칸으로 남기므로, 항상 최대 {@link #MAX_BARS}개의 칸이 시간 순서대로 이어진다.</p>
      */
     private static List<SystemDashboard.Bar> bars(List<Sample> samples, LocalDateTime now) {
-        List<SystemDashboard.Bar> bars = new ArrayList<>();
-        LocalDateTime currentBucket = null;
-        long cpuSum = 0L;
-        int cpuCount = 0;
-        long memorySum = 0L;
-        int memoryCount = 0;
+        long bucketSeconds = CHART_BUCKET.getSeconds();
+        long[] cpuSums = new long[MAX_BARS];
+        int[] cpuCounts = new int[MAX_BARS];
+        long[] memorySums = new long[MAX_BARS];
+        int[] memoryCounts = new int[MAX_BARS];
         for (Sample sample : samples) {
-            if (sample.bucketStart().isBefore(now.minus(CHART_WINDOW)) || sample.bucketStart().isAfter(now)) {
+            LocalDateTime time = sample.bucketStart();
+            if (time.isBefore(now.minus(CHART_WINDOW)) || time.isAfter(now)) {
                 continue;
             }
-            LocalDateTime bucketStart = chartBucketStart(sample.bucketStart());
-            if (currentBucket != null && !currentBucket.equals(bucketStart)) {
-                bars.add(bar(currentBucket, cpuSum, cpuCount, memorySum, memoryCount));
-                cpuSum = 0L;
-                cpuCount = 0;
-                memorySum = 0L;
-                memoryCount = 0;
+            int index = (int) (Duration.between(chartBucketStart(now, 0), time).getSeconds() / bucketSeconds);
+            if (index < 0) {
+                continue;
             }
-            currentBucket = bucketStart;
+            if (index >= MAX_BARS) {
+                index = MAX_BARS - 1;
+            }
             if (sample.cpuPercent() != null) {
-                cpuSum += sample.cpuPercent();
-                cpuCount++;
+                cpuSums[index] += sample.cpuPercent();
+                cpuCounts[index]++;
             }
             if (sample.memoryPercent() != null) {
-                memorySum += sample.memoryPercent();
-                memoryCount++;
+                memorySums[index] += sample.memoryPercent();
+                memoryCounts[index]++;
             }
         }
-        if (currentBucket != null) {
-            bars.add(bar(currentBucket, cpuSum, cpuCount, memorySum, memoryCount));
-        }
-        if (bars.size() > MAX_BARS) {
-            return new ArrayList<>(bars.subList(bars.size() - MAX_BARS, bars.size()));
+        List<SystemDashboard.Bar> bars = new ArrayList<>(MAX_BARS);
+        for (int index = 0; index < MAX_BARS; index++) {
+            bars.add(bar(chartBucketStart(now, index), cpuSums[index], cpuCounts[index], memorySums[index],
+                    memoryCounts[index]));
         }
         return bars;
     }
 
     private static SystemDashboard.Bar bar(LocalDateTime bucketStart, long cpuSum, int cpuCount, long memorySum,
             int memoryCount) {
+        Integer cpuPercent = null;
+        if (cpuCount != 0) {
+            cpuPercent = (int) Math.round((double) cpuSum / cpuCount);
+        }
+        Integer memoryPercent = null;
+        if (memoryCount != 0) {
+            memoryPercent = (int) Math.round((double) memorySum / memoryCount);
+        }
         return new SystemDashboard.Bar(
-                cpuCount == 0 ? null : (int) Math.round((double) cpuSum / cpuCount),
-                memoryCount == 0 ? null : (int) Math.round((double) memorySum / memoryCount),
+                cpuPercent,
+                memoryPercent,
                 SystemResourceHistory.label(bucketStart));
     }
 
-    /** 15초 표본을 화면 차트용 5분 구간 시작 시각으로 내린다. 로컬 벽시계 기준으로 자른다. */
-    static LocalDateTime chartBucketStart(LocalDateTime time) {
-        long seconds = CHART_BUCKET.getSeconds();
-        long secondOfDay = time.toLocalTime().toSecondOfDay();
-        long truncated = secondOfDay - (secondOfDay % seconds);
-        return time.toLocalDate().atStartOfDay().plusSeconds(truncated);
+    /**
+     * 조회 시점 {@code now}부터 거슬러 {@code index}번째(0이 가장 오래된 칸) 차트 구간의 시작 시각이다.
+     *
+     * <p>가장 오래된 칸은 {@code now - 6시간}, 마지막 칸은 {@code now - 10분}에서 시작한다. 조회
+     * 시점이 기준이므로 15초 갱신마다 경계가 함께 밀리며, 6시간이 36칸으로 빈틈없이 이어진다.</p>
+     */
+    static LocalDateTime chartBucketStart(LocalDateTime now, int index) {
+        return now.minus(CHART_BUCKET.multipliedBy(MAX_BARS - index));
     }
 
     /** CPU 피크는 수집된 원본 15초 표본 중 측정된 값의 최대치다. 측정 표본이 없으면 null이다. */
@@ -236,11 +246,18 @@ public class SystemMonitoringService {
     }
 
     private static List<SystemDashboard.ServiceStatus> services(boolean databaseReachable) {
+        String databaseStatus;
+        String databaseTone;
+        if (databaseReachable) {
+            databaseStatus = "연결 정상";
+            databaseTone = TONE_GOOD;
+        } else {
+            databaseStatus = "연결 확인 실패";
+            databaseTone = TONE_BAD;
+        }
         return List.of(
                 new SystemDashboard.ServiceStatus("API 서버", STATUS_UP, TONE_GOOD),
-                new SystemDashboard.ServiceStatus("데이터베이스",
-                        databaseReachable ? "연결 정상" : "연결 확인 실패",
-                        databaseReachable ? TONE_GOOD : TONE_BAD));
+                new SystemDashboard.ServiceStatus("데이터베이스", databaseStatus, databaseTone));
     }
 
     private static String formatUptime(long uptimeMillis) {

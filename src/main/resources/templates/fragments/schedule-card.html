@@ -14,12 +14,12 @@
       <input type="hidden" name="tab" value="schedule-hours" />
       <div class="table-scroll"><table class="admin-table schedule-table"><thead><tr><th>운영 요일</th><th>시작 시간</th><th>종료 시간</th><th>종료 기준</th><th>상태</th></tr></thead><tbody>
         <tr th:each="row : ${weeklyHours}" data-weekly-hours-row>
-          <td><label class="day-checkbox"><input type="checkbox" name="openDays" th:value="${row.day}" th:checked="${row.open}" /><span th:text="${row.dayLabel}">월요일</span></label></td>
+          <td data-label="운영 요일"><label class="day-checkbox"><input type="checkbox" name="openDays" th:value="${row.day}" th:checked="${row.open}" /><span th:text="${row.dayLabel}">월요일</span></label></td>
           <!-- 시작·종료 후보는 00:00~23:00 전체를 서버 모델과 무관하게 제공하고, 종료에는 24:00을 더한다. -->
-          <td><select class="schedule-hour-select" th:name="${'start-' + row.day}" th:attr="aria-label=${row.dayLabel + ' 시작 시간'}" th:disabled="${!row.open}"><option th:each="hour : ${#numbers.sequence(0, 23)}" th:with="hourText=${#numbers.formatInteger(hour, 2) + ':00'}" th:value="${hourText}" th:text="${hourText}" th:selected="${row.start == hourText}">06:00</option></select></td>
-          <td><select class="schedule-hour-select" th:name="${'end-' + row.day}" th:attr="aria-label=${row.dayLabel + ' 종료 시간'}" th:disabled="${!row.open}"><option th:each="hour : ${#numbers.sequence(0, 23)}" th:with="hourText=${#numbers.formatInteger(hour, 2) + ':00'}" th:value="${hourText}" th:text="${hourText}" th:selected="${row.end == hourText}">22:00</option><option value="24:00" th:text="'24:00 (다음 날 00:00)'" th:selected="${row.end == '24:00'}">24:00 (다음 날 00:00)</option></select></td>
-          <td><span class="weekly-hours-note" data-weekly-hours-note>당일 종료</span></td>
-          <td><span class="status-badge" data-weekly-hours-status th:classappend="${row.open} ? 'good' : 'neutral'" th:text="${row.open ? '예약 가능' : '휴무'}">상태</span></td>
+          <td data-label="시작 시간"><select class="schedule-hour-select" th:name="${'start-' + row.day}" th:attr="aria-label=${row.dayLabel + ' 시작 시간'}" th:disabled="${!row.open}"><option th:each="hour : ${#numbers.sequence(0, 23)}" th:with="hourText=${#numbers.formatInteger(hour, 2) + ':00'}" th:value="${hourText}" th:text="${hourText}" th:selected="${row.start == hourText}">06:00</option></select></td>
+          <td data-label="종료 시간"><select class="schedule-hour-select" th:name="${'end-' + row.day}" th:attr="aria-label=${row.dayLabel + ' 종료 시간'}" th:disabled="${!row.open}"><option th:each="hour : ${#numbers.sequence(0, 23)}" th:with="hourText=${#numbers.formatInteger(hour, 2) + ':00'}" th:value="${hourText}" th:text="${hourText}" th:selected="${row.end == hourText}">22:00</option><option value="24:00" th:text="'24:00 (다음 날 00:00)'" th:selected="${row.end == '24:00'}">24:00 (다음 날 00:00)</option></select></td>
+          <td data-label="종료 기준"><span class="weekly-hours-note" data-weekly-hours-note>당일 종료</span></td>
+          <td data-label="상태"><span class="status-badge" data-weekly-hours-status th:classappend="${row.open} ? 'good' : 'neutral'" th:text="${row.open ? '예약 가능' : '휴무'}">상태</span></td>
         </tr>
         <tr th:if="${#lists.isEmpty(weeklyHours)}"><td class="table-empty" colspan="5">담당 시설을 선택하면 요일별 운영 시간을 설정할 수 있습니다.</td></tr>
       </tbody></table></div>
@@ -122,12 +122,12 @@
     <div class="notice-strip"><strong>예약 반영</strong><p>점검·휴관 일정은 날짜와 시작·종료 시각으로 등록합니다. 해당 구간과 겹치는 예약 가능 블록만 차단하고, 겹치는 예약에는 운영 변경 안내를 표시합니다. 모집 중·매칭 완료된 매칭방과 겹치면 저장하지 않고 어떤 방과 겹치는지 알려 드립니다.</p></div>
     <div class="table-scroll"><table class="admin-table"><thead><tr><th>일자</th><th>시설</th><th>변경 시간</th><th>사유</th><th>상태</th><th>관리</th></tr></thead><tbody>
       <tr th:each="closure : ${closures}">
-        <td th:text="${closure.dateLabel}">일자</td>
-        <td th:text="${closure.facilityName}">시설</td>
-        <td th:text="${closure.timeRange}">시간</td>
-        <td class="wrap-content" th:text="${closure.reason}">사유</td>
-        <td><span class="status-badge" th:classappend="${closure.statusTone}" th:text="${closure.statusLabel}">상태</span></td>
-        <td><form method="post" th:action="@{/admin/facility/schedule/closures/{scheduleChangeId}/cancel(scheduleChangeId=${closure.scheduleChangeId})}" data-confirm="이 휴관 일정을 취소할까요? 취소하면 원래 운영 시간이 다시 적용됩니다."><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><input type="hidden" name="facilityId" th:value="${selectedFacility?.facilityId}" /><input type="hidden" name="date" th:value="${calendar?.date}" /><button class="table-link" type="submit">취소</button></form></td>
+        <td data-label="일자" th:text="${closure.dateLabel}">일자</td>
+        <td data-label="시설" th:text="${closure.facilityName}">시설</td>
+        <td data-label="변경 시간" th:text="${closure.timeRange}">시간</td>
+        <td data-label="사유" class="wrap-content" th:text="${closure.reason}">사유</td>
+        <td data-label="상태"><span class="status-badge" th:classappend="${closure.statusTone}" th:text="${closure.statusLabel}">상태</span></td>
+        <td data-label="관리"><form method="post" th:action="@{/admin/facility/schedule/closures/{scheduleChangeId}/cancel(scheduleChangeId=${closure.scheduleChangeId})}" data-confirm="이 휴관 일정을 취소할까요? 취소하면 원래 운영 시간이 다시 적용됩니다."><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><input type="hidden" name="facilityId" th:value="${selectedFacility?.facilityId}" /><input type="hidden" name="date" th:value="${calendar?.date}" /><button class="table-link" type="submit">취소</button></form></td>
       </tr>
       <tr th:if="${#lists.isEmpty(closures)}"><td class="table-empty" colspan="6">등록된 운영 변경 일정이 없습니다.</td></tr>
     </tbody></table></div>

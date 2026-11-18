@@ -146,11 +146,18 @@ public class FacilityStatsService {
                 buildApplicationWeekdayHourDetails(applicationResolvedByDayAndHour, applicationApprovedByDayAndHour,
                         applicationCancelledByDayAndHour);
 
-        long applicationTotal = applications == null ? 0 : applications.getTotal();
-        long individualCount = applications == null ? 0 : applications.getIndividualCount();
-        long clubCount = applications == null ? 0 : applications.getClubCount();
-        long approvedCount = applications == null ? 0 : applications.getApprovedCount();
-        long cancelledCount = applications == null ? 0 : applications.getCancelledCount();
+        long applicationTotal = 0;
+        long individualCount = 0;
+        long clubCount = 0;
+        long approvedCount = 0;
+        long cancelledCount = 0;
+        if (applications != null) {
+            applicationTotal = applications.getTotal();
+            individualCount = applications.getIndividualCount();
+            clubCount = applications.getClubCount();
+            approvedCount = applications.getApprovedCount();
+            cancelledCount = applications.getCancelledCount();
+        }
         long resolvedCount = Math.max(0, approvedCount) + Math.max(0, cancelledCount);
 
         FacilityStats stats = new FacilityStats(
@@ -227,7 +234,12 @@ public class FacilityStatsService {
      * 되돌린다.</p>
      */
     private DateRange resolveRange(String period, String periodFrom, String periodTo) {
-        String normalized = period == null ? "" : period.strip();
+        String normalized;
+        if (period == null) {
+            normalized = "";
+        } else {
+            normalized = period.strip();
+        }
         if (CUSTOM_PERIOD.equalsIgnoreCase(normalized)) {
             LocalDate from = parseDate(periodFrom);
             LocalDate to = parseDate(periodTo);
@@ -237,7 +249,11 @@ public class FacilityStatsService {
             return DateRange.lastDays(today(), DEFAULT_PERIOD);
         }
         Integer days = parseAllowedPeriod(normalized);
-        return DateRange.lastDays(today(), days == null ? DEFAULT_PERIOD : days);
+        int periodDays = DEFAULT_PERIOD;
+        if (days != null) {
+            periodDays = days;
+        }
+        return DateRange.lastDays(today(), periodDays);
     }
 
     /** 7/30/90만 인정하고 그 밖의 값(공백·비숫자 포함)은 null이다. */
@@ -247,7 +263,10 @@ public class FacilityStatsService {
         }
         try {
             int value = Integer.parseInt(raw.strip());
-            return ALLOWED_PERIODS.contains(value) ? value : null;
+            if (ALLOWED_PERIODS.contains(value)) {
+                return value;
+            }
+            return null;
         } catch (NumberFormatException exception) {
             return null;
         }
@@ -513,7 +532,10 @@ public class FacilityStatsService {
                 popularIndex = index;
             }
         }
-        return popularIndex < 0 ? null : WEEKDAY_LABELS.get(popularIndex);
+        if (popularIndex < 0) {
+            return null;
+        }
+        return WEEKDAY_LABELS.get(popularIndex);
     }
 
     /**
@@ -529,7 +551,10 @@ public class FacilityStatsService {
                 peakHour = hour;
             }
         }
-        return peakHour < 0 ? null : hourLabel(peakHour);
+        if (peakHour < 0) {
+            return null;
+        }
+        return hourLabel(peakHour);
     }
 
     /** MySQL DAYOFWEEK(1=일, 2=월, … 7=토)를 월~일 인덱스로 바꾼다. 범위 밖은 -1이다. */
@@ -537,7 +562,10 @@ public class FacilityStatsService {
         if (dayOfWeek < 1 || dayOfWeek > 7) {
             return -1;
         }
-        return (int) (dayOfWeek == 1 ? 6 : dayOfWeek - 2);
+        if (dayOfWeek == 1) {
+            return 6;
+        }
+        return (int) (dayOfWeek - 2);
     }
 
     /** 요일 상세 7행(월~일). share는 전체 확정 참가 인원 대비 반올림 백분율이며 전체가 0이면 0이다. */
@@ -612,6 +640,9 @@ public class FacilityStatsService {
     }
 
     private static <T> List<T> nullSafe(List<T> values) {
-        return values == null ? List.of() : values;
+        if (values == null) {
+            return List.of();
+        }
+        return values;
     }
 }

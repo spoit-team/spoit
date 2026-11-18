@@ -27,15 +27,19 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 18-6-6 6-6" /></svg>
           </button>
           <div id="sport-tabs" class="sport-tabs-track" role="group" aria-label="종목 선택" tabindex="0">
-            <a th:each="sport : ${sports}" data-sport-tab
+            <a th:each="sport : ${sports}" th:if="${sport.sportId == search.sportId}" data-sport-tab aria-current="true"
                th:href="@{/matches(sportId=${sport.sportId}, regionId=${search.regionId}, date=${search.dateIdx}, hours=${search.hours})}"
-               th:aria-current="${sport.sportId == search.sportId ? 'true' : null}"
-               th:classappend="${sport.sportId == search.sportId} ? 'border-ink bg-ink text-white shadow-md' : 'border-line-strong bg-white text-ink-2 hover:-translate-y-px hover:border-faint hover:text-ink'"
-               class="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-3.5 text-[13px] font-semibold transition">
+               class="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-3.5 text-[13px] font-semibold transition border-ink bg-ink text-white shadow-md">
               <img class="sport-tab-icon" th:src="@{/images/club/sports/{key}.svg(key=${sport.sportKey})}" alt="" aria-hidden="true" />
               <span th:text="${sport.name}">전체</span>
-              <span th:classappend="${sport.sportId == search.sportId} ? 'border-white/20 bg-white/15 text-white' : 'border-line bg-paper-soft text-faint'"
-                    class="rounded-full border px-2 py-0.5 text-[11px] font-bold" th:text="${sport.count}">0</span>
+              <span class="rounded-full border px-2 py-0.5 text-[11px] font-bold border-white/20 bg-white/15 text-white" th:text="${sport.count}">0</span>
+            </a>
+            <a th:each="sport : ${sports}" th:unless="${sport.sportId == search.sportId}" data-sport-tab
+               th:href="@{/matches(sportId=${sport.sportId}, regionId=${search.regionId}, date=${search.dateIdx}, hours=${search.hours})}"
+               class="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-3.5 text-[13px] font-semibold transition border-line-strong bg-white text-ink-2 hover:-translate-y-px hover:border-faint hover:text-ink">
+              <img class="sport-tab-icon" th:src="@{/images/club/sports/{key}.svg(key=${sport.sportKey})}" alt="" aria-hidden="true" />
+              <span th:text="${sport.name}">전체</span>
+              <span class="rounded-full border px-2 py-0.5 text-[11px] font-bold border-line bg-paper-soft text-faint" th:text="${sport.count}">0</span>
             </a>
           </div>
           <button id="sport-tabs-next" class="sport-tabs-scroll-button" type="button" aria-label="다음 종목" aria-controls="sport-tabs" title="다음 종목" hidden>
@@ -62,7 +66,10 @@
             <span class="mb-1.5 block text-xs font-bold text-muted">시간 <span class="text-book">·</span></span>
             <button id="time-button" type="button" class="flex h-[50px] w-full items-center gap-2 rounded-[10px] border border-line-strong bg-white px-3 text-left text-sm font-semibold text-ink-2 hover:border-faint" aria-expanded="false" aria-controls="time-popover">
               <svg viewBox="0 0 24 24" class="size-[17px] shrink-0 text-muted" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" stroke-linecap="round" /></svg>
-              <span id="time-value" th:classappend="${selectedHoursLabel != null} ? 'text-ink-2' : 'text-faint'" class="min-w-0 flex-1 truncate" th:text="${selectedHoursLabel != null ? selectedHoursLabel : '시간 선택'}">시간 선택</span>
+              <span id="time-value" class="min-w-0 flex-1 truncate">
+                <span th:if="${selectedHoursLabel != null}" class="text-ink-2" th:text="${selectedHoursLabel}"></span>
+                <span th:unless="${selectedHoursLabel != null}" class="text-faint">시간 선택</span>
+              </span>
               <svg viewBox="0 0 24 24" class="size-4 shrink-0 text-muted" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
             </button>
             <div id="time-popover" class="absolute left-0 top-[76px] z-30 hidden w-[min(360px,calc(100vw-40px))] rounded-xl border border-line bg-white p-4 shadow-xl">
@@ -146,11 +153,13 @@
                   <span th:if="${match.extraParticipantCount > 0}" class="match-list-extra text-[11px] font-semibold text-muted" th:text="${'+' + match.extraParticipantCount}">+1</span>
                 </div>
                 <span class="match-list-count" th:text="${match.participantSummary}">0명 확정 / 8명</span>
-                <span class="match-list-remaining" th:classappend="${match.remainingSeats == 0} ? 'is-full' : ''" th:text="${match.remainingLabel}">N자리 남음</span>
+                <span th:if="${match.remainingSeats == 0}" class="match-list-remaining is-full" th:text="${match.remainingLabel}">N자리 남음</span>
+                <span th:unless="${match.remainingSeats == 0}" class="match-list-remaining" th:text="${match.remainingLabel}">N자리 남음</span>
                 <span th:if="${match.pendingConfirmationCount > 0}" class="match-list-pending" th:text="${'확정 대기 ' + match.pendingConfirmationCount + '명'}">확정 대기</span>
               </div>
               <div class="match-list-progress" role="progressbar" aria-label="참여 인원과 예약 좌석" aria-valuemin="0" th:attr="aria-valuemax=${match.maxParticipants}, aria-valuenow=${match.occupiedSeats}">
-                <span th:style="'width:' + ${match.occupiedPercent ?: 0} + '%'"></span>
+                <span th:if="${match.occupiedPercent != null}" th:style="'width:' + ${match.occupiedPercent} + '%'"></span>
+                <span th:unless="${match.occupiedPercent != null}" style="width:0%"></span>
               </div>
               <div th:if="${match.showTeams}" class="match-list-teams">
                 <span th:text="${'A팀 ' + match.teamACount + '명'}">A팀</span><span class="match-list-teams-note">배정 완료</span><span class="match-list-team-b" th:text="${'B팀 ' + match.teamBCount + '명'}">B팀</span>
@@ -192,14 +201,14 @@
                 <section class="room-team-list">
                   <h3 class="text-sm font-extrabold text-match-ink">A팀 <span class="font-mono text-xs font-semibold text-muted" th:text="${match.detail.teamACount + '명'}">0명</span></h3>
                   <ul class="mt-2 divide-y divide-line">
-                    <li th:each="person : ${match.detail.teamA}" class="flex items-center justify-between py-2 text-sm"><span th:text="${person.host ? person.nickname + ' · 방장' : person.nickname}">참가자</span><span class="text-xs font-semibold text-match-ink">A팀</span></li>
+                    <li th:each="person : ${match.detail.teamA}" class="flex items-center justify-between py-2 text-sm"><span><th:block th:text="${person.nickname}">참가자</th:block><th:block th:if="${person.host}"> · 방장</th:block></span><span class="text-xs font-semibold text-match-ink">A팀</span></li>
                     <li th:if="${#lists.isEmpty(match.detail.teamA)}" class="py-2 text-xs text-muted">배정된 참가자가 없습니다.</li>
                   </ul>
                 </section>
                 <section class="room-team-list">
                   <h3 class="text-sm font-extrabold text-[#6d5ca9]">B팀 <span class="font-mono text-xs font-semibold text-muted" th:text="${match.detail.teamBCount + '명'}">0명</span></h3>
                   <ul class="mt-2 divide-y divide-line">
-                    <li th:each="person : ${match.detail.teamB}" class="flex items-center justify-between py-2 text-sm"><span th:text="${person.host ? person.nickname + ' · 방장' : person.nickname}">참가자</span><span class="text-xs font-semibold text-[#6d5ca9]">B팀</span></li>
+                    <li th:each="person : ${match.detail.teamB}" class="flex items-center justify-between py-2 text-sm"><span><th:block th:text="${person.nickname}">참가자</th:block><th:block th:if="${person.host}"> · 방장</th:block></span><span class="text-xs font-semibold text-[#6d5ca9]">B팀</span></li>
                     <li th:if="${#lists.isEmpty(match.detail.teamB)}" class="py-2 text-xs text-muted">배정된 참가자가 없습니다.</li>
                   </ul>
                 </section>
@@ -211,7 +220,7 @@
                 <span th:text="${'정원 ' + match.participantCount + ' / ' + match.maxParticipants + '명'}">정원</span>
               </div>
               <ul class="room-dialog-list">
-                <li th:each="person : ${match.detail.participants}"><span th:text="${person.host ? person.nickname + ' · 방장' : person.nickname}">참가자</span><span>팀 배정 대기</span></li>
+                <li th:each="person : ${match.detail.participants}"><span><th:block th:text="${person.nickname}">참가자</th:block><th:block th:if="${person.host}"> · 방장</th:block></span><span>팀 배정 대기</span></li>
                 <li th:if="${#lists.isEmpty(match.detail.participants)}"><span>아직 참가자가 없습니다.</span></li>
               </ul>
               <p class="room-detail-hint" th:text="${match.detail.note}">안내</p>

@@ -9,7 +9,6 @@ import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.csrf.CsrfToken;
-import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -71,7 +70,10 @@ public class GlobalModelAdvice {
         }
         CurrentMemberDto member = currentMember(authentication);
         model.addAttribute("currentMember", member);
-        Long userId = member == null ? null : member.getUserId();
+        Long userId = null;
+        if (member != null) {
+            userId = member.getUserId();
+        }
         NotificationQueryService queryService = notificationQueryService.getIfAvailable();
 
         int unreadCount = unreadCount(queryService, userId);
@@ -148,8 +150,9 @@ public class GlobalModelAdvice {
                 || authentication instanceof AnonymousAuthenticationToken) {
             return null;
         }
-        return authentication.getPrincipal() instanceof MemberPrincipal principal
-                ? CurrentMemberDto.from(principal)
-                : null;
+        if (authentication.getPrincipal() instanceof MemberPrincipal principal) {
+            return CurrentMemberDto.from(principal);
+        }
+        return null;
     }
 }

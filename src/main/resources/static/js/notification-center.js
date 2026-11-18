@@ -73,14 +73,18 @@
       return response.json().catch(function () { return null; });
     }).then(function (data) {
       if (disposed || version !== stateVersion || !data || typeof data !== 'object') return;
-      const items = Array.isArray(data.items) ? data.items.filter(isRecord) : [];
+      let items = [];
+      if (Array.isArray(data.items)) items = data.items.filter(isRecord);
       const reported = Number(data.unreadCount);
-      const previous = state.loaded ? state.signature : '';
+      let previous = '';
+      if (state.loaded) previous = state.signature;
       const previousItems = state.items;
       state.items = items;
-      state.unreadCount = Number.isFinite(reported) && reported >= 0
-        ? Math.floor(reported)
-        : items.filter(function (item) { return !item.read; }).length;
+      if (Number.isFinite(reported) && reported >= 0) {
+        state.unreadCount = Math.floor(reported);
+      } else {
+        state.unreadCount = items.filter(function (item) { return !item.read; }).length;
+      }
       state.signature = signatureOf(items, state.unreadCount);
       state.loaded = true;
       render(previous !== state.signature);
@@ -100,7 +104,9 @@
      스크롤과 초점이 튀고 화면이 깜박인다. */
   function signatureOf(items, unreadCount) {
     return unreadCount + '|' + items.map(function (item) {
-      return [item.notificationId, item.read ? 1 : 0, item.title, item.body, item.time, item.href, item.type].join('~');
+      let readFlag = 0;
+      if (item.read) readFlag = 1;
+      return [item.notificationId, readFlag, item.title, item.body, item.time, item.href, item.type].join('~');
     }).join('§');
   }
 
@@ -124,7 +130,8 @@
 
   function render(rerenderList) {
     // 다시 그리기 전에 초점 위치를 기억한다. 누른 버튼이 사라지면 초점이 body로 튀기 때문이다.
-    const focusToken = rerenderList ? captureFocus() : null;
+    let focusToken = null;
+    if (rerenderList) focusToken = captureFocus();
     surfaces.forEach(function (surface) {
       if (rerenderList) renderList(surface);
       renderExtras(surface);
@@ -142,17 +149,21 @@
     const readAll = active.closest('[data-notification-read-all]');
     if (readAll) return { surface, readAll };
     const item = active.closest('article[data-notification-id]');
-    return item ? {
-      surface,
-      id: item.getAttribute('data-notification-id'),
-      action: active.getAttribute('data-notification-action')
-    } : null;
+    if (item) {
+      return {
+        surface,
+        id: item.getAttribute('data-notification-id'),
+        action: active.getAttribute('data-notification-action')
+      };
+    }
+    return null;
   }
 
   function restoreFocus({ surface, readAll, id, action }) {
     // 모두 읽음 버튼은 다시 만들지 않으므로 활성 상태면 초점이 그대로 남는다.
     if (readAll && !readAll.disabled) return;
-    const item = id ? surface.querySelector('article[data-notification-id="' + cssEscape(id) + '"]') : null;
+    let item = null;
+    if (id) item = surface.querySelector('article[data-notification-id="' + cssEscape(id) + '"]');
     const button = action && item?.querySelector('[data-notification-action="' + action + '"]');
     const target = button || item?.querySelector('[data-field="link"][href]')
       || item?.querySelector('[data-notification-action="delete"]')
@@ -163,13 +174,13 @@
 
   /* 선택자에 넣을 값을 이스케이프한다. 알림 번호는 숫자지만 방어적으로 처리한다. */
   function cssEscape(value) {
-    return global.CSS && typeof global.CSS.escape === 'function'
-      ? global.CSS.escape(String(value))
-      : String(value).replace(/["\\]/g, '\\$&');
+    if (global.CSS && typeof global.CSS.escape === 'function') return global.CSS.escape(String(value));
+    return String(value).replace(/["\\]/g, '\\$&');
   }
 
   function renderBadges() {
-    const count = state.unreadCount > 0 ? String(state.unreadCount) : '';
+    let count = '';
+    if (state.unreadCount > 0) count = String(state.unreadCount);
     badges.forEach(function (badge) {
       badge.textContent = count;
       badge.hidden = state.unreadCount <= 0;
@@ -180,17 +191,20 @@
       node.hidden = state.unreadCount <= 0;
     });
     openers.forEach(function (opener) {
-      opener.setAttribute('aria-label', state.unreadCount > 0
-        ? '알림 확인, 새 알림 ' + state.unreadCount + '건'
-        : '알림 확인');
+      let label = '알림 확인';
+      if (state.unreadCount > 0) label = '알림 확인, 새 알림 ' + state.unreadCount + '건';
+      opener.setAttribute('aria-label', label);
     });
   }
 
   function renderExtras(surface) {
     surface.querySelectorAll('[data-notification-summary]').forEach(function (summary) {
-      summary.textContent = summary.getAttribute('data-notification-summary') === 'short'
-        ? (state.unreadCount > 0 ? '· ' + state.unreadCount + '건 미확인' : '· 모두 확인했습니다')
-        : '알림 ' + state.items.length + '건 · 미확인 ' + state.unreadCount + '건';
+      let summaryText = '알림 ' + state.items.length + '건 · 미확인 ' + state.unreadCount + '건';
+      if (summary.getAttribute('data-notification-summary') === 'short') {
+        if (state.unreadCount > 0) summaryText = '· ' + state.unreadCount + '건 미확인';
+        else summaryText = '· 모두 확인했습니다';
+      }
+      summary.textContent = summaryText;
     });
     surface.querySelectorAll('[data-notification-read-all]').forEach(function (control) {
       control.disabled = state.unreadCount <= 0;
@@ -226,7 +240,8 @@
 
     const stateNode = node.querySelector('[data-field="state"]');
     if (stateNode) {
-      stateNode.textContent = item.read ? '읽음' : '새 알림';
+      if (item.read) stateNode.textContent = '읽음';
+      else stateNode.textContent = '새 알림';
       stateNode.classList.toggle('is-read-label', Boolean(item.read));
     }
 
@@ -259,7 +274,10 @@
 
   function setText(node, field, value) {
     const target = node.querySelector('[data-field="' + field + '"]');
-    if (target) target.textContent = value == null ? '' : String(value);
+    if (target) {
+      if (value == null) target.textContent = '';
+      else target.textContent = String(value);
+    }
   }
 
   /* 같은 출처 안에서만 이동한다. `//host`, `javascript:`, 역슬래시·제어문자가 섞인 값은 버린다. */
@@ -374,7 +392,8 @@
   });
 
   document.addEventListener('click', function (event) {
-    const target = event.target instanceof Element ? event.target : null;
+    let target = null;
+    if (event.target instanceof Element) target = event.target;
     if (!target) return;
 
     // '모두 읽음'은 폼 밖에 그려진 버튼이면 API로 처리한다. 폼 안이면 submit 핸들러가 맡는다.
@@ -476,7 +495,8 @@
   function socketUrl(path) {
     try {
       const url = new URL(path, global.location.href);
-      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+      if (url.protocol === 'https:') url.protocol = 'wss:';
+      else url.protocol = 'ws:';
       return url.toString();
     } catch (error) {
       return null;
@@ -508,8 +528,12 @@
       const raw = rest.slice(0, terminator).replace(/^\n+/, '');
       rest = rest.slice(terminator + 1);
       const split = raw.indexOf('\n\n');
-      const head = split < 0 ? raw : raw.slice(0, split);
-      const body = split < 0 ? '' : raw.slice(split + 2);
+      let head = raw;
+      let body = '';
+      if (split >= 0) {
+        head = raw.slice(0, split);
+        body = raw.slice(split + 2);
+      }
       const lines = head.split('\n');
       const command = (lines.shift() || '').trim();
       const headers = {};

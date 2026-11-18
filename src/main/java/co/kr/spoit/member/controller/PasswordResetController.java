@@ -54,20 +54,29 @@ public class PasswordResetController {
         int expiresInSeconds = 0;
         int resendInSeconds = 0;
         PasswordResetSessionState state = sessionState(session);
-        String displayEmail = state == null ? email : state.email();
+        String displayEmail = email;
+        if (state != null) {
+            displayEmail = state.email();
+        }
         if (state != null) {
             PasswordResetChallengeStatus status = this.passwordResetService.status(
                     state.challengeId(), state.rawGrant());
             if (status.active()) {
-                step = status.verified() ? STEP_RESET : STEP_VERIFY;
+                if (status.verified()) {
+                    step = STEP_RESET;
+                } else {
+                    step = STEP_VERIFY;
+                }
                 expiresInSeconds = status.expiresInSeconds();
                 resendInSeconds = status.resendInSeconds();
             } else {
                 session.removeAttribute(SESSION_STATE);
             }
         }
-        String error = STEP_REQUEST.equals(step) && !this.passwordResetService.isConfigured()
-                ? UNAVAILABLE_MESSAGE : null;
+        String error = null;
+        if (STEP_REQUEST.equals(step) && !this.passwordResetService.isConfigured()) {
+            error = UNAVAILABLE_MESSAGE;
+        }
         addViewModel(model, step, displayEmail, error, null, expiresInSeconds, resendInSeconds);
         return VIEW;
     }
@@ -207,13 +216,20 @@ public class PasswordResetController {
 
     private static PasswordResetSessionState sessionState(HttpSession session) {
         Object value = session.getAttribute(SESSION_STATE);
-        return value instanceof PasswordResetSessionState state ? state : null;
+        if (value instanceof PasswordResetSessionState state) {
+            return state;
+        }
+        return null;
     }
 
     private static void addViewModel(Model model, String step, String email, String error, String message,
             int expiresInSeconds, int resendInSeconds) {
         model.addAttribute("step", step);
-        model.addAttribute("email", email == null || email.isBlank() ? null : email.trim());
+        String displayEmail = null;
+        if (email != null && !email.isBlank()) {
+            displayEmail = email.trim();
+        }
+        model.addAttribute("email", displayEmail);
         model.addAttribute("error", error);
         model.addAttribute("message", message);
         model.addAttribute("expiresInSeconds", Math.max(0, expiresInSeconds));

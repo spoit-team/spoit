@@ -1,6 +1,5 @@
 package co.kr.spoit.facility.mapper;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 

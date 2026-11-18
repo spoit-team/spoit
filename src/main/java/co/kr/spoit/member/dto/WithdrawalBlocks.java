@@ -19,8 +19,20 @@ public class WithdrawalBlocks {
     private final List<String> individualMatchNames;
 
     private WithdrawalBlocks(List<String> leaderClubNames, List<String> individualMatchNames) {
-        this.leaderClubNames = List.copyOf(leaderClubNames == null ? List.of() : leaderClubNames);
-        this.individualMatchNames = List.copyOf(individualMatchNames == null ? List.of() : individualMatchNames);
+        List<String> safeLeaderClubNames;
+        if (leaderClubNames == null) {
+            safeLeaderClubNames = List.of();
+        } else {
+            safeLeaderClubNames = leaderClubNames;
+        }
+        this.leaderClubNames = List.copyOf(safeLeaderClubNames);
+        List<String> safeIndividualMatchNames;
+        if (individualMatchNames == null) {
+            safeIndividualMatchNames = List.of();
+        } else {
+            safeIndividualMatchNames = individualMatchNames;
+        }
+        this.individualMatchNames = List.copyOf(safeIndividualMatchNames);
     }
 
     public static WithdrawalBlocks of(List<String> leaderClubNames, List<String> individualMatchNames) {

@@ -9,7 +9,7 @@
 .admin-body[data-admin-role="system"] .admin-content .section-heading { padding-top: 13px; border-top: 1px solid var(--admin-line-strong); }
 .admin-body[data-admin-role="system"] .admin-content .setting-grid { border: 0; border-bottom: 1px solid var(--admin-line-strong); border-radius: 0; background: transparent; }
 
-/* Fit up to 72 five-minute buckets without letting the gaps consume the plot. */
+/* Fit up to 36 ten-minute buckets without letting the gaps consume the plot. */
 #system-dashboard .bar-chart { container-type: inline-size; gap: 0; }
 #system-dashboard .bar-group {
   display: grid;
@@ -45,4 +45,14 @@
 @media (max-width: 840px) {
   .admin-body[data-admin-role="system"] .admin-content .dashboard-grid > .card + .card { border-top: 1px solid var(--admin-line-strong); border-left: 0; }
   .admin-body[data-admin-role="system"] .admin-content .dashboard-grid > .card + .card::before { display: none; }
+  .admin-body[data-admin-role="system"] .admin-nav { gap: 8px; }
+}
+
+@media (max-width: 600px) {
+  /* 시스템 관리자 목록의 한 행을 카드로 묶고 각 속성 사이에 여백 있는 선을 둔다. */
+  .admin-body[data-admin-role="system"] .admin-table tbody > tr { padding: 8px 0; border: 1px solid var(--admin-line-strong); border-radius: 10px; }
+  :where(.admin-body[data-admin-role="system"]) .admin-table tbody > tr { background: var(--admin-paper); }
+  .admin-body[data-admin-role="system"] .admin-table tbody > tr + tr { margin-top: 10px; }
+  .admin-body[data-admin-role="system"] .admin-table tbody > tr > td { padding: 5px 12px; border-bottom: 0; }
+  .admin-body[data-admin-role="system"] .admin-table tbody > tr > td + td { background: linear-gradient(var(--admin-line), var(--admin-line)) center top / calc(100% - 24px) 1px no-repeat; }
 }

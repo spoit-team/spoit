@@ -163,6 +163,9 @@ public class MemberPrincipal implements UserDetails, CredentialsContainer {
     /** {@link #equals(Object)}와 같은 기준(회원 번호)을 쓴다. */
     @Override
     public int hashCode() {
-        return userId == null ? 0 : userId.hashCode();
+        if (userId == null) {
+            return 0;
+        }
+        return userId.hashCode();
     }
 }

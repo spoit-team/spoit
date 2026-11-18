@@ -36,8 +36,12 @@ public class MemberPasswordChangeController {
         try {
             passwordChangeService.changePassword(principal.getUserId(), currentPassword, newPassword, newPasswordConfirm);
         } catch (IllegalArgumentException | IllegalStateException exception) {
-            String message = exception.getMessage() == null || exception.getMessage().isBlank()
-                    ? "비밀번호를 변경하지 못했습니다." : exception.getMessage();
+            String message;
+            if (exception.getMessage() == null || exception.getMessage().isBlank()) {
+                message = "비밀번호를 변경하지 못했습니다.";
+            } else {
+                message = exception.getMessage();
+            }
             return "redirect:/mypage/profile?passwordError=" + URLEncoder.encode(message, StandardCharsets.UTF_8)
                     + "#password-change";
         }

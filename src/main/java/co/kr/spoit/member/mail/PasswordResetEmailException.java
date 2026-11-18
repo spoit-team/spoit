@@ -51,6 +51,9 @@ public class PasswordResetEmailException extends RuntimeException {
     }
 
     private static String safeToken(String value) {
-        return value != null && SAFE_TOKEN.matcher(value).matches() ? value : null;
+        if (value != null && SAFE_TOKEN.matcher(value).matches()) {
+            return value;
+        }
+        return null;
     }
 }

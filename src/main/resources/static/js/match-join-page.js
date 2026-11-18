@@ -18,7 +18,11 @@
   const joinError = document.getElementById('join-error');
   const paymentError = document.getElementById('payment-error');
   const payButton = document.getElementById('submit-payment');
+  const applicationSummary = document.getElementById('application-summary');
 
+  if (applicationSummary && applicationSummary.dataset.completed === 'true') {
+    applicationSummary.classList.add('is-complete');
+  }
   if (!form) return;
 
   const paid = form.dataset.paid === 'true';
@@ -52,15 +56,22 @@
       if (value === step) indicator.setAttribute('aria-current', 'step');
       else indicator.removeAttribute('aria-current');
       const number = indicator.querySelector('.step-number');
-      if (number) number.textContent = value < step ? '✓' : String(value);
+      if (number) {
+        if (value < step) number.textContent = '✓';
+        else number.textContent = String(value);
+      }
     });
     if (stageIndex) stageIndex.textContent = 'STEP 0' + step + ' / 0' + totalSteps;
     if (stageHeading) {
-      stageHeading.textContent = step === 1
-        ? '신청 내용을 확인해 주세요'
-        : step === 2 ? '참가비를 결제해 주세요' : '신청 처리가 완료되었습니다';
+      if (step === 1) {
+        stageHeading.textContent = '신청 내용을 확인해 주세요';
+      } else {
+        stageHeading.textContent = step === 2 ? '참가비를 결제해 주세요' : '신청 처리가 완료되었습니다';
+      }
     }
-    (step === 1 || step === 2 ? stageHeading : null)?.focus?.({ preventScroll: true });
+    if ((step === 1 || step === 2) && stageHeading) {
+      stageHeading.focus?.({ preventScroll: true });
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 

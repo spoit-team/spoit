@@ -30,12 +30,32 @@ public class FacilityListItem {
     private FacilityListItem(Long facilityId, String name, String address, List<String> sports,
             Integer concurrentMatchLimit, String status) {
         this.facilityId = facilityId;
-        this.name = isBlank(name) ? "시설명 미설정" : name.strip();
-        this.address = isBlank(address) ? "주소 미설정" : address.strip();
+        if (isBlank(name)) {
+            this.name = "시설명 미설정";
+        } else {
+            this.name = name.strip();
+        }
+        if (isBlank(address)) {
+            this.address = "주소 미설정";
+        } else {
+            this.address = address.strip();
+        }
         this.sports = List.copyOf(sports);
-        this.sportsLabel = sports.isEmpty() ? UNSET : String.join(", ", sports);
-        this.concurrentMatchLimit = concurrentMatchLimit == null ? 0 : concurrentMatchLimit;
-        this.statusLabel = isBlank(status) ? "상태 미설정" : status.strip();
+        if (sports.isEmpty()) {
+            this.sportsLabel = UNSET;
+        } else {
+            this.sportsLabel = String.join(", ", sports);
+        }
+        if (concurrentMatchLimit == null) {
+            this.concurrentMatchLimit = 0;
+        } else {
+            this.concurrentMatchLimit = concurrentMatchLimit;
+        }
+        if (isBlank(status)) {
+            this.statusLabel = "상태 미설정";
+        } else {
+            this.statusLabel = status.strip();
+        }
         this.statusTone = statusTone(status);
     }
 

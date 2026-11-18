@@ -12,6 +12,8 @@
   const DEFAULT_ERROR_TITLE = '요청을 처리할 수 없습니다';
   /* 새로고침 뒤 보여 줄 성공 문구. 문구만 잠시 맡기고, 다시 열린 화면이 꺼내 보여 준 뒤 바로 지운다. */
   const PENDING_TOAST_KEY = 'spoit-pending-toast';
+  const CSRF_RECOVERY_QUERY_PARAM = 'csrfRecovery';
+  const CSRF_RECOVERY_MESSAGE = '요청은 처리되지 않았으며 화면을 새로 고쳤습니다. 내용을 확인한 뒤 다시 시도해 주세요.';
 
   let toastRegion = null;
   let alertDialog = null;
@@ -144,6 +146,36 @@
     if (message) toast(message);
   }
 
+  /* 안전하게 돌아온 GET에서 표식을 지운 뒤 CSRF 실패 안내를 한 번만 보여 준다. */
+  function consumeCsrfRecoveryMarker() {
+    let url;
+    try {
+      url = new URL(global.location.href);
+    } catch (error) {
+      return false;
+    }
+    if (!url.searchParams.getAll(CSRF_RECOVERY_QUERY_PARAM).includes('1')) return false;
+
+    url.searchParams.delete(CSRF_RECOVERY_QUERY_PARAM);
+    const cleanUrl = url.pathname + url.search + url.hash;
+    try {
+      global.history.replaceState(global.history.state, '', cleanUrl);
+    } catch (error) {
+      try {
+        global.sessionStorage.setItem(PENDING_TOAST_KEY, CSRF_RECOVERY_MESSAGE);
+      } catch (storageError) {
+        /* replaceState 실패 시에도 URL에서 표식을 제거한다. 저장소가 막히면 안내는 다음 화면에 남기지 않는다. */
+      }
+      try {
+        global.location.replace(cleanUrl);
+      } catch (replaceError) {
+        return true;
+      }
+      return false;
+    }
+    return true;
+  }
+
   /* ---------------- 실패 안내 모달 ---------------- */
 
   function ensureAlertDialog() {
@@ -250,6 +282,7 @@
   /* ---------------- 서버가 넘긴 결과(flash) ---------------- */
 
   function showServerFeedback() {
+    if (consumeCsrfRecoveryMarker()) showAlert(DEFAULT_ERROR_TITLE, CSRF_RECOVERY_MESSAGE);
     const flash = document.getElementById('ui-feedback-flash');
     if (flash) {
       const error = flash.getAttribute('data-error');

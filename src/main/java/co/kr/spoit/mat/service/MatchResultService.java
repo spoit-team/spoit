@@ -162,7 +162,12 @@ public class MatchResultService {
     private static String scheduleOf(ResultMatch match) {
         LocalDateTime start = match.getStartAt();
         LocalDateTime end = match.getEndAt();
-        String endText = end.toLocalDate().equals(start.toLocalDate()) ? end.format(TIME) : end.format(DATE_TIME);
+        String endText;
+        if (end.toLocalDate().equals(start.toLocalDate())) {
+            endText = end.format(TIME);
+        } else {
+            endText = end.format(DATE_TIME);
+        }
         return start.format(DATE_TIME) + " ~ " + endText;
     }
 

@@ -428,11 +428,17 @@
   display: none;
 }
 
-.join-inline-notice > span,
+.join-inline-notice > span:first-child,
 .join-guidance-notice > span {
   flex: 0 0 auto;
   font-size: 14px;
   font-weight: 850;
+}
+
+.join-inline-notice > span:last-child {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
 }
 
 .join-agreement {
@@ -470,6 +476,9 @@
 }
 
 .join-error {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
   margin: 10px 0 0;
   padding: 10px 12px;
   border: 1px solid #f0cdca;
@@ -478,6 +487,7 @@
   color: var(--color-danger);
   font-size: 12px;
   font-weight: 650;
+  overflow-wrap: anywhere;
 }
 
 .join-error[hidden] {
@@ -1110,15 +1120,21 @@
 
 .join-conflict-content {
   display: grid;
+  min-width: 0;
   gap: 12px;
   padding: 22px;
 }
 
 .join-conflict-heading {
   display: flex;
+  min-width: 0;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+.join-conflict-heading > div {
+  min-width: 0;
 }
 
 .join-conflict-heading h2 {
@@ -1129,10 +1145,12 @@
 }
 
 .join-conflict-heading p {
+  min-width: 0;
   margin: 5px 0 0;
   color: var(--color-muted);
   font-size: 11px;
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .join-conflict-close {
@@ -1160,6 +1178,7 @@
 .join-conflict-people,
 .join-conflict-people ul {
   display: grid;
+  min-width: 0;
   gap: 8px;
   margin: 0;
   padding: 0;
@@ -1168,6 +1187,7 @@
 
 .join-conflict-people > li {
   display: grid;
+  min-width: 0;
   gap: 6px;
   border: 1px solid var(--color-line);
   border-radius: 10px;
@@ -1175,11 +1195,14 @@
 }
 
 .join-conflict-people > li > b {
+  min-width: 0;
   font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .join-conflict-match {
   display: grid;
+  min-width: 0;
   gap: 2px;
   border-left: 2px solid var(--color-line-strong);
   padding-left: 10px;
@@ -1190,6 +1213,11 @@
 .join-conflict-match-title {
   color: var(--color-ink);
   font-weight: 750;
+}
+
+.join-conflict-match > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .join-conflict-match small {
@@ -1258,15 +1286,21 @@
 
 .join-rules-content {
   display: grid;
+  min-width: 0;
   gap: 14px;
   padding: 22px;
 }
 
 .join-rules-heading {
   display: flex;
+  min-width: 0;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+.join-rules-heading > div {
+  min-width: 0;
 }
 
 .join-rules-heading h2 {
@@ -1277,10 +1311,12 @@
 }
 
 .join-rules-heading p {
+  min-width: 0;
   margin: 5px 0 0;
   color: var(--color-muted);
   font-size: 11px;
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .join-rules-close {
@@ -1337,6 +1373,14 @@
 .join-rules-close:focus-visible {
   outline: 2px solid var(--color-match);
   outline-offset: 3px;
+}
+
+@supports (height: 100dvh) {
+  .join-conflict-dialog,
+  .join-rules-dialog {
+    top: 50dvh;
+    max-height: calc(100dvh - 32px);
+  }
 }
 
 /* 참가비 결제 단계: 결제 수단(카카오페이), 1인 참가비 × 인원과 결제 금액 */

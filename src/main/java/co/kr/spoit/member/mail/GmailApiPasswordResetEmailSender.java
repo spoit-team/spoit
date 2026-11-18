@@ -123,7 +123,11 @@ public class GmailApiPasswordResetEmailSender implements PasswordResetEmailSende
             }
 
             CachedAccessToken refreshed = requestAccessToken();
-            cachedAccessToken = refreshed.isValidAt(clock.instant()) ? refreshed : null;
+            if (refreshed.isValidAt(clock.instant())) {
+                cachedAccessToken = refreshed;
+            } else {
+                cachedAccessToken = null;
+            }
             return refreshed.value();
         }
     }
@@ -138,7 +142,11 @@ public class GmailApiPasswordResetEmailSender implements PasswordResetEmailSende
 
             cachedAccessToken = null;
             CachedAccessToken refreshed = requestAccessToken();
-            cachedAccessToken = refreshed.isValidAt(clock.instant()) ? refreshed : null;
+            if (refreshed.isValidAt(clock.instant())) {
+                cachedAccessToken = refreshed;
+            } else {
+                cachedAccessToken = null;
+            }
             return refreshed.value();
         }
     }
@@ -157,7 +165,13 @@ public class GmailApiPasswordResetEmailSender implements PasswordResetEmailSende
                     .retrieve()
                     .body(String.class);
 
-            JsonNode root = objectMapper.readTree(response == null ? "{}" : response);
+            String responseBody;
+            if (response == null) {
+                responseBody = "{}";
+            } else {
+                responseBody = response;
+            }
+            JsonNode root = objectMapper.readTree(responseBody);
             String accessToken = root.path("access_token").asText("");
             long expiresInSeconds = root.path("expires_in").asLong(0);
             if (accessToken.isBlank() || expiresInSeconds <= 0) {
@@ -255,19 +269,31 @@ public class GmailApiPasswordResetEmailSender implements PasswordResetEmailSende
      */
     private String oauthErrorToken(RestClientResponseException exception) {
         JsonNode root = readProviderErrorJson(exception);
-        JsonNode error = root == null ? null : root.path("error");
-        return error != null && error.isTextual() ? error.asText() : null;
+        JsonNode error = null;
+        if (root != null) {
+            error = root.path("error");
+        }
+        if (error != null && error.isTextual()) {
+            return error.asText();
+        }
+        return null;
     }
 
     /** Reads only {@code error.errors[0].reason}, never {@code error.message} or raw body. */
     private String gmailApiReason(RestClientResponseException exception) {
         JsonNode root = readProviderErrorJson(exception);
-        JsonNode errors = root == null ? null : root.path("error").path("errors");
+        JsonNode errors = null;
+        if (root != null) {
+            errors = root.path("error").path("errors");
+        }
         if (errors == null || !errors.isArray() || errors.isEmpty()) {
             return null;
         }
         JsonNode reason = errors.get(0).path("reason");
-        return reason.isTextual() ? reason.asText() : null;
+        if (reason.isTextual()) {
+            return reason.asText();
+        }
+        return null;
     }
 
     private JsonNode readProviderErrorJson(RestClientResponseException exception) {
@@ -277,14 +303,20 @@ public class GmailApiPasswordResetEmailSender implements PasswordResetEmailSende
                 return null;
             }
             JsonNode root = this.objectMapper.readTree(body);
-            return root != null && root.isObject() ? root : null;
+            if (root != null && root.isObject()) {
+                return root;
+            }
+            return null;
         } catch (RuntimeException | java.io.IOException ignored) {
             return null;
         }
     }
 
     private static String causeType(Throwable throwable) {
-        return throwable == null ? null : throwable.getClass().getSimpleName();
+        if (throwable == null) {
+            return null;
+        }
+        return throwable.getClass().getSimpleName();
     }
 
     /**

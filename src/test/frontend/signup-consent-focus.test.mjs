@@ -64,7 +64,6 @@ function signupPage() {
     agreeAll: control('agree-all'),
     service: control('agree-service'),
     privacy: control('agree-privacy'),
-    marketing: control('agree-marketing', { disabled: true }),
     nextStep: control('next-step'),
     previousStep: control('previous-step'),
     region: control('signup-preferred-region'),
@@ -88,12 +87,11 @@ assert.equal(page.stepOne.hidden, false);
 assert.equal(page.stepTwo.hidden, true);
 assert.equal(page.roleHint.textContent, '현재는 일반 사용자로만 가입할 수 있습니다.');
 
-// 전체 동의는 필수 약관만 채우고, 비활성 마케팅 항목은 건드리지 않는다.
+// 전체 동의는 두 필수 약관을 모두 선택한다.
 page.agreeAll.checked = true;
 page.agreeAll.dispatch('change');
 assert.equal(page.service.checked, true);
 assert.equal(page.privacy.checked, true);
-assert.equal(page.marketing.checked, false);
 assert.equal(page.termsError.hidden, true);
 
 // 필수 약관이 하나라도 빠지면 오류를 다시 노출한다.

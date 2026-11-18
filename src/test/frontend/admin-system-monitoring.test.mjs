@@ -185,7 +185,7 @@ assert.equal(roleOf('service-badge').classList.contains('good'), true);
 assert.equal(roleOf('service-badge').classList.contains('warn'), false);
 assert.equal(roleOf('chart-note').textContent.includes('15초 수집'), true);
 assert.equal(roleOf('chart-note').textContent.includes('최근 6시간'), true);
-assert.equal(roleOf('chart-note').textContent.includes('5분 평균'), true);
+assert.equal(roleOf('chart-note').textContent.includes('10분 평균'), true);
 
 // 차트: 측정된 막대만 만들고 값이 없는 막대는 0으로 그리지 않습니다.
 assert.equal(bars.children.length, 2);
@@ -464,8 +464,8 @@ assert.equal(source.includes('insertAdjacentHTML'), false);
 
 /* ── 16. 템플릿 계약: POST 전용 버튼 + JS 초기화 전 disabled ───────────── */
 const template = await Bun.file(TEMPLATE_URL).text();
-assert.equal(template.includes('최근 6시간 · 15초 수집 · 차트는 5분 평균'), true,
-  '초기 화면에도 6시간 표시 범위와 5분 평균 기준을 표시해야 합니다.');
+assert.equal(template.includes('최근 6시간 · 15초 수집 · 차트는 10분 평균'), true,
+  '초기 화면에도 6시간 표시 범위와 10분 평균 기준을 표시해야 합니다.');
 assert.equal(template.includes('th:data-monitoring-url="@{/admin/system/monitoring}"'), true);
 assert.equal(template.includes('th:data-csrf-header="${_csrf?.headerName}"'), true);
 assert.equal(template.includes('th:data-csrf-token="${_csrf?.token}"'), true);

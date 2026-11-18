@@ -22,6 +22,12 @@ public final class NotificationListResponse {
     }
 
     public static NotificationListResponse of(List<NotificationItemDto> items, int unreadCount) {
-        return new NotificationListResponse(items == null ? List.of() : items, Math.max(unreadCount, 0));
+        List<NotificationItemDto> safeItems;
+        if (items == null) {
+            safeItems = List.of();
+        } else {
+            safeItems = items;
+        }
+        return new NotificationListResponse(safeItems, Math.max(unreadCount, 0));
     }
 }

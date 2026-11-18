@@ -166,9 +166,12 @@ public class SystemErrorLogBuffer extends AppenderBase<ILoggingEvent> {
     static SystemErrorRecord toRecord(ILoggingEvent event) {        Level level = event.getLevel();
         String summary = truncate(mask(message(event)), SUMMARY_MAX);
         String throwableDetail = throwableDetail(event.getThrowableProxy());
-        String detail = throwableDetail == null
-                ? truncate(mask(message(event)), DETAIL_MAX)
-                : truncate(mask(throwableDetail), DETAIL_MAX);
+        String detail;
+        if (throwableDetail == null) {
+            detail = truncate(mask(message(event)), DETAIL_MAX);
+        } else {
+            detail = truncate(mask(throwableDetail), DETAIL_MAX);
+        }
         return new SystemErrorRecord(
                 LocalDateTime.ofInstant(Instant.ofEpochMilli(event.getTimeStamp()), ZONE),
                 level.toString(),
@@ -193,7 +196,10 @@ public class SystemErrorLogBuffer extends AppenderBase<ILoggingEvent> {
     }
 
     static String codeOf(IThrowableProxy throwable) {
-        return throwable == null ? "LOG" : throwable.getClassName();
+        if (throwable == null) {
+            return "LOG";
+        }
+        return throwable.getClassName();
     }
 
     static String mask(String value) {
@@ -221,12 +227,18 @@ public class SystemErrorLogBuffer extends AppenderBase<ILoggingEvent> {
     }
 
     static String timeText(LocalDateTime time) {
-        return time == null ? "—" : TIME_FORMAT.format(time);
+        if (time == null) {
+            return "—";
+        }
+        return TIME_FORMAT.format(time);
     }
 
     private static String message(ILoggingEvent event) {
         String formatted = event.getFormattedMessage();
-        return formatted == null ? "" : formatted.strip();
+        if (formatted == null) {
+            return "";
+        }
+        return formatted.strip();
     }
 
     /** 예외가 있으면 원인 사슬을 합쳐 상세에 남긴다(스택 프레임 수는 제한한다). */
@@ -253,6 +265,9 @@ public class SystemErrorLogBuffer extends AppenderBase<ILoggingEvent> {
 
     /** 필터 비교용 소문자. */
     static String lower(String value) {
-        return value == null ? "" : value.toLowerCase(Locale.ROOT);
+        if (value == null) {
+            return "";
+        }
+        return value.toLowerCase(Locale.ROOT);
     }
 }

@@ -73,9 +73,21 @@ public class ReportNotificationService {
             return;
         }
         boolean dismissed = isDismissed(status);
+        String title;
+        if (dismissed) {
+            title = DISMISSED_TITLE;
+        } else {
+            title = RESOLVED_TITLE;
+        }
+        String body;
+        if (dismissed) {
+            body = DISMISSED_BODY;
+        } else {
+            body = RESOLVED_BODY;
+        }
         notificationDispatcher.notifyAfterCommit(List.of(reporterUserId), NotificationType.REPORT_RESOLVED.name(),
-                dismissed ? DISMISSED_TITLE : RESOLVED_TITLE,
-                dismissed ? DISMISSED_BODY : RESOLVED_BODY,
+                title,
+                body,
                 null, null, null, null, reportId);
     }
 
