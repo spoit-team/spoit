@@ -542,9 +542,7 @@ textarea:focus-visible {
 }
 
 /* Keep public-page header surfaces aligned with the main PlayOn header. */
-body > header:not(.admin-topbar),
-body.match-join-body > header.match-join-header,
-body.match-detail-body > header.match-join-header {
+body > header:not(.admin-topbar) {
   position: sticky;
   top: 0;
   z-index: 40;
@@ -556,109 +554,16 @@ body.match-detail-body > header.match-join-header {
   -webkit-backdrop-filter: blur(16px);
 }
 
-body > header:not(.admin-topbar) > .wrap,
-body.match-join-body > header.match-join-header > .match-join-header-inner,
-body.match-detail-body > header.match-join-header > .match-join-header-inner {
+body > header:not(.admin-topbar) > .wrap {
   width: min(100% - 40px, 1240px);
   height: 68px;
   min-height: 68px;
   margin-inline: auto;
 }
 
-body.match-join-body > header.match-join-header > .match-join-header-inner,
-body.match-detail-body > header.match-join-header > .match-join-header-inner {
-  justify-content: flex-start;
-  gap: 28px;
-}
-
-body.match-join-body > header.match-join-header > .match-join-header-inner > a > span:first-child,
-body.match-detail-body > header.match-join-header > .match-join-header-inner > a > span:first-child {
-  box-shadow: 0 1px 2px rgb(19 21 25 / 12%);
-}
-
-body.match-join-body > header.match-join-header .match-join-header-nav,
-body.match-detail-body > header.match-join-header .match-join-header-nav {
-  height: 68px;
-  align-self: stretch;
-  align-items: stretch;
-  gap: 4px;
-  color: var(--color-ink-2);
-  font-size: 14px;
-  font-weight: 650;
-}
-
-body.match-join-body > header.match-join-header .match-join-header-nav a,
-body.match-detail-body > header.match-join-header .match-join-header-nav a {
-  position: relative;
-  display: flex;
-  height: 68px;
-  align-items: center;
-  border-radius: 8px;
-  padding: 0 14px;
-  color: var(--color-ink-2);
-  font-size: 14px;
-  font-weight: 650;
-  text-decoration: none;
-  transition: background-color .15s ease, color .15s ease;
-}
-
-body.match-join-body > header.match-join-header .match-join-header-nav a:hover,
-body.match-detail-body > header.match-join-header .match-join-header-nav a:hover {
-  background: var(--color-paper-soft);
-  color: var(--color-ink);
-}
-
-body.match-join-body > header.match-join-header .match-join-header-nav a[aria-current="page"],
-body.match-detail-body > header.match-join-header .match-join-header-nav a[aria-current="page"] {
-  color: var(--color-ink);
-}
-
-body.match-join-body > header.match-join-header .match-join-header-nav a[aria-current="page"]::after,
-body.match-detail-body > header.match-join-header .match-join-header-nav a[aria-current="page"]::after {
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: 3px;
-  background: var(--color-ink);
-  content: "";
-}
-
 @media (max-width: 640px) {
-  body > header:not(.admin-topbar) > .wrap,
-  body.match-join-body > header.match-join-header > .match-join-header-inner,
-  body.match-detail-body > header.match-join-header > .match-join-header-inner {
+  body > header:not(.admin-topbar) > .wrap {
     width: min(100% - 32px, 1240px);
-  }
-
-  body.match-join-body > header.match-join-header > .match-join-header-inner,
-  body.match-detail-body > header.match-join-header > .match-join-header-inner {
-    gap: 6px;
-  }
-
-  body.match-join-body > header.match-join-header .match-join-header-nav,
-  body.match-detail-body > header.match-join-header .match-join-header-nav {
-    gap: 0;
-    font-size: 12px;
-  }
-
-  body.match-join-body > header.match-join-header .match-join-header-nav a,
-  body.match-detail-body > header.match-join-header .match-join-header-nav a {
-    padding-inline: 7px;
-    font-size: 12px;
-  }
-}
-
-@media (max-width: 480px) {
-  body.match-join-body > header.match-join-header > .match-join-header-inner,
-  body.match-detail-body > header.match-join-header > .match-join-header-inner {
-    gap: 4px;
-  }
-
-  body.match-join-body > header.match-join-header .match-join-header-nav a,
-  body.match-detail-body > header.match-join-header .match-join-header-nav a {
-    padding-inline: 4px;
-    font-size: 11px;
   }
 }
 
