@@ -1049,6 +1049,7 @@ check(/setProperty\('--match-evaluation-slider-ratio'/.test(matchEvaluationScrip
    신고 원문은 서버가 단건만 내려주며, 화면은 th:text로만 표시한다(마크업 주입 금지). */
 const facilityReportSource = await readFile(path.join(resources, 'templates/admin/report-facility.html'), 'utf8');
 const systemReportSource = await readFile(path.join(resources, 'templates/admin/report-system.html'), 'utf8');
+const reportPagerSource = await readFile(path.join(resources, 'templates/admin/report-fragments.html'), 'utf8');
 const reportStyles = await readFile(path.join(resources, 'static/css/report-center.css'), 'utf8');
 const reportScript = await readFile(path.join(resources, 'static/js/admin-report.js'), 'utf8');
 
@@ -1504,36 +1505,31 @@ check(facilityReportForm?.inputs.some(input => input.name === 'matchId')
   && namedForms.get('facility-report-form')?.inputs.some(input => input.name === 'matchPage'),
   'facility-report-form: the intake POST must echo matchId and matchPage');
 
-// 11-3) 두 화면 모두 이전/다음 링크와 1-based 현재 페이지를 갖는다.
-for (const [source, label] of [[facilityReportSource, 'report-facility.html'],
-  [systemReportSource, 'report-system.html']]) {
-  check((source.match(/class="report-page-link" rel="prev"/g) ?? []).length >= 1,
-    `${label}: each list needs a previous-page link`);
-  check((source.match(/class="report-page-link" rel="next"/g) ?? []).length >= 1,
-    `${label}: each list needs a next-page link`);
-  check(source.includes('class="report-page-current" aria-current="page"'),
-    `${label}: the current page must be shown as an aria-current page number`);
-}
-// 첫 페이지 이전 없음 / 마지막 페이지 다음 없음.
+// 11-3) 공통 목록 페이저는 이전/다음 링크와 1-based aria-current 페이지를 갖는다.
+check((reportPagerSource.match(/class="report-page-link" rel="prev"/g) ?? []).length === 1,
+  'report-fragments.html: the shared pager needs one previous-page link');
+check((reportPagerSource.match(/class="report-page-link" rel="next"/g) ?? []).length === 1,
+  'report-fragments.html: the shared pager needs one next-page link');
+check(reportPagerSource.includes('class="report-page-current" aria-current="page"'),
+  'report-fragments.html: the current page must be shown as an aria-current page number');
+// 첫 페이지 이전 없음 / 마지막 페이지 다음 없음. 경기 선택지 페이저와 공통 신고 페이저 조건을 각각 확인한다.
 check(/rel="prev" th:if="\$\{matchPage != null and matchPage > 0\}"/.test(facilityReportSource),
   'report-facility.html: the previous match page must not render on page 1');
-check(/rel="prev" th:if="\$\{reportPage != null and reportPage > 0\}"/.test(facilityReportSource),
-  'report-facility.html: the previous report page must not render on page 1');
-check(/rel="next" th:if="\$\{hasNextReports\}"/.test(facilityReportSource),
-  'report-facility.html: the next report page must be gated by hasNextReports');
+check(/rel="prev" th:if="\$\{hasPrevious\}"/.test(reportPagerSource),
+  'report-fragments.html: the previous report page must depend on hasPrevious');
+check(facilityReportSource.includes('hasPrevious=${reportPage != null and reportPage > 0}')
+  && systemReportSource.includes('hasPrevious=${reportPage != null and reportPage > 0}'),
+  'report screens: the shared pager must hide the previous link on page 1');
 check(/rel="next" th:if="\$\{hasNextMatches\}"/.test(facilityReportSource),
   'report-facility.html: the next match page must be gated by hasNextMatches');
-check(/rel="prev" th:if="\$\{reportPage != null and reportPage > 0\}"/.test(systemReportSource),
-  'report-system.html: the previous page must not render on page 1');
-check(/rel="next" th:if="\$\{hasNextReports\}"/.test(systemReportSource),
-  'report-system.html: the next page must be gated by hasNextReports');
+check(/rel="next" th:if="\$\{hasNext\}"/.test(reportPagerSource)
+  && facilityReportSource.includes('hasNext=${hasNextReports}')
+  && systemReportSource.includes('hasNext=${hasNextReports}'),
+  'report screens: the next report page must be gated by hasNextReports');
 
 // 11-4) 페이지 링크는 query param만 쓰는 native GET 링크다(JS 이동·data 훅 금지).
-for (const [source, label] of [[facilityReportSource, 'report-facility.html'],
-  [systemReportSource, 'report-system.html']]) {
-  check(!/report-page-link[^>]*data-[a-z-]+/.test(source),
-    `${label}: paging links must not carry JS hooks`);
-}
+check(!/report-page-link[^>]*data-[a-z-]+/.test(reportPagerSource),
+  'report-fragments.html: shared paging links must not carry JS hooks');
 check(!/reportPage|matchPage|page=\$\{/.test(reportScript),
   'admin-report.js: paging must stay server-rendered, not handled in script');
 // href 값에는 중첩된 ${...} 식이 있으므로, 앵커 구간을 잘라 그 안의 파라미터를 검사한다.
@@ -1544,24 +1540,24 @@ function pagerHref(source, rel) {
   return end < 0 ? '' : source.slice(start, end);
 }
 
+check(pagerHref(reportPagerSource, 'prev').includes('th:href="${previousUrl}"')
+  && pagerHref(reportPagerSource, 'next').includes('th:href="${nextUrl}"'),
+  'report-fragments.html: each paging link must use its matching URL argument');
+
 const facilityNextMatch = pagerHref(facilityReportSource, 'next');
 check(facilityNextMatch.includes('matchPage=${(matchPage != null ? matchPage : 0) + 1}')
   && facilityNextMatch.includes('hasNextMatches')
   && facilityNextMatch.includes('matchId=${selectedMatchId}')
   && facilityNextMatch.includes('targetUserId=${selectedTargetUserId}'),
   'report-facility.html: the next match page must keep the selection and advance matchPage');
-const facilityReportPager = facilityReportSource.slice(
-  facilityReportSource.indexOf('aria-label="내가 접수한 신고 페이지"'));
-const facilityPrevReport = pagerHref(facilityReportPager, 'prev');
-check(facilityPrevReport.includes('reportPage=${reportPage - 1}')
-  && facilityPrevReport.includes('matchPage=${matchPage != null ? matchPage : 0}'),
-  'report-facility.html: the report pager must keep matchPage and step reportPage back');
-check(pagerHref(facilityReportPager, 'next').includes('hasNextReports'),
-  'report-facility.html: the report pager next link must be gated by hasNextReports');
-const systemNext = pagerHref(systemReportSource, 'next');
-check(systemNext.includes('page=${(reportPage != null ? reportPage : 0) + 1}')
-  && systemNext.includes('status=${statusFilter}'),
-  'report-system.html: the next page must advance page and keep the status filter');
+check(facilityReportSource.includes('previousUrl=@{/admin/facility/reports(reportPage=${(reportPage != null ? reportPage : 0) - 1}, matchPage=${matchPage != null ? matchPage : 0}')
+  && facilityReportSource.includes('nextUrl=@{/admin/facility/reports(reportPage=${(reportPage != null ? reportPage : 0) + 1}, matchPage=${matchPage != null ? matchPage : 0}')
+  && facilityReportSource.includes('matchId=${selectedMatchId}, targetUserId=${selectedTargetUserId}, reportId=${selectedReport != null ? selectedReport.reportId : null}'),
+  'report-facility.html: the shared pager must preserve selection while stepping reportPage');
+check(systemReportSource.includes('previousUrl=@{/admin/system/reports(page=${(reportPage != null ? reportPage : 0) - 1}, status=${statusFilter}')
+  && systemReportSource.includes('nextUrl=@{/admin/system/reports(page=${(reportPage != null ? reportPage : 0) + 1}, status=${statusFilter}')
+  && systemReportSource.includes('reportId=${selectedReport != null ? selectedReport.reportId : null}'),
+  'report-system.html: the shared pager must advance page and keep status and report selection');
 
 // 11-5) 상세 링크도 현재 페이지를 실어 돌아올 때 같은 페이지를 본다.
 check(facilityReportSource.includes('reportId=${report.reportId}, reportPage=${reportPage != null ? reportPage : 0}'),
