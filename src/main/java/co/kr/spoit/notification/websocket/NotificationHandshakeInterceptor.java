@@ -17,6 +17,7 @@ import org.springframework.web.socket.server.HandshakeInterceptor;
 
 import co.kr.spoit.member.domain.MemberPrincipal;
 import co.kr.spoit.member.security.MemberAccountStateVerifier;
+import co.kr.spoit.member.security.MemberAccountStateVerifier.VerificationResult;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 
@@ -59,9 +60,20 @@ public class NotificationHandshakeInterceptor implements HandshakeInterceptor {
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
             WebSocketHandler wsHandler, Map<String, Object> attributes) {
         MemberPrincipal principal = authenticatedPrincipal(request);
-        if (principal == null || !MemberAccountStateVerifier.isStillActive(principal, this.userDetailsService)) {
-            // 로그인하지 않았거나, 로그인 스냅샷 이후 계정이 제한·탈퇴·역할 변경된 상태다.
+        if (principal == null) {
             response.setStatusCode(HttpStatus.FORBIDDEN);
+            return false;
+        }
+        VerificationResult verification = MemberAccountStateVerifier.verify(principal, this.userDetailsService);
+        if (verification != VerificationResult.ACTIVE) {
+            // 계정 상태가 다르면 403, 조회가 일시적으로 불가능하면 재시도할 수 있도록 503을 반환한다.
+            HttpStatus status;
+            if (verification == VerificationResult.UNAVAILABLE) {
+                status = HttpStatus.SERVICE_UNAVAILABLE;
+            } else {
+                status = HttpStatus.FORBIDDEN;
+            }
+            response.setStatusCode(status);
             return false;
         }
         attributes.put(USER_ID_ATTRIBUTE, principal.getUserId());
