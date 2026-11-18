@@ -60,6 +60,9 @@ class MemberSessionAuthenticationStrategyTest {
                 username -> restrictedPrincipal(),
                 username -> {
                     throw new UsernameNotFoundException("없음");
+                },
+                username -> {
+                    throw new IllegalStateException("회원 조회를 완료할 수 없음");
                 })) {
             assertThatThrownBy(() -> strategy(changed).onAuthentication(authentication(authenticated),
                     new MockHttpServletRequest(), new MockHttpServletResponse()))
