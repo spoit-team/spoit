@@ -20,14 +20,17 @@
     if (page && page !== '0') params.set('page', page);
     const query = params.toString();
     const listUrl = modal?.getAttribute('data-report-list-url') || '/admin/system/reports';
-    global.location.href = listUrl + (query ? '?' + query : '') + '#report-ledger';
+    let queryString = '';
+    if (query) queryString = '?' + query;
+    global.location.href = listUrl + queryString + '#report-ledger';
   }
 
   if (modal && modal.querySelector('section')) {
     admin?.openModal(modal, '.modal-close');
 
     modal.addEventListener('click', function (event) {
-      const target = event.target instanceof Element ? event.target : null;
+      let target = null;
+      if (event.target instanceof Element) target = event.target;
       if (!target) return;
       if (target.closest('[data-close-report]') || target === modal) closeToList();
     });

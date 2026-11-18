@@ -35,23 +35,11 @@
       <span class="flex flex-col leading-none"><b class="text-[16px] font-extrabold tracking-[-.04em]">SPO<span style="color:#5FAE4E">:</span>IT</b><small class="mt-1 hidden whitespace-nowrap text-[8px] font-medium tracking-[.01em] text-faint xl:block">SPORTS · PEOPLE · CONNECTION</small></span>
     </a>
     <nav class="primary-nav hidden items-center gap-1 text-sm font-semibold text-ink-2 md:flex" aria-label="주요 메뉴">
-      <a class="primary-nav-link flex h-[68px] items-center px-3.5 hover:text-ink"
-         th:classappend="${active == 'matches'} ? 'text-ink' : 'text-ink-2'"
-         th:href="@{/matches}">매칭방 찾기</a>
-      <a class="primary-nav-link flex h-[68px] items-center rounded-lg px-3.5 hover:bg-paper-soft hover:text-ink"
-         th:classappend="${active == 'teams'} ? 'text-ink' : 'text-ink-2'"
-         th:href="@{/teams}">동호회</a>
-      <a class="primary-nav-link flex h-[68px] items-center rounded-lg px-3.5 hover:bg-paper-soft hover:text-ink"
-         th:classappend="${active == 'mypage'} ? 'text-ink' : 'text-ink-2'"
-         th:href="@{/mypage}">마이페이지</a>
-      <a class="primary-nav-link flex h-[68px] items-center gap-1.5 rounded-lg px-3.5 hover:bg-paper-soft hover:text-ink"
-         th:if="${currentMember != null and currentMember.roleLabel == '시설 관리자'}"
-         th:classappend="${active == 'admin'} ? 'text-ink' : 'text-ink-2'"
-         th:href="@{/admin/facility}">시설 관리 <span class="rounded bg-book-soft px-1.5 py-0.5 text-[10px] font-bold text-book-ink">관리자</span></a>
-      <a class="primary-nav-link flex h-[68px] items-center gap-1.5 rounded-lg px-3.5 hover:bg-paper-soft hover:text-ink"
-         th:if="${currentMember != null and currentMember.roleLabel == '시스템 관리자'}"
-         th:classappend="${active == 'admin'} ? 'text-ink' : 'text-ink-2'"
-         th:href="@{/admin/system}">시스템 관리 <span class="rounded bg-book-soft px-1.5 py-0.5 text-[10px] font-bold text-book-ink">관리자</span></a>
+      <a class="primary-nav-link flex h-[68px] items-center px-3.5 hover:text-ink" th:data-current="${active == 'matches'}" th:href="@{/matches}">매칭방 찾기</a>
+      <a class="primary-nav-link flex h-[68px] items-center rounded-lg px-3.5 hover:bg-paper-soft hover:text-ink" th:data-current="${active == 'teams'}" th:href="@{/teams}">동호회</a>
+      <a class="primary-nav-link flex h-[68px] items-center rounded-lg px-3.5 hover:bg-paper-soft hover:text-ink" th:data-current="${active == 'mypage'}" th:href="@{/mypage}">마이페이지</a>
+      <a th:if="${currentMember != null and currentMember.roleLabel == '시설 관리자'}" class="primary-nav-link flex h-[68px] items-center gap-1.5 rounded-lg px-3.5 hover:bg-paper-soft hover:text-ink" th:data-current="${active == 'admin'}" th:href="@{/admin/facility}">시설 관리 <span class="rounded bg-book-soft px-1.5 py-0.5 text-[10px] font-bold text-book-ink">관리자</span></a>
+      <a th:if="${currentMember != null and currentMember.roleLabel == '시스템 관리자'}" class="primary-nav-link flex h-[68px] items-center gap-1.5 rounded-lg px-3.5 hover:bg-paper-soft hover:text-ink" th:data-current="${active == 'admin'}" th:href="@{/admin/system}">시스템 관리 <span class="rounded bg-book-soft px-1.5 py-0.5 text-[10px] font-bold text-book-ink">관리자</span></a>
     </nav>
     <div class="ml-auto flex items-center gap-2">
       <!-- JS가 있고 알림 창이 함께 있는 화면(마이페이지)에서는 창을 열고, 그 외에는 알림 영역으로 이동합니다. -->

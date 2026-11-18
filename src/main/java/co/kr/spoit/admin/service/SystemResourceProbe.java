@@ -96,7 +96,10 @@ public class SystemResourceProbe {
             }
             Method method = type.getMethod("getProcessCpuLoad");
             Object value = method.invoke(bean);
-            return value instanceof Double load ? load : null;
+            if (value instanceof Double load) {
+                return load;
+            }
+            return null;
         } catch (ReflectiveOperationException | LinkageError | RuntimeException e) {
             return null;
         }

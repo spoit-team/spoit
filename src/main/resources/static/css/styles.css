@@ -166,12 +166,14 @@ textarea:focus-visible {
 }
 
 .primary-nav-link[aria-current="page"],
-.primary-nav-link.text-ink {
+.primary-nav-link.text-ink,
+.primary-nav-link[data-current="true"] {
   color: var(--color-ink);
 }
 
 .primary-nav-link[aria-current="page"]::after,
-.primary-nav-link.text-ink::after {
+.primary-nav-link.text-ink::after,
+.primary-nav-link[data-current="true"]::after {
   position: absolute;
   right: 0;
   bottom: -1px;

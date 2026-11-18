@@ -41,8 +41,11 @@
 
   <div id="managed-team-selector" class="managed-team-selector">
     <span th:if="${!#lists.isEmpty(managedClubs)}" class="managed-team-label">관리할 동호회</span>
-    <a th:each="club : ${managedClubs}" class="team-selector-button" th:classappend="${club.active} ? 'is-active' : ''"
-       th:href="@{/teams/manage(clubId=${club.clubId}, tab=${tab})}" th:attr="aria-current=${club.active} ? 'true' : null"
+    <a th:each="club : ${managedClubs}" th:if="${club.active}" class="team-selector-button is-active"
+       th:href="@{/teams/manage(clubId=${club.clubId}, tab=${tab})}" aria-current="true"
+       th:text="${club.clubName + ' (' + club.memberCount + '명)'}">동호회 이름</a>
+    <a th:each="club : ${managedClubs}" th:unless="${club.active}" class="team-selector-button"
+       th:href="@{/teams/manage(clubId=${club.clubId}, tab=${tab})}"
        th:text="${club.clubName + ' (' + club.memberCount + '명)'}">동호회 이름</a>
   </div>
 
@@ -156,7 +159,8 @@
       <section th:if="${tab == 'applications'}" class="team-management-section">
         <div class="team-section-heading">
           <div><h2>가입 신청</h2><p th:text="${managedClub.clubName + ' 동호회로 들어온 가입 신청을 확인합니다.'}">가입 신청을 확인합니다.</p></div>
-          <span class="team-badge" th:text="${'가입 신청 대기 ' + (managedClub.pendingApplicationCount != null ? managedClub.pendingApplicationCount : 0) + '건'}">가입 신청 대기 0건</span>
+          <span class="team-badge" th:if="${managedClub.pendingApplicationCount != null}" th:text="${'가입 신청 대기 ' + managedClub.pendingApplicationCount + '건'}">가입 신청 대기 0건</span>
+          <span class="team-badge" th:unless="${managedClub.pendingApplicationCount != null}">가입 신청 대기 0건</span>
         </div>
         <div class="team-application-list">
           <article th:each="joinRequest : ${managedClub.applications}" class="team-application-row">

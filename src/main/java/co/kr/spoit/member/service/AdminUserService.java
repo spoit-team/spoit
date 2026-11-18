@@ -74,12 +74,24 @@ public class AdminUserService {
         String statusFilter = statusFilter(status);
         int safePage = normalizePage(page);
         LocalDateTime now = LocalDateTime.now(ZONE);
-        String roleCode = roleFilter == null ? null : codeOf(roleFilter);
-        String roleLabel = roleFilter == null ? null : roleFilter.label();
+        String roleCode = null;
+        if (roleFilter != null) {
+            roleCode = codeOf(roleFilter);
+        }
+        String roleLabel = null;
+        if (roleFilter != null) {
+            roleLabel = roleFilter.label();
+        }
 
         List<AdminUserRow> rows = memberMapper.findAdminUsers(keyword, roleCode, roleLabel, statusFilter,
                 now, PAGE_SIZE + 1, offset(safePage));
-        List<AdminUserListItem> users = new ArrayList<>(Math.min(rows == null ? 0 : rows.size(), PAGE_SIZE));
+        int rowCount;
+        if (rows == null) {
+            rowCount = 0;
+        } else {
+            rowCount = rows.size();
+        }
+        List<AdminUserListItem> users = new ArrayList<>(Math.min(rowCount, PAGE_SIZE));
         if (rows != null) {
             for (AdminUserRow row : rows) {
                 if (users.size() >= PAGE_SIZE) {
@@ -117,8 +129,14 @@ public class AdminUserService {
         String keyword = normalizeKeyword(q);
         MemberRole roleFilter = roleFilter(role);
         String statusFilter = statusFilter(status);
-        String roleCode = roleFilter == null ? null : codeOf(roleFilter);
-        String roleLabel = roleFilter == null ? null : roleFilter.label();
+        String roleCode = null;
+        if (roleFilter != null) {
+            roleCode = codeOf(roleFilter);
+        }
+        String roleLabel = null;
+        if (roleFilter != null) {
+            roleLabel = roleFilter.label();
+        }
         LocalDateTime now = LocalDateTime.now(ZONE);
 
         List<AdminUserListItem> users = new ArrayList<>();
@@ -242,9 +260,12 @@ public class AdminUserService {
             return AdminUserActionResult.rejected("이미 이용이 제한된 계정입니다.");
         }
         penaltyService.issueForAccount(userId, actorUserId, days, trimmedReason);
-        String periodLabel = days == PenaltyService.PERMANENT_DURATION_DAYS
-                ? "영구 정지"
-                : days + "일 정지";
+        String periodLabel;
+        if (days == PenaltyService.PERMANENT_DURATION_DAYS) {
+            periodLabel = "영구 정지";
+        } else {
+            periodLabel = days + "일 정지";
+        }
         return AdminUserActionResult.applied(target.getNickname() + " 계정을 " + periodLabel + "했습니다.");
     }
 
@@ -343,11 +364,17 @@ public class AdminUserService {
     }
 
     static String roleValue(MemberRole role) {
-        return role == null ? null : AdminUserListItem.value(role);
+        if (role == null) {
+            return null;
+        }
+        return AdminUserListItem.value(role);
     }
 
     static String statusValue(String statusFilter) {
-        return statusFilter == null ? null : statusFilter;
+        if (statusFilter == null) {
+            return null;
+        }
+        return statusFilter;
     }
 
     private static String normalizeKeyword(String q) {
@@ -355,7 +382,10 @@ public class AdminUserService {
             return null;
         }
         String value = q.strip();
-        return value.length() > 100 ? value.substring(0, 100) : value;
+        if (value.length() > 100) {
+            return value.substring(0, 100);
+        }
+        return value;
     }
 
     private static String normalizeReason(String reason) {
@@ -379,15 +409,29 @@ public class AdminUserService {
     static int offset(int normalizedPage) {
         long value = (long) normalizedPage * PAGE_SIZE;
         long max = (long) PAGE_SIZE * MAX_PAGE;
-        return value > max ? (int) max : (int) value;
+        if (value > max) {
+            return (int) max;
+        }
+        return (int) value;
     }
 
     private static AdminUserPagination pagination(int page, int total, String keyword, MemberRole role,
             String status) {
-        int totalPages = total <= 0 ? 1 : (total + PAGE_SIZE - 1) / PAGE_SIZE;
+        int totalPages;
+        if (total <= 0) {
+            totalPages = 1;
+        } else {
+            totalPages = (total + PAGE_SIZE - 1) / PAGE_SIZE;
+        }
         boolean lastPage = total > 0 && (page + 1) * PAGE_SIZE >= total;
-        String prev = page > 0 ? url(page - 1, keyword, role, status) : null;
-        String next = lastPage ? null : url(page + 1, keyword, role, status);
+        String prev = null;
+        if (page > 0) {
+            prev = url(page - 1, keyword, role, status);
+        }
+        String next = null;
+        if (!lastPage) {
+            next = url(page + 1, keyword, role, status);
+        }
         return new AdminUserPagination(page, totalPages, prev, next);
     }
 

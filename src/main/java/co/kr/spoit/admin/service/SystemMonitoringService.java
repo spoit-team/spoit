@@ -210,9 +210,17 @@ public class SystemMonitoringService {
 
     private static SystemDashboard.Bar bar(LocalDateTime bucketStart, long cpuSum, int cpuCount, long memorySum,
             int memoryCount) {
+        Integer cpuPercent = null;
+        if (cpuCount != 0) {
+            cpuPercent = (int) Math.round((double) cpuSum / cpuCount);
+        }
+        Integer memoryPercent = null;
+        if (memoryCount != 0) {
+            memoryPercent = (int) Math.round((double) memorySum / memoryCount);
+        }
         return new SystemDashboard.Bar(
-                cpuCount == 0 ? null : (int) Math.round((double) cpuSum / cpuCount),
-                memoryCount == 0 ? null : (int) Math.round((double) memorySum / memoryCount),
+                cpuPercent,
+                memoryPercent,
                 SystemResourceHistory.label(bucketStart));
     }
 
@@ -238,11 +246,18 @@ public class SystemMonitoringService {
     }
 
     private static List<SystemDashboard.ServiceStatus> services(boolean databaseReachable) {
+        String databaseStatus;
+        String databaseTone;
+        if (databaseReachable) {
+            databaseStatus = "연결 정상";
+            databaseTone = TONE_GOOD;
+        } else {
+            databaseStatus = "연결 확인 실패";
+            databaseTone = TONE_BAD;
+        }
         return List.of(
                 new SystemDashboard.ServiceStatus("API 서버", STATUS_UP, TONE_GOOD),
-                new SystemDashboard.ServiceStatus("데이터베이스",
-                        databaseReachable ? "연결 정상" : "연결 확인 실패",
-                        databaseReachable ? TONE_GOOD : TONE_BAD));
+                new SystemDashboard.ServiceStatus("데이터베이스", databaseStatus, databaseTone));
     }
 
     private static String formatUptime(long uptimeMillis) {

@@ -154,9 +154,12 @@ public class PasswordResetService {
             return invalidVerification(0, 0);
         }
         PasswordResetChallenge initial = this.passwordResetMapper.findChallenge(challengeId);
-        String emailFingerprint = initial == null
-                ? fingerprint("email-bucket", normalizedEmail)
-                : initial.getEmailFingerprint();
+        String emailFingerprint;
+        if (initial == null) {
+            emailFingerprint = fingerprint("email-bucket", normalizedEmail);
+        } else {
+            emailFingerprint = initial.getEmailFingerprint();
+        }
         return this.transactions.execute(status -> verifyCodeInTransaction(challengeId, normalizedEmail,
                 emailFingerprint, normalizeIp(requestIp), code));
     }
@@ -233,7 +236,11 @@ public class PasswordResetService {
 
         PasswordResetRequestResult result = new PasswordResetRequestResult(
                 challengeId, true, true, CODE_TTL_MINUTES * 60, RESEND_COOLDOWN_SECONDS);
-        return new IssuedChallenge(result, activeUserId == null ? null : email, code, challengeId);
+        String issuedEmail = null;
+        if (activeUserId != null) {
+            issuedEmail = email;
+        }
+        return new IssuedChallenge(result, issuedEmail, code, challengeId);
     }
 
     private PasswordResetVerificationResult verifyCodeInTransaction(String challengeId, String email,
@@ -388,14 +395,18 @@ public class PasswordResetService {
 
     private int codeSeconds(String challengeId, LocalDateTime now) {
         PasswordResetChallenge challenge = this.passwordResetMapper.findChallenge(challengeId);
-        return challenge == null || challenge.getExpiresAt() == null ? 0
-                : remainingSeconds(challenge.getExpiresAt(), now);
+        if (challenge == null || challenge.getExpiresAt() == null) {
+            return 0;
+        }
+        return remainingSeconds(challenge.getExpiresAt(), now);
     }
 
     private int resendSeconds(String challengeId, LocalDateTime now) {
         PasswordResetChallenge challenge = this.passwordResetMapper.findChallenge(challengeId);
-        return challenge == null || challenge.getCreatedAt() == null ? 0
-                : remainingSeconds(challenge.getCreatedAt().plusSeconds(RESEND_COOLDOWN_SECONDS), now);
+        if (challenge == null || challenge.getCreatedAt() == null) {
+            return 0;
+        }
+        return remainingSeconds(challenge.getCreatedAt().plusSeconds(RESEND_COOLDOWN_SECONDS), now);
     }
 
     private static PasswordResetVerificationResult invalidVerification(int expiresInSeconds,
@@ -475,7 +486,12 @@ public class PasswordResetService {
     }
 
     private static String normalizeAndValidateEmail(String email) {
-        String normalized = email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+        String normalized;
+        if (email == null) {
+            normalized = "";
+        } else {
+            normalized = email.trim().toLowerCase(Locale.ROOT);
+        }
         if (normalized.isEmpty() || normalized.length() > EMAIL_MAX_LENGTH
                 || !EMAIL_PATTERN.matcher(normalized).matches()) {
             throw new IllegalArgumentException("올바른 이메일 형식으로 입력해 주세요.");
@@ -484,7 +500,10 @@ public class PasswordResetService {
     }
 
     private static String normalizeIp(String requestIp) {
-        return requestIp == null || requestIp.isBlank() ? "unknown" : requestIp.trim();
+        if (requestIp == null || requestIp.isBlank()) {
+            return "unknown";
+        }
+        return requestIp.trim();
     }
 
     private static int remainingSeconds(LocalDateTime until, LocalDateTime now) {

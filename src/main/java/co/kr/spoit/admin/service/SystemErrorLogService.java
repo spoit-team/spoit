@@ -87,13 +87,17 @@ public class SystemErrorLogService {
         }
 
         List<SystemErrorLog> rows = group(matched);
+        String lastCollectedText = null;
+        if (lastCollected != null) {
+            lastCollectedText = SystemErrorLogBuffer.timeText(lastCollected);
+        }
         SystemErrorMetrics metrics = new SystemErrorMetrics(
                 errorCount,
                 warnCount,
                 errorCount,
                 // 응답 시간은 수집 범위가 아니므로 값을 만들지 않는다.
                 null,
-                lastCollected == null ? null : SystemErrorLogBuffer.timeText(lastCollected));
+                lastCollectedText);
         return new SystemErrorLogPage(metrics,
                 new SystemErrorFilters(keyword, normalizedSeverity, normalizedPeriod), rows);
     }
@@ -117,9 +121,13 @@ public class SystemErrorLogService {
         for (Map.Entry<String, SystemErrorLog> entry : first.entrySet()) {
             SystemErrorLog row = entry.getValue();
             int count = counts.get(entry.getKey());
-            grouped.add(count == 1 ? row : new SystemErrorLog(row.getTime(), row.getSeverity(),
-                    row.getSeverityLabel(), row.getSeverityTone(), row.getService(), row.getCode(),
-                    row.getSummary(), count, row.getDetail()));
+            if (count == 1) {
+                grouped.add(row);
+            } else {
+                grouped.add(new SystemErrorLog(row.getTime(), row.getSeverity(),
+                        row.getSeverityLabel(), row.getSeverityTone(), row.getService(), row.getCode(),
+                        row.getSummary(), count, row.getDetail()));
+            }
             if (grouped.size() >= MAX_ROWS) {
                 break;
             }
@@ -129,11 +137,23 @@ public class SystemErrorLogService {
 
     static SystemErrorLog toRow(SystemErrorRecord record) {
         boolean warning = "WARN".equalsIgnoreCase(record.level());
+        String severity;
+        String severityLabel;
+        String severityTone;
+        if (warning) {
+            severity = SEVERITY_WARN;
+            severityLabel = "경고";
+            severityTone = "warn";
+        } else {
+            severity = SEVERITY_ERROR;
+            severityLabel = "오류";
+            severityTone = "bad";
+        }
         return new SystemErrorLog(
                 SystemErrorLogBuffer.timeText(record.time()),
-                warning ? SEVERITY_WARN : SEVERITY_ERROR,
-                warning ? "경고" : "오류",
-                warning ? "warn" : "bad",
+                severity,
+                severityLabel,
+                severityTone,
                 record.service(),
                 record.code(),
                 record.summary(),
@@ -199,6 +219,9 @@ public class SystemErrorLogService {
             return null;
         }
         String value = q.strip();
-        return value.length() > 100 ? value.substring(0, 100) : value;
+        if (value.length() > 100) {
+            return value.substring(0, 100);
+        }
+        return value;
     }
 }

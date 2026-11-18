@@ -110,13 +110,21 @@ public class NotificationHandshakeInterceptor implements HandshakeInterceptor {
                 || authentication instanceof AnonymousAuthenticationToken) {
             return null;
         }
-        return authentication.getPrincipal() instanceof MemberPrincipal principal ? principal : null;
+        if (authentication.getPrincipal() instanceof MemberPrincipal principal) {
+            return principal;
+        } else {
+            return null;
+        }
     }
 
     /** 인증 주체가 로그인 회원일 때만 회원 번호를 돌려준다. */
     static Long userIdOf(Authentication authentication) {
         MemberPrincipal principal = principalOf(authentication);
-        return principal == null ? null : principal.getUserId();
+        if (principal == null) {
+            return null;
+        } else {
+            return principal.getUserId();
+        }
     }
 
     /**

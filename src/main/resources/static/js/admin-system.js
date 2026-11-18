@@ -16,7 +16,8 @@
   }
 
   document.addEventListener('click', function (event) {
-    const target = event.target instanceof Element ? event.target : null;
+    let target = null;
+    if (event.target instanceof Element) target = event.target;
     if (!target) return;
 
     const roleButton = target.closest('[data-user-role]');
@@ -120,15 +121,25 @@
   }
 
   function setPercent(role, value) {
-    setText(role, value === null || value === undefined ? '—' : String(value));
-    const unit = field(role === 'cpu-percent' ? 'cpu-unit' : 'memory-unit');
+    let text = '—';
+    if (value !== null && value !== undefined) text = String(value);
+    setText(role, text);
+    let unitRole = 'memory-unit';
+    if (role === 'cpu-percent') unitRole = 'cpu-unit';
+    const unit = field(unitRole);
     if (unit) unit.hidden = value === null || value === undefined;
   }
 
   function setProgress(role, value) {
-    setText(role, value === null || value === undefined ? '—' : value + '%');
+    let text = '—';
+    let width = 0;
+    if (value !== null && value !== undefined) {
+      text = value + '%';
+      width = value;
+    }
+    setText(role, text);
     const track = field(role.replace('-progress', '-track'));
-    if (track) track.style.width = (value === null || value === undefined ? 0 : value) + '%';
+    if (track) track.style.width = width + '%';
   }
 
   function setStatus(message, tone) {
@@ -140,7 +151,11 @@
     badge.hidden = !message;
     if (message) {
       badge.classList.add('status-badge');
-      badge.classList.add(tone === 'warn' ? 'warn' : 'bad');
+      if (tone === 'warn') {
+        badge.classList.add('warn');
+      } else {
+        badge.classList.add('bad');
+      }
     }
   }
 
@@ -165,7 +180,9 @@
     const container = field('bars');
     if (!container) return;
     const groups = [];
-    (Array.isArray(bars) ? bars : []).forEach(function (bar) {
+    let barItems = [];
+    if (Array.isArray(bars)) barItems = bars;
+    barItems.forEach(function (bar) {
       if (!bar) return;
       const group = document.createElement('div');
       group.className = 'bar-group';
@@ -190,21 +207,31 @@
       group.appendChild(label);
       groups.push(group);
     });
-    container.replaceChildren(...groups);    const isEmpty = groups.length === 0;
-    setText('chart-note', isEmpty ? EMPTY_CHART_NOTE : FILLED_CHART_NOTE);
-    setText('chart-empty', isEmpty ? '아직 표본이 없습니다' : 'JVM CPU · 힙 메모리 (%)');
+    container.replaceChildren(...groups);
+    const isEmpty = groups.length === 0;
+    let chartNote = FILLED_CHART_NOTE;
+    let emptyLabel = 'JVM CPU · 힙 메모리 (%)';
+    if (isEmpty) {
+      chartNote = EMPTY_CHART_NOTE;
+      emptyLabel = '아직 표본이 없습니다';
+    }
+    setText('chart-note', chartNote);
+    setText('chart-empty', emptyLabel);
   }
 
   function renderServices(services) {
     const container = field('services');
     if (!container) return;
     const rows = [];
-    (Array.isArray(services) ? services : []).forEach(function (service) {
+    let serviceItems = [];
+    if (Array.isArray(services)) serviceItems = services;
+    serviceItems.forEach(function (service) {
       if (!service) return;
       const row = document.createElement('div');
       row.className = 'system-status-row';
       const dot = document.createElement('i');
-      dot.className = service.tone ? 'live-dot ' + service.tone : 'live-dot';
+      dot.className = 'live-dot';
+      if (service.tone) dot.className += ' ' + service.tone;
       const name = document.createElement('span');
       name.className = 'service-name';
       name.textContent = service.name ?? '';
@@ -226,27 +253,56 @@
 
   function renderMonitoring(data) {
     if (!data || typeof data !== 'object') throw new TypeError('모니터링 응답 형식이 올바르지 않습니다.');
-    const collectedAt = data.collectedAt != null ? String(data.collectedAt) : null;
-    setText('collected-at', collectedAt !== null ? '마지막 수집 ' + collectedAt : '수집 시각 없음');
-    setText('chart-collected-at', collectedAt !== null ? '마지막 수집 ' + collectedAt : '수집 전');
+    let collectedAt = null;
+    if (data.collectedAt != null) collectedAt = String(data.collectedAt);
+    let collectedAtLabel = '수집 시각 없음';
+    let chartCollectedAtLabel = '수집 전';
+    if (collectedAt !== null) {
+      collectedAtLabel = '마지막 수집 ' + collectedAt;
+      chartCollectedAtLabel = '마지막 수집 ' + collectedAt;
+    }
+    setText('collected-at', collectedAtLabel);
+    setText('chart-collected-at', chartCollectedAtLabel);
 
-    setText('api-status', data.apiStatus != null ? String(data.apiStatus) : '—');
-    setText('api-uptime', data.apiUptime != null ? String(data.apiUptime) : '—');
-    setText('api-uptime-label', data.apiUptime != null ? '현재 프로세스 가동시간' : '가동시간 정보 없음');
+    let apiStatus = '—';
+    if (data.apiStatus != null) apiStatus = String(data.apiStatus);
+    let apiUptime = '—';
+    if (data.apiUptime != null) apiUptime = String(data.apiUptime);
+    let apiUptimeLabel = '가동시간 정보 없음';
+    if (data.apiUptime != null) apiUptimeLabel = '현재 프로세스 가동시간';
+    setText('api-status', apiStatus);
+    setText('api-uptime', apiUptime);
+    setText('api-uptime-label', apiUptimeLabel);
 
     setPercent('cpu-percent', data.cpuPercent);
-    setText('cpu-label', data.cpuPercent != null ? 'JVM 프로세스 CPU' : '측정값 없음');
-    setText('cpu-peak', data.cpuPeak != null ? '· 피크 ' + data.cpuPeak + '%' : '');
+    let cpuLabel = '측정값 없음';
+    if (data.cpuPercent != null) cpuLabel = 'JVM 프로세스 CPU';
+    let cpuPeak = '';
+    if (data.cpuPeak != null) cpuPeak = '· 피크 ' + data.cpuPeak + '%';
+    setText('cpu-label', cpuLabel);
+    setText('cpu-peak', cpuPeak);
 
     setPercent('memory-percent', data.memoryPercent);
-    setText('memory-label', data.memoryPercent != null ? 'JVM 힙 사용률' : '측정값 없음');
-    setText('memory-capacity', data.memoryCapacity != null ? '최대 힙 ' + data.memoryCapacity : '');
+    let memoryLabel = '측정값 없음';
+    if (data.memoryPercent != null) memoryLabel = 'JVM 힙 사용률';
+    let memoryCapacity = '';
+    if (data.memoryCapacity != null) memoryCapacity = '최대 힙 ' + data.memoryCapacity;
+    setText('memory-label', memoryLabel);
+    setText('memory-capacity', memoryCapacity);
 
     const badge = field('service-badge');
     if (badge) {
       badge.classList.remove('good', 'warn', 'bad');
-      badge.classList.add(collectedAt === null ? 'neutral' : (data.allHealthy ? 'good' : 'warn'));
-      badge.textContent = collectedAt === null ? '수집 전' : (data.allHealthy ? 'API·DB 정상' : 'API·DB 확인 필요');
+      if (collectedAt === null) {
+        badge.classList.add('neutral');
+        badge.textContent = '수집 전';
+      } else if (data.allHealthy) {
+        badge.classList.add('good');
+        badge.textContent = 'API·DB 정상';
+      } else {
+        badge.classList.add('warn');
+        badge.textContent = 'API·DB 확인 필요';
+      }
     }
 
     setProgress('cpu-progress', data.cpuPercent);
@@ -261,7 +317,11 @@
      수동 새로고침(manual)은 자동 갱신과 같은 POST 경로를 쓰되, 숨은 탭 검사를 건너뜁니다. */
   async function refreshMonitoring(manual) {
     if (monitoringStopped || monitoringInFlight || !monitoringRoot) return;
-    if (manual ? monitoringRoot.hidden : (document.hidden || monitoringRoot.hidden)) return;
+    if (manual) {
+      if (monitoringRoot.hidden) return;
+    } else if (document.hidden || monitoringRoot.hidden) {
+      return;
+    }
     monitoringInFlight = true;
     if (manual) announce(''); // 같은 성공 문구가 반복되어도 다시 읽히도록 이전 안내를 먼저 비운다.
     syncRefreshButton(); // 진행 중임을 버튼에도 알린다(자동·수동 공통).
@@ -318,8 +378,8 @@
     const busy = monitoringInFlight;
     // 세션이 끝났으면 다시 눌러도 소용없으므로 비활성으로 남긴다.
     refreshButton.disabled = busy || monitoringStopped;
-    refreshButton.setAttribute('aria-busy', busy ? 'true' : 'false');
-    refreshButton.setAttribute('aria-disabled', refreshButton.disabled ? 'true' : 'false');
+    refreshButton.setAttribute('aria-busy', String(busy));
+    refreshButton.setAttribute('aria-disabled', String(refreshButton.disabled));
   }
 
   function requestManualRefresh() {

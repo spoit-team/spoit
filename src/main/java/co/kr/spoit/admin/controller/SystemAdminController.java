@@ -178,8 +178,18 @@ public class SystemAdminController {
             @RequestParam(name = "page", required = false) String page,
             RedirectAttributes redirect) {
         // JS 없이 제출되면 action이 /admin/system/users/suspend이고 userId는 폼 본문으로 온다.
-        Long targetId = userId != null ? userId : userIdParam;
-        Integer duration = durationDays != null ? durationDays : days;
+        Long targetId;
+        if (userId != null) {
+            targetId = userId;
+        } else {
+            targetId = userIdParam;
+        }
+        Integer duration;
+        if (durationDays != null) {
+            duration = durationDays;
+        } else {
+            duration = days;
+        }
         return applyUserAction(redirect, principal, q, role, status, page, actor -> {
             if (targetId == null || targetId <= 0) {
                 return AdminUserActionResult.rejected("정지할 계정을 확인해 주세요.");
@@ -374,7 +384,10 @@ public class SystemAdminController {
             if (parsed < 0) {
                 return 0;
             }
-            return parsed > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) parsed;
+            if (parsed > Integer.MAX_VALUE) {
+                return Integer.MAX_VALUE;
+            }
+            return (int) parsed;
         } catch (NumberFormatException exception) {
             return 0;
         }

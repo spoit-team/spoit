@@ -110,6 +110,9 @@ public class MemberSessionRevocationFilter extends OncePerRequestFilter {
 
     private static String contextPath(HttpServletRequest request) {
         String contextPath = request.getContextPath();
-        return contextPath == null || contextPath.isBlank() ? "/" : contextPath;
+        if (contextPath == null || contextPath.isBlank()) {
+            return "/";
+        }
+        return contextPath;
     }
 }

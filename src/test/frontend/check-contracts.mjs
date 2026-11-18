@@ -1002,7 +1002,7 @@ check(matchResultSource.includes('data-csrf-header')
 check(['노쇼', '비매너·욕설', '폭력·싸움', '기타'].every(category => matchResultScript.includes(`'${category}'`))
     && matchResultScript.includes('SUMMARY_MAX = 1000'),
   'match-result.js: participant reports must use the supported categories and summary limit');
-check(/chip\.tabIndex = checked \|\| \(!selectedCategory && index === 0\)/.test(matchResultScript)
+check(/if \(checked \|\| \(!selectedCategory && index === 0\)\) chip\.tabIndex = 0;\s*else chip\.tabIndex = -1;/.test(matchResultScript)
     && ['ArrowLeft:', 'ArrowUp:', 'ArrowRight:', 'ArrowDown:'].every(key => matchResultScript.includes(key))
     && matchResultScript.includes('next.focus()'),
   'match-result.js: the report category radio group must support keyboard entry and arrow navigation');

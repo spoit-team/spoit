@@ -39,9 +39,11 @@ public class MemberAuthController {
         model.addAttribute("error", blankToNull(error));
         model.addAttribute("message", blankToNull(message));
         // 성공 핸들러와 같은 규칙으로 검증해 폼에 위험한 값이 되돌아가지 않게 한다.
-        model.addAttribute("redirect", redirect == null || redirect.isBlank()
-                ? null
-                : MemberLoginSuccessHandler.resolveTarget(redirect));
+        String redirectTarget = null;
+        if (redirect != null && !redirect.isBlank()) {
+            redirectTarget = MemberLoginSuccessHandler.resolveTarget(redirect);
+        }
+        model.addAttribute("redirect", redirectTarget);
         model.addAttribute("email", blankToNull(email));
         model.addAttribute("remember", remember);
         return "auth/login";
@@ -54,6 +56,9 @@ public class MemberAuthController {
     }
 
     private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value;
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value;
     }
 }

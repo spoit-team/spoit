@@ -33,8 +33,13 @@
     layout.classList.toggle('is-sidebar-expanded', expanded);
     layout.classList.toggle('is-sidebar-collapsed', !expanded);
     sidebarToggle.setAttribute('aria-expanded', String(expanded));
-    sidebarToggle.setAttribute('aria-label', expanded ? '메뉴 접기' : '메뉴 펼치기');
-    sidebarToggle.setAttribute('title', expanded ? '메뉴 접기' : '메뉴 펼치기');
+    if (expanded) {
+      sidebarToggle.setAttribute('aria-label', '메뉴 접기');
+      sidebarToggle.setAttribute('title', '메뉴 접기');
+    } else {
+      sidebarToggle.setAttribute('aria-label', '메뉴 펼치기');
+      sidebarToggle.setAttribute('title', '메뉴 펼치기');
+    }
   }
 
   function syncSidebarForViewport() {
@@ -78,7 +83,8 @@
      링크 이동(다른 경로)이면 페이지가 바뀌므로 상태가 자연히 초기화된다. */
   document.addEventListener('click', function (event) {
     if (!mobileMenuOpen()) return;
-    const link = event.target instanceof Element ? event.target.closest('.admin-nav-link') : null;
+    let link = null;
+    if (event.target instanceof Element) link = event.target.closest('.admin-nav-link');
     if (link) setMobileMenuOpen(false);
   });
 
@@ -102,7 +108,8 @@
     if (hash && views.some(function (view) { return view.id === hash; })) return hash;
 
     if (explicit && views.some(function (view) { return view.id === explicit; })) return explicit;
-    const roleView = role && explicit ? role + '-' + explicit : '';
+    let roleView = '';
+    if (role && explicit) roleView = role + '-' + explicit;
     if (roleView && views.some(function (view) { return view.id === roleView; })) return roleView;
     return views[0]?.id || '';
   }
@@ -122,7 +129,11 @@
     if (breadcrumb && title) breadcrumb.textContent = title;
     if (updateLocation !== false) {
       global.history.replaceState(null, '', '#' + targetId);
-      document.title = (title ? title + ' · ' : '') + 'SPO:IT 관리자';
+      if (title) {
+        document.title = title + ' · SPO:IT 관리자';
+      } else {
+        document.title = 'SPO:IT 관리자';
+      }
     }
     if (skipFocus) return;
     target.setAttribute('tabindex', '-1');
@@ -169,7 +180,11 @@
     tabs.forEach(function (item) {
       const active = item === tab;
       item.setAttribute('aria-selected', String(active));
-      item.tabIndex = active ? 0 : -1;
+      if (active) {
+        item.tabIndex = 0;
+      } else {
+        item.tabIndex = -1;
+      }
     });
     panelRoot.querySelectorAll(group.panelSelector).forEach(function (panel) {
       panel.hidden = panel.id !== panelId;
@@ -177,9 +192,10 @@
   }
 
   function tabFromEvent(event) {
-    return event.target instanceof Element
-      ? event.target.closest('[data-schedule-tab],[data-content-tab],[data-cms-tab]')
-      : null;
+    if (event.target instanceof Element) {
+      return event.target.closest('[data-schedule-tab],[data-content-tab],[data-cms-tab]');
+    }
+    return null;
   }
 
   document.addEventListener('click', function (event) {
@@ -209,7 +225,8 @@
 
   /* 스위치: 화면 내부 상태만 변경합니다. 서버 저장은 폼 제출로 처리합니다. */
   document.addEventListener('click', function (event) {
-    const toggle = event.target instanceof Element ? event.target.closest('.toggle[role="switch"]') : null;
+    let toggle = null;
+    if (event.target instanceof Element) toggle = event.target.closest('.toggle[role="switch"]');
     if (!toggle || toggle.disabled) return;
     const next = toggle.getAttribute('aria-checked') !== 'true';
     toggle.setAttribute('aria-checked', String(next));
@@ -241,7 +258,8 @@
   }
 
   document.addEventListener('click', function (event) {
-    const target = event.target instanceof Element ? event.target : null;
+    let target = null;
+    if (event.target instanceof Element) target = event.target;
     if (!target) return;
     if (target.closest('[data-open-admin-notifications]')) {
       event.preventDefault();
@@ -325,7 +343,10 @@
       modalOpener = document.activeElement;
       modal.hidden = false;
       document.body.classList.add('has-admin-modal');
-      (focusSelector ? modal.querySelector(focusSelector) : null)?.focus();
+      if (focusSelector) {
+        const focusTarget = modal.querySelector(focusSelector);
+        focusTarget?.focus();
+      }
     },
     closeModal: function (modal) {
       if (!modal) return;

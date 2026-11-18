@@ -62,14 +62,14 @@
             <section class="md-roster-group">
               <h3 class="is-team-a"><span>A팀</span><span class="md-team-heading-meta"><span class="md-team-average">평균 <b th:text="${match.teamA.averageText}">기록 없음</b></span><span th:text="${#lists.size(match.teamA.members) + '명'}">0명</span></span></h3>
               <ul class="md-roster-list">
-                <li th:each="person : ${match.teamA.members}"><span th:text="${person.nickname + (person.host ? ' · 방장' : '')}">참가자</span><small th:text="${person.meta}">상태</small></li>
+                <li th:each="person : ${match.teamA.members}"><span><th:block th:text="${person.nickname}">참가자</th:block><th:block th:if="${person.host}"> · 방장</th:block></span><small th:text="${person.meta}">상태</small></li>
                 <li th:if="${#lists.isEmpty(match.teamA.members)}" class="md-roster-empty">아직 참가자가 없습니다.</li>
               </ul>
             </section>
             <section class="md-roster-group">
               <h3 class="is-team-b"><span>B팀</span><span class="md-team-heading-meta"><span class="md-team-average">평균 <b th:text="${match.teamB.averageText}">기록 없음</b></span><span th:text="${#lists.size(match.teamB.members) + '명'}">0명</span></span></h3>
               <ul class="md-roster-list">
-                <li th:each="person : ${match.teamB.members}"><span th:text="${person.nickname + (person.host ? ' · 방장' : '')}">참가자</span><small th:text="${person.meta}">상태</small></li>
+                <li th:each="person : ${match.teamB.members}"><span><th:block th:text="${person.nickname}">참가자</th:block><th:block th:if="${person.host}"> · 방장</th:block></span><small th:text="${person.meta}">상태</small></li>
                 <li th:if="${#lists.isEmpty(match.teamB.members)}" class="md-roster-empty">아직 참가자가 없습니다.</li>
               </ul>
             </section>
@@ -102,7 +102,8 @@
       <div class="md-capacity">
         <div><span>현재 참가 인원</span><b th:text="${match.occupancyLabel}">0 / 8명</b></div>
         <div class="md-capacity-track" role="progressbar" aria-label="매칭방 참가 인원" aria-valuemin="0" th:attr="aria-valuemax=${match.maxParticipants}, aria-valuenow=${match.occupiedSeats}">
-          <span th:style="'width:' + ${match.occupancyPercent ?: 0} + '%'"></span>
+          <span th:if="${match.occupancyPercent != null}" th:style="'width:' + ${match.occupancyPercent} + '%'"></span>
+          <span th:unless="${match.occupancyPercent != null}" style="width:0%"></span>
         </div>
         <small th:text="${match.occupancyCaption}">안내</small>
       </div>
@@ -136,7 +137,7 @@
         <dl>
           <div><dt>경기 일시</dt><dd th:text="${match.dateLabel + ' ' + match.time}">일시</dd></div>
           <div><dt>시설</dt><dd th:text="${match.place}">시설</dd></div>
-          <div><dt>남은 자리</dt><dd th:text="${match.availableSeats > 0 ? match.availableSeats + '자리 / ' + match.maxParticipants + '명' : '정원 마감 · 예약 불가'}">자리</dd></div>
+          <div><dt>남은 자리</dt><dd th:if="${match.availableSeats > 0}" th:text="${match.availableSeats + '자리 / ' + match.maxParticipants + '명'}">자리</dd><dd th:unless="${match.availableSeats > 0}">정원 마감 · 예약 불가</dd></div>
           <div><dt>참가비</dt><dd th:text="${match.feeText + '원 / 1인'}">참가비</dd></div>
         </dl>
       </section>
@@ -202,6 +203,7 @@
 </dialog>
 
 <script th:src="@{/js/site-menu.js}"></script>
-<script th:src="@{/js/match-detail-page.js}" th:attr="data-available-seats=${match != null ? match.availableSeats : 0}, data-capacity=${match != null ? match.maxParticipants : 0}"></script>
+<script th:if="${match != null}" th:src="@{/js/match-detail-page.js}" th:attr="data-available-seats=${match.availableSeats}, data-capacity=${match.maxParticipants}"></script>
+<script th:unless="${match != null}" th:src="@{/js/match-detail-page.js}" data-available-seats="0" data-capacity="0"></script>
 </body>
 </html>

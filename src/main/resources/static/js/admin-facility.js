@@ -70,7 +70,11 @@
     if (facilityConfirmName) facilityConfirmName.textContent = action.name;
     if (facilityConfirmSubmit) {
       facilityConfirmSubmit.textContent = action.submitLabel;
-      facilityConfirmSubmit.className = action.danger ? 'admin-button danger-solid' : 'admin-button primary';
+      if (action.danger) {
+        facilityConfirmSubmit.className = 'admin-button danger-solid';
+      } else {
+        facilityConfirmSubmit.className = 'admin-button primary';
+      }
       facilityConfirmSubmit.disabled = false;
     }
     openModal(facilityConfirmModal, '#facility-confirm-cancel');
@@ -245,7 +249,8 @@
 
   function hourToMinutes(value) {
     const match = String(value || '').match(/^(\d{2}):(\d{2})$/);
-    return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+    if (!match) return null;
+    return Number(match[1]) * 60 + Number(match[2]);
   }
 
   function minutesToHour(value) {
@@ -287,9 +292,11 @@
     if (ranges) ranges.textContent = summary.text;
     /* 전체 해제는 그 날짜를 휴무로 저장한다는 뜻임을 미리 알린다. 서버가 다시 검증한다. */
     if (saveState) {
-      saveState.textContent = summary.count
-        ? '변경은 서버에 저장됩니다.'
-        : '선택한 시간이 없으면 이 날짜는 휴무로 저장됩니다.';
+      if (summary.count) {
+        saveState.textContent = '변경은 서버에 저장됩니다.';
+      } else {
+        saveState.textContent = '선택한 시간이 없으면 이 날짜는 휴무로 저장됩니다.';
+      }
     }
   }
 
@@ -298,7 +305,11 @@
     const summary = document.getElementById('room-editor-time-summary');
     if (!grid || !summary) return;
     const result = selectedRanges(grid);
-    summary.textContent = result.count ? result.count + '시간 선택 · ' + result.text : '시간대를 선택해 주세요.';
+    if (result.count) {
+      summary.textContent = result.count + '시간 선택 · ' + result.text;
+    } else {
+      summary.textContent = '시간대를 선택해 주세요.';
+    }
   }
 
   function updateRoomEditorCapacity() {
@@ -588,7 +599,8 @@
   }
 
   document.addEventListener('click', function (event) {
-    const target = event.target instanceof Element ? event.target : null;
+    let target = null;
+    if (event.target instanceof Element) target = event.target;
     if (!target) return;
 
     if (target.closest('[data-open-room-editor]')) {
@@ -861,7 +873,8 @@
   /* 일정 카드 내부 조작: 카드가 조각으로 교체되면 새 요소에 다시 바인딩한다.
      날짜 슬롯 요약은 문서 위임으로 묶어 교체와 무관하게 동작하게 한다. */
   document.addEventListener('change', function (event) {
-    const target = event.target instanceof Element ? event.target : null;
+    let target = null;
+    if (event.target instanceof Element) target = event.target;
     if (target?.closest('#date-schedule-hour-grid')) updateDateScheduleSummary();
   });
 
@@ -918,7 +931,11 @@
         if (status) {
           status.classList.toggle('good', isOpen);
           status.classList.toggle('neutral', !isOpen);
-          status.textContent = isOpen ? '예약 가능' : '휴무';
+          if (isOpen) {
+            status.textContent = '예약 가능';
+          } else {
+            status.textContent = '휴무';
+          }
         }
         updateRowNote();
       }
@@ -957,7 +974,9 @@
         closureRangeHint.classList.add('is-next-day');
         return;
       }
-      closureRangeHint.textContent = start + '부터 ' + (end === '24:00' ? '같은 날 24:00(다음 날 00:00)' : end) + '까지 휴관합니다.';
+      let endLabel = end;
+      if (end === '24:00') endLabel = '같은 날 24:00(다음 날 00:00)';
+      closureRangeHint.textContent = start + '부터 ' + endLabel + '까지 휴관합니다.';
     }
 
     closureStart?.addEventListener('change', updateClosureHint);
@@ -1081,7 +1100,8 @@
      날짜가 없으면(이상한 링크) 브라우저 기본 이동에 맡긴다. */
   document.addEventListener('click', function (event) {
     if (event.defaultPrevented) return;
-    const target = event.target instanceof Element ? event.target : null;
+    let target = null;
+    if (event.target instanceof Element) target = event.target;
     const link = target?.closest('a.date-calendar-day, .calendar-month-nav a');
     if (!link) return;
     if (!scheduleFacilitySelect?.value) return;
@@ -1152,7 +1172,8 @@
   }
 
   document.addEventListener('click', function (event) {
-    const target = event.target instanceof Element ? event.target : null;
+    let target = null;
+    if (event.target instanceof Element) target = event.target;
     if (!target) return;
     if (target.closest('[data-close-schedule-conflict]')) {
       closeScheduleConflicts();
@@ -1206,7 +1227,8 @@
   }
 
   document.addEventListener('click', function (event) {
-    const target = event.target instanceof Element ? event.target : null;
+    let target = null;
+    if (event.target instanceof Element) target = event.target;
     if (!target) return;
     if (target.closest('[data-close-facility-delete-blocked]')) {
       closeDeleteBlocked();

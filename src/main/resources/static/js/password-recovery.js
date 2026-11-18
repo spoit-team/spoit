@@ -13,7 +13,7 @@
 
   function setFieldError(input, error, message) {
     if (!input || !error) return;
-    input.setAttribute('aria-invalid', message ? 'true' : 'false');
+    input.setAttribute('aria-invalid', String(Boolean(message)));
     error.textContent = message;
     error.hidden = !message;
   }
@@ -108,8 +108,10 @@
   const resendButton = document.querySelector('[data-resend-button]');
   const countdown = timer?.querySelector('[data-expiry-countdown]');
   if (timer && countdown) {
-    const expirySeconds = Number.parseInt(timer.dataset.expiresInSeconds || '0', 10);
-    const resendSeconds = Number.parseInt(timer.dataset.resendInSeconds || '0', 10);
+    let expirySeconds = Number.parseInt(timer.dataset.expiresInSeconds, 10);
+    if (Number.isNaN(expirySeconds)) expirySeconds = 0;
+    let resendSeconds = Number.parseInt(timer.dataset.resendInSeconds, 10);
+    if (Number.isNaN(resendSeconds)) resendSeconds = 0;
     const expiryAt = Date.now() + Math.max(0, expirySeconds) * 1000;
     const resendAt = Date.now() + Math.max(0, resendSeconds) * 1000;
     let intervalId = null;
@@ -117,7 +119,8 @@
     function formatRemaining(totalSeconds) {
       const minutes = Math.floor(totalSeconds / 60);
       const seconds = totalSeconds % 60;
-      return minutes > 0 ? minutes + '분 ' + String(seconds).padStart(2, '0') + '초' : seconds + '초';
+      if (minutes > 0) return minutes + '분 ' + String(seconds).padStart(2, '0') + '초';
+      return seconds + '초';
     }
 
     function updateTimer() {
@@ -134,9 +137,11 @@
 
       if (resendButton) {
         resendButton.disabled = resendRemaining > 0;
-        resendButton.textContent = resendRemaining > 0
-          ? '인증번호 다시 받기 (' + resendRemaining + '초 후 가능)'
-          : '인증번호 다시 받기';
+        if (resendRemaining > 0) {
+          resendButton.textContent = '인증번호 다시 받기 (' + resendRemaining + '초 후 가능)';
+        } else {
+          resendButton.textContent = '인증번호 다시 받기';
+        }
       }
 
       if (expiryRemaining === 0 && resendRemaining === 0) window.clearInterval(intervalId);

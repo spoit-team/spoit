@@ -219,7 +219,12 @@ public class MemberServiceImpl implements MemberService {
         }
         // 동호회 조건은 club 도메인이, 매치 신청(개인·동호회) 조건은 match 도메인이 판단한다.
         ClubWithdrawalBlocks clubBlocks = clubService.findWithdrawalBlocks(userId);
-        List<String> leaderClubNames = clubBlocks == null ? List.of() : clubBlocks.getLeaderClubNames();
+        List<String> leaderClubNames;
+        if (clubBlocks == null) {
+            leaderClubNames = List.of();
+        } else {
+            leaderClubNames = clubBlocks.getLeaderClubNames();
+        }
         return WithdrawalBlocks.of(leaderClubNames,
                 matchApplicationService.findActiveIndividualMatchTitles(userId));
     }
@@ -265,6 +270,9 @@ public class MemberServiceImpl implements MemberService {
     }
 
     private static String trim(String value) {
-        return value == null ? "" : value.trim();
+        if (value == null) {
+            return "";
+        }
+        return value.trim();
     }
 }

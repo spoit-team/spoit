@@ -105,11 +105,21 @@ public class FacilityAdminController {
         boolean bookingsView = "bookings".equals(view);
         boolean statsView = "stats".equals(view);
         boolean assetsView = "assets".equals(view);
-        model.addAttribute("view", scheduleView ? "schedule"
-                : bookingsView ? "bookings"
-                : statsView ? "stats"
-                : assetsView ? "assets" : "dashboard");
-        Long userId = principal == null ? null : principal.getUserId();
+        String selectedView = "dashboard";
+        if (scheduleView) {
+            selectedView = "schedule";
+        } else if (bookingsView) {
+            selectedView = "bookings";
+        } else if (statsView) {
+            selectedView = "stats";
+        } else if (assetsView) {
+            selectedView = "assets";
+        }
+        model.addAttribute("view", selectedView);
+        Long userId = null;
+        if (principal != null) {
+            userId = principal.getUserId();
+        }
 
         // 대시보드는 해시로 섹션을 바꾸는 화면 계약상 모든 view에서 실제 값으로 채운다.
         // 집계는 검색·상태·종목·시설 필터와 무관하게 담당 활성 시설 전체를 대상으로 한다.
@@ -121,10 +131,12 @@ public class FacilityAdminController {
         List<FacilityListItem> facilities = facilityService.findManagedFacilities(userId);
         model.addAttribute("facilities", facilities);
 
-        applyScheduleModel(model, scheduleView
-                ? scheduleService.findSchedulePage(userId, facilityId, parseDate(date), sportId, tab,
-                        parseMonth(month))
-                : SchedulePage.empty());
+        SchedulePage schedulePage = SchedulePage.empty();
+        if (scheduleView) {
+            schedulePage = scheduleService.findSchedulePage(userId, facilityId, parseDate(date), sportId, tab,
+                    parseMonth(month));
+        }
+        applyScheduleModel(model, schedulePage);
 
         // 통계 화면도 일정 화면과 같은 시설 선택 모델(selectedFacility)로 드롭다운을 복원한다.
         // applyScheduleModel은 stats 화면에서 빈 일정(SchedulePage.empty())을 넣어 null로 덮으므로,
@@ -142,8 +154,14 @@ public class FacilityAdminController {
         // 매칭방 목록은 담당 시설 범위로만 조회하며, 클라이언트 섹션 전환 때문에 항상 실제 값을 채운다.
         // 종목·시설 필터는 매칭방 화면에서만 적용해 일정 화면의 선택이 숨은 매칭방 목록을 좁히지 않게 한다.
         // facilityId는 일정 화면의 시설 선택과 같은 파라미터이므로, 매칭방 화면이 아니면 반드시 null로 넘긴다.
+        Long bookingSportId = null;
+        Long bookingFacilityId = null;
+        if (bookingsView) {
+            bookingSportId = sportId;
+            bookingFacilityId = facilityId;
+        }
         RoomManagementPage bookings = roomManagementService.findRooms(userId, q, status,
-                bookingsView ? sportId : null, bookingsView ? facilityId : null);
+                bookingSportId, bookingFacilityId);
         model.addAttribute("matches", bookings.getMatches());
         model.addAttribute("bookingFilters", bookings.getFilters());
         // 일정 화면의 종목 선택지(sports)를 덮어쓰지 않도록 매칭방 종목은 별도 모델 이름을 쓴다.
@@ -154,9 +172,10 @@ public class FacilityAdminController {
         // 통계는 화면 계약상 view=stats일 때만 조회한다. 다른 view는 사이드바 해시 전환이므로
         // 빈 값으로 남겨 불필요한 집계 쿼리를 만들지 않는다.
         // 시설 미선택·미담당 시설의 빈 통계 판정은 서비스 책임이다.
-        FacilityStats stats = statsView
-                ? facilityStatsService.load(userId, facilityId, period, periodFrom, periodTo)
-                : null;
+        FacilityStats stats = null;
+        if (statsView) {
+            stats = facilityStatsService.load(userId, facilityId, period, periodFrom, periodTo);
+        }
         model.addAttribute("stats", stats);
         return "admin/facility";
     }
@@ -306,7 +325,11 @@ public class FacilityAdminController {
             if (summary.length() > 0) {
                 summary.append(", ");
             }
-            summary.append(conflict.getTitle() == null ? "매칭방 " + conflict.getMatchId() : conflict.getTitle());
+            String title = conflict.getTitle();
+            if (title == null) {
+                title = "매칭방 " + conflict.getMatchId();
+            }
+            summary.append(title);
         }
         return summary.toString();
     }

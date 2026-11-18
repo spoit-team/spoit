@@ -19,7 +19,11 @@ public class ClubWithdrawalBlocks {
     private final List<String> leaderClubNames;
 
     private ClubWithdrawalBlocks(List<String> leaderClubNames) {
-        this.leaderClubNames = List.copyOf(leaderClubNames == null ? List.of() : leaderClubNames);
+        List<String> names = leaderClubNames;
+        if (names == null) {
+            names = List.of();
+        }
+        this.leaderClubNames = List.copyOf(names);
 
     }
 

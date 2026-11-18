@@ -16,7 +16,8 @@
   </div>
 
   <ol class="match-join-stepper" aria-label="신청 진행 단계">
-    <li data-step-indicator="1" th:classappend="${completed} ? 'is-done' : 'is-current'" th:aria-current="${completed ? null : 'step'}"><span class="step-number" th:text="${completed} ? '✓' : '1'">1</span><span><b>신청 내용</b><small>참가자 확인</small></span></li>
+    <li th:if="${completed}" data-step-indicator="1" class="is-done"><span class="step-number">✓</span><span><b>신청 내용</b><small>참가자 확인</small></span></li>
+    <li th:unless="${completed}" data-step-indicator="1" class="is-current" aria-current="step"><span class="step-number">1</span><span><b>신청 내용</b><small>참가자 확인</small></span></li>
     <!-- 결제 단계: 참가비가 있는 매치(완료 화면은 결제한 신청)에서만 보인다. 무료 매치는 신청 내용에서 바로 접수한다. -->
     <li data-step-indicator="2" th:hidden="${!paid}" th:classappend="${completed} ? 'is-done' : ''"><span class="step-number" th:text="${completed} ? '✓' : '2'">2</span><span><b>결제</b><small>참가비 결제</small></span></li>
     <li data-step-indicator="3" th:classappend="${completed} ? 'is-current' : ''" th:aria-current="${completed ? 'step' : null}"><span class="step-number" th:text="${completed} ? '✓' : (${paid} ? '3' : '2')">2</span><span><b>신청 완료</b><small>접수 결과</small></span></li>
@@ -56,7 +57,7 @@
           </div>
           <dl class="join-selected-contact">
             <!--/* 연락처 안내 기능이 생기면 다시 표시: <div><dt>연락처</dt><dd th:text="${selection.applicantPhone}">010-0000-0000</dd></div> */-->
-            <div><dt>신청 방식</dt><dd th:text="${selection.applicationType == 'team' ? '팀 단위 참가' : '개인 참가'}">개인 참가</dd></div>
+            <div><dt>신청 방식</dt><dd th:if="${selection.applicationType == 'team'}">팀 단위 참가</dd><dd th:unless="${selection.applicationType == 'team'}">개인 참가</dd></div>
           </dl>
           <div class="join-selected-roster"><h4>참가 인원</h4><ul>
             <li th:each="person : ${selection.participants}" class="join-selected-person"><span th:text="${person.nickname}">참가자</span><small th:text="${person.roleLabel}">참가자</small></li>
@@ -111,7 +112,7 @@
       </div>
     </section>
 
-    <aside id="application-summary" class="join-summary" th:classappend="${completed} ? 'is-complete' : ''" aria-labelledby="summary-heading">
+    <aside id="application-summary" class="join-summary" th:attr="data-completed=${completed}" aria-labelledby="summary-heading">
       <div class="join-summary-title"><span class="join-summary-kicker">YOUR MATCH</span><h2 id="summary-heading">신청 요약</h2></div>
       <div class="join-summary-room">
         <span class="join-summary-sport" th:text="${match.sportName + ' · ' + match.statusLabel}">종목</span>
@@ -122,13 +123,14 @@
           <div class="join-summary-fact"><dt>장소</dt><dd th:text="${match.place}">장소</dd></div>
           <div class="join-summary-fact"><dt>종목·실력</dt><dd th:text="${match.sportName + ' · ' + match.levelLabel}">종목</dd></div>
           <div class="join-summary-fact"><dt>참가비</dt><dd th:text="${match.feeText + '원 / 1인'}">참가비</dd></div>
-          <div class="join-summary-fact"><dt>신청 인원</dt><dd th:text="${selection != null ? selection.seats + '명 · ' + selection.kindLabel : ''}">인원</dd></div>
+          <div class="join-summary-fact"><dt>신청 인원</dt><dd th:if="${selection != null}" th:text="${selection.seats + '명 · ' + selection.kindLabel}">인원</dd><dd th:unless="${selection != null}"></dd></div>
         </dl>
       </div>
       <div class="join-summary-participants">
         <div class="join-summary-participants-top"><span>현재 참가 인원</span><b th:text="${match.capacityLabel}">0 / 8명</b></div>
-        <div class="join-summary-progress" role="progressbar" aria-label="매칭방 참가 인원과 좌석 예약" aria-valuemin="0" th:attr="aria-valuemax=${match.maxParticipants}, aria-valuenow=${match.occupiedSeats}"><span th:style="'width:' + ${match.occupancyPercent ?: 0} + '%'"></span></div>
-        <p class="join-summary-remaining" th:text="${canReserve ? match.remainingLabel + ' · 신청 인원 ' + selection.seats + '명' : '현재 선택으로 예약할 수 없습니다.'}">남은 자리</p>
+        <div class="join-summary-progress" role="progressbar" aria-label="매칭방 참가 인원과 좌석 예약" aria-valuemin="0" th:attr="aria-valuemax=${match.maxParticipants}, aria-valuenow=${match.occupiedSeats}"><span th:if="${match.occupancyPercent != null}" th:style="'width:' + ${match.occupancyPercent} + '%'"></span><span th:unless="${match.occupancyPercent != null}" style="width:0%"></span></div>
+        <p th:if="${canReserve}" class="join-summary-remaining" th:text="${match.remainingLabel + ' · 신청 인원 ' + selection.seats + '명'}">남은 자리</p>
+        <p th:unless="${canReserve}" class="join-summary-remaining">현재 선택으로 예약할 수 없습니다.</p>
       </div>
       <div class="join-summary-total">
         <div><span th:text="${completed ? '신청 상태' : (paid ? '결제 금액' : '참가비 안내')}">참가비 안내</span><b th:text="${completed ? completion.stateLabel : (canReserve ? feeTotalText : '예약 불가')}">-</b></div>

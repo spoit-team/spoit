@@ -192,7 +192,10 @@ public class RoomCsrfAccessDeniedHandler implements AccessDeniedHandler {
         if (port >= 0) {
             return port;
         }
-        return "https".equalsIgnoreCase(scheme) ? 443 : 80;
+        if ("https".equalsIgnoreCase(scheme)) {
+            return 443;
+        }
+        return 80;
     }
 
     private static boolean isRoomPath(String path) {

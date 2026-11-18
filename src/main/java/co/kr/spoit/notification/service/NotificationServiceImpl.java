@@ -59,7 +59,11 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setType(type);
         // 스키마의 title은 100자, body는 TEXT다. 개인정보를 새로 넣지 않고 호출 측 문구만 쓴다.
         notification.setTitle(clip(title, 100));
-        notification.setBody(body == null ? "" : body);
+        if (body == null) {
+            notification.setBody("");
+        } else {
+            notification.setBody(body);
+        }
         notification.setMatchId(matchId);
         notification.setApplicationId(applicationId);
         notification.setJoinRequestId(joinRequestId);
@@ -90,6 +94,10 @@ public class NotificationServiceImpl implements NotificationService {
             return "";
         }
         String trimmed = value.strip();
-        return trimmed.length() <= maxLength ? trimmed : trimmed.substring(0, maxLength);
+        if (trimmed.length() <= maxLength) {
+            return trimmed;
+        } else {
+            return trimmed.substring(0, maxLength);
+        }
     }
 }
