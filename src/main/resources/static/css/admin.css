@@ -628,10 +628,15 @@ body.has-admin-modal { overflow: hidden; }
   .admin-layout.is-mobile-menu-open .admin-sidebar-header,
   .admin-layout.is-mobile-menu-open .sidebar-spacer,
   .admin-layout.is-mobile-menu-open .sidebar-bottom { display: none; }
-  .admin-layout.is-mobile-menu-open .admin-role { margin: 10px 2px 6px; }
-  .admin-layout.is-mobile-menu-open .admin-nav { gap: 12px; }
-  .admin-layout.is-mobile-menu-open .admin-nav-link { min-height: 44px; gap: 10px; padding: 0 10px; font-size: 13px; }
+  .admin-layout.is-mobile-menu-open .admin-role { justify-content: flex-start; margin: 10px 2px 6px; }
+  .admin-layout.is-mobile-menu-open .admin-role-copy { display: flex; }
+  .admin-layout.is-mobile-menu-open .admin-nav { flex-shrink: 0; gap: 8px; }
+  .admin-layout.is-mobile-menu-open .admin-nav-group { gap: 0; }
+  .admin-layout.is-mobile-menu-open .admin-nav-label { display: block; padding: 0 10px 4px; line-height: 1.4; }
+  .admin-layout.is-mobile-menu-open .admin-nav-link { min-height: 44px; justify-content: flex-start; gap: 10px; padding: 0 10px; font-size: 13px; }
   .admin-layout.is-mobile-menu-open .admin-nav-link::before { top: 12px; bottom: 12px; }
+  .admin-layout.is-mobile-menu-open .admin-nav-link + .admin-nav-link::after { position: absolute; top: 0; right: 10px; left: 10px; height: 1px; background: var(--admin-line); content: ""; pointer-events: none; }
+  .admin-layout.is-mobile-menu-open .nav-count { position: static; min-width: 20px; margin-left: auto; padding: 1px 6px; font-size: 10px; }
   .admin-topbar { height: 56px; }
   .dashboard-grid { grid-template-columns: 1fr; }
   .dashboard-grid > .card + .card { border-top: 1px solid var(--admin-line); border-left: 0; }
@@ -688,6 +693,13 @@ body.has-admin-modal { overflow: hidden; }
   .admin-table td[colspan]::before { content: none; }
   .admin-table .facility-row-actions, .admin-table .room-row-actions { display: flex; flex-wrap: wrap; }
   .admin-table .facility-row-actions::before, .admin-table .room-row-actions::before { content: none; }
+  #facility-bookings .result-meta { padding-left: 8px; padding-bottom: 10px; }
+  /* 시설 관리자 목록은 한 행을 한 항목으로 묶고, 속성 사이에는 좌우 여백이 있는 구분선을 둔다. */
+  .admin-body[data-admin-role="facility"] .admin-table tbody > tr { padding: 8px 0; border: 1px solid var(--admin-line-strong); border-radius: 10px; }
+  :where(.admin-body[data-admin-role="facility"]) .admin-table tbody > tr { background: var(--admin-paper); }
+  .admin-body[data-admin-role="facility"] .admin-table tbody > tr + tr { margin-top: 10px; }
+  .admin-body[data-admin-role="facility"] .admin-table tbody > tr > td { padding: 5px 12px; border-bottom: 0; }
+  .admin-body[data-admin-role="facility"] .admin-table tbody > tr > td + td { background: linear-gradient(var(--admin-line), var(--admin-line)) center top / calc(100% - 24px) 1px no-repeat; }
   /* 좁은 화면에서는 24칸이 한 칸 10px 남짓이라 막대를 더 좁혀도 서로 붙는다. 라벨은 3칸 간격만 남긴다. */
   .bar-chart.is-day { gap: 1px; margin-right: 12px; margin-left: 12px; }
   .bar-chart.is-day .bar-pair { gap: 1px; }
@@ -695,6 +707,9 @@ body.has-admin-modal { overflow: hidden; }
   .bar-chart.is-day .bar-label { font-size: 9px; letter-spacing: -.04em; }
   .chart-empty-note { margin-right: 12px; margin-left: 12px; }
   .request-feed { padding: 0 14px; }
+  .admin-body[data-admin-role="facility"] .request-feed { gap: 10px; }
+  .admin-body[data-admin-role="facility"] .request-feed li { border: 1px solid var(--admin-line-strong); border-radius: 10px; background: var(--admin-paper); }
+  .admin-body[data-admin-role="facility"] .request-feed-item { padding: 10px 12px; }
   .request-feed-empty, .request-feed-foot { margin-right: 14px; margin-left: 14px; }
   .card-heading { padding: 15px 15px 0; }
   .schedule-panel { padding: 15px 12px; }
@@ -847,9 +862,10 @@ body.has-admin-modal { overflow: hidden; }
 
 @media (max-width: 400px) {
   .system-env { width: 8px; height: 8px; flex: 0 0 8px; overflow: hidden; padding: 0; border: 0; border-radius: 50%; font-size: 0; }
-  .admin-topbar { height: auto; min-height: 56px; flex-wrap: wrap; gap: 4px; padding: 6px 8px; }
-  .breadcrumbs { flex: 1 0 100%; }
-  .topbar-spacer { display: none; }
+  .admin-topbar { gap: 4px; }
+  .breadcrumbs { min-width: 0; }
+  .breadcrumbs span { flex-shrink: 0; }
+  .breadcrumbs strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
 @media (prefers-reduced-motion: reduce) {
