@@ -4,10 +4,7 @@
 <body class="bg-canvas text-ink antialiased">
 <header class="border-b border-line bg-white">
   <div class="wrap flex h-[68px] items-center justify-between gap-4">
-    <a th:href="@{/matches}" class="flex shrink-0 items-center gap-2.5" aria-label="SPO:IT 홈">
-      <img class="size-[34px] shrink-0" th:src="@{/images/spoit-mark.svg}" alt="" aria-hidden="true" />
-      <span class="flex flex-col leading-none"><b class="text-[16px] font-extrabold tracking-[-.04em]">SPO<span style="color:#5FAE4E">:</span>IT</b><small class="mt-1 hidden whitespace-nowrap text-[8px] font-medium tracking-[.01em] text-faint xl:block">SPORTS · PEOPLE · CONNECTION</small></span>
-    </a>
+    <th:block th:replace="~{fragments/auth :: brandLink}"></th:block>
     <p class="text-xs font-medium text-muted sm:text-sm">이미 계정이 있으신가요? <a th:href="@{/login}" class="ml-1 font-extrabold text-book hover:text-book-ink">로그인</a></p>
   </div>
 </header>
@@ -142,7 +139,7 @@
   </section>
 
   <footer class="mx-auto mt-5 flex max-w-[600px] flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] text-faint">
-    <a th:href="@{/matches}" class="hover:text-ink-2">SPO:IT 홈</a><span aria-hidden="true">·</span><a th:href="@{/terms}" class="hover:text-ink-2">이용약관</a><span aria-hidden="true">·</span><a th:href="@{/privacy}" class="hover:text-ink-2">개인정보처리방침</a>
+    <th:block th:replace="~{fragments/auth :: legalLinks}"></th:block>
   </footer>
 </main>
 
