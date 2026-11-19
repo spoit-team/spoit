@@ -26,7 +26,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- ---------------------------------------------------------------------
 CREATE TABLE app_user (
     user_id        BIGINT       NOT NULL AUTO_INCREMENT COMMENT '회원을 식별하는 내부 ID',
-    email          VARCHAR(255) NOT NULL COMMENT '로그인 이메일, 중복 불가',
+    email          VARCHAR(255) NOT NULL COMMENT '로그인 이메일, 탈퇴하지 않은 계정끼리 중복 불가',
     password_hash  VARCHAR(255) NOT NULL COMMENT '비밀번호 검증용 해시값',
     nickname       VARCHAR(50)  NOT NULL COMMENT '화면과 매칭에서 표시할 회원명',
     phone          VARCHAR(20)  NOT NULL COMMENT '연락처',
@@ -34,8 +34,11 @@ CREATE TABLE app_user (
     created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '계정 생성 시각',
     deleted_at     DATETIME     NULL COMMENT '탈퇴 시각. NULL이면 미탈퇴, 값이 있으면 탈퇴 회원',
     penalty_time   DATETIME     NULL COMMENT '이용정지 종료 시각. NULL이면 정지 종료 시각 미설정',
+    active_email   VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci
+        AS (CASE WHEN deleted_at IS NULL THEN email END) STORED
+        COMMENT '탈퇴하지 않은 계정의 이메일 중복 방지용 값 (생성 컬럼)',
     PRIMARY KEY (user_id),
-    UNIQUE KEY uk_app_user_email (email)
+    UNIQUE KEY uk_app_user_active_email (active_email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='회원';
 
 CREATE TABLE password_reset_challenge (

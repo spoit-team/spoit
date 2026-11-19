@@ -6,7 +6,7 @@
     <select id="findByEmail" resultType="co.kr.spoit.member.domain.Member">
         SELECT user_id, email, password_hash, nickname, phone, role, created_at, deleted_at, penalty_time
         FROM app_user
-        WHERE email = #{email}
+        WHERE active_email = #{email}
     </select>
 
     <!-- 탈퇴 시 비밀번호 재확인용 조회. -->

@@ -15,8 +15,11 @@ import co.kr.spoit.member.dto.WithdrawalBlocks;
  */
 public interface MemberService {
 
-    /** 이메일을 정규화해 회원을 조회한다. 없거나 빈 입력이면 빈 값. */
+    /** 이메일을 정규화해 탈퇴하지 않은 회원을 조회한다. 없거나 빈 입력이면 빈 값. */
     Optional<Member> findByEmail(String email);
+
+    /** 회원 번호로 회원을 조회한다. */
+    Optional<Member> findById(Long userId);
 
     /**
      * 일반 회원을 가입시킨다. 선택 지역은 user_region, 선택 선호 종목은 user_preferred_sport에 함께 저장한다.

@@ -292,6 +292,7 @@ class MyPageControllerTest {
                 .andExpect(model().attribute("profile", hasEntry("regionId", 11L)))
                 .andExpect(model().attribute("profile", hasEntry("representativeSportId", 2L)))
                 .andExpect(model().attribute("districts", hasSize(2)));
+        verify(memberService).findById(USER_ID);
     }
 
     @Test

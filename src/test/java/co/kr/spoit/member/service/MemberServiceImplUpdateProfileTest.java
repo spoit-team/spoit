@@ -19,7 +19,7 @@ import co.kr.spoit.club.service.ClubService;
 import co.kr.spoit.match.service.MatchApplicationService;
 import co.kr.spoit.member.dto.ProfileUpdateForm;
 import co.kr.spoit.member.mapper.MemberMapper;
-import co.kr.spoit.member.service.MemberAccountLockService;
+import co.kr.spoit.member.security.MemberSessionRevocationService;
 
 /** 프로필 저장이 실제로 매퍼에 쓰기를 전달하는지 검증한다. 컨트롤러 테스트는 서비스를 목으로 대체하므로 이 경로가 비어 있었다. */
 class MemberServiceImplUpdateProfileTest {
@@ -38,7 +38,7 @@ class MemberServiceImplUpdateProfileTest {
         memberMapper = mock(MemberMapper.class);
         memberService = new MemberServiceImpl(memberMapper, new BCryptPasswordEncoder(),
                 mock(ClubService.class), mock(MatchApplicationService.class),
-                mock(MemberAccountLockService.class));
+                mock(MemberAccountLockService.class), mock(MemberSessionRevocationService.class));
     }
 
     @Test

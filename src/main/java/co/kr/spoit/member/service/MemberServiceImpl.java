@@ -24,6 +24,7 @@ import co.kr.spoit.member.dto.SignupRegion;
 import co.kr.spoit.member.dto.SportOption;
 import co.kr.spoit.member.dto.WithdrawalBlocks;
 import co.kr.spoit.member.mapper.MemberMapper;
+import co.kr.spoit.member.security.MemberSessionRevocationService;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -59,6 +60,7 @@ public class MemberServiceImpl implements MemberService {
     private final ClubService clubService;
     private final MatchApplicationService matchApplicationService;
     private final MemberAccountLockService accountLockService;
+    private final MemberSessionRevocationService sessionRevocationService;
 
     @Override
     public Optional<Member> findByEmail(String email) {
@@ -66,6 +68,11 @@ public class MemberServiceImpl implements MemberService {
             return Optional.empty();
         }
         return memberMapper.findByEmail(email.trim().toLowerCase(Locale.ROOT));
+    }
+
+    @Override
+    public Optional<Member> findById(Long userId) {
+        return memberMapper.findById(userId);
     }
 
     @Override
@@ -210,6 +217,7 @@ public class MemberServiceImpl implements MemberService {
         if (updated != 1) {
             throw new IllegalStateException("이미 탈퇴했거나 탈퇴할 수 없는 계정입니다.");
         }
+        sessionRevocationService.revokeAfterCommit(userId);
     }
 
     @Override

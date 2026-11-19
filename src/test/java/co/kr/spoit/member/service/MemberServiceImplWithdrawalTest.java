@@ -29,9 +29,9 @@ import co.kr.spoit.match.service.MatchApplicationService;
 import co.kr.spoit.member.domain.Member;
 import co.kr.spoit.member.dto.WithdrawalBlocks;
 import co.kr.spoit.member.mapper.MemberMapper;
-import co.kr.spoit.member.service.MemberAccountLockService;
+import co.kr.spoit.member.security.MemberSessionRevocationService;
 
-/** 탈퇴가 비밀번호 재확인 후 deleted_at 기록 1회로 끝나는지 검증한다. */
+/** 비밀번호 확인 후 탈퇴 시각을 기록하고 세션을 폐기하는지 검증한다. */
 class MemberServiceImplWithdrawalTest {
 
     private static final Long USER_ID = 7L;
@@ -43,6 +43,7 @@ class MemberServiceImplWithdrawalTest {
     private ClubService clubService;
     private MatchApplicationService matchApplicationService;
     private MemberAccountLockService accountLockService;
+    private MemberSessionRevocationService sessionRevocationService;
     private MemberServiceImpl memberService;
 
     @BeforeEach
@@ -51,15 +52,16 @@ class MemberServiceImplWithdrawalTest {
         clubService = mock(ClubService.class);
         matchApplicationService = mock(MatchApplicationService.class);
         accountLockService = mock(MemberAccountLockService.class);
+        sessionRevocationService = mock(MemberSessionRevocationService.class);
         lenient().when(clubService.findWithdrawalBlocks(anyLong()))
                 .thenReturn(ClubWithdrawalBlocks.empty());
         lenient().when(matchApplicationService.findActiveIndividualMatchTitles(anyLong())).thenReturn(List.of());
         memberService = new MemberServiceImpl(memberMapper, passwordEncoder, clubService,
-                matchApplicationService, accountLockService);
+                matchApplicationService, accountLockService, sessionRevocationService);
     }
 
     @Test
-    @DisplayName("비밀번호가 일치하면 탈퇴 시각을 기록한다")
+    @DisplayName("비밀번호가 일치하면 탈퇴 시각을 기록하고 기존 세션을 폐기한다")
     void recordsDeletedAt() {
         when(accountLockService.lockById(USER_ID)).thenReturn(member());
         when(memberMapper.recordWithdrawal(eq(USER_ID), any(LocalDateTime.class), any(LocalDateTime.class)))
@@ -72,6 +74,7 @@ class MemberServiceImplWithdrawalTest {
         verify(memberMapper).recordWithdrawal(eq(USER_ID), deletedAt.capture(), now.capture());
         assertThat(deletedAt.getValue()).isNotNull();
         assertThat(now.getValue()).isEqualTo(deletedAt.getValue());
+        verify(sessionRevocationService).revokeAfterCommit(USER_ID);
     }
 
     @Test
@@ -115,6 +118,7 @@ class MemberServiceImplWithdrawalTest {
 
         assertThatThrownBy(() -> memberService.withdraw(USER_ID, RAW_PASSWORD))
                 .isInstanceOf(IllegalStateException.class);
+        verifyNoInteractions(sessionRevocationService);
     }
 
     @Test

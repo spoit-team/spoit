@@ -367,7 +367,7 @@ public class MyPageController {
         }
         List<SignupRegion> regions = memberService.findRegions(principal.getUserId());
         Optional<SportOption> representative = memberService.findRepresentativeSport(principal.getUserId());
-        Member member = memberService.findByEmail(principal.getEmail()).orElse(null);
+        Member member = memberService.findById(principal.getUserId()).orElse(null);
         Map<String, Object> profile = new LinkedHashMap<>();
         // 세션 principal은 가입 시점 스냅샷이므로 저장된 닉네임·연락처는 DB에서 다시 읽는다.
         String nickname;

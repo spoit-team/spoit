@@ -1,6 +1,8 @@
 package co.kr.spoit.member.mapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -12,18 +14,29 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.mybatis.spring.boot.test.autoconfigure.MybatisTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.context.jdbc.SqlConfig;
 import org.springframework.test.context.transaction.BeforeTransaction;
 
-import co.kr.spoit.member.domain.Member;
+import co.kr.spoit.club.service.ClubService;
+import co.kr.spoit.match.service.MatchApplicationService;
 import co.kr.spoit.member.domain.AdminUserRow;
+import co.kr.spoit.member.domain.Member;
+import co.kr.spoit.member.domain.MemberPrincipal;
+import co.kr.spoit.member.dto.SignupForm;
+import co.kr.spoit.member.security.MemberSessionRevocationService;
+import co.kr.spoit.member.service.MemberAccountLockService;
+import co.kr.spoit.member.service.MemberServiceImpl;
+import co.kr.spoit.member.service.MemberUserDetailsServiceImpl;
 
 /**
- * 명시적으로 지정한 전용 MySQL DB에서만 회원 탈퇴 SQL과 deleted_at 매핑을 검증한다.
+ * 명시적으로 지정한 전용 MySQL DB에서만 회원 조회·탈퇴·재가입을 검증한다.
  * 환경변수가 없으면 실행되지 않으며 모든 변경은 테스트 트랜잭션 롤백으로 되돌린다.
  */
 @EnabledIfEnvironmentVariable(named = "MAT_TEST_DB_URL", matches = ".+")
@@ -124,6 +137,62 @@ class MemberMapperIntegrationTest {
         Member after = memberMapper.findById(1L).orElseThrow();
         assertThat(after.getDeletedAt()).isEqualTo(first);
         assertThat(after.getPenaltyTime()).isEqualTo(before.getPenaltyTime());
+    }
+
+    @Test
+    @DisplayName("탈퇴한 이메일로 재가입하면 새 회원 번호와 비밀번호로 로그인한다")
+    void registersAndAuthenticatesANewAccountAfterWithdrawal() {
+        String email = "member-withdrawn@example.invalid";
+        String originalPassword = "Original123";
+        String newPassword = "Replacement456";
+        var passwordEncoder = new BCryptPasswordEncoder();
+        var memberService = new MemberServiceImpl(memberMapper, passwordEncoder, mock(ClubService.class),
+                mock(MatchApplicationService.class), new MemberAccountLockService(memberMapper),
+                mock(MemberSessionRevocationService.class));
+        var userDetailsService = new MemberUserDetailsServiceImpl(memberService);
+
+        memberService.register(signupForm(email, originalPassword));
+        Long originalUserId = memberMapper.findByEmail(email).orElseThrow().getUserId();
+        memberService.withdraw(originalUserId, originalPassword);
+
+        assertThatThrownBy(() -> userDetailsService.loadUserByUsername(email))
+                .isInstanceOf(UsernameNotFoundException.class);
+        memberService.register(signupForm(" MEMBER-WITHDRAWN@example.invalid ", newPassword));
+
+        var principal = (MemberPrincipal) userDetailsService.loadUserByUsername(email);
+        assertThat(principal.getUserId()).isNotIn(3L, originalUserId);
+        assertThat(principal.isEnabled()).isTrue();
+        assertThat(passwordEncoder.matches(newPassword, principal.getPassword())).isTrue();
+        assertThat(passwordEncoder.matches(originalPassword, principal.getPassword())).isFalse();
+        assertThat(memberMapper.findById(3L).orElseThrow().getDeletedAt())
+                .isEqualTo(LocalDateTime.of(2026, 10, 1, 10, 0));
+        Member withdrawn = memberMapper.findById(originalUserId).orElseThrow();
+        assertThat(withdrawn.getDeletedAt()).isNotNull();
+        assertThat(withdrawn.getEmail()).isEqualTo(email);
+        assertThatThrownBy(() -> memberService.register(signupForm(email, originalPassword)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("이미 가입된 이메일입니다.");
+    }
+
+    @Test
+    @DisplayName("탈퇴하지 않은 회원의 이메일은 DB에서도 대소문자 구분 없이 재사용할 수 없다")
+    void databaseRejectsDuplicateNonWithdrawnEmail() {
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "INSERT INTO app_user (email, password_hash, nickname, phone, role) VALUES (?, ?, ?, ?, ?)",
+                "MEMBER-SUSPENDED@example.invalid", "TEST_ONLY", "중복 회원", "010-0000-0004", "일반 회원"))
+                .isInstanceOf(DuplicateKeyException.class);
+    }
+
+    private static SignupForm signupForm(String email, String password) {
+        var form = new SignupForm();
+        form.setAgreeService(true);
+        form.setAgreePrivacy(true);
+        form.setEmail(email);
+        form.setNickname("재가입회원");
+        form.setPhone("010-0000-0004");
+        form.setPassword(password);
+        form.setPasswordConfirm(password);
+        return form;
     }
 
     @Test
