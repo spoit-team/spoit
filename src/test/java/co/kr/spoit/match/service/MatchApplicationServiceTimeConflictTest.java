@@ -250,7 +250,7 @@ class MatchApplicationServiceTimeConflictTest {
         row.setMinParticipants(4);
         row.setMaxParticipants(10);
         row.setFeePerPerson(new BigDecimal("5000"));
-        row.setRequiredSkill("초급");
+        row.setRequiredSkill("브론즈");
         row.setStatus("모집 중");
         row.setTeamACapacity(5);
         row.setTeamBCapacity(5);

@@ -157,7 +157,7 @@ INSERT INTO social_match (facility_id, sport_id, created_by, title, start_at, en
                           assignment_confirmed_at, result_status, rating_status)
 VALUES (@facility_id, @sport_id, @fm_user, '송파 3대3 풋살 친선전',
         @now - INTERVAL 2 HOUR, @now - INTERVAL 1 HOUR,
-        6, 6, 3, 3, 0, '중급', '매칭 완료', 'AUTO', @fm_user,
+        6, 6, 3, 3, 0, '골드', '매칭 완료', 'AUTO', @fm_user,
         @now - INTERVAL 1 DAY, 'SUBMITTED', 'WAITING');
 SET @match_id = LAST_INSERT_ID();
 

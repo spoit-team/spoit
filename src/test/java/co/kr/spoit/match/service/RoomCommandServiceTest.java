@@ -104,7 +104,7 @@ class RoomCommandServiceTest {
         assertThat(saved.getMaxParticipants()).isEqualTo(6);
         // 최소 인원은 입력받지 않고 정원과 같은 값으로 저장한다.
         assertThat(saved.getMinParticipants()).isEqualTo(6);
-        assertThat(saved.getRequiredSkill()).isEqualTo("중급");
+        assertThat(saved.getRequiredSkill()).isEqualTo("골드");
     }
 
     @Test
@@ -136,6 +136,12 @@ class RoomCommandServiceTest {
         RoomForm unknownSkill = form("2026-11-08", "10:00");
         unknownSkill.setRequiredSkill("all");
         assertThatThrownBy(() -> service.create(MANAGER_ID, unknownSkill))
+                .isInstanceOf(RoomCommandException.class).hasMessageContaining("실력 수준");
+
+        // 추천 티어로 바뀐 뒤에는 예전 선택지(초급·중급·고급)를 받지 않는다.
+        RoomForm legacySkill = form("2026-11-08", "10:00");
+        legacySkill.setRequiredSkill("중급");
+        assertThatThrownBy(() -> service.create(MANAGER_ID, legacySkill))
                 .isInstanceOf(RoomCommandException.class).hasMessageContaining("실력 수준");
 
         RoomForm noHours = form("2026-11-08");
@@ -444,7 +450,7 @@ class RoomCommandServiceTest {
         form.setHours(List.of(hours));
         form.setTeamCapacity(3);
         form.setFeePerPerson(9000);
-        form.setRequiredSkill("중급");
+        form.setRequiredSkill("골드");
         return form;
     }
 

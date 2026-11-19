@@ -29,6 +29,7 @@ import co.kr.spoit.facility.service.FacilityReservationService;
 import co.kr.spoit.global.upload.InvalidPhotoException;
 import co.kr.spoit.global.upload.PhotoStorage;
 import co.kr.spoit.global.upload.UploadedPhoto;
+import co.kr.spoit.mat.domain.RatingTier;
 import co.kr.spoit.mat.service.AutoTeamAssigner;
 import co.kr.spoit.match.domain.ApplicationStatus;
 import co.kr.spoit.match.domain.MatchStatus;
@@ -313,11 +314,11 @@ public class RoomCommandService {
         if (fee == null || fee < 0 || fee > FEE_MAX) {
             throw new RoomCommandException("참가비는 0원 이상 " + FEE_MAX + "원 이하로 입력해 주세요.");
         }
-        SkillLevel skill = SkillLevel.fromDbValue(form.getRequiredSkill());
+        RatingTier skill = SkillLevel.fromDbValue(form.getRequiredSkill());
         if (skill == null) {
             throw new RoomCommandException("실력 수준을 선택해 주세요.");
         }
-        return new Details(title, team, fee, skill.dbValue());
+        return new Details(title, team, fee, skill.label());
     }
 
     private static int requireTeamCapacity(Integer value) {

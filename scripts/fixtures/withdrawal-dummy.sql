@@ -133,23 +133,23 @@ INSERT INTO social_match (match_id, facility_id, sport_id, created_by, title, st
                           cancelled_at) VALUES
     (9601, 9401, 9201, 9308, '탈퇴검증 개인 모집 매치',
      DATE_ADD(NOW(), INTERVAL 3 DAY), DATE_ADD(NOW(), INTERVAL 3 DAY) + INTERVAL 2 HOUR,
-     2, 8, 4, 4, 15000.00, '초급', '모집 중', 'MANUAL',
+     2, 8, 4, 4, 15000.00, '브론즈', '모집 중', 'MANUAL',
      NULL, NULL, 'WAITING', NULL, NULL),
     (9602, 9401, 9201, 9308, '탈퇴검증 개인 매칭 완료 매치',
      DATE_ADD(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 1 DAY) + INTERVAL 2 HOUR,
-     2, 8, 4, 4, 15000.00, '중급', '매칭 완료', 'MANUAL',
+     2, 8, 4, 4, 15000.00, '골드', '매칭 완료', 'MANUAL',
      9308, DATE_SUB(NOW(), INTERVAL 6 HOUR), 'WAITING', NULL, NULL),
     (9603, 9401, 9201, 9308, '탈퇴검증 개인 종료 매치',
      DATE_SUB(NOW(), INTERVAL 3 DAY), DATE_SUB(NOW(), INTERVAL 3 DAY) + INTERVAL 2 HOUR,
-     2, 8, 4, 4, 15000.00, '초급', '종료', 'MANUAL',
+     2, 8, 4, 4, 15000.00, '브론즈', '종료', 'MANUAL',
      9308, DATE_SUB(NOW(), INTERVAL 3 DAY), 'APPLIED', DATE_SUB(NOW(), INTERVAL 2 DAY), NULL),
     (9604, 9401, 9201, 9308, '탈퇴검증 취소 매치',
      DATE_ADD(NOW(), INTERVAL 5 DAY), DATE_ADD(NOW(), INTERVAL 5 DAY) + INTERVAL 2 HOUR,
-     2, 8, 4, 4, 15000.00, '초급', '취소', 'MANUAL',
+     2, 8, 4, 4, 15000.00, '브론즈', '취소', 'MANUAL',
      NULL, NULL, 'EXCLUDED', NULL, DATE_SUB(NOW(), INTERVAL 1 DAY)),
     (9605, 9401, 9201, 9308, '탈퇴검증 팀 모집 매치',
      DATE_ADD(NOW(), INTERVAL 4 DAY), DATE_ADD(NOW(), INTERVAL 4 DAY) + INTERVAL 2 HOUR,
-     4, 8, 4, 4, 15000.00, '중급', '모집 중', 'MANUAL',
+     4, 8, 4, 4, 15000.00, '골드', '모집 중', 'MANUAL',
      NULL, NULL, 'WAITING', NULL, NULL);
 
 -- 신청 -----------------------------------------------------------------

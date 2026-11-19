@@ -72,14 +72,14 @@ class RoomAdminRouteTest {
                         .param("facilityId", "30").param("sportId", "2").param("title", "토요 풋살")
                         .param("date", "2026-11-08").param("hours", "10:00", "11:00")
                         .param("teamCapacity", "3")
-                        .param("feePerPerson", "9000").param("requiredSkill", "중급"))
+                        .param("feePerPerson", "9000").param("requiredSkill", "골드"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl(BOOKINGS + "#facility-bookings"))
                 .andExpect(flash().attribute("message", "812번 매칭방을 만들었습니다."));
 
         verify(roomCommandService).create(eq(7L), argThat(form -> form.getFacilityId() == 30L
                 && form.getHours().equals(List.of("10:00", "11:00"))
-                && "중급".equals(form.getRequiredSkill())));
+                && "골드".equals(form.getRequiredSkill())));
     }
 
     @Test
@@ -92,7 +92,7 @@ class RoomAdminRouteTest {
         mockMvc.perform(multipart("/admin/rooms").file(photo).with(user(facilityManager())).with(csrf())
                         .param("facilityId", "30").param("sportId", "2").param("title", "토요 풋살")
                         .param("date", "2026-11-08").param("hours", "10:00")
-                        .param("teamCapacity", "3").param("feePerPerson", "9000").param("requiredSkill", "중급")
+                        .param("teamCapacity", "3").param("feePerPerson", "9000").param("requiredSkill", "골드")
                         .param("removePhoto", "true"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl(BOOKINGS + "#facility-bookings"))

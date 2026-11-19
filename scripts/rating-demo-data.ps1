@@ -129,7 +129,7 @@ $october = 0..30 | ForEach-Object { ([datetime]'2026-10-01').AddDays($_) }
 $matches = [System.Collections.Generic.List[object]]::new()
 $facBusy = @{}
 $weekdayKo = '월', '화', '수', '목', '금', '토', '일'
-$skills = '초급', '중급', '중급', '고급'
+$skills = '브론즈', '골드', '골드', '다이아'
 function Overlaps($list, [datetime]$s, [datetime]$e) { foreach ($b in $list) { if ($s -lt $b[1] -and $e -gt $b[0]) { return $true } }; return $false }
 function SlotName([int]$h) { if ($h -lt 12) { '오전' } elseif ($h -lt 17) { '오후' } else { '저녁' } }
 function TryMatch([string]$sport, [datetime]$day, [int]$hour) {
