@@ -56,7 +56,8 @@
     if (Number.isFinite(fromDom) && fromDom > 0) return fromDom;
     // 페이지 주소에서 경기 번호를 읽는다(예: /mypage/matches/42/result-page).
     const found = global.location.pathname.match(/\/mypage\/matches\/(\d+)(?:\/|$)/);
-    return found ? Number(found[1]) : 0;
+    if (!found) return 0;
+    return Number(found[1]);
   }
 
   function apiUrl(suffix) {
@@ -95,7 +96,8 @@
     if (!value) return '—';
     if (value === 'DRAW') return '무승부';
     if (!RESULT_LABELS[value]) return String(value);
-    const winner = value === mySide + '_WIN' ? '우리 팀 승리' : '상대 팀 승리';
+    let winner = '상대 팀 승리';
+    if (value === mySide + '_WIN') winner = '우리 팀 승리';
     return RESULT_LABELS[value] + ' · ' + winner;
   }
 
@@ -114,14 +116,16 @@
   }
 
   function sideText(side) {
-    return side === 'A' || side === 'B' ? side + '팀' : '—';
+    if (side === 'A' || side === 'B') return side + '팀';
+    return '—';
   }
 
   /* ── 그리기 ─────────────────────────────────────────────────────── */
 
   function setField(name, value) {
     root.querySelectorAll('[data-field="' + name + '"]').forEach(function (node) {
-      node.textContent = value == null || value === '' ? '—' : String(value);
+      if (value == null || value === '') node.textContent = '—';
+      else node.textContent = String(value);
     });
   }
 
@@ -190,7 +194,9 @@
     const strong = document.createElement('strong');
     strong.textContent = RESULT_LABELS[result];
     const small = document.createElement('small');
-    small.textContent = result === 'DRAW' ? '두 팀 무승부' : (result === mySide + '_WIN' ? '우리 팀 승리' : '상대 팀 승리');
+    if (result === 'DRAW') small.textContent = '두 팀 무승부';
+    else if (result === mySide + '_WIN') small.textContent = '우리 팀 승리';
+    else small.textContent = '상대 팀 승리';
     button.append(strong, small);
     return button;
   }
@@ -234,7 +240,8 @@
     submit.className = 'mypage-primary-button';
     submit.setAttribute('data-action', 'submit');
     submit.disabled = busy;
-    submit.textContent = busy ? '제출하는 중…' : '제출하기';
+    if (busy) submit.textContent = '제출하는 중…';
+    else submit.textContent = '제출하기';
     actions.append(cancel, submit);
 
     wrapper.append(label, title, note, actions);
@@ -244,7 +251,8 @@
   /* 제출할 수 없는 이유. 팀장 조회 응답의 마감 시각으로 문구를 고른다. */
   function closedReason() {
     if (!captain) return null;
-    const deadline = captain.deadlineAt ? new Date(captain.deadlineAt) : null;
+    let deadline = null;
+    if (captain.deadlineAt) deadline = new Date(captain.deadlineAt);
     if (deadline && !Number.isNaN(deadline.getTime()) && deadline.getTime() <= Date.now()) {
       return '제출 마감 시각이 지나 결과를 제출할 수 없습니다.';
     }
@@ -268,8 +276,9 @@
       return;
     }
     if (captain.ratingStatus === 'EXCLUDED') {
-      submitBody.appendChild(stateCard('제외', 'is-excluded', '레이팅 반영에서 제외된 경기입니다.',
-        captain.finalResult ? null : '제출 마감까지 결과가 확정되지 않았거나 시설 관리자가 제외했습니다.'));
+      let note = '제출 마감까지 결과가 확정되지 않았거나 시설 관리자가 제외했습니다.';
+      if (captain.finalResult) note = null;
+      submitBody.appendChild(stateCard('제외', 'is-excluded', '레이팅 반영에서 제외된 경기입니다.', note));
       return;
     }
     if (captain.finalResult) {
@@ -278,8 +287,10 @@
       return;
     }
     if (captain.conflict) {
+      let hint = null;
+      if (captain.canSubmit) hint = '결과를 다시 확인해 제출해 주세요.';
       submitBody.appendChild(stateCard('불일치', 'is-conflict', '상대 팀장과 제출한 결과가 다릅니다.',
-        captain.canSubmit ? '결과를 다시 확인해 제출해 주세요.' : null));
+        hint));
       submitBody.appendChild(comparisonBlock());
       if (captain.canSubmit) submitBody.appendChild(choicesBlock());
       return;
@@ -367,10 +378,12 @@
     const container = root.querySelector('[data-result-teams]');
     if (!container) return;
     container.replaceChildren();
-    const teams = Array.isArray(summary.teams) ? summary.teams : [];
+    let teams = [];
+    if (Array.isArray(summary.teams)) teams = summary.teams;
     teams.forEach(function (team) {
       const section = document.createElement('section');
-      section.className = 'match-result-team' + (team.mine ? ' is-mine' : '');
+      section.className = 'match-result-team';
+      if (team.mine) section.className += ' is-mine';
       section.setAttribute('aria-label', sideText(team.side) + ' 참가자');
 
       const heading = document.createElement('h3');
@@ -386,7 +399,8 @@
       }
 
       const list = document.createElement('ul');
-      const members = Array.isArray(team.members) ? team.members : [];
+      let members = [];
+      if (Array.isArray(team.members)) members = team.members;
       members.forEach(function (member) {
         const item = document.createElement('li');
         const nickname = document.createElement('span');
@@ -586,7 +600,8 @@
     const retry = document.createElement('button');
     retry.type = 'button';
     retry.className = 'mypage-secondary-button match-result-retry';
-    retry.textContent = result.status === 401 ? '다시 로그인' : '다시 시도';
+    if (result.status === 401) retry.textContent = '다시 로그인';
+    else retry.textContent = '다시 시도';
     retry.addEventListener('click', function () {
       retry.disabled = true;
       if (result.status === 401) {
@@ -622,7 +637,8 @@
   /* ── 이벤트 ─────────────────────────────────────────────────────── */
 
   submitSection?.addEventListener('click', function (event) {
-    const target = event.target instanceof Element ? event.target : null;
+    let target = null;
+    if (event.target instanceof Element) target = event.target;
     if (!target || !captain) return;
 
     const choice = target.closest('[data-result]');
@@ -711,7 +727,8 @@
     if (Number.isFinite(fromDom) && fromDom > 0) return fromDom;
     // match-result.js와 같은 규칙: 주소에서 경기 번호를 읽는다(예: /mypage/matches/42/result-form).
     const found = global.location.pathname.match(/\/mypage\/matches\/(\d+)(?:\/|$)/);
-    return found ? Number(found[1]) : 0;
+    if (!found) return 0;
+    return Number(found[1]);
   }
 
   function apiUrl(suffix) {
@@ -767,7 +784,7 @@
   function setBusy(next) {
     busy = next;
     body.querySelectorAll('button, textarea').forEach(function (node) {
-      node.disabled = next ? true : false;
+      node.disabled = next;
     });
   }
 
@@ -787,7 +804,8 @@
     const name = document.createElement('span');
     name.textContent = target.nickname || '이름 없는 참가자';
     const mark = document.createElement('small');
-    mark.textContent = Number(target.userId) === selectedUserId ? '선택됨' : '선택';
+    if (Number(target.userId) === selectedUserId) mark.textContent = '선택됨';
+    else mark.textContent = '선택';
     button.append(name, mark);
     return button;
   }
@@ -811,7 +829,8 @@
     chosen.className = 'match-report-summary-value';
     chosen.setAttribute('data-report-chosen', '');
     const who = selectedTarget();
-    chosen.textContent = who ? (who.nickname || '이름 없는 참가자') : '참가자를 먼저 선택해 주세요.';
+    if (who) chosen.textContent = who.nickname || '이름 없는 참가자';
+    else chosen.textContent = '참가자를 먼저 선택해 주세요.';
     wrap.append(label, chosen);
     return wrap;
   }
@@ -838,7 +857,8 @@
       const checked = category === selectedCategory;
       chip.setAttribute('aria-checked', String(checked));
       // 라디오 그룹의 로빙 탭 스톱: 선택된 항목이 탭 정지점이고, 아직 고르지 않았으면 첫 항목이 진입점이다.
-      chip.tabIndex = checked || (!selectedCategory && index === 0) ? 0 : -1;
+      if (checked || (!selectedCategory && index === 0)) chip.tabIndex = 0;
+      else chip.tabIndex = -1;
       chip.disabled = busy;
       const mark = document.createElement('span');
       mark.textContent = category;
@@ -889,7 +909,8 @@
     const chosen = body.querySelector('[data-report-chosen]');
     if (chosen) {
       const who = selectedTarget();
-      chosen.textContent = who ? (who.nickname || '이름 없는 참가자') : '참가자를 먼저 선택해 주세요.';
+      if (who) chosen.textContent = who.nickname || '이름 없는 참가자';
+      else chosen.textContent = '참가자를 먼저 선택해 주세요.';
     }
   }
 
@@ -899,7 +920,8 @@
     body.querySelectorAll('[data-report-category]').forEach(function (node) {
       const checked = node.getAttribute('data-report-category') === selectedCategory;
       node.setAttribute('aria-checked', String(checked));
-      node.tabIndex = checked ? 0 : -1;
+      if (checked) node.tabIndex = 0;
+      else node.tabIndex = -1;
     });
   }
 
@@ -963,9 +985,13 @@
         renderFailed();
         return;
       }
-      targets = Array.isArray(result.data) ? result.data.filter(function (target) {
-        return target && Number(target.userId) > 0;
-      }) : [];
+      if (Array.isArray(result.data)) {
+        targets = result.data.filter(function (target) {
+          return target && Number(target.userId) > 0;
+        });
+      } else {
+        targets = [];
+      }
       // 현재 사용자는 대상에서 뺀다(서버 응답에 섞여 와도 화면에서 다시 걸러 둔다).
       const mine = Number(resultRoot.getAttribute('data-member-id'));
       if (Number.isFinite(mine) && mine > 0) {
@@ -1033,12 +1059,14 @@
 
   /* ── 이벤트 ─────────────────────────────────────────────────────── */
   root.addEventListener('click', function (event) {
-    const element = event.target instanceof Element ? event.target : null;
+    let element = null;
+    if (event.target instanceof Element) element = event.target;
     if (!element) return;
     const target = element.closest('[data-report-target]');
     if (target && !busy) {
       const nextId = Number(target.getAttribute('data-report-target'));
-      selectedUserId = nextId === selectedUserId ? 0 : nextId;
+      if (nextId === selectedUserId) selectedUserId = 0;
+      else selectedUserId = nextId;
       renderTargets();
       renderReport();
       return;
@@ -1065,7 +1093,8 @@
   root.addEventListener('keydown', function (event) {
     const step = CATEGORY_KEYS[event.key];
     if (!step || busy) return;
-    const element = event.target instanceof Element ? event.target : null;
+    let element = null;
+    if (event.target instanceof Element) element = event.target;
     if (!element) return;
     const chip = element.closest('[data-report-category]');
     if (!chip) return;

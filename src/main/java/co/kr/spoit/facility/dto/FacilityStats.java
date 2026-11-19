@@ -117,7 +117,11 @@ public class FacilityStats {
 
     /** 요일 상세는 넘긴 값을 불변 복사본으로 보관한다. null은 빈 목록이 된다. */
     public void setWeekdayDetails(List<WeekdayDetail> weekdayDetails) {
-        this.weekdayDetails = weekdayDetails == null ? List.of() : List.copyOf(weekdayDetails);
+        if (weekdayDetails == null) {
+            this.weekdayDetails = List.of();
+        } else {
+            this.weekdayDetails = List.copyOf(weekdayDetails);
+        }
     }
 
     /** 시간대 상세 목록. 화면 모델은 서비스가 24행(00~23시)으로 채운다. null이 될 수 없다. */
@@ -127,7 +131,11 @@ public class FacilityStats {
 
     /** 시간대 상세는 넘긴 값을 불변 복사본으로 보관한다. null은 빈 목록이 된다. */
     public void setHourDetails(List<HourDetail> hourDetails) {
-        this.hourDetails = hourDetails == null ? List.of() : List.copyOf(hourDetails);
+        if (hourDetails == null) {
+            this.hourDetails = List.of();
+        } else {
+            this.hourDetails = List.copyOf(hourDetails);
+        }
     }
 
     /** 요일×시간대 상세 목록. 화면 모델은 서비스가 7행(월~일)×24칸으로 채운다. null이 될 수 없다. */
@@ -137,8 +145,11 @@ public class FacilityStats {
 
     /** 요일×시간대 상세는 넘긴 값을 불변 복사본으로 보관한다. null은 빈 목록이 된다. */
     public void setWeekdayHourDetails(List<WeekdayHourDetail> weekdayHourDetails) {
-        this.weekdayHourDetails = weekdayHourDetails == null ? List.of()
-                : List.copyOf(weekdayHourDetails);
+        if (weekdayHourDetails == null) {
+            this.weekdayHourDetails = List.of();
+        } else {
+            this.weekdayHourDetails = List.copyOf(weekdayHourDetails);
+        }
     }
 
     /** 요일별 최신 신청 분포 목록. 화면 모델은 서비스가 7행(월~일)으로 채운다. null이 될 수 없다. */
@@ -148,8 +159,11 @@ public class FacilityStats {
 
     /** 요일별 최신 신청 분포는 넘긴 값을 불변 복사본으로 보관한다. null은 빈 목록이 된다. */
     public void setApplicationWeekdayDetails(List<ApplicationDistributionDetail> applicationWeekdayDetails) {
-        this.applicationWeekdayDetails = applicationWeekdayDetails == null ? List.of()
-                : List.copyOf(applicationWeekdayDetails);
+        if (applicationWeekdayDetails == null) {
+            this.applicationWeekdayDetails = List.of();
+        } else {
+            this.applicationWeekdayDetails = List.copyOf(applicationWeekdayDetails);
+        }
     }
 
     /** 시간대별 최신 신청 분포 목록. 화면 모델은 서비스가 24행(00~23시)으로 채운다. null이 될 수 없다. */
@@ -159,8 +173,11 @@ public class FacilityStats {
 
     /** 시간대별 최신 신청 분포는 넘긴 값을 불변 복사본으로 보관한다. null은 빈 목록이 된다. */
     public void setApplicationHourDetails(List<ApplicationDistributionDetail> applicationHourDetails) {
-        this.applicationHourDetails = applicationHourDetails == null ? List.of()
-                : List.copyOf(applicationHourDetails);
+        if (applicationHourDetails == null) {
+            this.applicationHourDetails = List.of();
+        } else {
+            this.applicationHourDetails = List.copyOf(applicationHourDetails);
+        }
     }
 
     /** 요일×시간대별 최신 신청 분포 목록. 서비스는 7행(월~일)×24칸으로 채운다. null이 될 수 없다. */
@@ -171,8 +188,11 @@ public class FacilityStats {
     /** 요일×시간대별 최신 신청 분포는 넘긴 값을 불변 복사본으로 보관한다. null은 빈 목록이 된다. */
     public void setApplicationWeekdayHourDetails(
             List<ApplicationWeekdayHourDetail> applicationWeekdayHourDetails) {
-        this.applicationWeekdayHourDetails = applicationWeekdayHourDetails == null ? List.of()
-                : List.copyOf(applicationWeekdayHourDetails);
+        if (applicationWeekdayHourDetails == null) {
+            this.applicationWeekdayHourDetails = List.of();
+        } else {
+            this.applicationWeekdayHourDetails = List.copyOf(applicationWeekdayHourDetails);
+        }
     }
 
     /** 요일 상세 집계 한 행. {@code share}는 전체 종료 매칭 확정 참가 인원 대비 반올림 백분율(0~100)이다. */
@@ -218,7 +238,11 @@ public class FacilityStats {
 
         public WeekdayHourDetail(String label, List<Long> hourlyCounts) {
             this.label = label;
-            this.hourlyCounts = hourlyCounts == null ? List.of() : List.copyOf(hourlyCounts);
+            if (hourlyCounts == null) {
+                this.hourlyCounts = List.of();
+            } else {
+                this.hourlyCounts = List.copyOf(hourlyCounts);
+            }
         }
     }
 
@@ -260,7 +284,11 @@ public class FacilityStats {
 
         public ApplicationWeekdayHourDetail(String label, List<ApplicationDistributionDetail> hours) {
             this.label = label;
-            this.hours = hours == null ? List.of() : List.copyOf(hours);
+            if (hours == null) {
+                this.hours = List.of();
+            } else {
+                this.hours = List.copyOf(hours);
+            }
         }
     }
 }

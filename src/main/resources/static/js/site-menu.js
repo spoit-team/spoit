@@ -74,10 +74,12 @@
 
     account.append(makeElement('span', 'mobile-menu-user-label', '로그인하면 내 정보를 확인할 수 있습니다.'));
     const guestLinks = makeElement('div', 'mobile-menu-guest-links');
-    const desktopLinks = guestArea ? Array.from(guestArea.querySelectorAll('a[href]')) : [];
+    let desktopLinks = [];
+    if (guestArea) desktopLinks = Array.from(guestArea.querySelectorAll('a[href]'));
     desktopLinks.forEach(function (link, index) {
       const clone = link.cloneNode(true);
-      clone.className = index === 0 ? 'mobile-menu-login' : 'mobile-menu-signup';
+      if (index === 0) clone.className = 'mobile-menu-login';
+      else clone.className = 'mobile-menu-signup';
       guestLinks.append(clone);
     });
     account.append(guestLinks);
@@ -86,11 +88,15 @@
   function setMenuOpen(open) {
     menu.hidden = !open;
     toggle.setAttribute('aria-expanded', String(open));
-    toggle.setAttribute('aria-label', open ? '메뉴 닫기' : '메뉴 열기');
-    toggle.title = open ? '메뉴 닫기' : '메뉴';
-    toggle.innerHTML = open
-      ? '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'
-      : '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+    if (open) {
+      toggle.setAttribute('aria-label', '메뉴 닫기');
+      toggle.title = '메뉴 닫기';
+      toggle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+    } else {
+      toggle.setAttribute('aria-label', '메뉴 열기');
+      toggle.title = '메뉴';
+      toggle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+    }
   }
 
   function closeMenu(restoreFocus) {

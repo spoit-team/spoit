@@ -43,8 +43,10 @@ public class NotificationSessionTrackingDecorator extends WebSocketHandlerDecora
 
     private static Long userIdOf(WebSocketSession session) {
         Map<String, Object> attributes = session.getAttributes();
-        Object userId = attributes == null ? null
-                : attributes.get(NotificationHandshakeInterceptor.USER_ID_ATTRIBUTE);
+        Object userId = null;
+        if (attributes != null) {
+            userId = attributes.get(NotificationHandshakeInterceptor.USER_ID_ATTRIBUTE);
+        }
         if (userId instanceof Long identifier && identifier > 0) {
             return identifier;
         }
@@ -58,7 +60,11 @@ public class NotificationSessionTrackingDecorator extends WebSocketHandlerDecora
         }
         try {
             long value = Long.parseLong(session.getPrincipal().getName());
-            return value > 0 ? value : null;
+            if (value > 0) {
+                return value;
+            } else {
+                return null;
+            }
         } catch (NumberFormatException exception) {
             return null;
         }

@@ -134,6 +134,12 @@
   letter-spacing: -0.012em;
 }
 
+@supports (height: 100dvh) {
+  .ui-alert {
+    max-height: calc(100dvh - 40px);
+  }
+}
+
 .ui-alert::backdrop { background: rgba(19, 21, 25, .46); }
 
 /* showModal을 쓸 수 없는 환경에서 open 속성만으로 열 때의 위치 */

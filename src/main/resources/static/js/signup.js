@@ -23,12 +23,7 @@
   const message = document.getElementById('signup-message');
   const termsError = document.getElementById('terms-error');
   const requiredConsents = [document.getElementById('agree-service'), document.getElementById('agree-privacy')];
-  // 동의 대상은 실제로 선택 가능한 체크박스만 모읍니다. 비활성 항목(마케팅)은 전체 동의에 포함하지 않습니다.
-  const allConsents = [
-    document.getElementById('agree-service'),
-    document.getElementById('agree-privacy'),
-    document.getElementById('agree-marketing')
-  ].filter(function (checkbox) { return checkbox && !checkbox.disabled; });
+  const allConsents = requiredConsents.filter(function (checkbox) { return checkbox && !checkbox.disabled; });
   const EMAIL_MAX_LENGTH = 255;
   const PASSWORD_MAX_BYTES = 72;
   // 서버의 BCrypt 72바이트 제한과 같은 기준으로 셉니다. TextEncoder가 없으면 퍼센트 인코딩으로 대신 계산합니다.
@@ -55,19 +50,29 @@
     stepOneDot.classList.toggle('is-current', !isProfileStep);
     stepOneDot.classList.toggle('is-done', isProfileStep);
     stepTwoDot.classList.toggle('is-current', isProfileStep);
-    stepOneDot.setAttribute('aria-current', isProfileStep ? 'false' : 'step');
-    stepTwoDot.setAttribute('aria-current', isProfileStep ? 'step' : 'false');
-    stepOneLabel.className = 'text-xs ' + (isProfileStep ? 'font-semibold text-book-ink' : 'font-bold text-book-ink');
-    stepTwoLabel.className = 'text-xs ' + (isProfileStep ? 'font-bold text-book-ink' : 'font-semibold text-faint');
+    if (isProfileStep) {
+      stepOneDot.setAttribute('aria-current', 'false');
+      stepTwoDot.setAttribute('aria-current', 'step');
+      stepOneLabel.className = 'text-xs font-semibold text-book-ink';
+      stepTwoLabel.className = 'text-xs font-bold text-book-ink';
+    } else {
+      stepOneDot.setAttribute('aria-current', 'step');
+      stepTwoDot.setAttribute('aria-current', 'false');
+      stepOneLabel.className = 'text-xs font-bold text-book-ink';
+      stepTwoLabel.className = 'text-xs font-semibold text-faint';
+    }
     if (message) message.hidden = true;
-    (isProfileStep ? fields.email : document.getElementById('agree-service'))?.focus();
+    if (isProfileStep) fields.email?.focus();
+    else document.getElementById('agree-service')?.focus();
   }
 
   function setFieldError(key, text) {
     const input = fields[key];
-    const error = document.getElementById('signup-' + (key === 'passwordConfirm' ? 'password-confirm' : key) + '-error');
+    let errorKey = key;
+    if (key === 'passwordConfirm') errorKey = 'password-confirm';
+    const error = document.getElementById('signup-' + errorKey + '-error');
     if (!input || !error) return !text;
-    input.setAttribute('aria-invalid', text ? 'true' : 'false');
+    input.setAttribute('aria-invalid', String(Boolean(text)));
     error.textContent = text;
     error.hidden = !text;
     return !text;
@@ -94,7 +99,8 @@
   }
 
   function validateRoleFields() {
-    const role = roleSelect ? roleSelect.value : 'member';
+    let role = 'member';
+    if (roleSelect) role = roleSelect.value;
     let input = null;
     let errorText = '';
     if (role === 'facility' && !facilityName.value.trim()) {
@@ -104,8 +110,8 @@
       input = adminInvite;
       errorText = '관리자 초대 코드를 입력해 주세요.';
     }
-    facilityName?.setAttribute('aria-invalid', input === facilityName ? 'true' : 'false');
-    adminInvite?.setAttribute('aria-invalid', input === adminInvite ? 'true' : 'false');
+    facilityName?.setAttribute('aria-invalid', String(input === facilityName));
+    adminInvite?.setAttribute('aria-invalid', String(input === adminInvite));
     if (roleError) {
       roleError.textContent = errorText;
       roleError.hidden = !errorText;
@@ -190,13 +196,15 @@
   });
 
   document.addEventListener('click', function (event) {
-    const termsButton = event.target instanceof Element ? event.target.closest('[data-terms-toggle]') : null;
+    let termsButton = null;
+    if (event.target instanceof Element) termsButton = event.target.closest('[data-terms-toggle]');
     if (!termsButton) return;
     const copy = document.getElementById(termsButton.dataset.termsToggle);
     if (!copy) return;
     copy.hidden = !copy.hidden;
     termsButton.setAttribute('aria-expanded', String(!copy.hidden));
-    termsButton.textContent = copy.hidden ? '보기' : '닫기';
+    if (copy.hidden) termsButton.textContent = '보기';
+    else termsButton.textContent = '닫기';
   });
 
   form.addEventListener('submit', function (event) {
@@ -234,5 +242,6 @@
   });
 
   updateRoleFields();
-  showStep(Number(form.dataset.startStep) === 2 ? 2 : 1);
+  if (form.dataset.startStep === 'true') showStep(2);
+  else showStep(1);
 })();

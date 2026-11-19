@@ -56,7 +56,11 @@ final class StompCsrfTokens {
         }
         try {
             String value = token.getToken();
-            return value == null || value.isBlank() ? null : value;
+            if (value == null || value.isBlank()) {
+                return null;
+            } else {
+                return value;
+            }
         } catch (RuntimeException exception) {
             return null;
         }

@@ -3,15 +3,22 @@
   'use strict';
 
   document.addEventListener('click', function (event) {
-    const target = event.target instanceof Element ? event.target.closest('[data-toggle-password]') : null;
+    let target = null;
+    if (event.target instanceof Element) target = event.target.closest('[data-toggle-password]');
     if (!target) return;
 
     const input = document.getElementById(target.dataset.togglePassword);
     if (!input) return;
 
     const visible = input.type === 'password';
-    input.type = visible ? 'text' : 'password';
-    target.textContent = visible ? '숨기기' : '보기';
-    target.setAttribute('aria-label', visible ? '비밀번호 숨기기' : '비밀번호 표시');
+    if (visible) {
+      input.type = 'text';
+      target.textContent = '숨기기';
+      target.setAttribute('aria-label', '비밀번호 숨기기');
+    } else {
+      input.type = 'password';
+      target.textContent = '보기';
+      target.setAttribute('aria-label', '비밀번호 표시');
+    }
   });
 })();

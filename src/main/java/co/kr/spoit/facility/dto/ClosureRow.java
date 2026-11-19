@@ -35,11 +35,25 @@ public class ClosureRow {
     public static ClosureRow from(FacilityClosure closure, String facilityName) {
         LocalDateTime start = closure.getStartAt();
         LocalDateTime end = closure.getEndAt();
-        String date = start == null ? "" : start.format(DATE);
-        String range = start == null || end == null ? ""
-                : start.format(TIME) + " ~ " + end.format(TIME);
+        String date = "";
+        if (start != null) {
+            date = start.format(DATE);
+        }
+        String range = "";
+        if (start != null && end != null) {
+            range = start.format(TIME) + " ~ " + end.format(TIME);
+        }
         boolean active = closure.isActive();
+        String statusLabel;
+        String statusTone;
+        if (active) {
+            statusLabel = "적용 중";
+            statusTone = "warn";
+        } else {
+            statusLabel = "취소";
+            statusTone = "neutral";
+        }
         return new ClosureRow(closure.getScheduleChangeId(), date, facilityName, range,
-                closure.getReason(), active ? "적용 중" : "취소", active ? "warn" : "neutral");
+                closure.getReason(), statusLabel, statusTone);
     }
 }

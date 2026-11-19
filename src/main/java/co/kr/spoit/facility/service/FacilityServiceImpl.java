@@ -103,7 +103,12 @@ public class FacilityServiceImpl implements FacilityService {
 
         // 기존 매핑을 지우지 않고 변경분만 반영해 유지 종목의 default_* 값을 보존한다.
         List<Long> existingSportIds = facilityMapper.selectFacilitySportIds(facilityId);
-        List<Long> retainedSportIds = existingSportIds == null ? List.of() : existingSportIds;
+        List<Long> retainedSportIds;
+        if (existingSportIds == null) {
+            retainedSportIds = List.of();
+        } else {
+            retainedSportIds = existingSportIds;
+        }
 
         List<Long> removedSportIds = retainedSportIds.stream()
                 .filter(sportId -> !sportIds.contains(sportId))
@@ -237,8 +242,13 @@ public class FacilityServiceImpl implements FacilityService {
     }
 
     private List<Long> resolveSportIds(List<String> sports) {
-        List<String> names = sports == null ? List.of()
-                : sports.stream().filter(name -> name != null && !name.isBlank()).map(String::strip).distinct().toList();
+        List<String> names;
+        if (sports == null) {
+            names = List.of();
+        } else {
+            names = sports.stream().filter(name -> name != null && !name.isBlank()).map(String::strip).distinct()
+                    .toList();
+        }
         if (names.isEmpty()) {
             throw new IllegalArgumentException("이용 종목을 하나 이상 선택해 주세요.");
         }

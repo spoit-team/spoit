@@ -150,7 +150,10 @@ public class NotificationPageController {
                 || authentication instanceof AnonymousAuthenticationToken) {
             return null;
         }
-        return authentication.getPrincipal() instanceof MemberPrincipal principal
-                ? principal.getUserId() : null;
+        if (authentication.getPrincipal() instanceof MemberPrincipal principal) {
+            return principal.getUserId();
+        } else {
+            return null;
+        }
     }
 }

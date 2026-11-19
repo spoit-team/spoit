@@ -119,32 +119,54 @@ public final class NotificationItemDto {
         return switch (kind) {
             // 결과 알림은 모두 결과 화면으로 보낸다(확정 참가자·양 팀장·미제출 팀장).
             case MATCH_RESULT_CONFLICT, MATCH_RESULT_REMINDER, MATCH_RESULT_COMPLETED ->
-                    hasMatch ? MATCH_RESULT_FORM + matchId + MATCH_RESULT_FORM_SUFFIX : MYPAGE_NOTIFICATIONS;
+                    matchHref(hasMatch, MATCH_RESULT_FORM, matchId, MATCH_RESULT_FORM_SUFFIX,
+                            MYPAGE_NOTIFICATIONS);
             // 신청 접수·취소의 수신자는 담당 시설 관리자이므로 신청 관리 화면으로 보낸다.
             case MATCH_APPLICATION_RECEIVED, MATCH_APPLICATION_CANCELLED ->
-                    hasMatch ? ADMIN_MATCH_ROOM + matchId : MYPAGE_NOTIFICATIONS;
+                    matchHref(hasMatch, ADMIN_MATCH_ROOM, matchId, "", MYPAGE_NOTIFICATIONS);
             // 그 밖의 매칭 알림 수신자는 참가자·신청자이므로 사용자용 매칭 상세로 보낸다.
             case MATCH_APPLICATION_CONFIRMED, MATCH_APPLICATION_REJECTED, MATCH_AUTO_ASSIGNED, MATCH_AUTO_CANCELLED,
                  MATCH_ROOM_CANCELLED ->
-                    hasMatch ? MATCH_DETAIL + matchId : MYPAGE_NOTIFICATIONS;
+                    matchHref(hasMatch, MATCH_DETAIL, matchId, "", MYPAGE_NOTIFICATIONS);
             // 가입 신청 접수는 동호회장만 받는다. 동호회장이 여러 팀이면 관리 화면이 첫 팀만 열므로,
             // 신청이 접수된 팀을 clubId로 지정해야 잘못된 팀의 신청 목록을 보여 주지 않는다.
-            case CLUB_JOIN_REQUESTED -> hasClub
-                    ? CLUB_MANAGE + "?clubId=" + clubId + "&tab=applications"
-                    : CLUB_MANAGE_APPLICATIONS;
-            case CLUB_JOIN_APPROVED -> hasClub ? CLUB_DETAIL + clubId : CLUB_MANAGE;
-            case CLUB_LEADER_TRANSFERRED -> hasClub ? CLUB_MANAGE + "?clubId=" + clubId + "&tab=members" : CLUB_LIST;
+            case CLUB_JOIN_REQUESTED -> clubHref(hasClub, CLUB_MANAGE + "?clubId=", clubId,
+                    "&tab=applications", CLUB_MANAGE_APPLICATIONS);
+            case CLUB_JOIN_APPROVED -> clubHref(hasClub, CLUB_DETAIL, clubId, "", CLUB_MANAGE);
+            case CLUB_LEADER_TRANSFERRED -> clubHref(hasClub, CLUB_MANAGE + "?clubId=", clubId,
+                    "&tab=members", CLUB_LIST);
             // 거절된 신청자·추방된 팀원은 더 이상 팀 관리 권한이 없으므로 상세(없으면 목록)로 보낸다.
-            case CLUB_JOIN_REJECTED, CLUB_MEMBER_KICKED -> hasClub ? CLUB_DETAIL + clubId : CLUB_LIST;
+            case CLUB_JOIN_REJECTED, CLUB_MEMBER_KICKED ->
+                    clubHref(hasClub, CLUB_DETAIL, clubId, "", CLUB_LIST);
             // 신고 접수는 시스템 관리자가, 처리 결과는 신고자가 받는다. 권한별 접근은 이동한 화면이
             // 서버에서 다시 검사하므로, 여기서는 유형에 맞는 신고 화면 경로만 만든다.
-            case REPORT_SUBMITTED -> hasReport
-                    ? ADMIN_SYSTEM_REPORTS + reportId
-                    : MYPAGE_NOTIFICATIONS;
-            case REPORT_RESOLVED -> hasReport
-                    ? ADMIN_FACILITY_REPORTS + reportId
-                    : MYPAGE_NOTIFICATIONS;
+            case REPORT_SUBMITTED -> reportHref(hasReport, ADMIN_SYSTEM_REPORTS, reportId);
+            case REPORT_RESOLVED -> reportHref(hasReport, ADMIN_FACILITY_REPORTS, reportId);
         };
+    }
+
+    private static String matchHref(boolean hasMatch, String prefix, Long matchId, String suffix, String fallback) {
+        if (hasMatch) {
+            return prefix + matchId + suffix;
+        } else {
+            return fallback;
+        }
+    }
+
+    private static String clubHref(boolean hasClub, String prefix, Long clubId, String suffix, String fallback) {
+        if (hasClub) {
+            return prefix + clubId + suffix;
+        } else {
+            return fallback;
+        }
+    }
+
+    private static String reportHref(boolean hasReport, String prefix, Long reportId) {
+        if (hasReport) {
+            return prefix + reportId;
+        } else {
+            return MYPAGE_NOTIFICATIONS;
+        }
     }
 
     /**
@@ -181,14 +203,26 @@ public final class NotificationItemDto {
 
     /** 화면 경로에 쓸 수 있는 번호만 통과시킨다. null·0·음수는 없는 대상으로 본다. */
     private static Long validId(Long id) {
-        return id != null && id > 0 ? id : null;
+        if (id != null && id > 0) {
+            return id;
+        } else {
+            return null;
+        }
     }
 
     private static String formatTime(LocalDateTime createdAt) {
-        return createdAt == null ? "" : createdAt.format(TIME_FORMAT);
+        if (createdAt == null) {
+            return "";
+        } else {
+            return createdAt.format(TIME_FORMAT);
+        }
     }
 
     private static String nullToEmpty(String value) {
-        return value == null ? "" : value;
+        if (value == null) {
+            return "";
+        } else {
+            return value;
+        }
     }
 }

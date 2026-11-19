@@ -3,6 +3,7 @@
 <head th:fragment="head(title, description, styles)">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" th:href="@{/favicon.ico}" sizes="48x48" />
   <title th:text="${title}">SPO:IT 관리자</title>
   <meta name="description" th:content="${description}" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
@@ -15,7 +16,7 @@
   <!-- 통합 알림: 관리자 상단바 배지와 알림 목록을 실제 데이터로 갱신합니다. -->
   <script th:src="@{/js/notification-center.js(v=${cssVersion})}" defer></script>
 </head>
-<body class="admin-body" th:attr="data-admin-role=${adminUser != null ? adminUser.role : ''}">
+<body class="admin-body" th:attr="data-admin-role=${adminUser?.role}">
 
 <!-- 시설 관리자 사이드바 -->
 <aside th:fragment="facilitySidebar(active)" class="admin-sidebar" aria-label="시설 관리자 메뉴">
@@ -26,21 +27,23 @@
     </a>
     <button class="admin-sidebar-toggle" type="button" data-sidebar-toggle aria-label="메뉴 접기" title="메뉴 접기" aria-expanded="true" aria-controls="admin-sidebar-nav"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7" /></svg></button>
   </div>
-  <div class="admin-role"><span class="admin-role-mark" aria-hidden="true">F</span><span class="admin-role-copy"><b>시설 관리자</b><small th:text="${adminUser != null and adminUser.facilityName != null ? adminUser.facilityName : '담당 시설'}">담당 시설</small></span></div>
+  <div class="admin-role"><span class="admin-role-mark" aria-hidden="true">F</span><span class="admin-role-copy"><b>시설 관리자</b><small th:if="${adminUser != null and adminUser.facilityName != null}" th:text="${adminUser.facilityName}">담당 시설</small><small th:unless="${adminUser != null and adminUser.facilityName != null}">담당 시설</small></span></div>
   <nav class="admin-nav" id="admin-sidebar-nav" aria-label="관리 메뉴">
     <div class="admin-nav-group">
       <span class="admin-nav-label">시설 운영</span>
-      <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-dashboard'" data-view-target="facility-dashboard" th:aria-current="${active == 'facility-dashboard' ? 'page' : null}"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="4" rx="1.2"/><rect x="13.5" y="10.5" width="7" height="10" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/></svg></span>대시보드</a>
-      <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-assets'" data-view-target="facility-assets"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 20V8l7-4 7 4v12M9 20v-6h6v6M8 9h.01M16 9h.01"/></svg></span>시설·공간 관리</a>
-      <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-schedule'" data-view-target="facility-schedule"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M14 14h2M8 17h3"/></svg></span>예약 운영 일정</a>
-      <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-bookings'" data-view-target="facility-bookings"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M8 17h7"/></svg></span>매칭방 관리</a>
-      <a class="admin-nav-link" th:href="@{/admin/facility} + '#facility-stats'" data-view-target="facility-stats"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M4 20V11M10 20V5M16 20v-8M22 20V8"/></svg></span>예약 통계</a>
+      <a th:if="${active == 'facility-dashboard'}" class="admin-nav-link" th:href="@{/admin/facility(view='dashboard')} + '#facility-dashboard'" data-view-target="facility-dashboard" aria-current="page"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="4" rx="1.2"/><rect x="13.5" y="10.5" width="7" height="10" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/></svg></span>대시보드</a>
+      <a th:unless="${active == 'facility-dashboard'}" class="admin-nav-link" th:href="@{/admin/facility(view='dashboard')} + '#facility-dashboard'" data-view-target="facility-dashboard"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="4" rx="1.2"/><rect x="13.5" y="10.5" width="7" height="10" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/></svg></span>대시보드</a>
+      <a class="admin-nav-link" th:href="@{/admin/facility(view='assets')} + '#facility-assets'" data-view-target="facility-assets"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 20V8l7-4 7 4v12M9 20v-6h6v6M8 9h.01M16 9h.01"/></svg></span>시설·공간 관리</a>
+      <a class="admin-nav-link" th:href="@{/admin/facility(view='schedule')} + '#facility-schedule'" data-view-target="facility-schedule"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M14 14h2M8 17h3"/></svg></span>예약 운영 일정</a>
+      <a class="admin-nav-link" th:href="@{/admin/facility(view='bookings')} + '#facility-bookings'" data-view-target="facility-bookings"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M8 17h7"/></svg></span>매칭방 관리</a>
+      <a class="admin-nav-link" th:href="@{/admin/facility(view='stats')} + '#facility-stats'" data-view-target="facility-stats"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M4 20V11M10 20V5M16 20v-8M22 20V8"/></svg></span>예약 통계</a>
     </div>
     <div class="admin-nav-group">
       <span class="admin-nav-label">이용자 보호</span>
       <!-- 신고 화면은 별도 URL이다. data-view-target을 붙이면 admin-shell.js가 같은 경로 안의
            화면 전환으로 가로채므로, URL 링크로 그대로 이동하도록 두지 않는다. -->
-      <a class="admin-nav-link" th:href="@{/admin/facility/reports}" th:aria-current="${active == 'facility-reports' ? 'page' : null}"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 7.6 7.5 9.5 4.3-1.9 7.5-5 7.5-9.5V6L12 3Z"/><path d="M12 9v4M12 16h.01"/></svg></span>신고 관리</a>
+      <a th:if="${active == 'facility-reports'}" class="admin-nav-link" th:href="@{/admin/facility/reports}" aria-current="page"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 7.6 7.5 9.5 4.3-1.9 7.5-5 7.5-9.5V6L12 3Z"/><path d="M12 9v4M12 16h.01"/></svg></span>신고 관리</a>
+      <a th:unless="${active == 'facility-reports'}" class="admin-nav-link" th:href="@{/admin/facility/reports}"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 7.6 7.5 9.5 4.3-1.9 7.5-5 7.5-9.5V6L12 3Z"/><path d="M12 9v4M12 16h.01"/></svg></span>신고 관리</a>
     </div>
   </nav>
   <div class="sidebar-spacer"></div>
@@ -62,16 +65,18 @@
   <nav class="admin-nav" id="admin-sidebar-nav" aria-label="관리 메뉴">
     <div class="admin-nav-group">
       <span class="admin-nav-label">시스템</span>
-      <a class="admin-nav-link" th:href="@{/admin/system} + '#system-dashboard'" data-view-target="system-dashboard" th:aria-current="${active == 'system-dashboard' ? 'page' : null}"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="4" rx="1.2"/><rect x="13.5" y="10.5" width="7" height="10" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/></svg></span>모니터링</a>
-      <a class="admin-nav-link" th:href="@{/admin/system} + '#system-errors'" data-view-target="system-errors"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg></span>서버·오류 로그<span class="nav-count" th:if="${errorMetrics != null and errorMetrics.openCount > 0}" th:text="${errorMetrics.openCount}">0</span></a>
+      <a th:if="${active == 'system-dashboard'}" class="admin-nav-link" th:href="@{/admin/system(view='dashboard')} + '#system-dashboard'" data-view-target="system-dashboard" aria-current="page"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="4" rx="1.2"/><rect x="13.5" y="10.5" width="7" height="10" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/></svg></span>모니터링</a>
+      <a th:unless="${active == 'system-dashboard'}" class="admin-nav-link" th:href="@{/admin/system(view='dashboard')} + '#system-dashboard'" data-view-target="system-dashboard"><span class="nav-symbol"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="4" rx="1.2"/><rect x="13.5" y="10.5" width="7" height="10" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/></svg></span>모니터링</a>
+      <a class="admin-nav-link" th:href="@{/admin/system(view='errors')} + '#system-errors'" data-view-target="system-errors"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg></span>서버·오류 로그<span class="nav-count" th:if="${errorMetrics != null and errorMetrics.openCount > 0}" th:text="${errorMetrics.openCount}">0</span></a>
     </div>
     <div class="admin-nav-group">
       <span class="admin-nav-label">사용자 관리</span>
-      <a class="admin-nav-link" th:href="@{/admin/system} + '#system-users'" data-view-target="system-users"><span class="nav-symbol"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0M16 5.5a3.5 3.5 0 0 1 0 6.8M17.5 14.5a5.7 5.7 0 0 1 3.7 5.5"/></svg></span>사용자 관리</a>
+      <a class="admin-nav-link" th:href="@{/admin/system(view='users')} + '#system-users'" data-view-target="system-users"><span class="nav-symbol"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0M16 5.5a3.5 3.5 0 0 1 0 6.8M17.5 14.5a5.7 5.7 0 0 1 3.7 5.5"/></svg></span>사용자 관리</a>
       <!-- 신고 접수함은 별도 URL 화면이다. data-view-target을 붙이면 같은 경로 안의 화면 전환으로
            가로채이므로 URL 링크로 그대로 이동하도록 두지 않는다. -->
-      <a class="admin-nav-link" th:href="@{/admin/system/reports}" th:aria-current="${active == 'system-reports' ? 'page' : null}"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 7.6 7.5 9.5 4.3-1.9 7.5-5 7.5-9.5V6L12 3Z"/><path d="M9 12h6M12 9v6"/></svg></span>신고 접수함</a>
-      <a class="admin-nav-link" th:href="@{/admin/system} + '#system-penalties'" data-view-target="system-penalties"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 7.6 7.5 9.5 4.3-1.9 7.5-5 7.5-9.5V6L12 3Z"/><path d="M9 12h6M12 9v6"/></svg></span>페널티 관리</a>
+      <a th:if="${active == 'system-reports'}" class="admin-nav-link" th:href="@{/admin/system/reports}" aria-current="page"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 7.6 7.5 9.5 4.3-1.9 7.5-5 7.5-9.5V6L12 3Z"/><path d="M9 12h6M12 9v6"/></svg></span>신고 접수함</a>
+      <a th:unless="${active == 'system-reports'}" class="admin-nav-link" th:href="@{/admin/system/reports}"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 7.6 7.5 9.5 4.3-1.9 7.5-5 7.5-9.5V6L12 3Z"/><path d="M9 12h6M12 9v6"/></svg></span>신고 접수함</a>
+      <a class="admin-nav-link" th:href="@{/admin/system(view='penalties')} + '#system-penalties'" data-view-target="system-penalties"><span class="nav-symbol"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 7.6 7.5 9.5 4.3-1.9 7.5-5 7.5-9.5V6L12 3Z"/><path d="M9 12h6M12 9v6"/></svg></span>페널티 관리</a>
     </div>
   </nav>
   <div class="sidebar-spacer"></div>
@@ -82,12 +87,18 @@
 
 <!-- 관리자 상단 바 -->
 <header th:fragment="topbar(breadcrumb, environment)" class="admin-topbar">
+  <button class="mobile-menu-toggle" type="button" data-mobile-nav-toggle aria-expanded="false" aria-controls="admin-sidebar-nav" aria-label="메뉴 열기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg></button>
+  <!-- 모바일(≤840px)에서는 사이드바의 'SPO:IT 메인' 링크가 펼침 메뉴 안에 숨겨지므로
+       상단바에 항상 보이는 메인 복귀 링크를 둔다. 데스크톱에서는 사이드바 아래
+       sidebar-home이 복귀 수단이므로 이 링크는 숨긴다(admin.css의 .topbar-home 규칙). -->
+  <a class="topbar-button topbar-home" th:href="@{/matches}" aria-label="SPO:IT 메인으로 이동" title="SPO:IT 메인으로 이동"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-5.5h-5V21H5a1 1 0 0 1-1-1Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
   <div class="breadcrumbs"><span>관리자</span><span aria-hidden="true">/</span><strong id="breadcrumb-current" th:text="${breadcrumb}">관리</strong></div>
   <span class="topbar-spacer"></span>
-  <span class="system-env" th:title="${environment != null ? environment : '관리자'}" th:aria-label="${environment != null ? environment : '관리자'}"><i class="env-dot"></i> <span th:text="${environment != null ? environment : '관리자'}">관리자</span></span>
+  <span th:if="${environment != null}" class="system-env" th:title="${environment}" th:aria-label="${environment}"><i class="env-dot"></i> <span th:text="${environment}">관리자</span></span>
+  <span th:unless="${environment != null}" class="system-env" title="관리자" aria-label="관리자"><i class="env-dot"></i> <span>관리자</span></span>
   <button class="topbar-button topbar-notification-trigger" type="button" aria-label="알림 열기" aria-haspopup="dialog" aria-controls="admin-notification-modal" aria-expanded="false" data-open-admin-notifications><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="admin-notification-count" class="topbar-notification-count" data-notification-badge th:hidden="${unreadAdminNotificationCount == null or unreadAdminNotificationCount <= 0}" th:text="${unreadAdminNotificationCount}">0</span></button>
   <form th:action="@{/logout}" method="post" class="contents"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button class="topbar-button" type="submit" aria-label="로그아웃" title="로그아웃">↪</button></form>
-  <div class="topbar-profile"><span class="profile-avatar" th:text="${adminUser != null and adminUser.initial != null ? adminUser.initial : '관'}">관</span><span class="profile-name"><b th:text="${adminUser != null and adminUser.nickname != null ? adminUser.nickname : '관리자'}">관리자</b><small th:text="${adminUser != null and adminUser.roleLabel != null ? adminUser.roleLabel : '관리자'}">관리자</small></span></div>
+  <div class="topbar-profile"><span class="profile-avatar" th:if="${adminUser != null and adminUser.initial != null}" th:text="${adminUser.initial}">관</span><span class="profile-avatar" th:unless="${adminUser != null and adminUser.initial != null}">관</span><span class="profile-name"><b th:if="${adminUser != null and adminUser.nickname != null}" th:text="${adminUser.nickname}">관리자</b><b th:unless="${adminUser != null and adminUser.nickname != null}">관리자</b><small th:if="${adminUser != null and adminUser.roleLabel != null}" th:text="${adminUser.roleLabel}">관리자</small><small th:unless="${adminUser != null and adminUser.roleLabel != null}">관리자</small></span></div>
 </header>
 
 <!-- 관리자 알림 모달: 알림 목록과 읽음/삭제는 서버 폼으로 처리합니다. JS가 있으면 같은 API로 처리하고,
@@ -102,12 +113,14 @@
   <section class="admin-modal notification-modal" role="dialog" aria-modal="true" aria-labelledby="admin-notification-title" aria-describedby="admin-notification-description">
     <div class="modal-header"><div><h2 id="admin-notification-title" th:text="${title}">관리자 알림</h2><p id="admin-notification-description" th:text="${description}">운영 알림을 확인합니다.</p></div><button class="modal-close" type="button" data-close-admin-notifications aria-label="알림 창 닫기">×</button></div>
     <div class="modal-body">
-      <p id="admin-notification-summary" class="admin-notification-summary" data-notification-summary="long" aria-live="polite" th:text="${adminNotificationSummary != null ? adminNotificationSummary : '알림 0건 · 미확인 0건'}">알림 0건</p>
+      <p th:if="${adminNotificationSummary != null}" id="admin-notification-summary" class="admin-notification-summary" data-notification-summary="long" aria-live="polite" th:text="${adminNotificationSummary}">알림 0건</p>
+      <p th:unless="${adminNotificationSummary != null}" id="admin-notification-summary" class="admin-notification-summary" data-notification-summary="long" aria-live="polite">알림 0건 · 미확인 0건</p>
       <div id="admin-notification-list" class="admin-notification-list" data-notification-list data-empty-class="admin-notification-empty" aria-live="polite">
-        <article th:each="item : ${adminNotifications}" class="admin-notification-item" th:classappend="${item.read} ? 'is-read' : ''" th:attr="data-notification-id=${item.notificationId}">
+        <th:block th:each="item : ${adminNotifications}">
+        <article th:if="${item.read}" class="admin-notification-item is-read" th:attr="data-notification-id=${item.notificationId}">
           <span class="admin-notification-dot" aria-hidden="true"></span>
           <div class="admin-notification-copy">
-            <div class="admin-notification-meta"><span th:text="${item.type}">알림</span><span th:classappend="${item.read} ? 'is-read-label' : ''" th:text="${item.read ? '읽음' : '새 알림'}">새 알림</span></div>
+            <div class="admin-notification-meta"><span th:text="${item.type}">알림</span><span class="is-read-label">읽음</span></div>
             <a class="admin-notification-link" th:href="@{${item.href}}"><div>
               <h3 th:text="${item.title}">알림 제목</h3>
               <p th:text="${item.body}">알림 내용</p>
@@ -119,6 +132,22 @@
             <form method="post" th:action="@{/admin/notifications/{id}/delete(id=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="admin-button small" th:aria-label="${'알림 삭제: ' + item.title}">삭제</button></form>
           </div>
         </article>
+        <article th:unless="${item.read}" class="admin-notification-item" th:attr="data-notification-id=${item.notificationId}">
+          <span class="admin-notification-dot" aria-hidden="true"></span>
+          <div class="admin-notification-copy">
+            <div class="admin-notification-meta"><span th:text="${item.type}">알림</span><span>새 알림</span></div>
+            <a class="admin-notification-link" th:href="@{${item.href}}"><div>
+              <h3 th:text="${item.title}">알림 제목</h3>
+              <p th:text="${item.body}">알림 내용</p>
+              <time th:text="${item.time}">시간</time>
+            </div></a>
+          </div>
+          <div class="admin-notification-actions">
+            <form th:if="${!item.read}" method="post" th:action="@{/admin/notifications/{id}/read(id=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="admin-button small">읽음</button></form>
+            <form method="post" th:action="@{/admin/notifications/{id}/delete(id=${item.notificationId})}"><input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" /><button type="submit" class="admin-button small" th:aria-label="${'알림 삭제: ' + item.title}">삭제</button></form>
+          </div>
+        </article>
+        </th:block>
         <p th:if="${#lists.isEmpty(adminNotifications)}" class="admin-notification-empty" data-notification-empty>확인할 알림이 없습니다.</p>
       </div>
       <template data-notification-item-template>

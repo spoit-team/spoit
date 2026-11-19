@@ -194,7 +194,12 @@ public class FacilitySchedule {
             int closeMinutes = minutes(today.getCloseTime());
             // 종료가 시작보다 이르거나 자정 넘김으로 표시된 경우는 다음 날까지 이어진다.
             boolean nextDay = today.isEndNextDay() || closeMinutes < openMinutes;
-            int endMinutes = nextDay ? 24 * 60 : closeMinutes;
+            int endMinutes;
+            if (nextDay) {
+                endMinutes = 24 * 60;
+            } else {
+                endMinutes = closeMinutes;
+            }
             mark(mask, openMinutes, endMinutes);
         }
         OperatingRule previous = weekly.get(date.minusDays(1).getDayOfWeek().getValue());
@@ -238,7 +243,10 @@ public class FacilitySchedule {
     }
 
     private static int minutes(LocalTime time) {
-        return time == null ? 0 : time.getHour() * 60 + time.getMinute();
+        if (time == null) {
+            return 0;
+        }
+        return time.getHour() * 60 + time.getMinute();
     }
 
     /** 시작을 포함하고 종료를 포함하지 않는 이용 가능 구간이다. */

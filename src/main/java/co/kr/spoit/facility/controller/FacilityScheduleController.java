@@ -85,7 +85,11 @@ public class FacilityScheduleController {
         DateScheduleForm form = new DateScheduleForm();
         form.setFacilityId(facilityId);
         form.setDate(date);
-        form.setHours(hours == null ? List.of() : hours);
+        if (hours == null) {
+            form.setHours(List.of());
+        } else {
+            form.setHours(hours);
+        }
         form.setNote(note);
         return write(principal, facilityId, "schedule-hours", date, null, redirect,
                 () -> scheduleService.saveDateHours(principal.getUserId(), form),
@@ -161,15 +165,25 @@ public class FacilityScheduleController {
         if (principal == null) {
             return "redirect:/login";
         }
+        long cancelFacilityId;
+        if (facilityId == null) {
+            cancelFacilityId = 0L;
+        } else {
+            cancelFacilityId = facilityId;
+        }
         return write(principal, facilityId, "schedule-changes", date, null, redirect,
                 () -> scheduleService.cancelClosure(principal.getUserId(),
-                        facilityId == null ? 0L : facilityId, scheduleChangeId),
+                        cancelFacilityId, scheduleChangeId),
                 "휴관 일정을 취소했습니다.");
     }
 
     private WeeklyScheduleForm weeklyForm(List<Integer> openDays, Map<String, String> params) {
         WeeklyScheduleForm form = new WeeklyScheduleForm();
-        form.setOpenDays(openDays == null ? List.of() : openDays);
+        if (openDays == null) {
+            form.setOpenDays(List.of());
+        } else {
+            form.setOpenDays(openDays);
+        }
         Map<Integer, String> starts = new HashMap<>();
         Map<Integer, String> ends = new HashMap<>();
         for (int day = 1; day <= 7; day++) {
@@ -209,7 +223,11 @@ public class FacilityScheduleController {
             if (summary.length() > 0) {
                 summary.append(", ");
             }
-            summary.append(conflict.getTitle() == null ? "매칭방 " + conflict.getMatchId() : conflict.getTitle());
+            String title = conflict.getTitle();
+            if (title == null) {
+                title = "매칭방 " + conflict.getMatchId();
+            }
+            summary.append(title);
         }
         return summary.toString();
     }
@@ -254,7 +272,10 @@ public class FacilityScheduleController {
             return null;
         }
         String normalized = value.strip();
-        return ALLOWED_TABS.contains(normalized) ? normalized : null;
+        if (ALLOWED_TABS.contains(normalized)) {
+            return normalized;
+        }
+        return null;
     }
 
     private static LocalDate parseDate(String value) {

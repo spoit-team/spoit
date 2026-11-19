@@ -11,6 +11,8 @@ import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -18,6 +20,7 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.DefaultCsrfToken;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
@@ -166,6 +169,15 @@ class NotificationCsrfHandshakeTest {
     }
 
     @Test
+    @DisplayName("현재 계정이 활성 상태면 핸드셰이크를 허용한다")
+    void acceptsActiveAccount() {
+        Map<String, Object> attributes = handshake(sessionRequest(session));
+
+        assertThat(attributes).containsEntry(NotificationHandshakeInterceptor.USER_ID_ATTRIBUTE, 7L);
+        assertThat(attributes).containsEntry(NotificationHandshakeInterceptor.CSRF_TOKEN_ATTRIBUTE, origin);
+    }
+
+    @Test
     @DisplayName("로그인 상태여도 조회 결과가 이용정지 중이면 403으로 거부하고 속성을 남기지 않는다")
     void rejectsStillAuthenticatedPrincipalThatIsNowSuspended() {
         LocalDateTime futurePenalty = LocalDateTime.now(ZoneId.of("Asia/Seoul")).plusDays(3);
@@ -181,17 +193,30 @@ class NotificationCsrfHandshakeTest {
     }
 
     @Test
-    @DisplayName("계정 조회가 실패하면 핸드셰이크를 거부한다(fail closed)")
-    void rejectsWhenAccountLookupFails() {
+    @DisplayName("삭제되었거나 찾을 수 없는 계정은 403으로 거부한다")
+    void rejectsWhenAccountIsMissing() {
         assertHandshakeRejected(username -> {
-            throw new IllegalStateException("회원 조회 실패");
+            throw new UsernameNotFoundException("회원을 찾을 수 없습니다.");
         });
+    }
+
+    @Test
+    @DisplayName("계정 조회를 일시적으로 완료할 수 없으면 503으로 거부한다")
+    void returnsServiceUnavailableWhenAccountLookupFails() {
+        assertHandshakeRejected(username -> {
+            throw new DataAccessResourceFailureException("회원 조회를 완료할 수 없음");
+        }, HttpStatus.SERVICE_UNAVAILABLE);
     }
 
     /* ---------------- helpers ---------------- */
 
     /** 커밋된 계정 상태를 다시 읽는 조회가 거부 사유를 보고할 때의 핸드셰이크 결과를 확인한다. */
     private void assertHandshakeRejected(UserDetailsService lookup) {
+        assertHandshakeRejected(lookup, HttpStatus.FORBIDDEN);
+    }
+
+    /** 계정 조회 결과에 따라 연결을 거부하고 지정된 HTTP 상태를 돌려주는지 확인한다. */
+    private void assertHandshakeRejected(UserDetailsService lookup, HttpStatus expectedStatus) {
         NotificationHandshakeInterceptor interceptor = new NotificationHandshakeInterceptor(repository, lookup);
         MockHttpServletResponse response = new MockHttpServletResponse();
         Map<String, Object> attributes = new HashMap<>();
@@ -201,7 +226,7 @@ class NotificationCsrfHandshakeTest {
                 new org.springframework.http.server.ServletServerHttpResponse(response), null, attributes);
 
         assertThat(accepted).isFalse();
-        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getStatus()).isEqualTo(expectedStatus.value());
         assertThat(attributes).isEmpty();
     }
 

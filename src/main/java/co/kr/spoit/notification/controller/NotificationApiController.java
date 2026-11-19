@@ -54,7 +54,11 @@ public class NotificationApiController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         boolean changed = commandService.markRead(userId, notificationId, LocalDateTime.now());
-        return changed ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+        if (changed) {
+            return ResponseEntity.noContent().build();
+        } else {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     /** 개별 삭제. 소유하지 않았거나 없는 알림이면 404. */
@@ -65,7 +69,11 @@ public class NotificationApiController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         boolean deleted = commandService.delete(userId, notificationId);
-        return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+        if (deleted) {
+            return ResponseEntity.noContent().build();
+        } else {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     /** 모두 읽음. 변경 건수와 무관하게 204를 돌려준다(남은 알림 유무를 흘리지 않는다). */
@@ -86,7 +94,10 @@ public class NotificationApiController {
                 || authentication instanceof AnonymousAuthenticationToken) {
             return null;
         }
-        return authentication.getPrincipal() instanceof MemberPrincipal principal
-                ? principal.getUserId() : null;
+        if (authentication.getPrincipal() instanceof MemberPrincipal principal) {
+            return principal.getUserId();
+        } else {
+            return null;
+        }
     }
 }

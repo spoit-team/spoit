@@ -17,7 +17,12 @@
   <div th:replace="~{fragments/feedback :: flash}"></div>
 
   <div id="team-sport-tabs" class="team-sport-tabs" aria-label="종목별 동호회 필터" role="group">
-    <a th:each="sport : ${sportTabs}" class="team-sport-tab" th:classappend="${sport.active} ? 'is-active' : ''" th:href="@{${sport.url}}" th:attr="aria-current=${sport.active} ? 'page' : null">
+    <a th:each="sport : ${sportTabs}" th:if="${sport.active}" class="team-sport-tab is-active" th:href="@{${sport.url}}" aria-current="page">
+      <img class="team-sport-tab-icon" th:src="@{/images/club/sports/{key}.svg(key=${sport.sportKey})}" alt="" aria-hidden="true">
+      <span th:text="${sport.name}">전체</span>
+      <span class="team-sport-tab-count" th:text="${sport.count}">0</span>
+    </a>
+    <a th:each="sport : ${sportTabs}" th:unless="${sport.active}" class="team-sport-tab" th:href="@{${sport.url}}">
       <img class="team-sport-tab-icon" th:src="@{/images/club/sports/{key}.svg(key=${sport.sportKey})}" alt="" aria-hidden="true">
       <span th:text="${sport.name}">전체</span>
       <span class="team-sport-tab-count" th:text="${sport.count}">0</span>
@@ -51,7 +56,8 @@
           </div>
         </div>
         <div class="team-badges">
-          <span class="team-badge" th:classappend="${club.recruiting} ? 'is-recruiting' : 'is-closed'" th:text="${club.statusLabel}">모집 중</span>
+          <span th:if="${club.recruiting}" class="team-badge is-recruiting" th:text="${club.statusLabel}">모집 중</span>
+          <span th:unless="${club.recruiting}" class="team-badge is-closed" th:text="${club.statusLabel}">모집 마감</span>
           <span class="team-badge" title="동호회 등급" th:text="${club.tierLabel}">실버</span>
         </div>
         <div class="team-card-meta">

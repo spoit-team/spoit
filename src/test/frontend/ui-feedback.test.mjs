@@ -97,7 +97,7 @@ class Node extends Element {
   }
 }
 
-function createPage({ flash = null, storage = memoryStorage(), timers = manualTimers() } = {}) {
+function createPage({ flash = null, storage = memoryStorage(), timers = manualTimers(), url = 'http://localhost/' } = {}) {
   const document = {
     readyState: 'loading',
     activeElement: null,
@@ -129,15 +129,28 @@ function createPage({ flash = null, storage = memoryStorage(), timers = manualTi
     document.body.appendChild(element);
   }
   let reloads = 0;
+  const historyReplacements = [];
+  const location = {
+    href: url,
+    reload() { reloads++; },
+    replace(target) { location.href = new URL(target, location.href).href; }
+  };
   const window = {
     document,
     sessionStorage: storage,
-    location: { reload() { reloads++; } },
+    location,
+    history: {
+      state: null,
+      replaceState(state, title, target) {
+        historyReplacements.push(target);
+        location.href = new URL(target, location.href).href;
+      }
+    },
     requestAnimationFrame: handler => handler(),
     setTimeout: timers.setTimeout,
     clearTimeout: timers.clearTimeout
   };
-  return { window, document, timers, reloads: () => reloads };
+  return { window, document, timers, historyReplacements: () => historyReplacements, reloads: () => reloads };
 }
 
 function memoryStorage() {
@@ -193,6 +206,28 @@ const alertDialog = page => page.document.getElementById('ui-alert');
   assert.equal(toastRegion(page).children[0].classes.has('is-shown'), true, 'the toast must slide in');
   assert.equal(alertDialog(page), null, 'a success must not open the failure modal');
   assert.equal(page.document.getElementById('ui-feedback-flash'), null, 'the flash element is consumed');
+}
+{
+  const page = createPage({
+    url: 'http://localhost/admin/system?view=dashboard&csrfRecovery=1&csrfRecovery=1#system-dashboard'
+  });
+  await load(page);
+  assert.equal(alertDialog(page).open, true, 'a rejected request is shown in the shared failure modal');
+  assert.equal(alertDialog(page).querySelector('#ui-alert-reason').textContent,
+    '요청은 처리되지 않았으며 화면을 새로 고쳤습니다. 내용을 확인한 뒤 다시 시도해 주세요.');
+  assert.equal(toastRegion(page), null, 'a rejected request does not use the success toast');
+  assert.equal(new URL(page.window.location.href).searchParams.has('csrfRecovery'), false,
+    'the one-time recovery marker is removed from the address bar');
+  assert.equal(new URL(page.window.location.href).searchParams.get('view'), 'dashboard',
+    'the original destination query remains intact');
+  assert.equal(new URL(page.window.location.href).hash, '#system-dashboard',
+    'the original section anchor remains intact');
+  assert.deepEqual(page.historyReplacements(), ['/admin/system?view=dashboard#system-dashboard']);
+}
+{
+  const page = createPage({ url: 'http://localhost/admin/system?view=dashboard#system-dashboard' });
+  await load(page);
+  assert.deepEqual(toastTexts(page), [], 'the notice does not reappear after the marker was removed');
 }
 {
   const page = createPage({ flash: {

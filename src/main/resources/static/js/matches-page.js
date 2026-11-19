@@ -37,18 +37,21 @@
 
     const trackBounds = sportTabsTrack.getBoundingClientRect();
     const tabs = Array.from(sportTabsTrack.querySelectorAll('a'));
-    const targetTab = direction > 0
-      ? tabs.find((tab) => tab.getBoundingClientRect().right > trackBounds.right + 1)
-      : tabs.slice().reverse().find((tab) => tab.getBoundingClientRect().left < trackBounds.left - 1);
+    let targetTab;
+    if (direction > 0) {
+      targetTab = tabs.find((tab) => tab.getBoundingClientRect().right > trackBounds.right + 1);
+    } else {
+      targetTab = tabs.slice().reverse().find((tab) => tab.getBoundingClientRect().left < trackBounds.left - 1);
+    }
     if (!targetTab) {
       updateSportTabScrollControls();
       return;
     }
 
     const targetBounds = targetTab.getBoundingClientRect();
-    const movement = direction > 0
-      ? targetBounds.right - trackBounds.right
-      : targetBounds.left - trackBounds.left;
+    let movement;
+    if (direction > 0) movement = targetBounds.right - trackBounds.right;
+    else movement = targetBounds.left - trackBounds.left;
     sportTabsTrack.scrollLeft = Math.max(0, Math.min(maxScrollLeft, sportTabsTrack.scrollLeft + movement));
     window.requestAnimationFrame(updateSportTabScrollControls);
   }
@@ -340,7 +343,8 @@
   }
 
   document.addEventListener('click', function (event) {
-    const target = event.target instanceof Element ? event.target : null;
+    let target = null;
+    if (event.target instanceof Element) target = event.target;
     if (!target) return;
 
     const detailButton = target.closest('[data-room-detail]');

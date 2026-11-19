@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+<a th:fragment="brandLink" th:href="@{/matches}" class="flex shrink-0 items-center gap-2.5" aria-label="SPO:IT 홈">
+  <img class="size-[34px] shrink-0" th:src="@{/images/spoit-mark.svg}" alt="" aria-hidden="true" />
+  <span class="flex flex-col leading-none"><b class="text-[16px] font-extrabold tracking-[-.04em]">SPO<span style="color:#5FAE4E">:</span>IT</b><small class="mt-1 hidden whitespace-nowrap text-[8px] font-medium tracking-[.01em] text-faint xl:block">SPORTS · PEOPLE · CONNECTION</small></span>
+</a>
+
+<th:block th:fragment="legalLinks">
+  <a th:href="@{/matches}" class="hover:text-ink-2">SPO:IT 홈</a><span aria-hidden="true">·</span><a th:href="@{/terms}" class="hover:text-ink-2">이용약관</a><span aria-hidden="true">·</span><a th:href="@{/privacy}" class="hover:text-ink-2">개인정보처리방침</a>
+</th:block>
+</body>
+</html>

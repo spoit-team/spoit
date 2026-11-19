@@ -83,11 +83,15 @@
     const seats = seatCount();
     const unavailable = seats > availableSeats || availableSeats === 0;
     capacityNotice.classList.toggle('is-unavailable', unavailable);
-    capacityNotice.textContent = unavailable
-      ? availableSeats === 0
-        ? '정원이 마감되어 예약할 수 없습니다. 자리가 있는 다른 매칭방을 선택해 주세요.'
-        : '남은 자리 ' + availableSeats + '명보다 신청 인원 ' + seats + '명이 많아 예약할 수 없습니다. 참가 인원을 줄여 주세요.'
-      : '현재 ' + availableSeats + '자리가 남아 있습니다. ' + seats + '명 신청 시 서버 확인과 결제 안내 후 참가가 확정됩니다.';
+    let notice = '현재 ' + availableSeats + '자리가 남아 있습니다. ' + seats + '명 신청 시 서버 확인과 결제 안내 후 참가가 확정됩니다.';
+    if (unavailable) {
+      if (availableSeats === 0) {
+        notice = '정원이 마감되어 예약할 수 없습니다. 자리가 있는 다른 매칭방을 선택해 주세요.';
+      } else {
+        notice = '남은 자리 ' + availableSeats + '명보다 신청 인원 ' + seats + '명이 많아 예약할 수 없습니다. 참가 인원을 줄여 주세요.';
+      }
+    }
+    capacityNotice.textContent = notice;
   }
 
   function renderTeamStep() {
@@ -115,17 +119,28 @@
     stepIndicator1.classList.toggle('is-active', teamStep === 1);
     stepIndicator1.classList.toggle('is-complete', teamStep === 2);
     stepIndicator2.classList.toggle('is-active', teamStep === 2);
-    stepIndicator1.setAttribute('aria-current', teamStep === 1 ? 'step' : 'false');
-    stepIndicator2.setAttribute('aria-current', teamStep === 2 ? 'step' : 'false');
+    if (teamStep === 1) stepIndicator1.setAttribute('aria-current', 'step');
+    else stepIndicator1.setAttribute('aria-current', 'false');
+    if (teamStep === 2) stepIndicator2.setAttribute('aria-current', 'step');
+    else stepIndicator2.setAttribute('aria-current', 'false');
 
-    if (backButton) backButton.textContent = isTeam && teamStep === 2 ? '이전' : '취소';
+    if (backButton) {
+      if (isTeam && teamStep === 2) backButton.textContent = '이전';
+      else backButton.textContent = '취소';
+    }
     if (submitButton) {
       submitButton.textContent = isTeam
         ? teamStep === 1 ? '참가 팀원 선택' : '참가 신청하기'
         : '참가 신청하기';
-      submitButton.disabled = isTeam
-        ? teamStep === 1 ? !clubId : !hasParticipants() || seatCount() > availableSeats
-        : availableSeats < 1;
+      let submitDisabled = availableSeats < 1;
+      if (isTeam) {
+        if (teamStep === 1) {
+          submitDisabled = !clubId;
+        } else {
+          submitDisabled = !hasParticipants() || seatCount() > availableSeats;
+        }
+      }
+      submitButton.disabled = submitDisabled;
     }
 
     const option = selectedClubOption();
@@ -147,10 +162,14 @@
     dialog.classList.toggle('is-team', kind === 'team');
     individualPanel.hidden = kind !== 'individual';
     teamPanel.hidden = kind !== 'team';
-    if (heading) heading.textContent = kind === 'team' ? '등록 팀 참가 신청' : '개인 참가 신청';
-    if (lede) lede.textContent = kind === 'team'
-      ? '신청할 등록 팀과 참가할 팀원을 선택해 주세요.'
-      : '신청자 정보를 확인해 주세요.';
+    if (heading) {
+      if (kind === 'team') heading.textContent = '등록 팀 참가 신청';
+      else heading.textContent = '개인 참가 신청';
+    }
+    if (lede) {
+      if (kind === 'team') lede.textContent = '신청할 등록 팀과 참가할 팀원을 선택해 주세요.';
+      else lede.textContent = '신청자 정보를 확인해 주세요.';
+    }
     showError('');
     renderTeamStep();
     if (!dialog.open) dialog.showModal();

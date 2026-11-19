@@ -49,7 +49,12 @@ public class NotificationSessionRegistry {
         }
         long stamp = generationOf(userId).get();
         this.sessionsByUser.compute(userId, (key, existing) -> {
-            List<WebSocketSession> sessions = existing == null ? new ArrayList<>() : existing;
+            List<WebSocketSession> sessions;
+            if (existing == null) {
+                sessions = new ArrayList<>();
+            } else {
+                sessions = existing;
+            }
             sessions.add(session);
             return sessions;
         });
@@ -67,7 +72,11 @@ public class NotificationSessionRegistry {
         }
         this.sessionsByUser.computeIfPresent(userId, (key, existing) -> {
             existing.remove(session);
-            return existing.isEmpty() ? null : existing;
+            if (existing.isEmpty()) {
+                return null;
+            } else {
+                return existing;
+            }
         });
     }
 
@@ -77,7 +86,11 @@ public class NotificationSessionRegistry {
             return 0;
         }
         List<WebSocketSession> sessions = this.sessionsByUser.get(userId);
-        return sessions == null ? 0 : sessions.size();
+        if (sessions == null) {
+            return 0;
+        } else {
+            return sessions.size();
+        }
     }
 
     /** 해당 회원의 모든 연결을 닫고 추적에서 제거한다. */

@@ -21,23 +21,22 @@
     if (value === null || value === undefined || value === '') return fallback;
     if (value === 'all' || value === '모든 실력') return '모든 실력';
     const level = Number(value);
-    return Number.isInteger(level) && level >= 1 && level <= 5 ? `${level}단계` : fallback;
+    if (Number.isInteger(level) && level >= 1 && level <= 5) return `${level}단계`;
+    return fallback;
   }
 
   function formatKoreanDate(value, knownDates = []) {
-    const knownDate = Array.isArray(knownDates)
-      ? knownDates.find((item) => item.iso === value)
-      : null;
+    let knownDate = null;
+    if (Array.isArray(knownDates)) knownDate = knownDates.find((item) => item.iso === value);
     if (knownDate) return knownDate.label;
 
     const date = new Date(`${String(value || '')}T00:00:00`);
-    return Number.isNaN(date.getTime())
-      ? String(value || '')
-      : new Intl.DateTimeFormat('ko-KR', {
+    if (Number.isNaN(date.getTime())) return String(value || '');
+    return new Intl.DateTimeFormat('ko-KR', {
         month: 'long',
         day: 'numeric',
         weekday: 'short'
-      }).format(date);
+    }).format(date);
   }
 
   const announcementTimers = new WeakMap();
@@ -56,7 +55,9 @@
 
     if (options.scrollIntoView) {
       const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-      target.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'nearest' });
+      let behavior = 'smooth';
+      if (prefersReducedMotion) behavior = 'auto';
+      target.scrollIntoView({ behavior: behavior, block: 'nearest' });
     }
 
     const timeout = Number(options.timeout);

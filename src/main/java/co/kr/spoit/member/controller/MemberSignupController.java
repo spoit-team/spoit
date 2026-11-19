@@ -60,8 +60,13 @@ public class MemberSignupController {
             memberService.register(form);
         } catch (IllegalArgumentException exception) {
             String message = exception.getMessage();
-            return renderError(model, form,
-                    message == null || message.isBlank() ? BINDING_ERROR_MESSAGE : message);
+            String displayMessage;
+            if (message == null || message.isBlank()) {
+                displayMessage = BINDING_ERROR_MESSAGE;
+            } else {
+                displayMessage = message;
+            }
+            return renderError(model, form, displayMessage);
         }
         return "redirect:/login?message=" + URLEncoder.encode(SUCCESS_MESSAGE, StandardCharsets.UTF_8);
     }

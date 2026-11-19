@@ -80,7 +80,10 @@ class FacilityScheduleLoader {
     }
 
     private static <T> List<T> nullSafe(List<T> values) {
-        return values == null ? List.of() : values;
+        if (values == null) {
+            return List.of();
+        }
+        return values;
     }
 
     /** 일정 재료다. */

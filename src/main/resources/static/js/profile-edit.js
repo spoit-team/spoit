@@ -34,12 +34,16 @@
     if (!sportSelect || !ratingPreview) return;
     const option = sportSelect.options[sportSelect.selectedIndex];
     const hasSport = Boolean(sportSelect.value) && Boolean(option);
-    ratingPreview.textContent = hasSport ? (option.dataset.rating || '기록 없음') : '종목을 선택하세요';
+    let ratingText = '종목을 선택하세요';
+    let note = '확정 매치 기록에 따라 표시하며 직접 수정할 수 없습니다.';
+    if (hasSport) {
+      ratingText = option.dataset.rating || '기록 없음';
+      note = option.dataset.ratingNote || '확정 매치 기록에 따라 표시하며 직접 수정할 수 없습니다.';
+    }
+    ratingPreview.textContent = ratingText;
     syncTierClass(hasSport ? option.dataset.tier : null);
     if (ratingNote) {
-      ratingNote.textContent = hasSport
-        ? (option.dataset.ratingNote || '확정 매치 기록에 따라 표시하며 직접 수정할 수 없습니다.')
-        : '확정 매치 기록에 따라 표시하며 직접 수정할 수 없습니다.';
+      ratingNote.textContent = note;
     }
   }
 
@@ -49,9 +53,10 @@
   function validateNickname() {
     const value = nicknameInput.value.trim();
     const invalid = !value || !/^[가-힣a-zA-Z0-9_]{2,12}$/.test(value);
-    nicknameInput.setAttribute('aria-invalid', invalid ? 'true' : 'false');
+    nicknameInput.setAttribute('aria-invalid', String(invalid));
     if (nicknameError) {
-      nicknameError.textContent = invalid ? '한글, 영문, 숫자, 밑줄로 2~12자 입력해 주세요.' : '';
+      if (invalid) nicknameError.textContent = '한글, 영문, 숫자, 밑줄로 2~12자 입력해 주세요.';
+      else nicknameError.textContent = '';
       nicknameError.hidden = !invalid;
     }
     return !invalid;
@@ -123,7 +128,7 @@
     const filled = Boolean(withdrawalInput.value.trim());
     withdrawalConfirm.disabled = !filled;
     if (withdrawalError) withdrawalError.hidden = filled;
-    withdrawalInput.setAttribute('aria-invalid', filled ? 'false' : 'true');
+    withdrawalInput.setAttribute('aria-invalid', String(!filled));
   });
 
   withdrawalForm?.addEventListener('submit', function (event) {

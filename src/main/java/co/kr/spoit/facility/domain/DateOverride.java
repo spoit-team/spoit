@@ -29,7 +29,11 @@ public class DateOverride {
     public static DateOverride of(LocalDate date, List<Integer> hours, String note) {
         DateOverride override = new DateOverride();
         override.date = date;
-        override.hours = hours == null ? List.of() : new ArrayList<>(hours);
+        if (hours == null) {
+            override.hours = List.of();
+        } else {
+            override.hours = new ArrayList<>(hours);
+        }
         override.note = note;
         return override;
     }

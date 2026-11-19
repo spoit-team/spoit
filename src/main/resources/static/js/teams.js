@@ -49,7 +49,8 @@
   }
 
   document.addEventListener('click', function (event) {
-    const target = event.target instanceof Element ? event.target : null;
+    let target = null;
+    if (event.target instanceof Element) target = event.target;
     if (!target) return;
    
     // 목록으로 돌아가기: 바로 전이 목록이면 뒤로 가기(보던 자리·불러온 장 그대로), 아니면 링크대로

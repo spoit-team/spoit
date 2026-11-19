@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import co.kr.spoit.member.domain.MemberPrincipal;
 
@@ -26,6 +27,13 @@ public final class MemberAccountStateVerifier {
 
     private static final Logger log = LoggerFactory.getLogger(MemberAccountStateVerifier.class);
 
+    /** 세션 주체와 최신 계정 상태를 비교한 결과. */
+    public enum VerificationResult {
+        ACTIVE,
+        REJECTED,
+        UNAVAILABLE
+    }
+
     private MemberAccountStateVerifier() {
     }
 
@@ -37,21 +45,53 @@ public final class MemberAccountStateVerifier {
      * @return 같은 회원이면서 사용 가능할 때만 {@code true}
      */
     public static boolean isStillActive(MemberPrincipal authenticated, UserDetailsService userDetailsService) {
+        return verify(authenticated, userDetailsService, false) == VerificationResult.ACTIVE;
+    }
+
+    /**
+     * 세션 인증 주체와 최신 계정 상태를 비교한다.
+     *
+     * <p>계정이 없거나 상태·역할이 다르면 {@link VerificationResult#REJECTED}, 그 밖의 조회 예외는
+     * {@link VerificationResult#UNAVAILABLE}로 구분한다. 두 결과 모두 인증은 거부되며,
+     * 웹소켓 핸드셰이크처럼 일시적 조회 장애에 재시도 가능한 응답을 줄 호출자만 결과를 구분한다.</p>
+     *
+     * @return 계정 상태가 같으면 {@link VerificationResult#ACTIVE}, 거부 사유가 있으면
+     *         {@link VerificationResult#REJECTED}, 조회 예외면 {@link VerificationResult#UNAVAILABLE}
+     */
+    public static VerificationResult verify(MemberPrincipal authenticated,
+            UserDetailsService userDetailsService) {
+        return verify(authenticated, userDetailsService, true);
+    }
+
+    private static VerificationResult verify(MemberPrincipal authenticated,
+            UserDetailsService userDetailsService, boolean logUnavailableAsWarning) {
         if (authenticated == null || authenticated.getUserId() == null || userDetailsService == null) {
-            return false;
+            return VerificationResult.REJECTED;
         }
         try {
             UserDetails loaded = userDetailsService.loadUserByUsername(authenticated.getUsername());
             if (!(loaded instanceof MemberPrincipal current)) {
-                return false;
+                return VerificationResult.REJECTED;
             }
-            return authenticated.getUserId().equals(current.getUserId())
+            boolean active = authenticated.getUserId().equals(current.getUserId())
                     && current.isEnabled()
                     && current.getAuthorities().equals(authenticated.getAuthorities());
-        } catch (RuntimeException exception) {
-            // 회원이 사라졌거나 조회에 실패하면 인증을 이어갈 근거가 없다. fail closed.
+            if (active) {
+                return VerificationResult.ACTIVE;
+            }
+            return VerificationResult.REJECTED;
+        } catch (UsernameNotFoundException exception) {
+            // 계정이 없거나 탈퇴·비밀번호 미설정 상태는 재시도해도 해결되지 않는 거부 사유다.
             log.debug("계정 상태 재확인 실패: userId={}", authenticated.getUserId(), exception);
-            return false;
+            return VerificationResult.REJECTED;
+        } catch (RuntimeException exception) {
+            // 조회 중 예외는 연결 근거가 아니므로 거부하되, 일시적 장애와 권한 거부를 구분한다.
+            if (logUnavailableAsWarning) {
+                log.warn("계정 상태 조회를 완료할 수 없음: userId={}", authenticated.getUserId(), exception);
+            } else {
+                log.debug("계정 상태 재확인 실패: userId={}", authenticated.getUserId(), exception);
+            }
+            return VerificationResult.UNAVAILABLE;
         }
     }
 }

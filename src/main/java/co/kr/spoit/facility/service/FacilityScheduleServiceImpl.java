@@ -83,7 +83,14 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
         long id = selected.getFacilityId();
         ScheduleSnapshot snapshot = scheduleLoader.snapshot(id);
         FacilitySchedule schedule = snapshot.toSchedule();
-        YearMonth visibleMonth = month != null ? month : (date != null ? YearMonth.from(date) : YearMonth.now(ZONE));
+        YearMonth visibleMonth;
+        if (month != null) {
+            visibleMonth = month;
+        } else if (date != null) {
+            visibleMonth = YearMonth.from(date);
+        } else {
+            visibleMonth = YearMonth.now(ZONE);
+        }
 
         List<WeeklyHourRow> weeklyRows = weeklyRows(snapshot.rules());
         List<String> hourOptions = hourOptions();
@@ -99,7 +106,11 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
     @Override
     @Transactional
     public void saveWeeklyHours(Long userId, WeeklyScheduleForm form) {
-        long facilityId = requireManagedFacility(userId, form == null ? null : form.getFacilityId());
+        Long requestedFacilityId = null;
+        if (form != null) {
+            requestedFacilityId = form.getFacilityId();
+        }
+        long facilityId = requireManagedFacility(userId, requestedFacilityId);
         List<OperatingRule> rows = parseWeeklyRows(form);
         requireFacilityForUpdate(facilityId);
         ScheduleSnapshot snapshot = scheduleLoader.snapshotForUpdate(facilityId);
@@ -121,8 +132,14 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
     @Override
     @Transactional
     public void saveDateHours(Long userId, DateScheduleForm form) {
-        long facilityId = requireManagedFacility(userId, form == null ? null : form.getFacilityId());
-        LocalDate date = parseDate(form == null ? null : form.getDate());
+        Long requestedFacilityId = null;
+        String requestedDate = null;
+        if (form != null) {
+            requestedFacilityId = form.getFacilityId();
+            requestedDate = form.getDate();
+        }
+        long facilityId = requireManagedFacility(userId, requestedFacilityId);
+        LocalDate date = parseDate(requestedDate);
         requireFacilityForUpdate(facilityId);
         ScheduleSnapshot snapshot = scheduleLoader.snapshotForUpdate(facilityId);
         FacilitySchedule current = snapshot.toSchedule();
@@ -183,7 +200,11 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
     @Override
     @Transactional
     public void saveConditions(Long userId, ConditionsForm form) {
-        long facilityId = requireManagedFacility(userId, form == null ? null : form.getFacilityId());
+        Long requestedFacilityId = null;
+        if (form != null) {
+            requestedFacilityId = form.getFacilityId();
+        }
+        long facilityId = requireManagedFacility(userId, requestedFacilityId);
         Long sportId = form.getSportId();
         if (sportId == null) {
             throw new IllegalArgumentException("모집 조건을 설정할 종목을 선택해 주세요.");
@@ -205,7 +226,11 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
     @Override
     @Transactional
     public void registerClosure(Long userId, ClosureForm form) {
-        long facilityId = requireManagedFacility(userId, form == null ? null : form.getFacilityId());
+        Long requestedFacilityId = null;
+        if (form != null) {
+            requestedFacilityId = form.getFacilityId();
+        }
+        long facilityId = requireManagedFacility(userId, requestedFacilityId);
         LocalDate date = parseDate(form.getDate());
         LocalDateTime startAt;
         LocalDateTime endAt;
@@ -217,7 +242,11 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
             if (!end.nextDay() && end.time().equals(start)) {
                 throw new IllegalArgumentException("휴관 종료 시간은 시작 시간과 달라야 합니다.");
             }
-            endAt = nextDay ? date.plusDays(1).atTime(end.time()) : date.atTime(end.time());
+            if (nextDay) {
+                endAt = date.plusDays(1).atTime(end.time());
+            } else {
+                endAt = date.atTime(end.time());
+            }
         } catch (IllegalArgumentException exception) {
             throw exception;
         }
@@ -234,12 +263,16 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
         List<MatchPeriod> conflicts = scheduleMapper.selectOverlappingMatchPeriodsForUpdate(
                 facilityId, OCCUPYING_STATUSES, startAt, endAt);
         if (conflicts != null && !conflicts.isEmpty()) {
+            String nextDaySuffix = "";
+            if (endAt.toLocalDate().isAfter(date)) {
+                nextDaySuffix = " (다음 날)";
+            }
             throw new ScheduleConflictException(
                     "입력한 휴관 기간과 겹치는 모집 중·매칭 완료 매칭방이 있어 휴관을 등록하지 않았습니다.",
                     conflicts, "휴관 " + date.format(DATE_LABEL) + " "
                             + ScheduleTimes.format(startAt.toLocalTime()) + " ~ "
                             + ScheduleTimes.format(endAt.toLocalTime())
-                            + (endAt.toLocalDate().isAfter(date) ? " (다음 날)" : ""));
+                            + nextDaySuffix);
         }
 
         FacilityClosure closure = new FacilityClosure();
@@ -261,8 +294,13 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
         if (target == null) {
             throw new IllegalArgumentException("취소할 수 있는 휴관 일정을 찾을 수 없습니다.");
         }
-        long id = requireManagedFacility(userId,
-                facilityId > 0 ? facilityId : target.getFacilityId());
+        long requestedFacilityId;
+        if (facilityId > 0) {
+            requestedFacilityId = facilityId;
+        } else {
+            requestedFacilityId = target.getFacilityId();
+        }
+        long id = requireManagedFacility(userId, requestedFacilityId);
         if (id != target.getFacilityId()) {
             throw new IllegalArgumentException("취소할 수 있는 휴관 일정을 찾을 수 없습니다.");
         }
@@ -302,25 +340,42 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
             String time = String.format("%02d:00", hour);
             boolean blocked = schedule.isClosureBlockedHour(date, hour);
             boolean isSelected = selected.contains(hour);
+            String blockedLabel = null;
+            String blockedDescription = time;
+            if (blocked) {
+                blockedLabel = "휴관";
+                blockedDescription = time + " ~ " + String.format("%02d:00", hour + 1) + " 휴관으로 선택 불가";
+            }
             slots.add(new CalendarView.HourSlot(time, isSelected, blocked, blocked,
-                    blocked ? "휴관" : null,
-                    blocked ? time + " ~ " + String.format("%02d:00", hour + 1) + " 휴관으로 선택 불가" : time));
+                    blockedLabel, blockedDescription));
         }
         boolean configured = schedule.isConfigured();
-        String source = !configured
-                ? "주간 운영 시간이 설정되지 않아 신규 신청이 차단됩니다."
-                : (override == null ? "주간 운영 시간을 기준으로 표시합니다."
-                        : (override.isClosed() ? "이 날짜는 휴무로 설정되어 있습니다."
-                                : "이 날짜에만 적용되는 시간입니다."));
+        String source;
+        if (!configured) {
+            source = "주간 운영 시간이 설정되지 않아 신규 신청이 차단됩니다.";
+        } else if (override == null) {
+            source = "주간 운영 시간을 기준으로 표시합니다.";
+        } else if (override.isClosed()) {
+            source = "이 날짜는 휴무로 설정되어 있습니다.";
+        } else {
+            source = "이 날짜에만 적용되는 시간입니다.";
+        }
         String ranges = rangesText(baseHours);
-        String availability = !configured
-                ? "주간 운영 시간이 설정되지 않아 신규 신청이 차단됩니다."
-                : (override != null && override.isClosed()
-                        ? "이 날짜는 종일 예약이 불가능합니다."
-                        : "예약 가능 " + openHours.size() + "시간");
+        String availability;
+        if (!configured) {
+            availability = "주간 운영 시간이 설정되지 않아 신규 신청이 차단됩니다.";
+        } else if (override != null && override.isClosed()) {
+            availability = "이 날짜는 종일 예약이 불가능합니다.";
+        } else {
+            availability = "예약 가능 " + openHours.size() + "시간";
+        }
+        String note = null;
+        if (override != null) {
+            note = override.getNote();
+        }
         return new CalendarView(monthLabel, prevUrl, nextUrl, days, date.format(DATE_VALUE),
                 date.format(DATE_LABEL), source, baseHours.size(), slots, ranges,
-                override == null ? null : override.getNote(), availability);
+                note, availability);
     }
 
     private List<CalendarView.Day> calendarDays(FacilityListItem facility, ScheduleSnapshot snapshot,
@@ -331,12 +386,22 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
         for (int index = 0; index < 42; index++) {
             LocalDate day = gridStart.plusDays(index);
             DateOverride override = snapshot.findOverride(day);
-            String customLabel = override != null && !override.isClosed() ? "시간 지정" : null;
-            String closedLabel = override != null && override.isClosed() ? "휴관" : null;
+            String customLabel = null;
+            if (override != null && !override.isClosed()) {
+                customLabel = "시간 지정";
+            }
+            String closedLabel = null;
+            if (override != null && override.isClosed()) {
+                closedLabel = "휴관";
+            }
             boolean blocked = closureOverlapsDate(snapshot.closures(), day);
-            String aria = day.format(DATE_LABEL)
-                    + (customLabel != null ? ", 날짜별 시간 지정" : "")
-                    + (closedLabel != null ? ", 휴관" : "");
+            String aria = day.format(DATE_LABEL);
+            if (customLabel != null) {
+                aria += ", 날짜별 시간 지정";
+            }
+            if (closedLabel != null) {
+                aria += ", 휴관";
+            }
             days.add(new CalendarView.Day(day.getDayOfMonth(), calendarUrl(facility, day, sportId, tab), aria,
                     day.equals(selected), day.getMonthValue() != month.getMonthValue(), blocked,
                     customLabel, closedLabel));
@@ -375,7 +440,12 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
             String start = ScheduleTimes.format(rule.getOpenTime());
             // "24:00"은 다음 날 자정 종료일 때만 쓴다. 22:00~다음 날 06:00 같은 야간 운영은
             // 실제 종료 시각을 보여 줘야 변경 없이 다시 저장해도 같은 구간이 유지된다.
-            String end = isMidnightNextDay(rule) ? "24:00" : ScheduleTimes.format(rule.getCloseTime());
+            String end;
+            if (isMidnightNextDay(rule)) {
+                end = "24:00";
+            } else {
+                end = ScheduleTimes.format(rule.getCloseTime());
+            }
             rows.add(WeeklyHourRow.of(day, rule.isOpen(), start, end));
         }
         return rows;
@@ -434,8 +504,12 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
         if (closures == null) {
             return rows;
         }
+        String displayFacilityName = facilityName;
+        if (displayFacilityName == null) {
+            displayFacilityName = "";
+        }
         for (FacilityClosure closure : closures) {
-            rows.add(ClosureRow.from(closure, facilityName == null ? "" : facilityName));
+            rows.add(ClosureRow.from(closure, displayFacilityName));
         }
         return rows;
     }
@@ -452,8 +526,14 @@ public class FacilityScheduleServiceImpl implements FacilityScheduleService {
                 rows.add(OperatingRule.closed(day));
                 continue;
             }
-            String startValue = form.getStartTimes() == null ? null : form.getStartTimes().get(day);
-            String endValue = form.getEndTimes() == null ? null : form.getEndTimes().get(day);
+            String startValue = null;
+            if (form.getStartTimes() != null) {
+                startValue = form.getStartTimes().get(day);
+            }
+            String endValue = null;
+            if (form.getEndTimes() != null) {
+                endValue = form.getEndTimes().get(day);
+            }
             LocalTime start = ScheduleTimes.parseStart(startValue, dayLabel(day) + " 시작 시간");
             ScheduleTimes.EndTime end = ScheduleTimes.parseEnd(endValue, dayLabel(day) + " 종료 시간");
             if (!end.nextDay() && end.time().equals(start)) {
