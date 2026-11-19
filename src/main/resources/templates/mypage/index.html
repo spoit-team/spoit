@@ -191,8 +191,8 @@
                      화면 경로(/result-form)와 JSON 요약 API(/result/summary)는 서로 다른 주소입니다.
                      제출 대상이면 제출 버튼을, 그 외 완료 경기는 결과 보기 링크를 보여 줍니다. -->
                 <div th:if="${resultSubmitMatchIds.contains(entry.matchId) or entry.stateLabel == '이용 완료'}" class="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
-                  <a th:if="${resultSubmitMatchIds.contains(entry.matchId)}" th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="h-9 shrink-0 self-start rounded-lg bg-match px-3 py-2 text-xs font-bold text-white hover:bg-match-hover sm:self-center">경기 결과 제출</a>
-                  <a th:unless="${resultSubmitMatchIds.contains(entry.matchId)}" th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="mypage-result-view-link h-9 shrink-0 self-start rounded-lg border border-line-strong px-3 py-2 text-xs font-bold text-ink-2 hover:border-match hover:text-match-ink sm:self-center">경기 결과 보기</a>
+                  <a th:if="${resultSubmitMatchIds.contains(entry.matchId)}" th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="inline-flex h-9 shrink-0 items-center justify-center self-start rounded-lg bg-match px-3 text-xs font-bold text-white hover:bg-match-hover sm:self-center">경기 결과 제출</a>
+                  <a th:unless="${resultSubmitMatchIds.contains(entry.matchId)}" th:href="@{/mypage/matches/{matchId}/result-form(matchId=${entry.matchId})}" class="mypage-result-view-link inline-flex h-9 shrink-0 items-center justify-center self-start rounded-lg border border-line-strong px-3 text-xs font-bold text-ink-2 hover:border-match hover:text-match-ink sm:self-center">경기 결과 보기</a>
                 </div>
               </article>
             </div>
