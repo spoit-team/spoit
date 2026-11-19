@@ -30,6 +30,7 @@
 | `20261112-club-demo-data.sql` | 동호회 시연 데이터: 축구+풋살 동호회 10개(시연 2개 포함), 회원 76명(비밀번호 `spoit1234`), 지난 동호회 경기 50개와 레이팅 이력 500행, 11/29 매칭방 2개와 동호회 팀 신청 10행. `scripts/club-demo-data.py`가 만든 파일이며 여러 번 실행해도 안전함. `20261112-club-single-region.sql` 다음에 적용. [동호회 시연 데이터](#동호회-시연-데이터-20261112) 참고 | 파일 끝 확인 질의에서 `club_demo_users` 76, `club_demo_clubs` 10, `past_matches` 50, `history_rows` 500, `team_applications` 10, `rating_mismatches` 0이면 적용됨 |
 | `20261113-club-existing-data.sql` | 기존 동호회 데이터: seed 동호회 14곳에 새 회원 62명(비밀번호 `spoit1234`), 지난 동호회 경기 42개와 레이팅 이력 204행, 예정 매칭방 14개와 동호회 팀 신청 34행, seed·HY 님 데이터 동호회 28곳의 소개 글. `scripts/club-demo-data.py`가 만든 파일이며 여러 번 실행해도 안전함. `20261112-club-demo-data.sql` 다음에 적용. [동호회 시연 데이터](#동호회-시연-데이터-20261112) 참고 | 파일 끝 확인 질의에서 `new_users` 62, `new_members` 62, `past_matches` 42, `history_rows` 204, `team_applications` 34, `new_intros` 28, `rating_mismatches` 0이면 적용됨 |
 | `20261119-rating-demo-scenario.sql` | 레이팅 시연 시나리오: 시연 계정 7명(`demo.leader`·`demo.m1~m5`·`demo.member` `@spoit.test`), 동호회 `송파 토요 풋살회`, 결과 입력용 경기 1개(실행 1시간 전 종료, B팀장 제출 완료). **리허설 직전마다·시연 당일 아침에 다시 실행**하며 여러 번 실행해도 안전함. [레이팅 시연 시나리오](#레이팅-시연-시나리오-20261119) 참고 | 파일 끝 확인 질의에서 레이팅 1180·1130·1060·1050·1010·960·890(모두 5경기), `avg_a` 1000, `avg_b` 1100이면 적용됨 |
+| `20261119-match-skill-to-tier.sql` | 매칭방 실력 조건을 추천 티어로 변경: `social_match.required_skill`의 초급→브론즈, 중급→골드, 고급→다이아. 데이터만 바꾸고 여러 번 실행해도 안전함. 예전 값이 들어 있는 시연 데이터 파일(20261111·20261112·20261113)을 다시 실행했다면 이 파일도 다시 실행. `spoit_mat_test`에는 필요 없음 | 파일 끝 확인 질의에서 `rooms_with_old_skill` 0이면 적용됨 |
 
 ## 적용할 DB
 

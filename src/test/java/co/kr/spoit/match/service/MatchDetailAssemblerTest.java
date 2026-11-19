@@ -199,7 +199,7 @@ class MatchDetailAssemblerTest {
         row.setTeamACapacity(2);
         row.setTeamBCapacity(2);
         row.setFeePerPerson(new BigDecimal("5000"));
-        row.setRequiredSkill("초급");
+        row.setRequiredSkill("브론즈");
         row.setStatus(status);
         row.setCaptainAParticipantId(1L);
         return row;

@@ -35,7 +35,7 @@ public class RoomForm {
 
     private Integer feePerPerson;
 
-    /** social_match.required_skill 값(초급·중급·고급) */
+    /** social_match.required_skill 값(브론즈·실버·골드·플래티넘·다이아 중 추천 티어) */
     private String requiredSkill;
 
     /** 시설 사진(선택). 수정 때 비어 있으면 기존 사진을 유지한다. */

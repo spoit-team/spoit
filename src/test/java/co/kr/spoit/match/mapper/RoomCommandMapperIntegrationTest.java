@@ -120,7 +120,7 @@ class RoomCommandMapperIntegrationTest {
                 .startAt(LocalDateTime.of(2026, 12, 1, 10, 0))
                 .endAt(LocalDateTime.of(2026, 12, 1, 12, 0))
                 .minParticipants(2).maxParticipants(4).teamACapacity(2).teamBCapacity(2)
-                .feePerPerson(5000).requiredSkill("초급").status("모집 중")
+                .feePerPerson(5000).requiredSkill("브론즈").status("모집 중")
                 .build();
         roomCommandMapper.insertRoom(create);
         assertThat(create.getMatchId()).isNotNull();
@@ -134,7 +134,7 @@ class RoomCommandMapperIntegrationTest {
         RoomCommand details = RoomCommand.builder()
                 .matchId(create.getMatchId())
                 .title("이름 변경").minParticipants(3).maxParticipants(6).teamACapacity(3).teamBCapacity(3)
-                .feePerPerson(7000).requiredSkill("고급")
+                .feePerPerson(7000).requiredSkill("다이아")
                 .build();
         assertThat(roomCommandMapper.updateRoomDetails(details)).isEqualTo(1);
         Map<String, Object> detailed = row(create.getMatchId());
@@ -148,7 +148,7 @@ class RoomCommandMapperIntegrationTest {
                 .startAt(LocalDateTime.of(2026, 12, 2, 20, 0))
                 .endAt(LocalDateTime.of(2026, 12, 2, 22, 0))
                 .minParticipants(2).maxParticipants(8).teamACapacity(4).teamBCapacity(4)
-                .feePerPerson(0).requiredSkill("중급")
+                .feePerPerson(0).requiredSkill("골드")
                 .build();
         assertThat(roomCommandMapper.updateRoom(full)).isEqualTo(1);
         Map<String, Object> moved = row(create.getMatchId());
