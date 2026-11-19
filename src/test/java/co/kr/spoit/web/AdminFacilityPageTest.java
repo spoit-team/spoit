@@ -205,7 +205,7 @@ class AdminFacilityPageTest {
     @DisplayName("수정 가능한 방에만 수정·취소 버튼을 두고, 모달은 시설별 종목·실력 수준을 렌더링한다")
     void rendersRoomEditAndCancelActions() throws Exception {
         RoomManagementPage.Edit edit = new RoomManagementPage.Edit(10L, 3L, "토요 풋살", "2026-11-08",
-                "10:00,11:00", 3, 9000, "중급", 2);
+                "10:00,11:00", 3, 9000, "골드", 2);
         RoomManagementPage page = RoomManagementPage.of(
                 List.of(new RoomManagementPage.Match(501L, "토요 풋살", "테스트 체육관", "풋살",
                                 "2 / 6명", "2026-11-08(일) 10:00~12:00", "모집 중", "good", edit),

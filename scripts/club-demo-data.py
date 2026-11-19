@@ -584,13 +584,13 @@ def main():
     for m in matches:
         v = fac_var[m['facility'][0]]
         rows.append(['(@cd_sm + %d)' % m['no'], v, '@cd_s', v + '_mgr', q(m['title']), q(dt(m['start'])), q(dt(m['end'])),
-                     '10', '10', '5', '5', '0', q('중급'), q('종료'), q('/images/matches/soccer.jpg'), q('MANUAL'), v + '_mgr',
+                     '10', '10', '5', '5', '0', q('골드'), q('종료'), q('/images/matches/soccer.jpg'), q('MANUAL'), v + '_mgr',
                      q(dt(m['start'] - timedelta(hours=1))), q('CONFIRMED'), q(m['result']), q(dt(m['result_at'])),
                      q('APPLIED'), q(dt(m['rated_at']))])
     for r in rooms:
         rows.append(['(@cd_sm + %d)' % r['no'], demo_fac, '@cd_s', demo_fac + '_mgr', q(r['title']),
                      q('%s %s:00' % (ROOM_DAY, r['start'])), q('%s %s:00' % (ROOM_DAY, r['end'])), '10', '10', '5', '5', '0',
-                     q('중급'), q('모집 중'), q('/images/matches/soccer.jpg'), q('MANUAL'), 'NULL', 'NULL', 'NULL', 'NULL', 'NULL',
+                     q('골드'), q('모집 중'), q('/images/matches/soccer.jpg'), q('MANUAL'), 'NULL', 'NULL', 'NULL', 'NULL', 'NULL',
                      q('WAITING'), 'NULL'])
     w(union(rows, ['match_id', 'facility_id', 'sport_id', 'created_by', 'title', 'start_at', 'end_at', 'min_participants',
                    'max_participants', 'team_a_capacity', 'team_b_capacity', 'fee_per_person', 'required_skill', 'status',
@@ -1286,7 +1286,7 @@ def main_existing(used_names):
         v = fac_var[m['facility'][0]]
         n = str(m['size'] * 2)
         rows.append(['(@cx_sm + %d)' % m['no'], v, EX_SPORT_VAR[m['sport']], v + '_mgr', q(m['title']), q(dt(m['start'])),
-                     q(dt(m['end'])), n, n, str(m['size']), str(m['size']), '0', q('중급'), q('종료'),
+                     q(dt(m['end'])), n, n, str(m['size']), str(m['size']), '0', q('골드'), q('종료'),
                      q('/images/matches/%s.jpg' % SPORT_PHOTO[m['sport']]), q('MANUAL'), v + '_mgr',
                      q(dt(m['start'] - timedelta(hours=1))), q('CONFIRMED'), q(m['result']), q(dt(m['result_at'])),
                      q('APPLIED'), q(dt(m['rated_at']))])
@@ -1294,7 +1294,7 @@ def main_existing(used_names):
         v = fac_var[r['facility'][0]]
         n = str(r['size'] * 2)
         rows.append(['(@cx_sm + %d)' % r['no'], v, EX_SPORT_VAR[r['sport']], v + '_mgr', q(r['title']), q(dt(r['start'])),
-                     q(dt(r['end'])), n, n, str(r['size']), str(r['size']), '0', q('중급'), q('모집 중'),
+                     q(dt(r['end'])), n, n, str(r['size']), str(r['size']), '0', q('골드'), q('모집 중'),
                      q('/images/matches/%s.jpg' % SPORT_PHOTO[r['sport']]), q('MANUAL'), 'NULL', 'NULL', 'NULL', 'NULL',
                      'NULL', q('WAITING'), 'NULL'])
     w(ex_union(rows, ['match_id', 'facility_id', 'sport_id', 'created_by', 'title', 'start_at', 'end_at', 'min_participants',

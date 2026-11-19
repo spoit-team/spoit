@@ -193,7 +193,7 @@ class MatchTeamPageRenderTest {
         row.setMinParticipants(4);
         row.setMaxParticipants(8);
         row.setFeePerPerson(new BigDecimal("5000"));
-        row.setRequiredSkill("초급");
+        row.setRequiredSkill("브론즈");
         row.setStatus("모집 중");
         row.setTeamACapacity(4);
         row.setTeamBCapacity(4);
@@ -229,7 +229,7 @@ class MatchTeamPageRenderTest {
                 .match(JoinMatch.builder()
                         .matchId(MATCH_ID).title("저녁 배드민턴").sportName("배드민턴").statusLabel("모집 중")
                         .facilityName("강남 스포츠센터").dateLabel("내일").time("19:00~21:00").place("강남")
-                        .levelLabel("초급").feeText("5,000").capacityLabel("0 / 8명").maxParticipants(8)
+                        .levelLabel("브론즈").feeText("5,000").capacityLabel("0 / 8명").maxParticipants(8)
                         .remainingLabel("남은 자리 8명").build())
                 .selection(new Selection("팀 신청 · 스매시클럽", "회원", "010-0000-0000", "team", 3,
                         List.of(new Person("회원", "신청 대표"), new Person("박민수", "동호회장"), new Person("이서연", "팀원")),

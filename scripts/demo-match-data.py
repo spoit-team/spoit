@@ -363,30 +363,30 @@ def fill(room, confirmed=0, waiting=0, team=None, past=False):
         add_individual(room, u, '대기', past)
 
 
-SKILLS = ['초급', '중급', '중급', '고급']
+SKILLS = ['브론즈', '골드', '골드', '다이아']
 for di, day in enumerate(FUTURE_DAYS):
     weekend = day.weekday() >= 5
     sk = lambda: RNG.choice(SKILLS)
     if not weekend:
-        fill(add_room(day, 'futsal', 'A', di, 19, 21, 5, 0, '중급'), confirmed=10)
+        fill(add_room(day, 'futsal', 'A', di, 19, 21, 5, 0, '골드'), confirmed=10)
         add_room(day, 'futsal', 'B', di, 20, 22, 6, 8000, sk())
         fill(add_room(day, 'tennis', 'A', di, 18, 20, 2, 0, sk()), confirmed=4)
-        add_room(day, 'tennis', 'B', di, 19, 21, 2, 4000, '초급')
-        fill(add_room(day, 'badminton', 'A', di, 18, 20, 2, 0, '초급'), confirmed=2, waiting=1)
+        add_room(day, 'tennis', 'B', di, 19, 21, 2, 4000, '브론즈')
+        fill(add_room(day, 'badminton', 'A', di, 18, 20, 2, 0, '브론즈'), confirmed=2, waiting=1)
         add_room(day, 'badminton', 'B', di, 18, 20, 2, 5000, sk())
         fill(add_room(day, 'basketball', 'A', di, 18, 20, 3, 0, sk()), confirmed=6)
-        fill(add_room(day, 'basketball', 'B', di, 18, 20, 4, 0, '초급'), confirmed=5, waiting=2)
-        fill(add_room(day, 'jokgu', 'A', di, 18, 20, 3, 0, '초급'), confirmed=3)
+        fill(add_room(day, 'basketball', 'B', di, 18, 20, 4, 0, '브론즈'), confirmed=5, waiting=2)
+        fill(add_room(day, 'jokgu', 'A', di, 18, 20, 3, 0, '브론즈'), confirmed=3)
     else:
-        fill(add_room(day, 'futsal', 'A', di, 10, 12, 5, 0, '중급'), confirmed=10, team=(club_of('futsal', di), 5, '확정'))
+        fill(add_room(day, 'futsal', 'A', di, 10, 12, 5, 0, '골드'), confirmed=10, team=(club_of('futsal', di), 5, '확정'))
         fill(add_room(day, 'futsal', 'B', di, 14, 16, 6, 0, sk()), confirmed=4, team=(club_of('futsal', di + 1), 3, '대기'))
         fill(add_room(day, 'tennis', 'A', di, 13, 15, 2, 0, sk()), confirmed=2, waiting=1)
         add_room(day, 'tennis', 'B', di, 10, 12, 2, 4000, sk())
-        fill(add_room(day, 'badminton', 'WA', di, 10, 12, 2, 0, '초급'), confirmed=4)
+        fill(add_room(day, 'badminton', 'WA', di, 10, 12, 2, 0, '브론즈'), confirmed=4)
         add_room(day, 'badminton', 'WB', di, 14, 16, 2, 5000, sk())
         fill(add_room(day, 'basketball', 'B', di, 14, 16, 4, 0, sk()), confirmed=2, team=(club_of('basketball', di), 4, '대기'))
         add_room(day, 'basketball', 'A', di, 10, 12, 3, 6000, sk())
-        fill(add_room(day, 'jokgu', 'A', di, 10, 12, 3, 0, '초급'), confirmed=6)
+        fill(add_room(day, 'jokgu', 'A', di, 10, 12, 3, 0, '브론즈'), confirmed=6)
 
 # 지난 경기: 결과·평가까지 넣고 레이팅은 앱 스케줄러가 마감 처리로 반영한다.
 PAST_PLAN = ['futsal', 'tennis', 'badminton', 'basketball', 'jokgu']
