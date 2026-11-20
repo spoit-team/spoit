@@ -4,13 +4,13 @@
 -- 실행: mysql --default-character-set=utf8mb4 <DB명> < db/seed.sql
 -- 규칙
 --   * 모든 테이블에 명시 ID로 결정적 데이터를 넣는다. 단일 트랜잭션이며 FK 검사를 켠 상태로 실행한다.
---   * 회원 54명(요구 18*3), 나머지 테이블은 기존 시드의 5배 이상을 목표로 한다.
+--   * 회원 55명(기존 회원 54명과 활동 없는 로컬 계정 1명), 나머지 테이블은 기존 시드의 5배 이상을 목표로 한다.
 --   * 종목은 테니스(1)·축구+풋살(2)·족구(3)·농구(4)·배드민턴(5) 5개만 둔다. 시드의 나머지 종목
 --     데이터는 매핑표(1·2→2, 3→4, 4→5, 5·6·10·11·12·20→1, 7·16…19→5, 8·21…25→3, 9·13…15→4)로
 --     통합했고, 종목명 텍스트도 지원 5종으로 바꿨다.
 --   * 데모 계정 3개(player@spoit.test / facility@spoit.test / admin@spoit.test)의 신원과
 --     기존 BCrypt 해시를 그대로 유지한다. 신규 계정 36개는 같은 개발용 비밀번호의
---     새 BCrypt 해시를 쓴다(총 54개 해시 모두 salt가 다르다). 평문 비밀번호는 저장하지 않는다.
+--     새 BCrypt 해시를 쓴다(총 55개 해시 모두 salt가 다르다). 평문 비밀번호는 저장하지 않는다.
 --   * 매칭은 운영 규칙(요일·개장~폐장) 안에서만 잡고, 같은 시설·같은 날짜의 동시 매칭 수는
 --     facility.concurrent_match_limit 이하로 둔다. 코트 ID 컬럼은 스키마에 없으므로
 --     같은 시각의 여러 행이 곧 여러 코트를 뜻한다(별도 필드를 만들지 않는다).
@@ -80,7 +80,8 @@ INSERT INTO app_user (user_id, email, password_hash, nickname, phone, role, crea
   (51, 'haneul.bong@example.com', '$2a$10$cfeOQJVhkLTZa3FLjFn5fOaMXqzGcemnFuMzn80hi4aNJ8qVo0Bt2', '봉하늘', '010-4000-0051', 'MEMBER', '2026-10-12 11:55:00'),
   (52, 'seonwoo.yook@example.com', '$2a$10$kJadsHIJ19uENrIaTC52v.kzDpXtTrQ8sN5gYmrlz.RkypWJlVG.2', '육선우', '010-4000-0052', 'MEMBER', '2026-10-15 15:40:00'),
   (53, 'minjae.ji@example.com', '$2a$10$laG8ESWrMfzViZLo0S9UweuJdarzOlMnNuViwewU6Knewx3/HgzXa', '지민재', '010-4000-0053', 'MEMBER', '2026-10-18 08:15:00'),
-  (54, 'sua.maeng@example.com', '$2a$10$ueVAls1UYU19rduv562ujOwp5EG/A4oAVDkIF3/0JStqT2Qt3Bvoe', '맹수아', '010-4000-0054', 'MEMBER', '2026-10-20 17:05:00');
+  (54, 'sua.maeng@example.com', '$2a$10$ueVAls1UYU19rduv562ujOwp5EG/A4oAVDkIF3/0JStqT2Qt3Bvoe', '맹수아', '010-4000-0054', 'MEMBER', '2026-10-20 17:05:00'),
+  (55, 'player2@spoit.test', '$2a$10$jBbyI/XGpXEWLrEVz0mBw.p9uqYQy7r0znmMCkJ55UxYdQlg1wX6K', '테스트회원', '010-1000-0055', 'MEMBER', '2026-11-20 09:00:00');
 
 -- 18번 회원의 기존 '정지' 상태는 penalty(2번)의 이용 제한 종료 시각과 같은 값으로 옮긴다.
 UPDATE app_user SET penalty_time = '2026-11-05 09:00:00' WHERE user_id = 18;
