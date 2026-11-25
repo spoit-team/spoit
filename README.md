@@ -162,7 +162,7 @@ spoit/
 
 | 이름   | GitHub                                           | 담당                        |
 | ------ | ------------------------------------------------ | --------------------------- |
-| 김혜율 | [@HyeyulKim](https://github.com/HyeyulKim)       | 팀장, 예약(RES-01~06), 배포 |
-| 권남진 | [@skawls622](https://github.com/skawls622)       |                             |
-| 박기환 | [@kihuanf-cmyk](https://github.com/kihuanf-cmyk) |                             |
-| 박용민 | [@yongminp42](https://github.com/yongminp42)     |                             |
+| 김혜율 | [@HyeyulKim](https://github.com/HyeyulKim)       | 팀장, 매칭 기능 구현, 배포   |
+| 권남진 | [@skawls622](https://github.com/skawls622)       | 레이팅 기능 구현             |
+| 박기환 | [@kihuanf-cmyk](https://github.com/kihuanf-cmyk) | 동호회 기능 구현             |
+| 박용민 | [@yongminp42](https://github.com/yongminp42)     | 회원가입, 관리자 기능 구현   |
